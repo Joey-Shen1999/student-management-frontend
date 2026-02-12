@@ -1,0 +1,164 @@
+<h2>Student Profile</h2>
+
+<div style="display: flex; gap: 8px; margin-bottom: 12px;">
+  <button type="button" (click)="back()">Back</button>
+  <button type="button" (click)="save()" [disabled]="saving">
+    {{ saving ? 'Saving...' : 'Save (local)' }}
+  </button>
+</div>
+
+<div *ngIf="error" style="color: #b00020; margin-bottom: 8px;">
+  {{ error }}
+</div>
+<div *ngIf="saved" style="color: #1b5e20; margin-bottom: 8px;">
+  Saved ✓ (localStorage)
+</div>
+
+<form (ngSubmit)="save()">
+  <fieldset style="margin-bottom: 16px;">
+    <legend>Basic</legend>
+
+    <div>
+      <label>Birthday:</label>
+      <input type="date" [(ngModel)]="model.birthday" name="birthday" />
+    </div>
+
+    <div>
+      <label>Status in Canada:</label>
+      <input [(ngModel)]="model.statusInCanada" name="statusInCanada" placeholder="e.g. PR / Citizen / Study Permit" />
+    </div>
+
+    <div>
+      <label>Phone: *</label>
+      <input [(ngModel)]="model.phone" name="phone" placeholder="(xxx) xxx-xxxx" />
+    </div>
+
+    <div>
+      <label>Citizenship:</label>
+      <input [(ngModel)]="model.citizenship" name="citizenship" placeholder="e.g. Canada / China" />
+    </div>
+
+    <div>
+      <label>First Language:</label>
+      <input [(ngModel)]="model.firstLanguage" name="firstLanguage" placeholder="e.g. English / Chinese" />
+    </div>
+
+    <div>
+      <label>First Boarding Date:</label>
+      <input type="date" [(ngModel)]="model.firstBoardingDate" name="firstBoardingDate" />
+    </div>
+  </fieldset>
+
+  <fieldset style="margin-bottom: 16px;">
+    <legend>Address</legend>
+
+    <div>
+      <label>Street Address:</label>
+      <input [(ngModel)]="model.address.streetAddress" name="streetAddress" />
+    </div>
+
+    <div>
+      <label>Street Address Line 2:</label>
+      <input [(ngModel)]="model.address.streetAddressLine2" name="streetAddressLine2" />
+    </div>
+
+    <div>
+      <label>City: *</label>
+      <input [(ngModel)]="model.address.city" name="city" />
+    </div>
+
+    <div>
+      <label>State/Province:</label>
+      <input [(ngModel)]="model.address.state" name="state" placeholder="e.g. ON" />
+    </div>
+
+    <div>
+      <label>Country:</label>
+      <input [(ngModel)]="model.address.country" name="country" />
+    </div>
+
+    <div>
+      <label>Postal Code:</label>
+      <input [(ngModel)]="model.address.postal" name="postal" />
+    </div>
+  </fieldset>
+
+  <fieldset style="margin-bottom: 16px;">
+    <legend>Academic</legend>
+
+    <div>
+      <label>OEN Number (optional):</label>
+      <input [(ngModel)]="model.oenNumber" name="oenNumber" placeholder="Optional" />
+    </div>
+
+    <div>
+      <label>IB:</label>
+      <input [(ngModel)]="model.ib" name="ib" placeholder="e.g. IB DP / MYP / none" />
+    </div>
+
+    <div>
+      <label>AP:</label>
+      <input type="checkbox" [(ngModel)]="model.ap" name="ap" />
+    </div>
+
+    <div>
+      <label>Identity file note (placeholder):</label>
+      <input [(ngModel)]="model.identityFileNote" name="identityFileNote" placeholder="Later: upload file" />
+    </div>
+  </fieldset>
+
+  <fieldset style="margin-bottom: 16px;">
+    <legend>Other Courses</legend>
+
+    <button type="button" (click)="addCourse()">+ Add Course</button>
+
+    <div *ngFor="let c of model.otherCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
+      <div style="display:flex; gap:8px; justify-content: space-between;">
+        <strong>Course #{{ i + 1 }}</strong>
+        <button type="button" (click)="removeCourse(i)">Remove</button>
+      </div>
+
+      <div>
+        <label>School Type:</label>
+        <select [(ngModel)]="c.schoolType" [name]="'schoolType_' + i">
+          <option value="MAIN">MAIN</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </div>
+
+      <div>
+        <label>School Name:</label>
+        <input [(ngModel)]="c.schoolName" [name]="'schoolName_' + i" />
+      </div>
+
+      <div>
+        <label>Course Code:</label>
+        <input [(ngModel)]="c.courseCode" [name]="'courseCode_' + i" placeholder="e.g. MHF4U" />
+      </div>
+
+      <div>
+        <label>Mark:</label>
+        <input type="number" [(ngModel)]="c.mark" [name]="'mark_' + i" />
+      </div>
+
+      <div>
+        <label>Grade Level:</label>
+        <input type="number" [(ngModel)]="c.gradeLevel" [name]="'gradeLevel_' + i" placeholder="e.g. 11" />
+      </div>
+
+      <div>
+        <label>Start Date:</label>
+        <input type="date" [(ngModel)]="c.startTime" [name]="'startTime_' + i" />
+      </div>
+
+      <div>
+        <label>End Date:</label>
+        <input type="date" [(ngModel)]="c.endTime" [name]="'endTime_' + i" />
+      </div>
+    </div>
+  </fieldset>
+
+  <button type="submit" [disabled]="saving">
+    {{ saving ? 'Saving...' : 'Save' }}
+  </button>
+</form>

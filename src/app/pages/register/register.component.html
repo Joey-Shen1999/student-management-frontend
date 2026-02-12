@@ -1,0 +1,66 @@
+<div style="max-width:600px;margin:40px auto;font-family:Arial">
+  <h2>Create account</h2>
+
+  <div style="margin:12px 0;">
+    <label>Role</label>
+    <select [(ngModel)]="role" style="width:100%; padding:8px;">
+      <option value="STUDENT">Student</option>
+      <option value="TEACHER">Teacher</option>
+    </select>
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Username</label>
+    <input [(ngModel)]="username" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Password</label>
+    <input [(ngModel)]="password" type="password" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Confirm password</label>
+    <input [(ngModel)]="confirmPassword" type="password" style="width:100%; padding:8px;" />
+  </div>
+
+  @if (role === 'STUDENT') {
+    <h3 style="margin-top:18px;">Student Info</h3>
+
+    <div style="margin:12px 0;">
+      <label>First name</label>
+      <input [(ngModel)]="firstName" style="width:100%; padding:8px;" />
+    </div>
+
+    <div style="margin:12px 0;">
+      <label>Last name</label>
+      <input [(ngModel)]="lastName" style="width:100%; padding:8px;" />
+    </div>
+
+    <div style="margin:12px 0;">
+      <label>Preferred name</label>
+      <input [(ngModel)]="preferredName" style="width:100%; padding:8px;" />
+    </div>
+  } @else {
+    <h3 style="margin-top:18px;">Teacher Info</h3>
+
+    <div style="margin:12px 0;">
+      <label>Display name</label>
+      <input [(ngModel)]="displayName" style="width:100%; padding:8px;" />
+    </div>
+  }
+
+  <button (click)="submit()" [disabled]="loading"
+          style="padding:10px 14px; margin-top:12px;">
+    {{ loading ? 'Registering...' : 'Create account' }}
+  </button>
+
+  @if (error) {
+    <p style="color:red; margin-top:12px;">{{ error }}</p>
+  }
+
+  <p style="margin-top:16px;">
+    Already have an account?
+    <a routerLink="/login">Login</a>
+  </p>
+</div>

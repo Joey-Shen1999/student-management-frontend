@@ -1,0 +1,51 @@
+<form (submit)="submit($event)" style="max-width:600px;margin:40px auto;font-family:Arial">
+  <h2>Create account</h2>
+
+  <div style="margin:12px 0;">
+    <label>Username</label>
+    <input [(ngModel)]="username" name="username" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Password</label>
+    <input [(ngModel)]="password" name="password" type="password" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Confirm password</label>
+    <input [(ngModel)]="confirmPassword" name="confirmPassword" type="password" style="width:100%; padding:8px;" />
+  </div>
+
+  <h3 style="margin-top:18px;">Student Info</h3>
+
+  <div style="margin:12px 0;">
+    <label>First name</label>
+    <input [(ngModel)]="firstName" name="firstName" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Last name</label>
+    <input [(ngModel)]="lastName" name="lastName" style="width:100%; padding:8px;" />
+  </div>
+
+  <div style="margin:12px 0;">
+    <label>Preferred name</label>
+    <input [(ngModel)]="preferredName" name="preferredName" style="width:100%; padding:8px;" />
+  </div>
+
+  <button type="submit" [disabled]="loading" style="padding:10px 14px; margin-top:12px;">
+    {{ loading ? 'Registering...' : 'Create account' }}
+  </button>
+
+  @if (error) {
+    <p style="color:red; margin-top:12px;">{{ error }}</p>
+  }
+  @if (success) {
+    <p style="color:green; margin-top:12px;">{{ success }}</p>
+  }
+
+  <p style="margin-top:16px;">
+    Already have an account?
+    <a routerLink="/login">Login</a>
+  </p>
+</form>
