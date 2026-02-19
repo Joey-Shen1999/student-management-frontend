@@ -1,0 +1,61 @@
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
+
+@Component({
+  selector: 'app-teacher-dashboard',
+  standalone: true,
+  imports: [CommonModule, RouterModule],
+  template: `
+    <div style="max-width:760px;margin:40px auto;font-family:Arial">
+      <h2>Teacher Dashboard</h2>
+
+      <div style="margin:12px 0; padding:12px; border:1px solid #ddd; border-radius:8px;">
+        <div style="font-weight:bold;">Session</div>
+        <pre style="margin:8px 0 0;">{{ session | json }}</pre>
+      </div>
+
+      <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
+        <button type="button" (click)="goStudentList()" style="padding:10px 12px;">
+          Students (Coming soon)
+        </button>
+
+        <button type="button" (click)="goInvites()" style="padding:10px 12px;">
+          Teacher Invites
+        </button>
+
+        <button type="button" (click)="logout()" style="padding:10px 12px;margin-left:auto;">
+          Logout
+        </button>
+      </div>
+
+      <p style="color:#666; line-height:1.6;">
+        这里先做一个教师登录后的落点页。下一步我们可以做：
+        <br/>1) 学生列表 + 点进去看 Profile
+        <br/>2) 生成一次性邀请 Token（教师注册用）
+      </p>
+    </div>
+  `,
+})
+export class TeacherDashboardComponent {
+  session: any;
+
+  constructor(private auth: AuthService, private router: Router) {
+    this.session = this.auth.getSession();
+  }
+
+  goStudentList() {
+    // 先占位：以后做 /teacher/students
+    alert('TODO: Teacher -> Students list');
+  }
+
+  goInvites() {
+    this.router.navigate(['/teacher/invites']);
+  }
+
+  logout() {
+    this.auth.logout();
+    this.router.navigate(['/login']);
+  }
+}
