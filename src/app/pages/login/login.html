@@ -2,22 +2,48 @@
   <h2>Login</h2>
 
   <label style="display:block;margin:12px 0 6px;">Username</label>
-  <input [(ngModel)]="username" style="width:100%; padding:8px;" />
+  <input
+    [(ngModel)]="username"
+    name="username"
+    style="width:100%; padding:8px;"
+    autocomplete="username"
+    (keyup.enter)="onSubmit()"
+  />
 
   <label style="display:block;margin:12px 0 6px;">Password</label>
-  <input [(ngModel)]="password" type="password" style="width:100%; padding:8px;" />
+  <input
+    [(ngModel)]="password"
+    name="password"
+    type="password"
+    style="width:100%; padding:8px;"
+    autocomplete="current-password"
+    (keyup.enter)="onSubmit()"
+  />
 
-  <button (click)="onSubmit()" style="margin-top:14px;padding:10px 14px;width:100%;">
-    Login
+  <button
+    type="button"
+    (click)="onSubmit()"
+    [disabled]="loading"
+    style="margin-top:14px;padding:10px 14px;width:100%;"
+  >
+    {{ loading ? 'Logging in...' : 'Login' }}
   </button>
 
-  <!-- 👇 新增注册入口 -->
   <div style="margin-top:14px;text-align:center;">
     <span style="color:#666;">No account?</span>
-    <a routerLink="/register" style="margin-left:6px;text-decoration:underline;cursor:pointer;">
+    <a
+      routerLink="/register"
+      style="margin-left:6px;text-decoration:underline;cursor:pointer;"
+    >
       Create one
     </a>
   </div>
 
-  <p *ngIf="error" style="color:red; margin-top:12px;">{{ error }}</p>
+  <div *ngIf="loading" style="margin-top:12px;color:#666;">
+    Request in progress...
+  </div>
+
+  <p *ngIf="error" style="color:#b00020; margin-top:12px;">
+    {{ error }}
+  </p>
 </div>

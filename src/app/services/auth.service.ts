@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import { finalize } from 'rxjs/operators';
 
-export type UserRole = 'STUDENT' | 'TEACHER';
+export type UserRole = 'STUDENT' | 'TEACHER' | string;
 
 export interface LoginRequest {
   username: string;
@@ -23,36 +24,51 @@ export interface RegisterRequest {
   displayName?: string;
 }
 
+/**
+ * 后端当前 login 返回: { userId, role, studentId, teacherId, mustChangePassword? }
+ * 不保证返回 username，所以这里不要强制依赖 username 字段。
+ */
 export interface LoginResponse {
   userId: number;
   role: UserRole;
-  studentId?: number | null;
-  teacherId?: number | null;
+  studentId: number | null;
+  teacherId: number | null;
+
+  mustChangePassword?: boolean;
+
+  [key: string]: any;
 }
 
-// ✅ 补上：后端 /register 的返回
 export interface RegisterResponse {
   userId: number;
   role: UserRole;
-  studentId?: number | null;
-  teacherId?: number | null;
+  studentId: number | null;
+  teacherId: number | null;
+  [key: string]: any;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  // ✅ 关键：用相对路径，走同域名的 nginx 反代
   private readonly baseUrl = '/api/auth';
   private readonly sessionKey = 'sm_session';
 
   constructor(private http: HttpClient) {}
 
   login(req: LoginRequest): Observable<LoginResponse> {
+
     return this.http.post<LoginResponse>(`${this.baseUrl}/login`, req).pipe(
-      tap((resp) => this.saveSession(resp))
+      tap({
+        next: (resp) => {
+          this.saveSession(resp);
+        },
+        error: (err) => {
+        },
+      }),
+      finalize(() => {
+      })
     );
   }
 
-  // ✅ 改成返回 RegisterResponse
   register(req: RegisterRequest): Observable<RegisterResponse> {
     return this.http.post<RegisterResponse>(`${this.baseUrl}/register`, req);
   }
@@ -73,5 +89,9 @@ export class AuthService {
 
   logout() {
     localStorage.removeItem(this.sessionKey);
+  }
+
+  mustChangePassword(): boolean {
+    return !!this.getSession()?.mustChangePassword;
   }
 }
