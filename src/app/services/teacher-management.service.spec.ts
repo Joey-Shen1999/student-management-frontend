@@ -50,4 +50,14 @@ describe('TeacherManagementService', () => {
     expect(req.request.body).toEqual({});
     req.flush({ username: 'teacher12', tempPassword: 'A1b2C3d4' });
   });
+
+  it('updateTeacherRole should call PATCH /api/teacher/accounts/{id}/role', () => {
+    service.updateTeacherRole(12, 'ADMIN').subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/accounts/12/role');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.headers.get('X-User-Id')).toBe('9001');
+    expect(req.request.body).toEqual({ role: 'ADMIN' });
+    req.flush({ teacherId: 12, username: 'teacher12', role: 'ADMIN' });
+  });
 });

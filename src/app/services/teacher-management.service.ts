@@ -8,6 +8,7 @@ export interface TeacherAccount {
   userId?: number;
   id?: number;
   username: string;
+  role?: 'TEACHER' | 'ADMIN' | string;
   displayName?: string;
   firstName?: string;
   lastName?: string;
@@ -20,6 +21,16 @@ export interface ResetTeacherPasswordResponse {
   teacherId?: number;
   username?: string;
   tempPassword: string;
+  message?: string;
+  [key: string]: any;
+}
+
+export type TeacherRole = 'TEACHER' | 'ADMIN';
+
+export interface UpdateTeacherRoleResponse {
+  teacherId?: number;
+  username?: string;
+  role?: TeacherRole | string;
   message?: string;
   [key: string]: any;
 }
@@ -44,6 +55,14 @@ export class TeacherManagementService {
     return this.http.post<ResetTeacherPasswordResponse>(
       `${this.baseUrl}/${teacherId}/reset-password`,
       {},
+      { headers: this.buildManagementHeaders() }
+    );
+  }
+
+  updateTeacherRole(teacherId: number, role: TeacherRole): Observable<UpdateTeacherRoleResponse> {
+    return this.http.patch<UpdateTeacherRoleResponse>(
+      `${this.baseUrl}/${teacherId}/role`,
+      { role },
       { headers: this.buildManagementHeaders() }
     );
   }

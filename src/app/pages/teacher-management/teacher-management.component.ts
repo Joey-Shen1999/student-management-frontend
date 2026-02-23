@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -7,13 +7,21 @@ import { finalize } from 'rxjs/operators';
 import {
   ResetTeacherPasswordResponse,
   TeacherAccount,
+  TeacherRole,
   TeacherManagementService,
+  UpdateTeacherRoleResponse,
 } from '../../services/teacher-management.service';
 
 interface PasswordResetResult {
   teacherId: number;
   username: string;
   tempPassword: string;
+}
+
+interface RoleUpdateResult {
+  teacherId: number;
+  username: string;
+  role: TeacherRole;
 }
 
 @Component({
@@ -53,6 +61,7 @@ interface PasswordResetResult {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Username</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Role</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Actions</th>
             </tr>
           </thead>
@@ -62,22 +71,64 @@ interface PasswordResetResult {
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ teacher.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(teacher) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ teacher.email || '-' }}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayRole(teacher) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
-                <button
-                  type="button"
-                  (click)="resetPassword(teacher)"
-                  [disabled]="!resolveTeacherId(teacher) || resettingTeacherId === resolveTeacherId(teacher)"
-                >
-                  {{
-                    resettingTeacherId === resolveTeacherId(teacher)
-                      ? 'Resetting...'
-                      : 'Reset to 8-char Temp Password'
-                  }}
-                </button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <label
+                    style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;"
+                    [style.opacity]="roleUpdatingTeacherId === resolveTeacherId(teacher) ? '0.7' : '1'"
+                  >
+                    <input
+                      type="checkbox"
+                      [checked]="isAdminRole(teacher)"
+                      (change)="toggleAdminRole(teacher)"
+                      [disabled]="!resolveTeacherId(teacher) || roleUpdatingTeacherId === resolveTeacherId(teacher)"
+                      style="display:none;"
+                    />
+
+                    <span
+                      style="position:relative;width:44px;height:24px;border-radius:999px;transition:all 0.2s ease;display:inline-block;"
+                      [style.background]="
+                        roleUpdatingTeacherId === resolveTeacherId(teacher)
+                          ? '#bdbdbd'
+                          : isAdminRole(teacher)
+                            ? '#19a34a'
+                            : '#c62828'
+                      "
+                    >
+                      <span
+                        style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.25);"
+                        [style.transform]="isAdminRole(teacher) ? 'translateX(20px)' : 'translateX(0)'"
+                      ></span>
+                    </span>
+
+                    <span style="font-size:12px;color:#444;">
+                      {{
+                        roleUpdatingTeacherId === resolveTeacherId(teacher)
+                          ? 'Saving...'
+                          : isAdminRole(teacher)
+                            ? 'ADMIN'
+                            : 'TEACHER'
+                      }}
+                    </span>
+                  </label>
+
+                  <button
+                    type="button"
+                    (click)="resetPassword(teacher)"
+                    [disabled]="!resolveTeacherId(teacher) || resettingTeacherId === resolveTeacherId(teacher)"
+                  >
+                    {{
+                      resettingTeacherId === resolveTeacherId(teacher)
+                        ? 'Resetting...'
+                        : 'Reset to 8-char Temp Password'
+                    }}
+                  </button>
+                </div>
               </td>
             </tr>
             <tr *ngIf="!loadingList && teachers.length === 0">
-              <td colspan="5" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
+              <td colspan="6" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
             </tr>
           </tbody>
         </table>
@@ -88,6 +139,15 @@ interface PasswordResetResult {
         style="margin-top:14px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;"
       >
         {{ actionError }}
+      </div>
+
+      <div
+        *ngIf="roleResult"
+        style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
+      >
+        <div style="font-weight:bold;">Role updated successfully</div>
+        <div style="margin-top:8px;"><b>Teacher:</b> {{ roleResult.username }}</div>
+        <div style="margin-top:8px;"><b>New Role:</b> {{ roleResult.role }}</div>
       </div>
 
       <div
@@ -115,10 +175,16 @@ export class TeacherManagementComponent implements OnInit {
   listError = '';
 
   resettingTeacherId: number | null = null;
+  roleUpdatingTeacherId: number | null = null;
+  roleTarget: TeacherRole | null = null;
   actionError = '';
   resetResult: PasswordResetResult | null = null;
+  roleResult: RoleUpdateResult | null = null;
 
-  constructor(private teacherApi: TeacherManagementService) {}
+  constructor(
+    private teacherApi: TeacherManagementService,
+    private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.loadTeachers();
@@ -143,17 +209,25 @@ export class TeacherManagementComponent implements OnInit {
   loadTeachers(): void {
     this.loadingList = true;
     this.listError = '';
+    this.cdr.detectChanges();
 
     this.teacherApi
       .listTeachers()
-      .pipe(finalize(() => (this.loadingList = false)))
+      .pipe(
+        finalize(() => {
+          this.loadingList = false;
+          this.cdr.detectChanges();
+        })
+      )
       .subscribe({
         next: (payload) => {
           this.teachers = this.normalizeTeacherList(payload);
+          this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
           this.listError = this.extractErrorMessage(err) || 'Failed to load teacher list.';
           this.teachers = [];
+          this.cdr.detectChanges();
         },
       });
   }
@@ -162,20 +236,29 @@ export class TeacherManagementComponent implements OnInit {
     const teacherId = this.resolveTeacherId(teacher);
     if (!teacherId) {
       this.actionError = 'Missing teacher id, unable to reset password.';
+      this.cdr.detectChanges();
       return;
     }
 
     this.actionError = '';
     this.resetResult = null;
+    this.roleResult = null;
     this.resettingTeacherId = teacherId;
+    this.cdr.detectChanges();
 
     this.teacherApi
       .resetTeacherPassword(teacherId)
-      .pipe(finalize(() => (this.resettingTeacherId = null)))
+      .pipe(
+        finalize(() => {
+          this.resettingTeacherId = null;
+          this.cdr.detectChanges();
+        })
+      )
       .subscribe({
         next: (resp: ResetTeacherPasswordResponse) => {
           if (!resp?.tempPassword) {
             this.actionError = 'Reset succeeded but temp password is missing in response.';
+            this.cdr.detectChanges();
             return;
           }
 
@@ -184,11 +267,60 @@ export class TeacherManagementComponent implements OnInit {
             username: resp.username || teacher.username || `#${teacherId}`,
             tempPassword: resp.tempPassword,
           };
+          this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
           this.actionError = this.extractErrorMessage(err) || 'Failed to reset password.';
+          this.cdr.detectChanges();
         },
       });
+  }
+
+  setRole(teacher: TeacherAccount, targetRole: TeacherRole): void {
+    const teacherId = this.resolveTeacherId(teacher);
+    if (!teacherId) {
+      this.actionError = 'Missing teacher id, unable to update role.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.actionError = '';
+    this.resetResult = null;
+    this.roleResult = null;
+    this.roleUpdatingTeacherId = teacherId;
+    this.roleTarget = targetRole;
+    this.cdr.detectChanges();
+
+    this.teacherApi
+      .updateTeacherRole(teacherId, targetRole)
+      .pipe(
+        finalize(() => {
+          this.roleUpdatingTeacherId = null;
+          this.roleTarget = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp: UpdateTeacherRoleResponse) => {
+          const resolvedRole = this.normalizeRole(resp?.role) || targetRole;
+          teacher.role = resolvedRole;
+          this.roleResult = {
+            teacherId,
+            username: resp.username || teacher.username || `#${teacherId}`,
+            role: resolvedRole,
+          };
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.actionError = this.extractRoleUpdateErrorMessage(err) || 'Failed to update role.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  toggleAdminRole(teacher: TeacherAccount): void {
+    const targetRole: TeacherRole = this.isAdminRole(teacher) ? 'TEACHER' : 'ADMIN';
+    this.setRole(teacher, targetRole);
   }
 
   private normalizeTeacherList(
@@ -217,5 +349,49 @@ export class TeacherManagementComponent implements OnInit {
     }
 
     return err?.message || '';
+  }
+
+  displayRole(teacher: TeacherAccount): string {
+    return this.normalizeRole(teacher.role) || '-';
+  }
+
+  isAdminRole(teacher: TeacherAccount): boolean {
+    return this.normalizeRole(teacher.role) === 'ADMIN';
+  }
+
+  private normalizeRole(role: unknown): TeacherRole | null {
+    const normalized = String(role || '').toUpperCase();
+    return normalized === 'ADMIN' || normalized === 'TEACHER' ? normalized : null;
+  }
+
+  private extractRoleUpdateErrorMessage(err: HttpErrorResponse): string {
+    const status = err?.status;
+    const code = this.extractErrorCode(err);
+
+    if (status === 404 && !code) {
+      return 'Backend role switch API is not available yet. Please implement PATCH /api/teacher/accounts/{teacherId}/role.';
+    }
+
+    if (status === 404 && code === 'NOT_FOUND') {
+      return this.extractErrorMessage(err) || 'Teacher account not found.';
+    }
+
+    return this.extractErrorMessage(err);
+  }
+
+  private extractErrorCode(err: HttpErrorResponse): string {
+    const payload = err?.error;
+    if (payload && typeof payload === 'object') {
+      return String((payload as any).code || '');
+    }
+    if (typeof payload === 'string') {
+      try {
+        const parsed = JSON.parse(payload);
+        return String(parsed?.code || '');
+      } catch {
+        return '';
+      }
+    }
+    return '';
   }
 }
