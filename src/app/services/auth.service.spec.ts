@@ -74,6 +74,22 @@ describe('AuthService', () => {
     expect(updated?.mustChangePassword).toBe(false);
   });
 
+  it('markMustChangePasswordRequired should set mustChangePassword to true in session', () => {
+    const initial: LoginResponse = {
+      userId: 6,
+      role: 'ADMIN',
+      studentId: null,
+      teacherId: null,
+      mustChangePassword: false,
+    };
+    localStorage.setItem('sm_session', JSON.stringify(initial));
+
+    service.markMustChangePasswordRequired();
+
+    const updated = service.getSession();
+    expect(updated?.mustChangePassword).toBe(true);
+  });
+
   it('mustChangePassword should reflect current session state', () => {
     expect(service.mustChangePassword()).toBe(false);
 

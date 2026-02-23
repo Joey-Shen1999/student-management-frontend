@@ -86,6 +86,13 @@ export class AuthService {
     this.saveSession({ ...session, mustChangePassword: false });
   }
 
+  markMustChangePasswordRequired(): void {
+    const session = this.getSession();
+    if (!session) return;
+
+    this.saveSession({ ...session, mustChangePassword: true });
+  }
+
   private saveSession(session: LoginResponse) {
     localStorage.setItem(this.sessionKey, JSON.stringify(session));
   }
