@@ -9,6 +9,15 @@
   <div style="margin:12px 0;">
     <label>Password</label>
     <input [(ngModel)]="password" name="password" type="password" style="width:100%; padding:8px;" />
+    <div style="margin-top:8px; padding:10px; border:1px solid #e2e2e2; border-radius:6px; background:#fafafa;">
+      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">Password requirements</div>
+      <div *ngFor="let check of passwordChecks" style="font-size:13px; line-height:1.5;">
+        <span [style.color]="check.pass ? '#0b6b0b' : '#b00020'">
+          {{ check.pass ? '\u2713' : '\u2717' }}
+        </span>
+        {{ check.label }}
+      </div>
+    </div>
   </div>
 
   <div style="margin:12px 0;">

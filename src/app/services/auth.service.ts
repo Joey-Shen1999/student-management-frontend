@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
-import { finalize } from 'rxjs/operators';
 
 export type UserRole = 'STUDENT' | 'TEACHER' | string;
 
@@ -31,6 +30,7 @@ export interface RegisterRequest {
 export interface LoginResponse {
   userId: number;
   role: UserRole;
+  username?: string;
   studentId: number | null;
   teacherId: number | null;
 
@@ -47,6 +47,17 @@ export interface RegisterResponse {
   [key: string]: any;
 }
 
+export interface SetPasswordRequest {
+  userId: number;
+  newPassword: string;
+}
+
+export interface ApiResponse {
+  success?: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly baseUrl = '/api/auth';
@@ -55,22 +66,24 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   login(req: LoginRequest): Observable<LoginResponse> {
-
     return this.http.post<LoginResponse>(`${this.baseUrl}/login`, req).pipe(
-      tap({
-        next: (resp) => {
-          this.saveSession(resp);
-        },
-        error: (err) => {
-        },
-      }),
-      finalize(() => {
-      })
+      tap((resp) => this.saveSession(resp))
     );
   }
 
   register(req: RegisterRequest): Observable<RegisterResponse> {
     return this.http.post<RegisterResponse>(`${this.baseUrl}/register`, req);
+  }
+
+  setPassword(req: SetPasswordRequest): Observable<ApiResponse> {
+    return this.http.post<ApiResponse>(`${this.baseUrl}/set-password`, req);
+  }
+
+  clearMustChangePasswordFlag(): void {
+    const session = this.getSession();
+    if (!session) return;
+
+    this.saveSession({ ...session, mustChangePassword: false });
   }
 
   private saveSession(session: LoginResponse) {

@@ -60,7 +60,7 @@ export class Login {
 
           if (resp?.mustChangePassword) {
             this.router.navigate(['/teacher/change-password'], {
-              queryParams: { username },
+              queryParams: { userId: resp.userId },
             });
             return;
           }

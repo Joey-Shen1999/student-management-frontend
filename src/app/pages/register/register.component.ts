@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { AuthService, RegisterRequest, RegisterResponse } from '../../services/auth.service';
+import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/password-policy';
 
 @Component({
   selector: 'app-register',
@@ -28,6 +29,10 @@ export class RegisterComponent {
 
   constructor(private auth: AuthService, private router: Router) {}
 
+  get passwordChecks(): PasswordPolicyCheck[] {
+    return evaluatePasswordPolicy(this.password, this.username).checks;
+  }
+
   submit(e?: Event) {
     e?.preventDefault();
 
@@ -49,6 +54,13 @@ export class RegisterComponent {
       this.error = 'Username and password are required.';
       return;
     }
+
+    const policy = evaluatePasswordPolicy(this.password, this.username);
+    if (!policy.isValid) {
+      this.error = policy.message;
+      return;
+    }
+
     if (this.password !== this.confirmPassword) {
       this.error = 'Passwords do not match.';
       return;
