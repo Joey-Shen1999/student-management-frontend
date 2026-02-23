@@ -50,10 +50,6 @@ import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/passwor
         <p *ngIf="successMsg" style="color:#0b6b0b;margin:10px 0 0;">{{ successMsg }}</p>
         <p *ngIf="error" style="color:#b00020;margin:10px 0 0;">{{ error }}</p>
       </div>
-
-      <div style="margin-top:12px;">
-        <a routerLink="/teacher/dashboard">Back to dashboard</a>
-      </div>
     </div>
   `,
 })
