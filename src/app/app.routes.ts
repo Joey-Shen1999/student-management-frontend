@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { teacherRouteGuard } from './guards/teacher-route.guard';
+import { adminOnlyGuard } from './guards/admin-only.guard';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { Login } from './pages/login/login';
 import { RegisterComponent } from './pages/register/register.component';
@@ -30,9 +31,19 @@ export const routes: Routes = [
 
       {
         path: 'invites',
+        canActivate: [adminOnlyGuard],
         loadComponent: () =>
           import('./pages/teacher-invites/teacher-invites.component').then(
             (m) => m.TeacherInvitesComponent
+          ),
+      },
+
+      {
+        path: 'teachers',
+        canActivate: [adminOnlyGuard],
+        loadComponent: () =>
+          import('./pages/teacher-management/teacher-management.component').then(
+            (m) => m.TeacherManagementComponent
           ),
       },
 

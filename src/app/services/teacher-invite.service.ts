@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+
+import { AuthService } from './auth.service';
 
 export interface CreateTeacherInviteRequest {
   username: string;
@@ -13,13 +15,22 @@ export interface CreateTeacherInviteResponse {
 
 @Injectable({ providedIn: 'root' })
 export class TeacherInviteService {
-  private readonly baseUrl = 'http://localhost:8080/api/teacher/invites';
+  private readonly baseUrl = '/api/teacher/invites';
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private auth: AuthService
+  ) {}
 
-  // ✅ 只保留 Observable，彻底避免 toPromise 的不稳定/废弃行为
   createInvite(username: string): Observable<CreateTeacherInviteResponse> {
     const payload: CreateTeacherInviteRequest = { username };
-    return this.http.post<CreateTeacherInviteResponse>(this.baseUrl, payload);
+    return this.http.post<CreateTeacherInviteResponse>(this.baseUrl, payload, {
+      headers: this.buildManagementHeaders(),
+    });
+  }
+
+  private buildManagementHeaders(): HttpHeaders {
+    const userId = this.auth.getCurrentUserId();
+    return userId ? new HttpHeaders({ 'X-User-Id': String(userId) }) : new HttpHeaders();
   }
 }

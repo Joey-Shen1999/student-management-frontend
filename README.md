@@ -12,6 +12,12 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+If you want to run tests before starting the dev server, use:
+
+```bash
+npm run start:with-test
+```
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
@@ -42,6 +48,18 @@ To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use th
 
 ```bash
 ng test
+```
+
+For CI / one-time execution:
+
+```bash
+npm run test:ci
+```
+
+To run test + build in one command:
+
+```bash
+npm run verify
 ```
 
 ## Running end-to-end tests

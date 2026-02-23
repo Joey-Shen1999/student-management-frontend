@@ -65,7 +65,8 @@ export class Login {
             return;
           }
 
-          if ((resp?.role || '').toUpperCase() === 'TEACHER') {
+          const role = (resp?.role || '').toUpperCase();
+          if (role === 'TEACHER' || role === 'ADMIN') {
             this.router.navigate(['/teacher/dashboard']);
           } else {
             this.router.navigate(['/dashboard']);

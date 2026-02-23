@@ -90,4 +90,20 @@ describe('AuthService', () => {
 
     expect(service.mustChangePassword()).toBe(true);
   });
+
+  it('getCurrentUserId should return valid user id from session', () => {
+    expect(service.getCurrentUserId()).toBeNull();
+
+    localStorage.setItem(
+      'sm_session',
+      JSON.stringify({
+        userId: 123,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+      })
+    );
+
+    expect(service.getCurrentUserId()).toBe(123);
+  });
 });

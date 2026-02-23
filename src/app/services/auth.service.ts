@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-export type UserRole = 'STUDENT' | 'TEACHER' | string;
+export type UserRole = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
 export interface LoginRequest {
   username: string;
@@ -102,6 +102,11 @@ export class AuthService {
 
   logout() {
     localStorage.removeItem(this.sessionKey);
+  }
+
+  getCurrentUserId(): number | null {
+    const userId = this.getSession()?.userId;
+    return typeof userId === 'number' && Number.isFinite(userId) && userId > 0 ? userId : null;
   }
 
   mustChangePassword(): boolean {

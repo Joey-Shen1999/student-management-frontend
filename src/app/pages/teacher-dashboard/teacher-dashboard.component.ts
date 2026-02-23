@@ -17,11 +17,11 @@ import { AuthService } from '../../services/auth.service';
       </div>
 
       <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
-        <button type="button" (click)="goStudentList()" style="padding:10px 12px;">
-          Students (Coming soon)
+        <button *ngIf="isAdmin" type="button" (click)="goTeachers()" style="padding:10px 12px;">
+          Teacher Accounts
         </button>
 
-        <button type="button" (click)="goInvites()" style="padding:10px 12px;">
+        <button *ngIf="isAdmin" type="button" (click)="goInvites()" style="padding:10px 12px;">
           Teacher Invites
         </button>
 
@@ -30,24 +30,27 @@ import { AuthService } from '../../services/auth.service';
         </button>
       </div>
 
+      <p *ngIf="!isAdmin" style="color:#b36b00; line-height:1.6; margin-top:8px;">
+        Your account does not have management permission.
+      </p>
+
       <p style="color:#666; line-height:1.6;">
-        这里先做一个教师登录后的落点页。下一步我们可以做：
-        <br/>1) 学生列表 + 点进去看 Profile
-        <br/>2) 生成一次性邀请 Token（教师注册用）
+        Teacher management is available here for account onboarding and password recovery.
       </p>
     </div>
   `,
 })
 export class TeacherDashboardComponent {
   session: any;
+  isAdmin = false;
 
   constructor(private auth: AuthService, private router: Router) {
     this.session = this.auth.getSession();
+    this.isAdmin = (this.session?.role || '').toUpperCase() === 'ADMIN';
   }
 
-  goStudentList() {
-    // 先占位：以后做 /teacher/students
-    alert('TODO: Teacher -> Students list');
+  goTeachers() {
+    this.router.navigate(['/teacher/teachers']);
   }
 
   goInvites() {

@@ -87,4 +87,18 @@ describe('teacherRouteGuard', () => {
 
     expect(result).toBe(true);
   });
+
+  it('allows admin user into teacher module', () => {
+    getSession.mockReturnValue({
+      userId: 99,
+      role: 'ADMIN',
+      mustChangePassword: false,
+      studentId: null,
+      teacherId: null,
+    });
+
+    const result = runGuard('teachers', '/teacher/teachers');
+
+    expect(result).toBe(true);
+  });
 });

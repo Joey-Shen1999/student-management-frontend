@@ -77,6 +77,24 @@ describe('Login', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/teacher/dashboard']);
   });
 
+  it('should navigate admin user to teacher dashboard', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 9,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+        mustChangePassword: false,
+      })
+    );
+
+    component.username = 'admin1';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/teacher/dashboard']);
+  });
+
   it('should show backend error message when login fails', () => {
     (auth.login as any).mockReturnValue(
       throwError(
