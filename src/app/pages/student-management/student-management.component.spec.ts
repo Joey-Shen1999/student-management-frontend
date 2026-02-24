@@ -68,7 +68,7 @@ describe('StudentManagementComponent', () => {
     expect(component.students).toEqual([]);
   });
 
-  it('loadStudents should default to showing 20 records', () => {
+  it('loadStudents should hide inactive students by default', () => {
     const students = Array.from({ length: 30 }, (_v, index) => ({
       studentId: index + 1,
       username: `student${index + 1}`,
@@ -79,16 +79,15 @@ describe('StudentManagementComponent', () => {
     component.loadStudents();
 
     expect(component.students.length).toBe(30);
-    expect(component.filteredCount).toBe(30);
-    expect(component.visibleStudents.length).toBe(20);
+    expect(component.filteredCount).toBe(15);
+    expect(component.visibleStudents.length).toBe(15);
   });
 
-  it('applyListView should support status filter and keyword search', () => {
+  it('applyListView should hide inactive students by default and keep keyword search', () => {
     component.students = [
       { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
-      { studentId: 2, username: 'bob', displayName: 'Bob B', email: 'bob@example.com', status: 'ARCHIVED' },
+      { studentId: 2, username: 'alice_archived', displayName: 'Alice B', email: 'alice2@example.com', status: 'ARCHIVED' },
     ];
-    component.statusFilter = 'ACTIVE';
     component.searchKeyword = 'alice';
 
     component.applyListView();
@@ -96,6 +95,23 @@ describe('StudentManagementComponent', () => {
     expect(component.filteredCount).toBe(1);
     expect(component.visibleStudents).toEqual([
       { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
+    ]);
+  });
+
+  it('applyListView should include inactive students when enabled', () => {
+    component.students = [
+      { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
+      { studentId: 2, username: 'alice_archived', displayName: 'Alice B', email: 'alice2@example.com', status: 'ARCHIVED' },
+    ];
+    component.searchKeyword = 'alice';
+    component.showInactive = true;
+
+    component.applyListView();
+
+    expect(component.filteredCount).toBe(2);
+    expect(component.visibleStudents).toEqual([
+      { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
+      { studentId: 2, username: 'alice_archived', displayName: 'Alice B', email: 'alice2@example.com', status: 'ARCHIVED' },
     ]);
   });
 

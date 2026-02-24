@@ -84,19 +84,9 @@ interface StatusUpdateResult {
             </select>
           </label>
 
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Status
-            <select
-              [(ngModel)]="statusFilter"
-              (ngModelChange)="applyListView()"
-              [disabled]="loadingList"
-              style="padding:4px 6px;"
-            >
-              <option value="ALL">All</option>
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
-          </label>
+          <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
+            {{ showInactive ? 'Hide Inactive' : 'Show Inactive' }}
+          </button>
 
           <input
             type="search"
@@ -110,9 +100,7 @@ interface StatusUpdateResult {
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="
-              loadingList || (listLimit === 20 && roleFilter === 'ALL' && statusFilter === 'ALL' && !searchKeyword.trim())
-            "
+            [disabled]="loadingList || (listLimit === 20 && roleFilter === 'ALL' && !showInactive && !searchKeyword.trim())"
           >
             Clear
           </button>
@@ -325,7 +313,7 @@ export class TeacherManagementComponent implements OnInit {
   listError = '';
   listLimit = 20;
   roleFilter: 'ALL' | TeacherRole = 'ALL';
-  statusFilter: 'ALL' | TeacherAccountStatus = 'ALL';
+  showInactive = false;
   searchKeyword = '';
 
   resettingTeacherId: number | null = null;
@@ -539,8 +527,13 @@ export class TeacherManagementComponent implements OnInit {
   clearListControls(): void {
     this.listLimit = 20;
     this.roleFilter = 'ALL';
-    this.statusFilter = 'ALL';
+    this.showInactive = false;
     this.searchKeyword = '';
+    this.applyListView();
+  }
+
+  toggleInactiveVisibility(): void {
+    this.showInactive = !this.showInactive;
     this.applyListView();
   }
 
@@ -553,10 +546,8 @@ export class TeacherManagementComponent implements OnInit {
         }
       }
 
-      if (this.statusFilter !== 'ALL') {
-        if (this.resolveStatus(teacher) !== this.statusFilter) {
-          return false;
-        }
+      if (!this.showInactive && this.resolveStatus(teacher) !== 'ACTIVE') {
+        return false;
       }
 
       if (!keyword) {

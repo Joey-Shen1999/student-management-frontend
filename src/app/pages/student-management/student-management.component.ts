@@ -58,19 +58,9 @@ interface StatusUpdateResult {
         "
       >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Status
-            <select
-              [(ngModel)]="statusFilter"
-              (ngModelChange)="applyListView()"
-              [disabled]="loadingList"
-              style="padding:4px 6px;"
-            >
-              <option value="ALL">All</option>
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-            </select>
-          </label>
+          <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
+            {{ showInactive ? 'Hide Inactive' : 'Show Inactive' }}
+          </button>
 
           <input
             type="search"
@@ -84,7 +74,7 @@ interface StatusUpdateResult {
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && statusFilter === 'ALL' && !searchKeyword.trim())"
+            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim())"
           >
             Clear
           </button>
@@ -232,7 +222,7 @@ export class StudentManagementComponent implements OnInit {
   loadingList = false;
   listError = '';
   listLimit = 20;
-  statusFilter: 'ALL' | StudentAccountStatus = 'ALL';
+  showInactive = false;
   searchKeyword = '';
 
   resettingStudentId: number | null = null;
@@ -389,18 +379,21 @@ export class StudentManagementComponent implements OnInit {
 
   clearListControls(): void {
     this.listLimit = 20;
-    this.statusFilter = 'ALL';
+    this.showInactive = false;
     this.searchKeyword = '';
+    this.applyListView();
+  }
+
+  toggleInactiveVisibility(): void {
+    this.showInactive = !this.showInactive;
     this.applyListView();
   }
 
   applyListView(): void {
     const keyword = this.searchKeyword.trim().toLowerCase();
     const filtered = this.students.filter((student) => {
-      if (this.statusFilter !== 'ALL') {
-        if (this.resolveStatus(student) !== this.statusFilter) {
-          return false;
-        }
+      if (!this.showInactive && this.resolveStatus(student) !== 'ACTIVE') {
+        return false;
       }
 
       if (!keyword) {

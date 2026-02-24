@@ -115,17 +115,32 @@ describe('TeacherManagementComponent', () => {
     ]);
   });
 
-  it('applyListView should support status filter', () => {
+  it('applyListView should hide inactive teachers by default', () => {
     component.teachers = [
       { teacherId: 1, username: 'active_teacher', status: 'ACTIVE' },
       { teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' },
     ];
-    component.statusFilter = 'ARCHIVED';
 
     component.applyListView();
 
     expect(component.filteredCount).toBe(1);
-    expect(component.visibleTeachers).toEqual([{ teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' }]);
+    expect(component.visibleTeachers).toEqual([{ teacherId: 1, username: 'active_teacher', status: 'ACTIVE' }]);
+  });
+
+  it('applyListView should show inactive teachers when enabled', () => {
+    component.teachers = [
+      { teacherId: 1, username: 'active_teacher', status: 'ACTIVE' },
+      { teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' },
+    ];
+    component.showInactive = true;
+
+    component.applyListView();
+
+    expect(component.filteredCount).toBe(2);
+    expect(component.visibleTeachers).toEqual([
+      { teacherId: 1, username: 'active_teacher', status: 'ACTIVE' },
+      { teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' },
+    ]);
   });
 
   it('resetPassword should call API and expose temp password', () => {
