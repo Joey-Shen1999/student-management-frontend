@@ -8,9 +8,10 @@ export const adminOnlyGuard: CanActivateFn = () => {
   const router = inject(Router);
 
   const session = auth.getSession();
+  const hasAuthToken = !!auth.getAuthorizationHeaderValue();
   const role = (session?.role || '').toUpperCase();
 
-  if (!session) {
+  if (!session || !hasAuthToken) {
     return router.createUrlTree(['/login']);
   }
 

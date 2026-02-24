@@ -14,7 +14,14 @@ export class Dashboard {
   }
 
   logout() {
-    this.auth.logout();
-    this.router.navigate(['/login']);
+    this.auth.logout().subscribe({
+      next: () => {
+        this.router.navigate(['/login']);
+      },
+      error: () => {
+        this.auth.clearAuthState();
+        this.router.navigate(['/login']);
+      },
+    });
   }
 }

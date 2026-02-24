@@ -326,10 +326,18 @@ export class TeacherManagementComponent implements OnInit {
   private normalizeTeacherList(
     payload: TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] } | null | undefined
   ): TeacherAccount[] {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.items)) return payload.items;
-    if (Array.isArray(payload?.data)) return payload.data;
-    return [];
+    const list = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+    return list.map((teacher) => ({
+      ...teacher,
+      role: this.normalizeRole(teacher.role) || teacher.role,
+    }));
   }
 
   private extractErrorMessage(err: HttpErrorResponse): string {
@@ -368,12 +376,24 @@ export class TeacherManagementComponent implements OnInit {
     const status = err?.status;
     const code = this.extractErrorCode(err);
 
-    if (status === 404 && !code) {
-      return 'Backend role switch API is not available yet. Please implement PATCH /api/teacher/accounts/{teacherId}/role.';
+    if (status === 401) {
+      return 'Unauthenticated. Please login again.';
+    }
+
+    if (status === 403 && code === 'MUST_CHANGE_PASSWORD_REQUIRED') {
+      return 'Password change required before role management.';
+    }
+
+    if (status === 403) {
+      return this.extractErrorMessage(err) || 'Forbidden: admin role required.';
     }
 
     if (status === 404 && code === 'NOT_FOUND') {
       return this.extractErrorMessage(err) || 'Teacher account not found.';
+    }
+
+    if (status === 400 && code === 'BAD_REQUEST') {
+      return this.extractErrorMessage(err) || 'Invalid role. Expected ADMIN or TEACHER.';
     }
 
     return this.extractErrorMessage(err);

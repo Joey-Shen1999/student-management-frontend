@@ -8,10 +8,11 @@ export const teacherRouteGuard: CanActivateChildFn = (childRoute, state) => {
   const router = inject(Router);
 
   const session = auth.getSession();
+  const hasAuthToken = !!auth.getAuthorizationHeaderValue();
   const role = (session?.role || '').toUpperCase();
   const isTeacherModuleRole = role === 'TEACHER' || role === 'ADMIN';
 
-  if (!session || !isTeacherModuleRole) {
+  if (!session || !hasAuthToken || !isTeacherModuleRole) {
     return router.createUrlTree(['/login']);
   }
 

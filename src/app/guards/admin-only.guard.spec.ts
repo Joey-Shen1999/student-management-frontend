@@ -11,15 +11,18 @@ describe('adminOnlyGuard', () => {
     extras,
   }));
   const getSession = vi.fn();
+  const getAuthorizationHeaderValue = vi.fn();
 
   beforeEach(() => {
     createUrlTree.mockClear();
     getSession.mockReset();
+    getAuthorizationHeaderValue.mockReset();
+    getAuthorizationHeaderValue.mockReturnValue('Bearer token-1');
 
     TestBed.configureTestingModule({
       providers: [
         { provide: Router, useValue: { createUrlTree } },
-        { provide: AuthService, useValue: { getSession } },
+        { provide: AuthService, useValue: { getSession, getAuthorizationHeaderValue } },
       ],
     });
   });
@@ -32,6 +35,21 @@ describe('adminOnlyGuard', () => {
 
   it('redirects to login when user is unauthenticated', () => {
     getSession.mockReturnValue(null);
+
+    const result = runGuard();
+
+    expect(createUrlTree).toHaveBeenCalledWith(['/login']);
+    expect(result).toEqual({ commands: ['/login'], extras: undefined });
+  });
+
+  it('redirects to login when token is missing', () => {
+    getSession.mockReturnValue({
+      userId: 1,
+      role: 'ADMIN',
+      studentId: null,
+      teacherId: null,
+    });
+    getAuthorizationHeaderValue.mockReturnValue(null);
 
     const result = runGuard();
 

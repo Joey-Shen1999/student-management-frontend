@@ -1,4 +1,5 @@
 import { Router } from '@angular/router';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
@@ -6,13 +7,14 @@ import { DashboardComponent } from './dashboard.component';
 
 describe('DashboardComponent', () => {
   let component: DashboardComponent;
-  let auth: Pick<AuthService, 'getSession' | 'logout'>;
+  let auth: Pick<AuthService, 'getSession' | 'logout' | 'clearAuthState'>;
   let router: Pick<Router, 'navigate'>;
 
   beforeEach(() => {
     auth = {
       getSession: vi.fn().mockReturnValue({ userId: 1, role: 'STUDENT' }),
-      logout: vi.fn(),
+      logout: vi.fn().mockReturnValue(of({ success: true })),
+      clearAuthState: vi.fn(),
     };
 
     router = {

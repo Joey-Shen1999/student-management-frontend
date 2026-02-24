@@ -11,15 +11,18 @@ describe('teacherRouteGuard', () => {
     extras,
   }));
   const getSession = vi.fn();
+  const getAuthorizationHeaderValue = vi.fn();
 
   beforeEach(() => {
     createUrlTree.mockClear();
     getSession.mockReset();
+    getAuthorizationHeaderValue.mockReset();
+    getAuthorizationHeaderValue.mockReturnValue('Bearer token-1');
 
     TestBed.configureTestingModule({
       providers: [
         { provide: Router, useValue: { createUrlTree } },
-        { provide: AuthService, useValue: { getSession } },
+        { provide: AuthService, useValue: { getSession, getAuthorizationHeaderValue } },
       ],
     });
   });
@@ -33,6 +36,22 @@ describe('teacherRouteGuard', () => {
 
   it('redirects to login when there is no session', () => {
     getSession.mockReturnValue(null);
+
+    const result = runGuard('dashboard', '/teacher/dashboard');
+
+    expect(createUrlTree).toHaveBeenCalledWith(['/login']);
+    expect(result).toEqual({ commands: ['/login'], extras: undefined });
+  });
+
+  it('redirects to login when access token is missing', () => {
+    getSession.mockReturnValue({
+      userId: 12,
+      role: 'TEACHER',
+      mustChangePassword: false,
+      studentId: null,
+      teacherId: 3,
+    });
+    getAuthorizationHeaderValue.mockReturnValue(null);
 
     const result = runGuard('dashboard', '/teacher/dashboard');
 

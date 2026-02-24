@@ -32,6 +32,9 @@ describe('AuthService', () => {
       studentId: null,
       teacherId: 20,
       mustChangePassword: true,
+      accessToken: 'token-123',
+      tokenType: 'Bearer',
+      tokenExpiresAt: '2026-02-24T23:10:00.123',
     };
 
     let received: LoginResponse | undefined;
@@ -58,6 +61,76 @@ describe('AuthService', () => {
     req.flush({ success: true, message: 'ok' });
   });
 
+  it('changePassword should POST oldPassword/newPassword to change-password endpoint', () => {
+    service.changePassword({ oldPassword: 'OldPass!1', newPassword: 'NewPass!2' }).subscribe();
+
+    const req = httpMock.expectOne('/api/auth/change-password');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ oldPassword: 'OldPass!1', newPassword: 'NewPass!2' });
+    req.flush({ success: true, message: 'ok' });
+  });
+
+  it('logout should call API and clear local session on success', () => {
+    localStorage.setItem(
+      'sm_session',
+      JSON.stringify({
+        userId: 1,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+        accessToken: 'token-logout',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T23:10:00.123',
+      })
+    );
+
+    service.logout().subscribe();
+
+    const req = httpMock.expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({ success: true, message: 'Logged out.' });
+
+    expect(service.getSession()).toBeNull();
+  });
+
+  it('logout should treat 401 as local logout success and clear local session', () => {
+    localStorage.setItem(
+      'sm_session',
+      JSON.stringify({
+        userId: 1,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+        accessToken: 'token-logout',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T23:10:00.123',
+      })
+    );
+
+    let received: any;
+    let error: any;
+    service.logout().subscribe({
+      next: (resp) => {
+        received = resp;
+      },
+      error: (err) => {
+        error = err;
+      },
+    });
+
+    const req = httpMock.expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    req.flush(
+      { status: 401, message: 'Unauthenticated', code: 'UNAUTHORIZED', details: [] },
+      { status: 401, statusText: 'Unauthorized' }
+    );
+
+    expect(error).toBeUndefined();
+    expect(received).toEqual({ success: true, message: 'Logged out.' });
+    expect(service.getSession()).toBeNull();
+  });
+
   it('clearMustChangePasswordFlag should set mustChangePassword to false in session', () => {
     const initial: LoginResponse = {
       userId: 5,
@@ -65,6 +138,9 @@ describe('AuthService', () => {
       studentId: null,
       teacherId: 8,
       mustChangePassword: true,
+      accessToken: 'token-1',
+      tokenType: 'Bearer',
+      tokenExpiresAt: '2026-02-24T23:10:00.123',
     };
     localStorage.setItem('sm_session', JSON.stringify(initial));
 
@@ -81,6 +157,9 @@ describe('AuthService', () => {
       studentId: null,
       teacherId: null,
       mustChangePassword: false,
+      accessToken: 'token-2',
+      tokenType: 'Bearer',
+      tokenExpiresAt: '2026-02-24T23:10:00.123',
     };
     localStorage.setItem('sm_session', JSON.stringify(initial));
 
@@ -101,6 +180,9 @@ describe('AuthService', () => {
         studentId: null,
         teacherId: 2,
         mustChangePassword: true,
+        accessToken: 'token-3',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T23:10:00.123',
       })
     );
 
@@ -117,9 +199,29 @@ describe('AuthService', () => {
         role: 'ADMIN',
         studentId: null,
         teacherId: null,
+        accessToken: 'token-4',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T23:10:00.123',
       })
     );
 
     expect(service.getCurrentUserId()).toBe(123);
+  });
+
+  it('getAuthorizationHeaderValue should return Bearer token from session', () => {
+    localStorage.setItem(
+      'sm_session',
+      JSON.stringify({
+        userId: 123,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+        accessToken: 'token-abc',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T23:10:00.123',
+      })
+    );
+
+    expect(service.getAuthorizationHeaderValue()).toBe('Bearer token-abc');
   });
 });

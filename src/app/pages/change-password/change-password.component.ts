@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 
@@ -54,8 +54,6 @@ import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/passwor
   `,
 })
 export class ChangePasswordComponent implements OnInit {
-  userId: number | null = null;
-
   newPassword = '';
   confirmPassword = '';
 
@@ -65,8 +63,7 @@ export class ChangePasswordComponent implements OnInit {
 
   constructor(
     private auth: AuthService,
-    private router: Router,
-    private route: ActivatedRoute
+    private router: Router
   ) {}
 
   get passwordChecks(): PasswordPolicyCheck[] {
@@ -75,18 +72,9 @@ export class ChangePasswordComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const raw = this.route.snapshot.queryParamMap.get('userId');
-    const parsed = raw ? Number(raw) : NaN;
-    const sessionUserId = this.auth.getSession()?.userId;
-
-    if (Number.isFinite(parsed) && parsed > 0) {
-      this.userId = parsed;
-    } else if (typeof sessionUserId === 'number' && Number.isFinite(sessionUserId) && sessionUserId > 0) {
-      this.userId = sessionUserId;
-    }
-
-    if (!this.userId) {
-      this.error = 'Missing user id. Please login again.';
+    const authHeader = this.auth.getAuthorizationHeaderValue();
+    if (!authHeader) {
+      this.error = 'Missing login session. Please login again.';
     }
   }
 
@@ -94,8 +82,9 @@ export class ChangePasswordComponent implements OnInit {
     this.error = '';
     this.successMsg = '';
 
-    if (!this.userId) {
-      this.error = 'Invalid user.';
+    const authHeader = this.auth.getAuthorizationHeaderValue();
+    if (!authHeader) {
+      this.error = 'Missing login session. Please login again.';
       return;
     }
 
@@ -117,7 +106,6 @@ export class ChangePasswordComponent implements OnInit {
     }
 
     const payload: SetPasswordRequest = {
-      userId: this.userId,
       newPassword: this.newPassword,
     };
 

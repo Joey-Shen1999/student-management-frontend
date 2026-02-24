@@ -106,20 +106,52 @@ describe('TeacherManagementComponent', () => {
     });
   });
 
-  it('setRole should show backend-unavailable error on 404 without code', () => {
+  it('setRole should show account-not-found message on 404 NOT_FOUND', () => {
     (api.updateTeacherRole as any).mockReturnValue(
       throwError(
         () =>
           new HttpErrorResponse({
             status: 404,
-            error: { status: 404, message: 'Not Found' },
+            error: { status: 404, code: 'NOT_FOUND', message: 'Teacher account not found.' },
           })
       )
     );
 
     component.setRole({ teacherId: 77, username: 'teacher77' }, 'ADMIN');
 
-    expect(component.actionError).toContain('Backend role switch API is not available yet');
+    expect(component.actionError).toContain('Teacher account not found');
+  });
+
+  it('setRole should show no-permission message on 403 FORBIDDEN', () => {
+    (api.updateTeacherRole as any).mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 403,
+            error: { status: 403, code: 'FORBIDDEN', message: 'Forbidden: admin role required.' },
+          })
+      )
+    );
+
+    component.setRole({ teacherId: 88, username: 'teacher88' }, 'ADMIN');
+
+    expect(component.actionError).toContain('Forbidden');
+  });
+
+  it('setRole should show bad-request message on 400 BAD_REQUEST', () => {
+    (api.updateTeacherRole as any).mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: { status: 400, code: 'BAD_REQUEST', message: 'role must be ADMIN or TEACHER' },
+          })
+      )
+    );
+
+    component.setRole({ teacherId: 89, username: 'teacher89' }, 'ADMIN');
+
+    expect(component.actionError).toContain('role must be ADMIN or TEACHER');
   });
 
   it('toggleAdminRole should switch ADMIN to TEACHER', () => {

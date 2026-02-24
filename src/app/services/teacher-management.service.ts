@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+
 import { AuthService } from './auth.service';
 
 export interface TeacherAccount {
@@ -44,10 +45,23 @@ export class TeacherManagementService {
     private auth: AuthService
   ) {}
 
+  private withAuthHeaderIfAvailable() {
+    const authorization = this.auth.getAuthorizationHeaderValue();
+    if (!authorization) {
+      return {};
+    }
+
+    return {
+      headers: new HttpHeaders({
+        Authorization: authorization,
+      }),
+    };
+  }
+
   listTeachers(): Observable<TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] }> {
     return this.http.get<TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] }>(
       this.baseUrl,
-      { headers: this.buildManagementHeaders() }
+      this.withAuthHeaderIfAvailable()
     );
   }
 
@@ -55,20 +69,16 @@ export class TeacherManagementService {
     return this.http.post<ResetTeacherPasswordResponse>(
       `${this.baseUrl}/${teacherId}/reset-password`,
       {},
-      { headers: this.buildManagementHeaders() }
+      this.withAuthHeaderIfAvailable()
     );
   }
 
   updateTeacherRole(teacherId: number, role: TeacherRole): Observable<UpdateTeacherRoleResponse> {
+    const normalizedRole = String(role || '').toUpperCase() as TeacherRole;
     return this.http.patch<UpdateTeacherRoleResponse>(
       `${this.baseUrl}/${teacherId}/role`,
-      { role },
-      { headers: this.buildManagementHeaders() }
+      { role: normalizedRole },
+      this.withAuthHeaderIfAvailable()
     );
-  }
-
-  private buildManagementHeaders(): HttpHeaders {
-    const userId = this.auth.getCurrentUserId();
-    return userId ? new HttpHeaders({ 'X-User-Id': String(userId) }) : new HttpHeaders();
   }
 }

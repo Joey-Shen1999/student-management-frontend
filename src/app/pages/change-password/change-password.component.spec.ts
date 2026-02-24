@@ -1,4 +1,4 @@
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -7,15 +7,11 @@ import { ChangePasswordComponent } from './change-password.component';
 
 describe('ChangePasswordComponent', () => {
   let component: ChangePasswordComponent;
-  let auth: Pick<AuthService, 'getSession' | 'setPassword' | 'clearMustChangePasswordFlag'>;
+  let auth: Pick<
+    AuthService,
+    'getSession' | 'setPassword' | 'clearMustChangePasswordFlag' | 'getAuthorizationHeaderValue'
+  >;
   let router: Pick<Router, 'navigate'>;
-  let route: {
-    snapshot: {
-      queryParamMap: {
-        get: ReturnType<typeof vi.fn>;
-      };
-    };
-  };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -24,50 +20,28 @@ describe('ChangePasswordComponent', () => {
       getSession: vi.fn().mockReturnValue(null),
       setPassword: vi.fn(),
       clearMustChangePasswordFlag: vi.fn(),
+      getAuthorizationHeaderValue: vi.fn().mockReturnValue('Bearer token-1'),
     };
 
     router = {
       navigate: vi.fn(),
     };
 
-    route = {
-      snapshot: {
-        queryParamMap: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      },
-    };
-
-    component = new ChangePasswordComponent(
-      auth as AuthService,
-      router as Router,
-      route as unknown as ActivatedRoute
-    );
+    component = new ChangePasswordComponent(auth as AuthService, router as Router);
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('ngOnInit should use userId from query params first', () => {
-    route.snapshot.queryParamMap.get.mockReturnValue('12');
-
+  it('ngOnInit should show error when token is missing', () => {
+    (auth.getAuthorizationHeaderValue as any).mockReturnValue(null);
     component.ngOnInit();
 
-    expect(component.userId).toBe(12);
-    expect(component.error).toBe('');
-  });
-
-  it('ngOnInit should fallback to session userId when query param is missing', () => {
-    (auth.getSession as any).mockReturnValue({ userId: 88, role: 'TEACHER' });
-
-    component.ngOnInit();
-
-    expect(component.userId).toBe(88);
+    expect(component.error).toBe('Missing login session. Please login again.');
   });
 
   it('submit should block weak password before API call', () => {
-    component.userId = 1;
     component.newPassword = 'weak';
     component.confirmPassword = 'weak';
     (auth.getSession as any).mockReturnValue({ userId: 1, username: 'alice' });
@@ -79,7 +53,6 @@ describe('ChangePasswordComponent', () => {
   });
 
   it('submit should call setPassword and redirect on success', () => {
-    component.userId = 1;
     component.newPassword = 'Aa1!goodPass';
     component.confirmPassword = 'Aa1!goodPass';
     (auth.getSession as any).mockReturnValue({ userId: 1, username: 'alice' });
@@ -88,7 +61,6 @@ describe('ChangePasswordComponent', () => {
     component.submit();
 
     expect(auth.setPassword).toHaveBeenCalledWith({
-      userId: 1,
       newPassword: 'Aa1!goodPass',
     });
     expect(auth.clearMustChangePasswordFlag).toHaveBeenCalledTimes(1);

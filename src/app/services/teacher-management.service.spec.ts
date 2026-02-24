@@ -1,27 +1,18 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { vi } from 'vitest';
 
-import { AuthService } from './auth.service';
 import { TeacherManagementService } from './teacher-management.service';
 
 describe('TeacherManagementService', () => {
   let service: TeacherManagementService;
   let httpMock: HttpTestingController;
-  const getCurrentUserId = vi.fn();
+  const sessionKey = 'sm_session';
 
   beforeEach(() => {
-    getCurrentUserId.mockReset();
-    getCurrentUserId.mockReturnValue(9001);
-
+    localStorage.removeItem(sessionKey);
     TestBed.configureTestingModule({
-      providers: [
-        TeacherManagementService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AuthService, useValue: { getCurrentUserId } },
-      ],
+      providers: [TeacherManagementService, provideHttpClient(), provideHttpClientTesting()],
     });
 
     service = TestBed.inject(TeacherManagementService);
@@ -29,6 +20,7 @@ describe('TeacherManagementService', () => {
   });
 
   afterEach(() => {
+    localStorage.removeItem(sessionKey);
     httpMock.verify();
   });
 
@@ -37,7 +29,6 @@ describe('TeacherManagementService', () => {
 
     const req = httpMock.expectOne('/api/teacher/accounts');
     expect(req.request.method).toBe('GET');
-    expect(req.request.headers.get('X-User-Id')).toBe('9001');
     req.flush([]);
   });
 
@@ -46,7 +37,6 @@ describe('TeacherManagementService', () => {
 
     const req = httpMock.expectOne('/api/teacher/accounts/12/reset-password');
     expect(req.request.method).toBe('POST');
-    expect(req.request.headers.get('X-User-Id')).toBe('9001');
     expect(req.request.body).toEqual({});
     req.flush({ username: 'teacher12', tempPassword: 'A1b2C3d4' });
   });
@@ -56,8 +46,29 @@ describe('TeacherManagementService', () => {
 
     const req = httpMock.expectOne('/api/teacher/accounts/12/role');
     expect(req.request.method).toBe('PATCH');
-    expect(req.request.headers.get('X-User-Id')).toBe('9001');
     expect(req.request.body).toEqual({ role: 'ADMIN' });
     req.flush({ teacherId: 12, username: 'teacher12', role: 'ADMIN' });
+  });
+
+  it('should attach Authorization header when session exists', () => {
+    localStorage.setItem(
+      sessionKey,
+      JSON.stringify({
+        userId: 1,
+        role: 'ADMIN',
+        studentId: null,
+        teacherId: null,
+        accessToken: 'token-abc',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T12:17:26.239',
+        mustChangePassword: false,
+      })
+    );
+
+    service.updateTeacherRole(12, 'TEACHER').subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/accounts/12/role');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer token-abc');
+    req.flush({ teacherId: 12, username: 'teacher12', role: 'TEACHER' });
   });
 });

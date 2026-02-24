@@ -31,6 +31,13 @@ import {
           style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
+        <label style="display:block;margin:10px 0 6px;">Display Name (optional)</label>
+        <input
+          [(ngModel)]="displayName"
+          placeholder="Enter display name"
+          style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
+        />
+
         <button
           type="button"
           (click)="create()"
@@ -80,6 +87,7 @@ import {
 })
 export class TeacherInvitesComponent {
   username = '';
+  displayName = '';
   loading = false;
   error = '';
   result: null | CreateTeacherInviteResponse = null;
@@ -98,7 +106,7 @@ export class TeacherInvitesComponent {
     this.cdr.detectChanges(); // ✅ 立刻刷新一次
 
     this.inviteApi
-      .createInvite(this.username.trim())
+      .createInvite(this.username.trim(), this.displayName.trim())
       .pipe(
         finalize((): void => {
           this.loading = false;

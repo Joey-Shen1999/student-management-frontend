@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, of, tap, catchError, throwError } from 'rxjs';
 
 export type UserRole = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
@@ -33,6 +33,9 @@ export interface LoginResponse {
   username?: string;
   studentId: number | null;
   teacherId: number | null;
+  accessToken: string;
+  tokenType: string;
+  tokenExpiresAt: string;
 
   mustChangePassword?: boolean;
 
@@ -48,7 +51,12 @@ export interface RegisterResponse {
 }
 
 export interface SetPasswordRequest {
-  userId: number;
+  userId?: number;
+  newPassword: string;
+}
+
+export interface ChangePasswordRequest {
+  oldPassword: string;
   newPassword: string;
 }
 
@@ -79,6 +87,25 @@ export class AuthService {
     return this.http.post<ApiResponse>(`${this.baseUrl}/set-password`, req);
   }
 
+  changePassword(req: ChangePasswordRequest): Observable<ApiResponse> {
+    return this.http.post<ApiResponse>(`${this.baseUrl}/change-password`, req);
+  }
+
+  logout(): Observable<ApiResponse> {
+    return this.http.post<ApiResponse>(`${this.baseUrl}/logout`, {}).pipe(
+      catchError((error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+          return of({
+            success: true,
+            message: 'Logged out.',
+          } as ApiResponse);
+        }
+        return throwError(() => error);
+      }),
+      tap(() => this.clearAuthState())
+    );
+  }
+
   clearMustChangePasswordFlag(): void {
     const session = this.getSession();
     if (!session) return;
@@ -107,13 +134,22 @@ export class AuthService {
     }
   }
 
-  logout() {
+  clearAuthState() {
     localStorage.removeItem(this.sessionKey);
   }
 
   getCurrentUserId(): number | null {
     const userId = this.getSession()?.userId;
     return typeof userId === 'number' && Number.isFinite(userId) && userId > 0 ? userId : null;
+  }
+
+  getAuthorizationHeaderValue(): string | null {
+    const session = this.getSession();
+    const accessToken = (session?.accessToken || '').trim();
+    if (!accessToken) return null;
+
+    const tokenType = (session?.tokenType || 'Bearer').trim() || 'Bearer';
+    return `${tokenType} ${accessToken}`;
   }
 
   mustChangePassword(): boolean {
