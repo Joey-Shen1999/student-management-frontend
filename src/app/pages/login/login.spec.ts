@@ -54,7 +54,7 @@ describe('Login', () => {
     component.password = 'Aa1!goodPass';
     component.onSubmit();
 
-    expect(router.navigate).toHaveBeenCalledWith(['/teacher/change-password'], {
+    expect(router.navigate).toHaveBeenCalledWith(['/change-password'], {
       queryParams: { userId: 7 },
     });
   });

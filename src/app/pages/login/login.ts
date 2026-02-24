@@ -59,7 +59,7 @@ export class Login {
           this.cdr.detectChanges();
 
           if (resp?.mustChangePassword) {
-            this.router.navigate(['/teacher/change-password'], {
+            this.router.navigate(['/change-password'], {
               queryParams: { userId: resp.userId },
             });
             return;

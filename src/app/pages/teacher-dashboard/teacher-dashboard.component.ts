@@ -18,7 +18,11 @@ import { AuthService } from '../../services/auth.service';
 
       <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
         <button *ngIf="isAdmin" type="button" (click)="goTeachers()" style="padding:10px 12px;">
-          Teacher Management
+          Teacher Account Management
+        </button>
+
+        <button type="button" (click)="goStudents()" style="padding:10px 12px;">
+          Student Account Management
         </button>
 
         <button type="button" (click)="logout()" style="padding:10px 12px;margin-left:auto;">
@@ -40,6 +44,10 @@ export class TeacherDashboardComponent {
 
   goTeachers() {
     this.router.navigate(['/teacher/teachers']);
+  }
+
+  goStudents() {
+    this.router.navigate(['/teacher/students']);
   }
 
   logout() {

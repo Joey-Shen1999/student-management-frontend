@@ -55,7 +55,7 @@ describe('ChangePasswordComponent', () => {
   it('submit should call setPassword and redirect on success', () => {
     component.newPassword = 'Aa1!goodPass';
     component.confirmPassword = 'Aa1!goodPass';
-    (auth.getSession as any).mockReturnValue({ userId: 1, username: 'alice' });
+    (auth.getSession as any).mockReturnValue({ userId: 1, username: 'alice', role: 'TEACHER' });
     (auth.setPassword as any).mockReturnValue(of({ success: true, message: 'ok' }));
 
     component.submit();
@@ -68,5 +68,17 @@ describe('ChangePasswordComponent', () => {
 
     vi.advanceTimersByTime(500);
     expect(router.navigate).toHaveBeenCalledWith(['/teacher/dashboard']);
+  });
+
+  it('submit should redirect student user to student dashboard on success', () => {
+    component.newPassword = 'Aa1!goodPass';
+    component.confirmPassword = 'Aa1!goodPass';
+    (auth.getSession as any).mockReturnValue({ userId: 2, username: 'bob', role: 'STUDENT' });
+    (auth.setPassword as any).mockReturnValue(of({ success: true, message: 'ok' }));
+
+    component.submit();
+
+    vi.advanceTimersByTime(500);
+    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 });

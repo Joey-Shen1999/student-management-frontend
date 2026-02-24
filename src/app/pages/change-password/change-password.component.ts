@@ -119,8 +119,11 @@ export class ChangePasswordComponent implements OnInit {
           this.auth.clearMustChangePasswordFlag();
           this.successMsg = res?.message || 'Password set successfully.';
 
+          const role = String(this.auth.getSession()?.role || '').toUpperCase();
+          const redirectTo = role === 'TEACHER' || role === 'ADMIN' ? '/teacher/dashboard' : '/dashboard';
+
           setTimeout(() => {
-            this.router.navigate(['/teacher/dashboard']);
+            this.router.navigate([redirectTo]);
           }, 500);
         },
         error: (err: HttpErrorResponse) => {

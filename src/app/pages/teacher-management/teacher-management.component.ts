@@ -40,7 +40,7 @@ interface StatusUpdateResult {
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Teacher Management</h2>
+        <h2 style="margin:0;">Teacher Account Management</h2>
         <a routerLink="/teacher/dashboard" style="margin-left:auto;">Back</a>
       </div>
 

@@ -13,7 +13,13 @@ export const routes: Routes = [
   { path: 'login', component: Login },
   { path: 'register', component: RegisterComponent },
 
-  { path: 'change-password', redirectTo: 'teacher/change-password', pathMatch: 'full' },
+  {
+    path: 'change-password',
+    loadComponent: () =>
+      import('./pages/change-password/change-password.component').then(
+        (m) => m.ChangePasswordComponent
+      ),
+  },
 
   { path: 'dashboard', component: DashboardComponent },
 
@@ -44,6 +50,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/teacher-management/teacher-management.component').then(
             (m) => m.TeacherManagementComponent
+          ),
+      },
+
+      {
+        path: 'students',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
           ),
       },
 
