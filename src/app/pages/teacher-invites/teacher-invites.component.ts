@@ -18,7 +18,7 @@ import {
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;">
         <h2 style="margin:0;">Teacher Invites</h2>
-        <a routerLink="/teacher/dashboard" style="margin-left:auto;">Back</a>
+        <a routerLink="/teacher/teachers" style="margin-left:auto;">Back</a>
       </div>
 
       <div style="margin-top:16px;padding:12px;border:1px solid #ddd;border-radius:8px;">

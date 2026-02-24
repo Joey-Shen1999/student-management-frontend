@@ -1,5 +1,6 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
@@ -27,7 +28,7 @@ interface RoleUpdateResult {
 @Component({
   selector: 'app-teacher-management',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -35,15 +36,81 @@ interface RoleUpdateResult {
         <a routerLink="/teacher/dashboard" style="margin-left:auto;">Back</a>
       </div>
 
-      <p style="color:#666;line-height:1.6;margin-top:8px;">
-        View all teacher accounts and reset password when a teacher forgets it.
-      </p>
-
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
         <button type="button" (click)="loadTeachers()" [disabled]="loadingList">
           {{ loadingList ? 'Loading...' : 'Refresh List' }}
         </button>
-        <span style="color:#666;font-size:13px;">Total: {{ teachers.length }}</span>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;">
+          <span style="color:#666;font-size:13px;">Total: {{ teachers.length }}</span>
+          <button type="button" routerLink="/teacher/invites">Add Teacher</button>
+        </div>
+      </div>
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          flex-wrap:wrap;
+          margin:0 0 14px;
+          padding:10px 12px;
+          border:1px solid #e7e9ef;
+          border-radius:10px;
+          background:#fafbfe;
+        "
+      >
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            Filter
+            <select
+              [(ngModel)]="roleFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;"
+            >
+              <option value="ALL">All</option>
+              <option value="ADMIN">Admin</option>
+              <option value="TEACHER">Teacher</option>
+            </select>
+          </label>
+
+          <input
+            type="search"
+            placeholder="Search by id, username, name, email"
+            [(ngModel)]="searchKeyword"
+            (ngModelChange)="applyListView()"
+            [disabled]="loadingList"
+            style="min-width:260px;max-width:360px;flex:1 1 300px;padding:6px 8px;"
+          />
+
+          <button
+            type="button"
+            (click)="clearListControls()"
+            [disabled]="loadingList || (listLimit === 20 && roleFilter === 'ALL' && !searchKeyword.trim())"
+          >
+            Clear
+          </button>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
+          <span style="color:#666;font-size:13px;white-space:nowrap;">
+            Showing: {{ visibleTeachers.length }} / Filtered: {{ filteredCount }}
+          </span>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            Limit
+            <select
+              [(ngModel)]="listLimit"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;"
+            >
+              <option *ngFor="let size of limitOptions" [ngValue]="size">{{ size }}</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div
@@ -61,19 +128,17 @@ interface RoleUpdateResult {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Username</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Role</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Actions</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Admin</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let teacher of teachers; trackBy: trackTeacher">
+            <tr *ngFor="let teacher of visibleTeachers; trackBy: trackTeacher">
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveTeacherId(teacher) ?? '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ teacher.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(teacher) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ teacher.email || '-' }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayRole(teacher) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="display:flex;gap:8px;align-items:center;width:100%;">
                   <label
                     style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;"
                     [style.opacity]="roleUpdatingTeacherId === resolveTeacherId(teacher) ? '0.7' : '1'"
@@ -101,34 +166,25 @@ interface RoleUpdateResult {
                         [style.transform]="isAdminRole(teacher) ? 'translateX(20px)' : 'translateX(0)'"
                       ></span>
                     </span>
-
-                    <span style="font-size:12px;color:#444;">
-                      {{
-                        roleUpdatingTeacherId === resolveTeacherId(teacher)
-                          ? 'Saving...'
-                          : isAdminRole(teacher)
-                            ? 'ADMIN'
-                            : 'TEACHER'
-                      }}
-                    </span>
                   </label>
 
                   <button
                     type="button"
                     (click)="resetPassword(teacher)"
                     [disabled]="!resolveTeacherId(teacher) || resettingTeacherId === resolveTeacherId(teacher)"
+                    style="margin-left:auto;"
                   >
                     {{
                       resettingTeacherId === resolveTeacherId(teacher)
                         ? 'Resetting...'
-                        : 'Reset to 8-char Temp Password'
+                        : 'Reset password'
                     }}
                   </button>
                 </div>
               </td>
             </tr>
-            <tr *ngIf="!loadingList && teachers.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
+            <tr *ngIf="!loadingList && visibleTeachers.length === 0">
+              <td colspan="5" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
             </tr>
           </tbody>
         </table>
@@ -170,9 +226,15 @@ interface RoleUpdateResult {
   `,
 })
 export class TeacherManagementComponent implements OnInit {
+  readonly limitOptions: number[] = [20, 50, 100];
   teachers: TeacherAccount[] = [];
+  visibleTeachers: TeacherAccount[] = [];
+  filteredCount = 0;
   loadingList = false;
   listError = '';
+  listLimit = 20;
+  roleFilter: 'ALL' | TeacherRole = 'ALL';
+  searchKeyword = '';
 
   resettingTeacherId: number | null = null;
   roleUpdatingTeacherId: number | null = null;
@@ -222,11 +284,13 @@ export class TeacherManagementComponent implements OnInit {
       .subscribe({
         next: (payload) => {
           this.teachers = this.normalizeTeacherList(payload);
+          this.applyListView();
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
           this.listError = this.extractErrorMessage(err) || 'Failed to load teacher list.';
           this.teachers = [];
+          this.applyListView();
           this.cdr.detectChanges();
         },
       });
@@ -304,6 +368,7 @@ export class TeacherManagementComponent implements OnInit {
         next: (resp: UpdateTeacherRoleResponse) => {
           const resolvedRole = this.normalizeRole(resp?.role) || targetRole;
           teacher.role = resolvedRole;
+          this.applyListView();
           this.roleResult = {
             teacherId,
             username: resp.username || teacher.username || `#${teacherId}`,
@@ -321,6 +386,40 @@ export class TeacherManagementComponent implements OnInit {
   toggleAdminRole(teacher: TeacherAccount): void {
     const targetRole: TeacherRole = this.isAdminRole(teacher) ? 'TEACHER' : 'ADMIN';
     this.setRole(teacher, targetRole);
+  }
+
+  clearListControls(): void {
+    this.listLimit = 20;
+    this.roleFilter = 'ALL';
+    this.searchKeyword = '';
+    this.applyListView();
+  }
+
+  applyListView(): void {
+    const keyword = this.searchKeyword.trim().toLowerCase();
+    const filtered = this.teachers.filter((teacher) => {
+      if (this.roleFilter !== 'ALL') {
+        if (this.normalizeRole(teacher.role) !== this.roleFilter) {
+          return false;
+        }
+      }
+
+      if (!keyword) {
+        return true;
+      }
+
+      const searchFields = [
+        String(this.resolveTeacherId(teacher) ?? ''),
+        String(teacher.username || ''),
+        this.displayName(teacher),
+        String(teacher.email || ''),
+      ];
+
+      return searchFields.some((field) => field.toLowerCase().includes(keyword));
+    });
+
+    this.filteredCount = filtered.length;
+    this.visibleTeachers = filtered.slice(0, this.listLimit);
   }
 
   private normalizeTeacherList(
@@ -357,10 +456,6 @@ export class TeacherManagementComponent implements OnInit {
     }
 
     return err?.message || '';
-  }
-
-  displayRole(teacher: TeacherAccount): string {
-    return this.normalizeRole(teacher.role) || '-';
   }
 
   isAdminRole(teacher: TeacherAccount): boolean {

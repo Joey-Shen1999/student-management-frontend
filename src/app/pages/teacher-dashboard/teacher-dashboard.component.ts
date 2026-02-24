@@ -18,11 +18,7 @@ import { AuthService } from '../../services/auth.service';
 
       <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
         <button *ngIf="isAdmin" type="button" (click)="goTeachers()" style="padding:10px 12px;">
-          Teacher Accounts
-        </button>
-
-        <button *ngIf="isAdmin" type="button" (click)="goInvites()" style="padding:10px 12px;">
-          Teacher Invites
+          Teacher Management
         </button>
 
         <button type="button" (click)="logout()" style="padding:10px 12px;margin-left:auto;">
@@ -32,10 +28,6 @@ import { AuthService } from '../../services/auth.service';
 
       <p *ngIf="!isAdmin" style="color:#b36b00; line-height:1.6; margin-top:8px;">
         Your account does not have management permission.
-      </p>
-
-      <p style="color:#666; line-height:1.6;">
-        Teacher management is available here for account onboarding and password recovery.
       </p>
     </div>
   `,
@@ -51,10 +43,6 @@ export class TeacherDashboardComponent {
 
   goTeachers() {
     this.router.navigate(['/teacher/teachers']);
-  }
-
-  goInvites() {
-    this.router.navigate(['/teacher/invites']);
   }
 
   logout() {

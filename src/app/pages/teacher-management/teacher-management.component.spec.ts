@@ -63,6 +63,52 @@ describe('TeacherManagementComponent', () => {
     expect(component.teachers).toEqual([]);
   });
 
+  it('loadTeachers should default to showing 20 records', () => {
+    const teachers = Array.from({ length: 30 }, (_v, index) => ({
+      teacherId: index + 1,
+      username: `teacher${index + 1}`,
+      role: index % 2 === 0 ? 'TEACHER' : 'ADMIN',
+    }));
+    (api.listTeachers as any).mockReturnValue(of(teachers));
+
+    component.loadTeachers();
+
+    expect(component.teachers.length).toBe(30);
+    expect(component.filteredCount).toBe(30);
+    expect(component.visibleTeachers.length).toBe(20);
+  });
+
+  it('applyListView should respect selected limit', () => {
+    component.teachers = Array.from({ length: 60 }, (_v, index) => ({
+      teacherId: index + 1,
+      username: `teacher${index + 1}`,
+      role: 'TEACHER',
+    }));
+    component.listLimit = 50;
+
+    component.applyListView();
+
+    expect(component.visibleTeachers.length).toBe(50);
+    expect(component.filteredCount).toBe(60);
+  });
+
+  it('applyListView should support role filter and keyword search', () => {
+    component.teachers = [
+      { teacherId: 1, username: 'alice', displayName: 'Alice Admin', email: 'alice@example.com', role: 'ADMIN' },
+      { teacherId: 2, username: 'alex', displayName: 'Alex Teacher', email: 'alex@example.com', role: 'TEACHER' },
+      { teacherId: 3, username: 'bob', displayName: 'Bob Admin', email: 'bob@example.com', role: 'ADMIN' },
+    ];
+    component.roleFilter = 'ADMIN';
+    component.searchKeyword = 'alice';
+
+    component.applyListView();
+
+    expect(component.filteredCount).toBe(1);
+    expect(component.visibleTeachers).toEqual([
+      { teacherId: 1, username: 'alice', displayName: 'Alice Admin', email: 'alice@example.com', role: 'ADMIN' },
+    ]);
+  });
+
   it('resetPassword should call API and expose temp password', () => {
     (api.resetTeacherPassword as any).mockReturnValue(
       of({
