@@ -90,19 +90,50 @@ export class Login {
 
     // 后端 JSON：{ status, message }
     if (payload && typeof payload === 'object') {
-      return (payload as any).message || (payload as any).error || '';
+      const code = String((payload as any).code || '').toUpperCase();
+      if (this.isArchivedAccountCode(code)) {
+        return 'This account has been archived. Please contact an admin to enable it.';
+      }
+
+      const message = (payload as any).message || (payload as any).error || '';
+      if (this.looksLikeArchivedMessage(message)) {
+        return 'This account has been archived. Please contact an admin to enable it.';
+      }
+
+      return message;
     }
 
     // 字符串（JSON 字符串或纯文本）
     if (typeof payload === 'string') {
       try {
         const parsed = JSON.parse(payload);
-        return parsed?.message || parsed?.error || payload;
+        const code = String(parsed?.code || '').toUpperCase();
+        if (this.isArchivedAccountCode(code)) {
+          return 'This account has been archived. Please contact an admin to enable it.';
+        }
+
+        const message = parsed?.message || parsed?.error || payload;
+        if (this.looksLikeArchivedMessage(message)) {
+          return 'This account has been archived. Please contact an admin to enable it.';
+        }
+
+        return message;
       } catch {
+        if (this.looksLikeArchivedMessage(payload)) {
+          return 'This account has been archived. Please contact an admin to enable it.';
+        }
         return payload;
       }
     }
 
     return httpErr?.message || '';
+  }
+
+  private isArchivedAccountCode(code: string): boolean {
+    return code === 'ACCOUNT_ARCHIVED' || code === 'USER_ARCHIVED' || code === 'TEACHER_ARCHIVED';
+  }
+
+  private looksLikeArchivedMessage(message: string): boolean {
+    return String(message || '').toLowerCase().includes('archived');
   }
 }

@@ -112,4 +112,22 @@ describe('Login', () => {
 
     expect(component.error).toBe('Invalid username or password');
   });
+
+  it('should show archived-account message when backend returns ACCOUNT_ARCHIVED', () => {
+    (auth.login as any).mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 403,
+            error: { code: 'ACCOUNT_ARCHIVED', message: 'Teacher account archived' },
+          })
+      )
+    );
+
+    component.username = 'teacher1';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(component.error).toBe('This account has been archived. Please contact an admin to enable it.');
+  });
 });

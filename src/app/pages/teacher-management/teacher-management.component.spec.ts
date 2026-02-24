@@ -7,13 +7,17 @@ import { TeacherManagementService } from '../../services/teacher-management.serv
 
 describe('TeacherManagementComponent', () => {
   let component: TeacherManagementComponent;
-  let api: Pick<TeacherManagementService, 'listTeachers' | 'resetTeacherPassword' | 'updateTeacherRole'>;
+  let api: Pick<
+    TeacherManagementService,
+    'listTeachers' | 'resetTeacherPassword' | 'updateTeacherRole' | 'updateTeacherStatus'
+  >;
 
   beforeEach(() => {
     api = {
       listTeachers: vi.fn().mockReturnValue(of([])),
       resetTeacherPassword: vi.fn(),
       updateTeacherRole: vi.fn(),
+      updateTeacherStatus: vi.fn(),
     };
 
     component = new TeacherManagementComponent(api as TeacherManagementService);
@@ -42,7 +46,9 @@ describe('TeacherManagementComponent', () => {
 
     component.loadTeachers();
 
-    expect(component.teachers).toEqual([{ teacherId: 11, username: 'teacher11' }]);
+    expect(component.teachers).toEqual([
+      expect.objectContaining({ teacherId: 11, username: 'teacher11', status: 'ACTIVE' }),
+    ]);
     expect(component.listError).toBe('');
   });
 
@@ -107,6 +113,19 @@ describe('TeacherManagementComponent', () => {
     expect(component.visibleTeachers).toEqual([
       { teacherId: 1, username: 'alice', displayName: 'Alice Admin', email: 'alice@example.com', role: 'ADMIN' },
     ]);
+  });
+
+  it('applyListView should support status filter', () => {
+    component.teachers = [
+      { teacherId: 1, username: 'active_teacher', status: 'ACTIVE' },
+      { teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' },
+    ];
+    component.statusFilter = 'ARCHIVED';
+
+    component.applyListView();
+
+    expect(component.filteredCount).toBe(1);
+    expect(component.visibleTeachers).toEqual([{ teacherId: 2, username: 'archived_teacher', status: 'ARCHIVED' }]);
   });
 
   it('resetPassword should call API and expose temp password', () => {
@@ -212,5 +231,37 @@ describe('TeacherManagementComponent', () => {
 
     expect(api.updateTeacherRole).toHaveBeenCalledWith(50, 'TEACHER');
     expect(component.roleResult?.role).toBe('TEACHER');
+  });
+
+  it('setTeacherStatus should call API and update status result', () => {
+    (api.updateTeacherStatus as any).mockReturnValue(
+      of({
+        username: 'teacher61',
+        status: 'ARCHIVED',
+      })
+    );
+
+    component.setTeacherStatus({ teacherId: 61, username: 'teacher61', status: 'ACTIVE' }, 'ARCHIVED');
+
+    expect(api.updateTeacherStatus).toHaveBeenCalledWith(61, 'ARCHIVED');
+    expect(component.statusResult).toEqual({
+      teacherId: 61,
+      username: 'teacher61',
+      status: 'ARCHIVED',
+    });
+  });
+
+  it('toggleArchiveStatus should switch ARCHIVED to ACTIVE', () => {
+    (api.updateTeacherStatus as any).mockReturnValue(
+      of({
+        username: 'teacher62',
+        status: 'ACTIVE',
+      })
+    );
+
+    component.toggleArchiveStatus({ teacherId: 62, username: 'teacher62', status: 'ARCHIVED' });
+
+    expect(api.updateTeacherStatus).toHaveBeenCalledWith(62, 'ACTIVE');
+    expect(component.statusResult?.status).toBe('ACTIVE');
   });
 });

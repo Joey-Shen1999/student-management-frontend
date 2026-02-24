@@ -50,6 +50,15 @@ describe('TeacherManagementService', () => {
     req.flush({ teacherId: 12, username: 'teacher12', role: 'ADMIN' });
   });
 
+  it('updateTeacherStatus should call PATCH /api/teacher/accounts/{id}/status', () => {
+    service.updateTeacherStatus(12, 'ARCHIVED').subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/accounts/12/status');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ status: 'ARCHIVED' });
+    req.flush({ teacherId: 12, username: 'teacher12', status: 'ARCHIVED' });
+  });
+
   it('should attach Authorization header when session exists', () => {
     localStorage.setItem(
       sessionKey,

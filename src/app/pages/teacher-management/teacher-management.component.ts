@@ -8,9 +8,11 @@ import { finalize } from 'rxjs/operators';
 import {
   ResetTeacherPasswordResponse,
   TeacherAccount,
+  TeacherAccountStatus,
   TeacherRole,
   TeacherManagementService,
   UpdateTeacherRoleResponse,
+  UpdateTeacherStatusResponse,
 } from '../../services/teacher-management.service';
 
 interface PasswordResetResult {
@@ -23,6 +25,12 @@ interface RoleUpdateResult {
   teacherId: number;
   username: string;
   role: TeacherRole;
+}
+
+interface StatusUpdateResult {
+  teacherId: number;
+  username: string;
+  status: TeacherAccountStatus;
 }
 
 @Component({
@@ -63,7 +71,7 @@ interface RoleUpdateResult {
       >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Filter
+            Role
             <select
               [(ngModel)]="roleFilter"
               (ngModelChange)="applyListView()"
@@ -73,6 +81,20 @@ interface RoleUpdateResult {
               <option value="ALL">All</option>
               <option value="ADMIN">Admin</option>
               <option value="TEACHER">Teacher</option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            Status
+            <select
+              [(ngModel)]="statusFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;"
+            >
+              <option value="ALL">All</option>
+              <option value="ACTIVE">Active</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </label>
 
@@ -88,7 +110,9 @@ interface RoleUpdateResult {
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && roleFilter === 'ALL' && !searchKeyword.trim())"
+            [disabled]="
+              loadingList || (listLimit === 20 && roleFilter === 'ALL' && statusFilter === 'ALL' && !searchKeyword.trim())
+            "
           >
             Clear
           </button>
@@ -129,6 +153,7 @@ interface RoleUpdateResult {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Admin</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Active</th>
             </tr>
           </thead>
           <tbody>
@@ -138,16 +163,25 @@ interface RoleUpdateResult {
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(teacher) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ teacher.email || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
-                <div style="display:flex;gap:8px;align-items:center;width:100%;">
+                <div style="display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center;width:100%;">
                   <label
                     style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;"
-                    [style.opacity]="roleUpdatingTeacherId === resolveTeacherId(teacher) ? '0.7' : '1'"
+                    [style.opacity]="
+                      roleUpdatingTeacherId === resolveTeacherId(teacher) ||
+                      statusUpdatingTeacherId === resolveTeacherId(teacher)
+                        ? '0.7'
+                        : '1'
+                    "
                   >
                     <input
                       type="checkbox"
                       [checked]="isAdminRole(teacher)"
                       (change)="toggleAdminRole(teacher)"
-                      [disabled]="!resolveTeacherId(teacher) || roleUpdatingTeacherId === resolveTeacherId(teacher)"
+                      [disabled]="
+                        !resolveTeacherId(teacher) ||
+                        roleUpdatingTeacherId === resolveTeacherId(teacher) ||
+                        statusUpdatingTeacherId === resolveTeacherId(teacher)
+                      "
                       style="display:none;"
                     />
 
@@ -168,23 +202,71 @@ interface RoleUpdateResult {
                     </span>
                   </label>
 
-                  <button
-                    type="button"
-                    (click)="resetPassword(teacher)"
-                    [disabled]="!resolveTeacherId(teacher) || resettingTeacherId === resolveTeacherId(teacher)"
-                    style="margin-left:auto;"
-                  >
-                    {{
-                      resettingTeacherId === resolveTeacherId(teacher)
-                        ? 'Resetting...'
-                        : 'Reset password'
-                    }}
-                  </button>
+                  <div style="display:flex;justify-content:center;">
+                    <button
+                      type="button"
+                      (click)="resetPassword(teacher)"
+                      [disabled]="
+                        !resolveTeacherId(teacher) ||
+                        resettingTeacherId === resolveTeacherId(teacher) ||
+                        roleUpdatingTeacherId === resolveTeacherId(teacher) ||
+                        statusUpdatingTeacherId === resolveTeacherId(teacher)
+                      "
+                    >
+                      {{
+                        resettingTeacherId === resolveTeacherId(teacher)
+                          ? 'Resetting...'
+                          : 'Reset password'
+                      }}
+                    </button>
+                  </div>
+
                 </div>
+              </td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
+                <label
+                  style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;"
+                  [style.opacity]="
+                    roleUpdatingTeacherId === resolveTeacherId(teacher) ||
+                    statusUpdatingTeacherId === resolveTeacherId(teacher)
+                      ? '0.7'
+                      : '1'
+                  "
+                  title="Active"
+                >
+                  <input
+                    type="checkbox"
+                    [checked]="isActive(teacher)"
+                    (change)="toggleArchiveStatus(teacher)"
+                    [disabled]="
+                      !resolveTeacherId(teacher) ||
+                      roleUpdatingTeacherId === resolveTeacherId(teacher) ||
+                      statusUpdatingTeacherId === resolveTeacherId(teacher)
+                    "
+                    style="display:none;"
+                  />
+
+                  <span
+                    style="position:relative;width:44px;height:24px;border-radius:999px;transition:all 0.2s ease;display:inline-block;"
+                    [style.background]="
+                      statusUpdatingTeacherId === resolveTeacherId(teacher)
+                        ? '#bdbdbd'
+                        : isArchived(teacher)
+                          ? '#c62828'
+                          : '#19a34a'
+                    "
+                  >
+                    <span
+                      style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.25);"
+                      [style.transform]="isActive(teacher) ? 'translateX(20px)' : 'translateX(0)'"
+                    ></span>
+                  </span>
+
+                </label>
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleTeachers.length === 0">
-              <td colspan="5" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
+              <td colspan="6" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
             </tr>
           </tbody>
         </table>
@@ -204,6 +286,15 @@ interface RoleUpdateResult {
         <div style="font-weight:bold;">Role updated successfully</div>
         <div style="margin-top:8px;"><b>Teacher:</b> {{ roleResult.username }}</div>
         <div style="margin-top:8px;"><b>New Role:</b> {{ roleResult.role }}</div>
+      </div>
+
+      <div
+        *ngIf="statusResult"
+        style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
+      >
+        <div style="font-weight:bold;">Account status updated successfully</div>
+        <div style="margin-top:8px;"><b>Teacher:</b> {{ statusResult.username }}</div>
+        <div style="margin-top:8px;"><b>New Status:</b> {{ statusResult.status }}</div>
       </div>
 
       <div
@@ -234,14 +325,18 @@ export class TeacherManagementComponent implements OnInit {
   listError = '';
   listLimit = 20;
   roleFilter: 'ALL' | TeacherRole = 'ALL';
+  statusFilter: 'ALL' | TeacherAccountStatus = 'ALL';
   searchKeyword = '';
 
   resettingTeacherId: number | null = null;
   roleUpdatingTeacherId: number | null = null;
   roleTarget: TeacherRole | null = null;
+  statusUpdatingTeacherId: number | null = null;
+  statusTarget: TeacherAccountStatus | null = null;
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   roleResult: RoleUpdateResult | null = null;
+  statusResult: StatusUpdateResult | null = null;
 
   constructor(
     private teacherApi: TeacherManagementService,
@@ -307,6 +402,7 @@ export class TeacherManagementComponent implements OnInit {
     this.actionError = '';
     this.resetResult = null;
     this.roleResult = null;
+    this.statusResult = null;
     this.resettingTeacherId = teacherId;
     this.cdr.detectChanges();
 
@@ -351,6 +447,7 @@ export class TeacherManagementComponent implements OnInit {
     this.actionError = '';
     this.resetResult = null;
     this.roleResult = null;
+    this.statusResult = null;
     this.roleUpdatingTeacherId = teacherId;
     this.roleTarget = targetRole;
     this.cdr.detectChanges();
@@ -369,6 +466,7 @@ export class TeacherManagementComponent implements OnInit {
           const resolvedRole = this.normalizeRole(resp?.role) || targetRole;
           teacher.role = resolvedRole;
           this.applyListView();
+          this.statusResult = null;
           this.roleResult = {
             teacherId,
             username: resp.username || teacher.username || `#${teacherId}`,
@@ -388,9 +486,60 @@ export class TeacherManagementComponent implements OnInit {
     this.setRole(teacher, targetRole);
   }
 
+  toggleArchiveStatus(teacher: TeacherAccount): void {
+    const targetStatus: TeacherAccountStatus = this.isArchived(teacher) ? 'ACTIVE' : 'ARCHIVED';
+    this.setTeacherStatus(teacher, targetStatus);
+  }
+
+  setTeacherStatus(teacher: TeacherAccount, targetStatus: TeacherAccountStatus): void {
+    const teacherId = this.resolveTeacherId(teacher);
+    if (!teacherId) {
+      this.actionError = 'Missing teacher id, unable to update account status.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.actionError = '';
+    this.resetResult = null;
+    this.roleResult = null;
+    this.statusResult = null;
+    this.statusUpdatingTeacherId = teacherId;
+    this.statusTarget = targetStatus;
+    this.cdr.detectChanges();
+
+    this.teacherApi
+      .updateTeacherStatus(teacherId, targetStatus)
+      .pipe(
+        finalize(() => {
+          this.statusUpdatingTeacherId = null;
+          this.statusTarget = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp: UpdateTeacherStatusResponse) => {
+          const resolvedStatus = this.resolveStatus(resp) || targetStatus;
+          this.assignStatus(teacher, resolvedStatus);
+          this.applyListView();
+          this.roleResult = null;
+          this.statusResult = {
+            teacherId,
+            username: resp.username || teacher.username || `#${teacherId}`,
+            status: resolvedStatus,
+          };
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.actionError = this.extractStatusUpdateErrorMessage(err) || 'Failed to update account status.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   clearListControls(): void {
     this.listLimit = 20;
     this.roleFilter = 'ALL';
+    this.statusFilter = 'ALL';
     this.searchKeyword = '';
     this.applyListView();
   }
@@ -400,6 +549,12 @@ export class TeacherManagementComponent implements OnInit {
     const filtered = this.teachers.filter((teacher) => {
       if (this.roleFilter !== 'ALL') {
         if (this.normalizeRole(teacher.role) !== this.roleFilter) {
+          return false;
+        }
+      }
+
+      if (this.statusFilter !== 'ALL') {
+        if (this.resolveStatus(teacher) !== this.statusFilter) {
           return false;
         }
       }
@@ -436,6 +591,7 @@ export class TeacherManagementComponent implements OnInit {
     return list.map((teacher) => ({
       ...teacher,
       role: this.normalizeRole(teacher.role) || teacher.role,
+      status: this.resolveStatus(teacher),
     }));
   }
 
@@ -462,9 +618,58 @@ export class TeacherManagementComponent implements OnInit {
     return this.normalizeRole(teacher.role) === 'ADMIN';
   }
 
+  isArchived(teacher: TeacherAccount): boolean {
+    return this.resolveStatus(teacher) === 'ARCHIVED';
+  }
+
+  isActive(teacher: TeacherAccount): boolean {
+    return !this.isArchived(teacher);
+  }
+
   private normalizeRole(role: unknown): TeacherRole | null {
     const normalized = String(role || '').toUpperCase();
     return normalized === 'ADMIN' || normalized === 'TEACHER' ? normalized : null;
+  }
+
+  private resolveStatus(value: unknown): TeacherAccountStatus {
+    if (value && typeof value === 'object') {
+      const obj = value as any;
+
+      const statusText =
+        String(obj.status || obj.accountStatus || obj.userStatus || '')
+          .trim()
+          .toUpperCase();
+      if (statusText === 'ARCHIVED' || statusText === 'ACTIVE') {
+        return statusText as TeacherAccountStatus;
+      }
+
+      if (obj.archived === true || obj.isArchived === true) {
+        return 'ARCHIVED';
+      }
+
+      if (obj.archived === false || obj.isArchived === false) {
+        return 'ACTIVE';
+      }
+
+      if (obj.active === false || obj.enabled === false || obj.disabled === true) {
+        return 'ARCHIVED';
+      }
+
+      if (obj.active === true || obj.enabled === true || obj.disabled === false) {
+        return 'ACTIVE';
+      }
+    }
+
+    return 'ACTIVE';
+  }
+
+  private assignStatus(teacher: TeacherAccount, status: TeacherAccountStatus): void {
+    teacher['status'] = status;
+    teacher['archived'] = status === 'ARCHIVED';
+    teacher['isArchived'] = status === 'ARCHIVED';
+    teacher['active'] = status === 'ACTIVE';
+    teacher['enabled'] = status === 'ACTIVE';
+    teacher['disabled'] = status === 'ARCHIVED';
   }
 
   private extractRoleUpdateErrorMessage(err: HttpErrorResponse): string {
@@ -489,6 +694,33 @@ export class TeacherManagementComponent implements OnInit {
 
     if (status === 400 && code === 'BAD_REQUEST') {
       return this.extractErrorMessage(err) || 'Invalid role. Expected ADMIN or TEACHER.';
+    }
+
+    return this.extractErrorMessage(err);
+  }
+
+  private extractStatusUpdateErrorMessage(err: HttpErrorResponse): string {
+    const status = err?.status;
+    const code = this.extractErrorCode(err);
+
+    if (status === 401) {
+      return 'Unauthenticated. Please login again.';
+    }
+
+    if (status === 403 && code === 'MUST_CHANGE_PASSWORD_REQUIRED') {
+      return 'Password change required before account management.';
+    }
+
+    if (status === 403) {
+      return this.extractErrorMessage(err) || 'Forbidden: admin role required.';
+    }
+
+    if (status === 404 && code === 'NOT_FOUND') {
+      return this.extractErrorMessage(err) || 'Teacher account not found.';
+    }
+
+    if (status === 400 && code === 'BAD_REQUEST') {
+      return this.extractErrorMessage(err) || 'Invalid account status. Expected ACTIVE or ARCHIVED.';
     }
 
     return this.extractErrorMessage(err);

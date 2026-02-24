@@ -27,11 +27,23 @@ export interface ResetTeacherPasswordResponse {
 }
 
 export type TeacherRole = 'TEACHER' | 'ADMIN';
+export type TeacherAccountStatus = 'ACTIVE' | 'ARCHIVED';
 
 export interface UpdateTeacherRoleResponse {
   teacherId?: number;
   username?: string;
   role?: TeacherRole | string;
+  message?: string;
+  [key: string]: any;
+}
+
+export interface UpdateTeacherStatusResponse {
+  teacherId?: number;
+  username?: string;
+  status?: TeacherAccountStatus | string;
+  archived?: boolean;
+  active?: boolean;
+  enabled?: boolean;
   message?: string;
   [key: string]: any;
 }
@@ -78,6 +90,18 @@ export class TeacherManagementService {
     return this.http.patch<UpdateTeacherRoleResponse>(
       `${this.baseUrl}/${teacherId}/role`,
       { role: normalizedRole },
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateTeacherStatus(
+    teacherId: number,
+    status: TeacherAccountStatus
+  ): Observable<UpdateTeacherStatusResponse> {
+    const normalizedStatus = String(status || '').toUpperCase() as TeacherAccountStatus;
+    return this.http.patch<UpdateTeacherStatusResponse>(
+      `${this.baseUrl}/${teacherId}/status`,
+      { status: normalizedStatus },
       this.withAuthHeaderIfAvailable()
     );
   }

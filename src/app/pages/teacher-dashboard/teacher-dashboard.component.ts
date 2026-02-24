@@ -26,9 +26,6 @@ import { AuthService } from '../../services/auth.service';
         </button>
       </div>
 
-      <p *ngIf="!isAdmin" style="color:#b36b00; line-height:1.6; margin-top:8px;">
-        Your account does not have management permission.
-      </p>
     </div>
   `,
 })
