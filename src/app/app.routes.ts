@@ -53,6 +53,12 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/profile',
+        loadComponent: () =>
+          import('./pages/student-profile/student-profile').then((m) => m.StudentProfile),
+      },
+
+      {
         path: 'students',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(

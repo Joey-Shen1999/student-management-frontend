@@ -1,9 +1,18 @@
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterModule } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
+import { finalize } from 'rxjs/operators';
+
+import {
+  StudentProfilePayload,
+  StudentProfileService,
+} from '../../services/student-profile.service';
 
 type Gender = '' | 'Male' | 'Female' | 'Other';
+
+type SchoolType = '' | 'MAIN' | 'OTHER';
 
 interface AddressModel {
   streetAddress: string;
@@ -14,49 +23,38 @@ interface AddressModel {
   postal: string;
 }
 
-type SchoolType = '' | 'Ontario High School' | 'Private School' | 'International School' | 'Other';
-
 interface CourseModel {
   schoolType: SchoolType;
   schoolName: string;
   courseCode: string;
-
-  mark: number | null;       // 0-100
-  gradeLevel: number | null; // 9-12
-
-  startTime: string; // yyyy-mm-dd
-  endTime: string;   // yyyy-mm-dd
+  mark: number | null;
+  gradeLevel: number | null;
+  startTime: string;
+  endTime: string;
 }
 
-
 interface StudentProfileModel {
-  // basic
   legalFirstName: string;
   legalLastName: string;
   preferredName: string;
   gender: Gender;
-  birthday: string; // yyyy-mm-dd
+  birthday: string;
   phone: string;
   email: string;
 
-  // immigration / language
   statusInCanada: string;
   citizenship: string;
   firstLanguage: string;
-  firstBoardingDate: string; // yyyy-mm-dd
+  firstBoardingDate: string;
 
-  // address
   address: AddressModel;
 
-  // school
   oenNumber: string;
   ib: string;
   ap: boolean;
 
-  // documents / notes
   identityFileNote: string;
 
-  // courses
   otherCourses: CourseModel[];
 }
 
@@ -66,23 +64,36 @@ interface StudentProfileModel {
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './student-profile.html',
 })
-export class StudentProfile {
+export class StudentProfile implements OnInit {
+  managedMode = false;
+  managedStudentId: number | null = null;
+  invalidManagedStudentId = false;
+
+  loading = false;
   saving = false;
   saved = false;
   error = '';
 
-  // ✅ 先做前端：localStorage key
-  private readonly storageKey = 'sm_student_profile';
+  model: StudentProfileModel = this.defaultModel();
 
-  model: StudentProfileModel = this.load() ?? this.defaultModel();
+  constructor(
+    private router: Router,
+    private route: ActivatedRoute,
+    private profileApi: StudentProfileService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
-  constructor(private router: Router) {}
-
-  back() {
-    this.router.navigate(['/dashboard']);
+  ngOnInit(): void {
+    this.route.paramMap.subscribe((params: ParamMap) => {
+      this.applyRouteContext(params);
+    });
   }
 
-  addCourse() {
+  back(): void {
+    this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
+  }
+
+  addCourse(): void {
     this.model.otherCourses.push({
       schoolType: '',
       schoolName: '',
@@ -94,24 +105,111 @@ export class StudentProfile {
     });
   }
 
-  removeCourse(i: number) {
-    this.model.otherCourses.splice(i, 1);
+  removeCourse(index: number): void {
+    this.model.otherCourses.splice(index, 1);
   }
 
-  save() {
+  loadProfile(): void {
+    if (this.invalidManagedStudentId) return;
+    if (this.loading) return;
+
+    this.loading = true;
+    this.error = '';
+    this.saved = false;
+    this.cdr.detectChanges();
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.getStudentProfileForTeacher(this.managedStudentId)
+        : this.profileApi.getMyProfile();
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          this.model = this.normalizeModel(this.unwrapProfile(resp));
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.error = this.extractErrorMessage(err) || 'Failed to load profile.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  save(): void {
+    if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
+      this.error = 'Invalid student id in route.';
+      this.cdr.detectChanges();
+      return;
+    }
+    if (this.saving || this.loading) return;
+
     this.error = '';
     this.saved = false;
     this.saving = true;
+    this.cdr.detectChanges();
 
-    try {
-      // 你可以先不做强校验，先保证流程跑通
-      localStorage.setItem(this.storageKey, JSON.stringify(this.model));
-      this.saved = true;
-    } catch (e: any) {
-      this.error = e?.message ?? 'Failed to save locally.';
-    } finally {
-      this.saving = false;
+    const payload = this.toPayload(this.model);
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.saveStudentProfileForTeacher(this.managedStudentId, payload)
+        : this.profileApi.saveMyProfile(payload);
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          const resolved = this.unwrapProfile(resp);
+          const hasResolvedData = Object.keys(resolved).length > 0;
+          this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
+          this.saved = true;
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.error = this.extractErrorMessage(err) || 'Failed to save profile.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private applyRouteContext(params: ParamMap): void {
+    const routeStudentId = params.get('studentId');
+    if (routeStudentId === null) {
+      this.managedMode = false;
+      this.managedStudentId = null;
+      this.invalidManagedStudentId = false;
+      this.loadProfile();
+      return;
     }
+
+    this.managedMode = true;
+    const parsedStudentId = Number(routeStudentId);
+    if (!Number.isInteger(parsedStudentId) || parsedStudentId <= 0) {
+      this.managedStudentId = null;
+      this.invalidManagedStudentId = true;
+      this.model = this.defaultModel();
+      this.loading = false;
+      this.saved = false;
+      this.error = 'Invalid student id in route.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.managedStudentId = parsedStudentId;
+    this.invalidManagedStudentId = false;
+    this.loadProfile();
   }
 
   private defaultModel(): StudentProfileModel {
@@ -141,20 +239,165 @@ export class StudentProfile {
       oenNumber: '',
       ib: '',
       ap: false,
-
       identityFileNote: '',
-
       otherCourses: [],
     };
   }
 
-  private load(): StudentProfileModel | null {
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as StudentProfileModel;
-    } catch {
-      return null;
+  private unwrapProfile(
+    payload: StudentProfilePayload | { profile?: StudentProfilePayload } | null | undefined
+  ): StudentProfilePayload {
+    if (payload && typeof payload === 'object' && payload.profile && typeof payload.profile === 'object') {
+      return payload.profile;
     }
+    return (payload || {}) as StudentProfilePayload;
+  }
+
+  private normalizeModel(payload: StudentProfilePayload): StudentProfileModel {
+    const defaults = this.defaultModel();
+    const source: any = payload || {};
+    const rawAddress = source.address && typeof source.address === 'object' ? source.address : {};
+    const rawCourses: unknown[] = Array.isArray(source.otherCourses) ? source.otherCourses : [];
+
+    return {
+      legalFirstName: this.toText(source.legalFirstName || source.firstName),
+      legalLastName: this.toText(source.legalLastName || source.lastName),
+      preferredName: this.toText(source.preferredName || source.nickName),
+      gender: this.normalizeGender(source.gender),
+      birthday: this.normalizeDate(source.birthday),
+      phone: this.toText(source.phone),
+      email: this.toText(source.email),
+
+      statusInCanada: this.toText(source.statusInCanada),
+      citizenship: this.toText(source.citizenship),
+      firstLanguage: this.toText(source.firstLanguage),
+      firstBoardingDate: this.normalizeDate(source.firstBoardingDate),
+
+      address: {
+        streetAddress: this.toText(rawAddress.streetAddress),
+        streetAddressLine2: this.toText(rawAddress.streetAddressLine2),
+        city: this.toText(rawAddress.city),
+        state: this.toText(rawAddress.state),
+        country: this.toText(rawAddress.country || defaults.address.country),
+        postal: this.toText(rawAddress.postal),
+      },
+
+      oenNumber: this.toText(source.oenNumber),
+      ib: this.toText(source.ib),
+      ap: this.toBoolean(source.ap),
+      identityFileNote: this.toText(source.identityFileNote),
+
+      otherCourses: rawCourses.map((course: unknown) => this.normalizeCourse(course)),
+    };
+  }
+
+  private normalizeCourse(value: unknown): CourseModel {
+    const source: any = value && typeof value === 'object' ? value : {};
+    const schoolTypeRaw = String(source.schoolType || '')
+      .trim()
+      .toUpperCase();
+    const schoolType: SchoolType = schoolTypeRaw === 'MAIN' || schoolTypeRaw === 'OTHER' ? schoolTypeRaw : '';
+
+    return {
+      schoolType,
+      schoolName: this.toText(source.schoolName),
+      courseCode: this.toText(source.courseCode),
+      mark: this.toOptionalNumber(source.mark),
+      gradeLevel: this.toOptionalNumber(source.gradeLevel),
+      startTime: this.normalizeDate(source.startTime),
+      endTime: this.normalizeDate(source.endTime),
+    };
+  }
+
+  private toPayload(model: StudentProfileModel): StudentProfilePayload {
+    return {
+      legalFirstName: this.toText(model.legalFirstName),
+      legalLastName: this.toText(model.legalLastName),
+      preferredName: this.toText(model.preferredName),
+      gender: model.gender,
+      birthday: this.normalizeDate(model.birthday),
+      phone: this.toText(model.phone),
+      email: this.toText(model.email),
+      statusInCanada: this.toText(model.statusInCanada),
+      citizenship: this.toText(model.citizenship),
+      firstLanguage: this.toText(model.firstLanguage),
+      firstBoardingDate: this.normalizeDate(model.firstBoardingDate),
+      address: {
+        streetAddress: this.toText(model.address.streetAddress),
+        streetAddressLine2: this.toText(model.address.streetAddressLine2),
+        city: this.toText(model.address.city),
+        state: this.toText(model.address.state),
+        country: this.toText(model.address.country),
+        postal: this.toText(model.address.postal),
+      },
+      oenNumber: this.toText(model.oenNumber),
+      ib: this.toText(model.ib),
+      ap: !!model.ap,
+      identityFileNote: this.toText(model.identityFileNote),
+      otherCourses: model.otherCourses.map((course) => ({
+        schoolType: course.schoolType || undefined,
+        schoolName: this.toText(course.schoolName),
+        courseCode: this.toText(course.courseCode),
+        mark: this.toOptionalNumber(course.mark),
+        gradeLevel: this.toOptionalNumber(course.gradeLevel),
+        startTime: this.normalizeDate(course.startTime),
+        endTime: this.normalizeDate(course.endTime),
+      })),
+    };
+  }
+
+  private normalizeGender(value: unknown): Gender {
+    const normalized = this.toText(value).toLowerCase();
+    if (normalized === 'male') return 'Male';
+    if (normalized === 'female') return 'Female';
+    if (normalized === 'other') return 'Other';
+    return '';
+  }
+
+  private toOptionalNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private toText(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private toBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+
+  private normalizeDate(value: unknown): string {
+    const text = this.toText(value);
+    if (!text) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : text;
+  }
+
+  private extractErrorMessage(err: HttpErrorResponse): string {
+    const payload = err?.error;
+
+    if (payload && typeof payload === 'object') {
+      return String((payload as any).message || (payload as any).error || '');
+    }
+
+    if (typeof payload === 'string') {
+      try {
+        const parsed = JSON.parse(payload);
+        return String(parsed?.message || parsed?.error || payload);
+      } catch {
+        return payload;
+      }
+    }
+
+    return err?.message || '';
   }
 }

@@ -248,4 +248,14 @@ describe('StudentManagementComponent', () => {
       status: 'ARCHIVED',
     });
   });
+
+  it('profileRoute should resolve /teacher/students/{id}/profile when student id exists', () => {
+    const route = component.profileRoute({ studentId: 88, username: 'student88' });
+    expect(route).toEqual(['/teacher/students', '88', 'profile']);
+  });
+
+  it('profileRoute should fallback to /teacher/students when student id is missing', () => {
+    const route = component.profileRoute({ username: 'no-id-student' } as any);
+    expect(route).toEqual(['/teacher/students']);
+  });
 });

@@ -198,6 +198,7 @@ interface InviteTeacherOption {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Username</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Profile</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Reset Password</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Active</th>
             </tr>
@@ -208,6 +209,15 @@ interface InviteTeacherOption {
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.email || '-' }}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">
+                <button
+                  type="button"
+                  [routerLink]="profileRoute(student)"
+                  [disabled]="!resolveStudentId(student)"
+                >
+                  Edit Profile
+                </button>
+              </td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">
                 <button
                   type="button"
@@ -260,7 +270,7 @@ interface InviteTeacherOption {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleStudents.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">No students found.</td>
+              <td colspan="7" style="padding:14px;color:#666;text-align:center;">No students found.</td>
             </tr>
           </tbody>
         </table>
@@ -402,6 +412,14 @@ export class StudentManagementComponent implements OnInit {
   resolveStudentId(student: StudentAccount): number | null {
     const id = student.studentId ?? student.id ?? student.userId;
     return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  profileRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    return ['/teacher/students', String(studentId), 'profile'];
   }
 
   loadStudents(): void {

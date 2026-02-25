@@ -1,17 +1,27 @@
-<h2>Student Profile</h2>
+<h2>
+  {{ managedMode ? ('Student Profile (Student #' + managedStudentId + ')') : 'Student Profile' }}
+</h2>
 
 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-  <button type="button" (click)="back()">Back</button>
-  <button type="button" (click)="save()" [disabled]="saving">
-    {{ saving ? 'Saving...' : 'Save (local)' }}
+  <button type="button" (click)="back()">
+    {{ managedMode ? 'Back to Student Management' : 'Back' }}
+  </button>
+  <button type="button" (click)="save()" [disabled]="saving || loading">
+    {{ saving ? 'Saving...' : 'Save' }}
+  </button>
+  <button type="button" (click)="loadProfile()" [disabled]="loading || saving">
+    {{ loading ? 'Loading...' : 'Reload' }}
   </button>
 </div>
 
+<div *ngIf="loading" style="color: #666; margin-bottom: 8px;">
+  Loading profile...
+</div>
 <div *ngIf="error" style="color: #b00020; margin-bottom: 8px;">
   {{ error }}
 </div>
 <div *ngIf="saved" style="color: #1b5e20; margin-bottom: 8px;">
-  Saved ✓ (localStorage)
+  Saved successfully.
 </div>
 
 <form (ngSubmit)="save()">
@@ -158,7 +168,7 @@
     </div>
   </fieldset>
 
-  <button type="submit" [disabled]="saving">
+  <button type="submit" [disabled]="saving || loading">
     {{ saving ? 'Saving...' : 'Save' }}
   </button>
 </form>
