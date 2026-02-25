@@ -10,7 +10,11 @@ export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
   { path: 'login', component: Login },
-  { path: 'register', redirectTo: 'login', pathMatch: 'full' },
+  {
+    path: 'register',
+    loadComponent: () =>
+      import('./pages/register/register.component').then((m) => m.RegisterComponent),
+  },
 
   {
     path: 'change-password',

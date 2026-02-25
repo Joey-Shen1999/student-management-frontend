@@ -19,6 +19,7 @@ import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/passwor
 })
 export class RegisterComponent implements OnInit {
   role: 'STUDENT' = 'STUDENT';
+  readonly inviteRequiredMessage = '缺少邀请链接，无法注册。请联系老师获取邀请链接。';
 
   username = '';
   password = '';
@@ -44,7 +45,10 @@ export class RegisterComponent implements OnInit {
 
   ngOnInit(): void {
     const inviteToken = String(this.route.snapshot.queryParamMap.get('inviteToken') || '').trim();
-    if (!inviteToken) return;
+    if (!inviteToken) {
+      this.inviteValidationError = this.inviteRequiredMessage;
+      return;
+    }
 
     this.inviteToken = inviteToken;
     this.validateInviteToken(inviteToken);
@@ -80,12 +84,17 @@ export class RegisterComponent implements OnInit {
       return;
     }
 
-    if (this.inviteToken && this.inviteValidationLoading) {
+    if (!this.inviteToken) {
+      this.error = this.inviteRequiredMessage;
+      return;
+    }
+
+    if (this.inviteValidationLoading) {
       this.error = '邀请链接正在校验中，请稍后重试。';
       return;
     }
 
-    if (this.inviteToken && this.inviteValidationError) {
+    if (this.inviteValidationError) {
       this.error = this.inviteValidationError;
       return;
     }

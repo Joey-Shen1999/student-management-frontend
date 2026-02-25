@@ -25,7 +25,7 @@ describe('RegisterComponent', () => {
 
     route = {
       snapshot: {
-        queryParamMap: convertToParamMap({}),
+        queryParamMap: convertToParamMap({ inviteToken: 'invite-default' }),
       },
     } as unknown as ActivatedRoute;
 
@@ -34,6 +34,7 @@ describe('RegisterComponent', () => {
       router as Router,
       route
     );
+    component.ngOnInit();
   });
 
   afterEach(() => {
@@ -85,6 +86,7 @@ describe('RegisterComponent', () => {
       username: 'alice',
       password: 'Aa1!goodPass',
       role: 'STUDENT',
+      inviteToken: 'invite-default',
       firstName: 'Alice',
       lastName: 'Zhang',
       preferredName: 'Ali',
@@ -129,5 +131,27 @@ describe('RegisterComponent', () => {
         inviteToken: 'invite-abc',
       })
     );
+  });
+
+  it('should block submit when invite token is missing', () => {
+    route = {
+      snapshot: {
+        queryParamMap: convertToParamMap({}),
+      },
+    } as unknown as ActivatedRoute;
+    component = new RegisterComponent(
+      auth as AuthService,
+      router as Router,
+      route
+    );
+    component.ngOnInit();
+
+    component.username = 'alice';
+    component.password = 'Aa1!goodPass';
+    component.confirmPassword = 'Aa1!goodPass';
+    component.submit();
+
+    expect(component.error).toBe('缺少邀请链接，无法注册。请联系老师获取邀请链接。');
+    expect(auth.register).not.toHaveBeenCalled();
   });
 });

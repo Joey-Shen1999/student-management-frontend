@@ -198,9 +198,9 @@ interface InviteTeacherOption {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">档案</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">重置密码</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">启用</th>
+              <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">档案</th>
+              <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">重置密码</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">归档</th>
             </tr>
           </thead>
           <tbody>
@@ -209,19 +209,21 @@ interface InviteTeacherOption {
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.email || '-' }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
                 <button
                   type="button"
                   [routerLink]="profileRoute(student)"
+                  style="min-width:86px;white-space:nowrap;"
                   [disabled]="!resolveStudentId(student)"
                 >
                   编辑档案
                 </button>
               </td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
                 <button
                   type="button"
                   (click)="resetPassword(student)"
+                  style="min-width:86px;white-space:nowrap;"
                   [disabled]="
                     !resolveStudentId(student) ||
                     resettingStudentId === resolveStudentId(student) ||
@@ -239,7 +241,7 @@ interface InviteTeacherOption {
                 <label
                   style="display:inline-flex;align-items:center;cursor:pointer;user-select:none;"
                   [style.opacity]="statusUpdatingStudentId === resolveStudentId(student) ? '0.7' : '1'"
-                  title="启用"
+                  title="归档"
                 >
                   <input
                     type="checkbox"

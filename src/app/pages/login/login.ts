@@ -1,11 +1,11 @@
-import { Component, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs/operators';
-import { AuthService } from '../../services/auth.service';
 import { HttpErrorResponse } from '@angular/common/http';
+import { finalize } from 'rxjs/operators';
 
+import { AuthService } from '../../services/auth.service';
 import type { LoginResponse } from '../../services/auth.service';
 
 @Component({
@@ -14,17 +14,38 @@ import type { LoginResponse } from '../../services/auth.service';
   imports: [CommonModule, FormsModule],
   templateUrl: './login.html',
 })
-export class Login {
+export class Login implements OnInit {
   username = '';
   password = '';
   error = '';
   loading = false;
+  rememberUsername = true;
+  rememberPassword = true;
+
+  private readonly rememberedUsernameCookieKey = 'sm_remember_username';
+  private readonly rememberedUsernameDays = 30;
+  private readonly rememberedPasswordCookieKey = 'sm_remember_password';
+  private readonly rememberedPasswordDays = 30;
 
   constructor(
     private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef
   ) {}
+
+  ngOnInit(): void {
+    const rememberedUsername = this.getCookie(this.rememberedUsernameCookieKey);
+    if (rememberedUsername) {
+      this.username = rememberedUsername;
+      this.rememberUsername = true;
+    }
+
+    const rememberedPassword = this.getCookie(this.rememberedPasswordCookieKey);
+    if (rememberedPassword) {
+      this.password = rememberedPassword;
+      this.rememberPassword = true;
+    }
+  }
 
   onSubmit(): void {
     if (this.loading) return;
@@ -47,16 +68,14 @@ export class Login {
       .login({ username, password })
       .pipe(
         finalize(() => {
-          // ✅ 兜底：无论如何都解锁
           this.loading = false;
           this.cdr.detectChanges();
         })
       )
       .subscribe({
         next: (resp: LoginResponse) => {
-          // ✅ 成功也解锁（双保险）
-          this.loading = false;
-          this.cdr.detectChanges();
+          this.persistRememberedUsername(username);
+          this.persistRememberedPassword(password);
 
           if (resp?.mustChangePassword) {
             this.router.navigate(['/change-password'], {
@@ -73,22 +92,35 @@ export class Login {
           }
         },
         error: (err: unknown) => {
-          // ✅ 失败立刻解锁 + 显示错误（双保险）
-          this.loading = false;
-
           const msg = this.extractErrorMessage(err);
           this.error = msg || '登录失败。';
-
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private persistRememberedUsername(username: string): void {
+    if (this.rememberUsername) {
+      this.setCookie(this.rememberedUsernameCookieKey, username, this.rememberedUsernameDays);
+      return;
+    }
+
+    this.deleteCookie(this.rememberedUsernameCookieKey);
+  }
+
+  private persistRememberedPassword(password: string): void {
+    if (this.rememberPassword) {
+      this.setCookie(this.rememberedPasswordCookieKey, password, this.rememberedPasswordDays);
+      return;
+    }
+
+    this.deleteCookie(this.rememberedPasswordCookieKey);
   }
 
   private extractErrorMessage(err: unknown): string {
     const httpErr = err as HttpErrorResponse;
     const payload = httpErr?.error;
 
-    // 后端 JSON：{ status, message }
     if (payload && typeof payload === 'object') {
       const code = String((payload as any).code || '').toUpperCase();
       if (this.isArchivedAccountCode(code)) {
@@ -103,7 +135,6 @@ export class Login {
       return message;
     }
 
-    // 字符串（JSON 字符串或纯文本）
     if (typeof payload === 'string') {
       try {
         const parsed = JSON.parse(payload);
@@ -135,5 +166,42 @@ export class Login {
 
   private looksLikeArchivedMessage(message: string): boolean {
     return String(message || '').toLowerCase().includes('archived');
+  }
+
+  private setCookie(name: string, value: string, days: number): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  private getCookie(name: string): string {
+    if (typeof document === 'undefined') {
+      return '';
+    }
+
+    const target = `${name}=`;
+    const cookies = String(document.cookie || '').split(';');
+
+    for (const rawCookie of cookies) {
+      const cookie = rawCookie.trim();
+      if (!cookie.startsWith(target)) {
+        continue;
+      }
+
+      return decodeURIComponent(cookie.slice(target.length));
+    }
+
+    return '';
+  }
+
+  private deleteCookie(name: string): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
   }
 }

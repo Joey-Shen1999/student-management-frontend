@@ -24,6 +24,11 @@
       }
     </div>
   }
+  @if (!inviteToken) {
+    <div style="margin:12px 0;padding:12px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;">
+      {{ inviteValidationError || inviteRequiredMessage }}
+    </div>
+  }
 
   <div style="margin:12px 0;">
     <label>用户名</label>
@@ -52,13 +57,13 @@
   <h3 style="margin-top:18px;">学生信息</h3>
 
   <div style="margin:12px 0;">
-    <label>名</label>
-    <input [(ngModel)]="firstName" name="firstName" style="width:100%; padding:8px;" />
+    <label>姓</label>
+    <input [(ngModel)]="lastName" name="lastName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>姓</label>
-    <input [(ngModel)]="lastName" name="lastName" style="width:100%; padding:8px;" />
+    <label>名</label>
+    <input [(ngModel)]="firstName" name="firstName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
@@ -66,7 +71,11 @@
     <input [(ngModel)]="preferredName" name="preferredName" style="width:100%; padding:8px;" />
   </div>
 
-  <button type="submit" [disabled]="loading" style="padding:10px 14px; margin-top:12px;">
+  <button
+    type="submit"
+    [disabled]="loading || !inviteToken || inviteValidationLoading || !!inviteValidationError"
+    style="padding:10px 14px; margin-top:12px;"
+  >
     {{ loading ? '注册中...' : '创建账号' }}
   </button>
 

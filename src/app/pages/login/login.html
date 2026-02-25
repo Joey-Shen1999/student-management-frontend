@@ -1,39 +1,51 @@
-<div style="max-width:360px;margin:60px auto;font-family:Arial">
+<div style="max-width: 360px; margin: 60px auto; font-family: Arial">
   <h2>登录</h2>
 
-  <label style="display:block;margin:12px 0 6px;">用户名</label>
-  <input
-    [(ngModel)]="username"
-    name="username"
-    style="width:100%; padding:8px;"
-    autocomplete="username"
-    (keyup.enter)="onSubmit()"
-  />
+  <form (ngSubmit)="onSubmit()" autocomplete="on">
+    <label for="login-username" style="display: block; margin: 12px 0 6px">用户名</label>
+    <input
+      id="login-username"
+      [(ngModel)]="username"
+      name="username"
+      type="text"
+      style="width: 100%; padding: 8px"
+      autocomplete="username"
+      autocapitalize="none"
+      spellcheck="false"
+    />
 
-  <label style="display:block;margin:12px 0 6px;">密码</label>
-  <input
-    [(ngModel)]="password"
-    name="password"
-    type="password"
-    style="width:100%; padding:8px;"
-    autocomplete="current-password"
-    (keyup.enter)="onSubmit()"
-  />
+    <label for="login-password" style="display: block; margin: 12px 0 6px">密码</label>
+    <input
+      id="login-password"
+      [(ngModel)]="password"
+      name="password"
+      type="password"
+      style="width: 100%; padding: 8px"
+      autocomplete="current-password"
+    />
 
-  <button
-    type="button"
-    (click)="onSubmit()"
-    [disabled]="loading"
-    style="margin-top:14px;padding:10px 14px;width:100%;"
-  >
-    {{ loading ? '登录中...' : '登录' }}
-  </button>
+    <label style="display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px">
+      <input [(ngModel)]="rememberUsername" name="rememberUsername" type="checkbox" />
+      记住用户名（30天）
+    </label>
 
-  <div *ngIf="loading" style="margin-top:12px;color:#666;">
-    请求处理中...
-  </div>
+    <label style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px">
+      <input [(ngModel)]="rememberPassword" name="rememberPassword" type="checkbox" />
+      记住密码（30天）
+    </label>
 
-  <p *ngIf="error" style="color:#b00020; margin-top:12px;">
+    <button
+      type="submit"
+      [disabled]="loading"
+      style="margin-top: 14px; padding: 10px 14px; width: 100%"
+    >
+      {{ loading ? '登录中...' : '登录' }}
+    </button>
+  </form>
+
+  <div *ngIf="loading" style="margin-top: 12px; color: #666">请求处理中...</div>
+
+  <p *ngIf="error" style="color: #b00020; margin-top: 12px">
     {{ error }}
   </p>
 </div>
