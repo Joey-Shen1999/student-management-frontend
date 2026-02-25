@@ -13,17 +13,17 @@ describe('evaluatePasswordPolicy', () => {
     const result = evaluatePasswordPolicy('abc', 'alice');
 
     expect(result.isValid).toBe(false);
-    expect(result.message).toContain('Password does not meet requirements:');
-    expect(result.message).toContain('At least 8 characters');
-    expect(result.message).toContain('Contains an uppercase letter (A-Z)');
-    expect(result.message).toContain('Contains a number (0-9)');
-    expect(result.message).toContain('Contains a special character (e.g. !@#$%)');
+    expect(result.message).toContain('密码不符合要求：');
+    expect(result.message).toContain('至少 8 个字符');
+    expect(result.message).toContain('包含大写字母（A-Z）');
+    expect(result.message).toContain('包含数字（0-9）');
+    expect(result.message).toContain('包含特殊字符（如 !@#$%）');
   });
 
   it('rejects passwords containing username when username is long enough', () => {
     const result = evaluatePasswordPolicy('Alice#2026', 'alice');
 
     expect(result.isValid).toBe(false);
-    expect(result.message).toContain('Does not contain your username');
+    expect(result.message).toContain('不能包含用户名');
   });
 });

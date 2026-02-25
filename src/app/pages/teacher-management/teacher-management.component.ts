@@ -40,18 +40,18 @@ interface StatusUpdateResult {
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Teacher Account Management</h2>
-        <a routerLink="/teacher/dashboard" style="margin-left:auto;">Back</a>
+        <h2 style="margin:0;">教师账号管理</h2>
+        <a routerLink="/teacher/dashboard" style="margin-left:auto;">返回</a>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
         <button type="button" (click)="loadTeachers()" [disabled]="loadingList">
-          {{ loadingList ? 'Loading...' : 'Refresh List' }}
+          {{ loadingList ? '加载中...' : '刷新列表' }}
         </button>
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;">
-          <span style="color:#666;font-size:13px;">Total: {{ teachers.length }}</span>
-          <button type="button" routerLink="/teacher/invites">Add Teacher</button>
+          <span style="color:#666;font-size:13px;">总数：{{ teachers.length }}</span>
+          <button type="button" routerLink="/teacher/invites">新增教师</button>
         </div>
       </div>
 
@@ -71,26 +71,26 @@ interface StatusUpdateResult {
       >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Role
+            角色
             <select
               [(ngModel)]="roleFilter"
               (ngModelChange)="applyListView()"
               [disabled]="loadingList"
               style="padding:4px 6px;"
             >
-              <option value="ALL">All</option>
-              <option value="ADMIN">Admin</option>
-              <option value="TEACHER">Teacher</option>
+              <option value="ALL">全部</option>
+              <option value="ADMIN">管理员</option>
+              <option value="TEACHER">教师</option>
             </select>
           </label>
 
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? 'Hide Inactive' : 'Show Inactive' }}
+            {{ showInactive ? '隐藏已归档' : '显示已归档' }}
           </button>
 
           <input
             type="search"
-            placeholder="Search by id, username, name, email"
+            placeholder="按 ID、用户名、姓名、邮箱搜索"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
@@ -102,17 +102,17 @@ interface StatusUpdateResult {
             (click)="clearListControls()"
             [disabled]="loadingList || (listLimit === 20 && roleFilter === 'ALL' && !showInactive && !searchKeyword.trim())"
           >
-            Clear
+            清空
           </button>
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
           <span style="color:#666;font-size:13px;white-space:nowrap;">
-            Showing: {{ visibleTeachers.length }} / Filtered: {{ filteredCount }}
+            显示：{{ visibleTeachers.length }} / 筛选后：{{ filteredCount }}
           </span>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Limit
+            数量
             <select
               [(ngModel)]="listLimit"
               (ngModelChange)="applyListView()"
@@ -136,12 +136,12 @@ interface StatusUpdateResult {
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Teacher ID</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Username</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Admin</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Active</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">教师 ID</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">管理员</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">启用</th>
             </tr>
           </thead>
           <tbody>
@@ -203,8 +203,8 @@ interface StatusUpdateResult {
                     >
                       {{
                         resettingTeacherId === resolveTeacherId(teacher)
-                          ? 'Resetting...'
-                          : 'Reset password'
+                          ? '重置中...'
+                          : '重置密码'
                       }}
                     </button>
                   </div>
@@ -220,7 +220,7 @@ interface StatusUpdateResult {
                       ? '0.7'
                       : '1'
                   "
-                  title="Active"
+                  title="启用"
                 >
                   <input
                     type="checkbox"
@@ -254,7 +254,7 @@ interface StatusUpdateResult {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleTeachers.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">No teachers found.</td>
+              <td colspan="6" style="padding:14px;color:#666;text-align:center;">未找到教师账号。</td>
             </tr>
           </tbody>
         </table>
@@ -271,34 +271,34 @@ interface StatusUpdateResult {
         *ngIf="roleResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Role updated successfully</div>
-        <div style="margin-top:8px;"><b>Teacher:</b> {{ roleResult.username }}</div>
-        <div style="margin-top:8px;"><b>New Role:</b> {{ roleResult.role }}</div>
+        <div style="font-weight:bold;">角色更新成功</div>
+        <div style="margin-top:8px;"><b>教师：</b> {{ roleResult.username }}</div>
+        <div style="margin-top:8px;"><b>新角色：</b> {{ roleResult.role === 'ADMIN' ? '管理员' : '教师' }}</div>
       </div>
 
       <div
         *ngIf="statusResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Account status updated successfully</div>
-        <div style="margin-top:8px;"><b>Teacher:</b> {{ statusResult.username }}</div>
-        <div style="margin-top:8px;"><b>New Status:</b> {{ statusResult.status }}</div>
+        <div style="font-weight:bold;">账号状态更新成功</div>
+        <div style="margin-top:8px;"><b>教师：</b> {{ statusResult.username }}</div>
+        <div style="margin-top:8px;"><b>新状态：</b> {{ statusResult.status === 'ACTIVE' ? '启用' : '归档' }}</div>
       </div>
 
       <div
         *ngIf="resetResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Temporary password reset successfully</div>
-        <div style="margin-top:8px;"><b>Teacher:</b> {{ resetResult.username }}</div>
+        <div style="font-weight:bold;">临时密码重置成功</div>
+        <div style="margin-top:8px;"><b>教师：</b> {{ resetResult.username }}</div>
         <div style="margin-top:8px;">
-          <b>Temporary Password (show once):</b>
+          <b>临时密码（仅显示一次）：</b>
           <pre
             style="margin:8px 0 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:16px;"
           >{{ resetResult.tempPassword }}</pre>
         </div>
         <div style="margin-top:8px;color:#666;">
-          Please send it to the teacher securely. First login will require password change.
+          请通过安全方式发送给教师。首次登录将强制修改密码。
         </div>
       </div>
     </div>
@@ -371,7 +371,7 @@ export class TeacherManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.listError = this.extractErrorMessage(err) || 'Failed to load teacher list.';
+          this.listError = this.extractErrorMessage(err) || '加载教师列表失败。';
           this.teachers = [];
           this.applyListView();
           this.cdr.detectChanges();
@@ -382,7 +382,7 @@ export class TeacherManagementComponent implements OnInit {
   resetPassword(teacher: TeacherAccount): void {
     const teacherId = this.resolveTeacherId(teacher);
     if (!teacherId) {
-      this.actionError = 'Missing teacher id, unable to reset password.';
+      this.actionError = '缺少教师 ID，无法重置密码。';
       this.cdr.detectChanges();
       return;
     }
@@ -405,7 +405,7 @@ export class TeacherManagementComponent implements OnInit {
       .subscribe({
         next: (resp: ResetTeacherPasswordResponse) => {
           if (!resp?.tempPassword) {
-            this.actionError = 'Reset succeeded but temp password is missing in response.';
+            this.actionError = '重置成功，但响应中缺少临时密码。';
             this.cdr.detectChanges();
             return;
           }
@@ -418,7 +418,7 @@ export class TeacherManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.actionError = this.extractErrorMessage(err) || 'Failed to reset password.';
+          this.actionError = this.extractErrorMessage(err) || '重置密码失败。';
           this.cdr.detectChanges();
         },
       });
@@ -427,7 +427,7 @@ export class TeacherManagementComponent implements OnInit {
   setRole(teacher: TeacherAccount, targetRole: TeacherRole): void {
     const teacherId = this.resolveTeacherId(teacher);
     if (!teacherId) {
-      this.actionError = 'Missing teacher id, unable to update role.';
+      this.actionError = '缺少教师 ID，无法更新角色。';
       this.cdr.detectChanges();
       return;
     }
@@ -463,7 +463,7 @@ export class TeacherManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.actionError = this.extractRoleUpdateErrorMessage(err) || 'Failed to update role.';
+          this.actionError = this.extractRoleUpdateErrorMessage(err) || '更新角色失败。';
           this.cdr.detectChanges();
         },
       });
@@ -482,7 +482,7 @@ export class TeacherManagementComponent implements OnInit {
   setTeacherStatus(teacher: TeacherAccount, targetStatus: TeacherAccountStatus): void {
     const teacherId = this.resolveTeacherId(teacher);
     if (!teacherId) {
-      this.actionError = 'Missing teacher id, unable to update account status.';
+      this.actionError = '缺少教师 ID，无法更新账号状态。';
       this.cdr.detectChanges();
       return;
     }
@@ -518,7 +518,7 @@ export class TeacherManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.actionError = this.extractStatusUpdateErrorMessage(err) || 'Failed to update account status.';
+          this.actionError = this.extractStatusUpdateErrorMessage(err) || '更新账号状态失败。';
           this.cdr.detectChanges();
         },
       });
@@ -668,23 +668,23 @@ export class TeacherManagementComponent implements OnInit {
     const code = this.extractErrorCode(err);
 
     if (status === 401) {
-      return 'Unauthenticated. Please login again.';
+      return '未登录或登录已过期，请重新登录。';
     }
 
     if (status === 403 && code === 'MUST_CHANGE_PASSWORD_REQUIRED') {
-      return 'Password change required before role management.';
+      return '请先修改密码后再进行角色管理。';
     }
 
     if (status === 403) {
-      return this.extractErrorMessage(err) || 'Forbidden: admin role required.';
+      return this.extractErrorMessage(err) || '无权限：需要管理员角色。';
     }
 
     if (status === 404 && code === 'NOT_FOUND') {
-      return this.extractErrorMessage(err) || 'Teacher account not found.';
+      return this.extractErrorMessage(err) || '未找到教师账号。';
     }
 
     if (status === 400 && code === 'BAD_REQUEST') {
-      return this.extractErrorMessage(err) || 'Invalid role. Expected ADMIN or TEACHER.';
+      return this.extractErrorMessage(err) || '无效角色，必须为 ADMIN 或 TEACHER。';
     }
 
     return this.extractErrorMessage(err);
@@ -695,23 +695,23 @@ export class TeacherManagementComponent implements OnInit {
     const code = this.extractErrorCode(err);
 
     if (status === 401) {
-      return 'Unauthenticated. Please login again.';
+      return '未登录或登录已过期，请重新登录。';
     }
 
     if (status === 403 && code === 'MUST_CHANGE_PASSWORD_REQUIRED') {
-      return 'Password change required before account management.';
+      return '请先修改密码后再进行账号管理。';
     }
 
     if (status === 403) {
-      return this.extractErrorMessage(err) || 'Forbidden: admin role required.';
+      return this.extractErrorMessage(err) || '无权限：需要管理员角色。';
     }
 
     if (status === 404 && code === 'NOT_FOUND') {
-      return this.extractErrorMessage(err) || 'Teacher account not found.';
+      return this.extractErrorMessage(err) || '未找到教师账号。';
     }
 
     if (status === 400 && code === 'BAD_REQUEST') {
-      return this.extractErrorMessage(err) || 'Invalid account status. Expected ACTIVE or ARCHIVED.';
+      return this.extractErrorMessage(err) || '无效账号状态，必须为 ACTIVE 或 ARCHIVED。';
     }
 
     return this.extractErrorMessage(err);

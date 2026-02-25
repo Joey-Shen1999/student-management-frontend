@@ -1,7 +1,7 @@
 <div style="max-width:360px;margin:60px auto;font-family:Arial">
-  <h2>Login</h2>
+  <h2>登录</h2>
 
-  <label style="display:block;margin:12px 0 6px;">Username</label>
+  <label style="display:block;margin:12px 0 6px;">用户名</label>
   <input
     [(ngModel)]="username"
     name="username"
@@ -10,7 +10,7 @@
     (keyup.enter)="onSubmit()"
   />
 
-  <label style="display:block;margin:12px 0 6px;">Password</label>
+  <label style="display:block;margin:12px 0 6px;">密码</label>
   <input
     [(ngModel)]="password"
     name="password"
@@ -26,11 +26,11 @@
     [disabled]="loading"
     style="margin-top:14px;padding:10px 14px;width:100%;"
   >
-    {{ loading ? 'Logging in...' : 'Login' }}
+    {{ loading ? '登录中...' : '登录' }}
   </button>
 
   <div *ngIf="loading" style="margin-top:12px;color:#666;">
-    Request in progress...
+    请求处理中...
   </div>
 
   <p *ngIf="error" style="color:#b00020; margin-top:12px;">

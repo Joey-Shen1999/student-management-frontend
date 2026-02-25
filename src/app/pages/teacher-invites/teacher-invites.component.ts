@@ -17,24 +17,24 @@ import {
   template: `
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;">
-        <h2 style="margin:0;">Teacher Invites</h2>
-        <a routerLink="/teacher/teachers" style="margin-left:auto;">Back</a>
+        <h2 style="margin:0;">教师邀请</h2>
+        <a routerLink="/teacher/teachers" style="margin-left:auto;">返回</a>
       </div>
 
       <div style="margin-top:16px;padding:12px;border:1px solid #ddd;border-radius:8px;">
-        <div style="font-weight:bold;margin-bottom:8px;">Create new teacher account</div>
+        <div style="font-weight:bold;margin-bottom:8px;">创建新教师账号</div>
 
-        <label style="display:block;margin:10px 0 6px;">Username</label>
+        <label style="display:block;margin:10px 0 6px;">用户名</label>
         <input
           [(ngModel)]="username"
-          placeholder="Enter username"
+          placeholder="请输入用户名"
           style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
-        <label style="display:block;margin:10px 0 6px;">Display Name (optional)</label>
+        <label style="display:block;margin:10px 0 6px;">显示名称（可选）</label>
         <input
           [(ngModel)]="displayName"
-          placeholder="Enter display name"
+          placeholder="请输入显示名称"
           style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
@@ -44,15 +44,14 @@ import {
           [disabled]="loading || !username.trim()"
           style="margin-top:12px;padding:10px 12px;"
         >
-          {{ loading ? 'Creating...' : 'Generate 8-char temp password' }}
+          {{ loading ? '创建中...' : '生成 8 位临时密码' }}
         </button>
 
-        <!-- ✅ 错误提示 -->
         <div
           *ngIf="error"
           style="margin-top:12px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;"
         >
-          <div style="font-weight:bold;color:#b00020;">Request failed</div>
+          <div style="font-weight:bold;color:#b00020;">请求失败</div>
           <div style="margin-top:6px;color:#b00020;white-space:pre-wrap;">{{ error }}</div>
         </div>
       </div>
@@ -61,13 +60,13 @@ import {
         *ngIf="result"
         style="margin-top:16px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Created ✅</div>
+        <div style="font-weight:bold;">创建成功</div>
 
         <div style="margin-top:8px;">
-          <div><b>Username:</b> {{ result.username }}</div>
+          <div><b>用户名：</b> {{ result.username }}</div>
 
           <div style="margin-top:10px;">
-            <b>Temporary Password (show once):</b>
+            <b>临时密码（仅显示一次）：</b>
             <div style="font-size:13px;color:#666;margin-top:4px;">
               请立即复制给对方。刷新页面后不会再次显示。
             </div>
@@ -78,7 +77,7 @@ import {
           </div>
 
           <div style="margin-top:10px;color:#666;">
-            First login will be forced to change password.
+            首次登录将强制修改密码。
           </div>
         </div>
       </div>
@@ -103,23 +102,22 @@ export class TeacherInvitesComponent {
     this.error = '';
     this.result = null;
     this.loading = true;
-    this.cdr.detectChanges(); // ✅ 立刻刷新一次
+    this.cdr.detectChanges();
 
     this.inviteApi
       .createInvite(this.username.trim(), this.displayName.trim())
       .pipe(
         finalize((): void => {
           this.loading = false;
-          this.cdr.detectChanges(); // ✅ finalize 也强制刷新
+          this.cdr.detectChanges();
         })
       )
       .subscribe({
         next: (res: CreateTeacherInviteResponse): void => {
           this.result = res;
-          this.cdr.detectChanges(); // ✅ 成功也刷新
+          this.cdr.detectChanges();
         },
         error: (e: HttpErrorResponse): void => {
-          // ✅ 把 e.error 打印出来，你能看到后端返回体到底是什么
           console.error('[Invite error]', e);
           console.error('[Invite error body]', (e as any).error);
 
@@ -134,12 +132,11 @@ export class TeacherInvitesComponent {
           } else if (typeof body === 'string') {
             msg = body;
           } else {
-            msg = e?.message || 'Request failed';
+            msg = e?.message || '请求失败';
           }
 
           this.error = status ? `${status} ${msg}` : msg;
 
-          // ✅ 强制刷新 UI（解决你现在“没反应”的核心）
           this.cdr.detectChanges();
         },
       });

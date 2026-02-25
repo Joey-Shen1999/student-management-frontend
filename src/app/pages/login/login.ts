@@ -35,7 +35,7 @@ export class Login {
     const password = this.password || '';
 
     if (!username || !password) {
-      this.error = 'Username and password are required.';
+      this.error = '请输入用户名和密码。';
       this.cdr.detectChanges();
       return;
     }
@@ -77,7 +77,7 @@ export class Login {
           this.loading = false;
 
           const msg = this.extractErrorMessage(err);
-          this.error = msg || 'Login failed';
+          this.error = msg || '登录失败。';
 
           this.cdr.detectChanges();
         },
@@ -92,12 +92,12 @@ export class Login {
     if (payload && typeof payload === 'object') {
       const code = String((payload as any).code || '').toUpperCase();
       if (this.isArchivedAccountCode(code)) {
-        return 'This account has been archived. Please contact an admin to enable it.';
+        return '该账号已归档，请联系管理员启用。';
       }
 
       const message = (payload as any).message || (payload as any).error || '';
       if (this.looksLikeArchivedMessage(message)) {
-        return 'This account has been archived. Please contact an admin to enable it.';
+        return '该账号已归档，请联系管理员启用。';
       }
 
       return message;
@@ -109,18 +109,18 @@ export class Login {
         const parsed = JSON.parse(payload);
         const code = String(parsed?.code || '').toUpperCase();
         if (this.isArchivedAccountCode(code)) {
-          return 'This account has been archived. Please contact an admin to enable it.';
+          return '该账号已归档，请联系管理员启用。';
         }
 
         const message = parsed?.message || parsed?.error || payload;
         if (this.looksLikeArchivedMessage(message)) {
-          return 'This account has been archived. Please contact an admin to enable it.';
+          return '该账号已归档，请联系管理员启用。';
         }
 
         return message;
       } catch {
         if (this.looksLikeArchivedMessage(payload)) {
-          return 'This account has been archived. Please contact an admin to enable it.';
+          return '该账号已归档，请联系管理员启用。';
         }
         return payload;
       }

@@ -17,32 +17,32 @@ export function evaluatePasswordPolicy(password: string, username = ''): Passwor
   const checks: PasswordPolicyCheck[] = [
     {
       key: 'length',
-      label: 'At least 8 characters',
+      label: '至少 8 个字符',
       pass: normalizedPassword.length >= 8,
     },
     {
       key: 'lowercase',
-      label: 'Contains a lowercase letter (a-z)',
+      label: '包含小写字母（a-z）',
       pass: /[a-z]/.test(normalizedPassword),
     },
     {
       key: 'uppercase',
-      label: 'Contains an uppercase letter (A-Z)',
+      label: '包含大写字母（A-Z）',
       pass: /[A-Z]/.test(normalizedPassword),
     },
     {
       key: 'number',
-      label: 'Contains a number (0-9)',
+      label: '包含数字（0-9）',
       pass: /[0-9]/.test(normalizedPassword),
     },
     {
       key: 'special',
-      label: 'Contains a special character (e.g. !@#$%)',
+      label: '包含特殊字符（如 !@#$%）',
       pass: /[^A-Za-z0-9]/.test(normalizedPassword),
     },
     {
       key: 'noSpace',
-      label: 'Does not contain spaces',
+      label: '不包含空格',
       pass: !/\s/.test(normalizedPassword),
     },
   ];
@@ -50,7 +50,7 @@ export function evaluatePasswordPolicy(password: string, username = ''): Passwor
   if (normalizedUsername.length >= 3) {
     checks.push({
       key: 'noUsername',
-      label: 'Does not contain your username',
+      label: '不能包含用户名',
       pass: !normalizedPassword.toLowerCase().includes(normalizedUsername),
     });
   }
@@ -63,6 +63,6 @@ export function evaluatePasswordPolicy(password: string, username = ''): Passwor
     checks,
     message: isValid
       ? ''
-      : `Password does not meet requirements: ${failed.map((item) => item.label).join('; ')}`,
+      : `密码不符合要求：${failed.map((item) => item.label).join('；')}`,
   };
 }

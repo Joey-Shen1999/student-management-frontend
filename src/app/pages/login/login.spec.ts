@@ -35,7 +35,7 @@ describe('Login', () => {
 
     component.onSubmit();
 
-    expect(component.error).toBe('Username and password are required.');
+    expect(component.error).toBe('请输入用户名和密码。');
     expect(auth.login).not.toHaveBeenCalled();
   });
 
@@ -128,6 +128,6 @@ describe('Login', () => {
     component.password = 'Aa1!goodPass';
     component.onSubmit();
 
-    expect(component.error).toBe('This account has been archived. Please contact an admin to enable it.');
+    expect(component.error).toBe('该账号已归档，请联系管理员启用。');
   });
 });

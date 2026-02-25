@@ -9,24 +9,24 @@ import { AuthService } from '../../services/auth.service';
   imports: [CommonModule, RouterModule],
   template: `
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
-      <h2>Teacher Dashboard</h2>
+      <h2>教师主页</h2>
 
       <div style="margin:12px 0; padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <div style="font-weight:bold;">Session</div>
+        <div style="font-weight:bold;">会话信息</div>
         <pre style="margin:8px 0 0;">{{ session | json }}</pre>
       </div>
 
       <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
         <button *ngIf="isAdmin" type="button" (click)="goTeachers()" style="padding:10px 12px;">
-          Teacher Account Management
+          教师账号管理
         </button>
 
         <button type="button" (click)="goStudents()" style="padding:10px 12px;">
-          Student Account Management
+          学生账号管理
         </button>
 
         <button type="button" (click)="logout()" style="padding:10px 12px;margin-left:auto;">
-          Logout
+          退出登录
         </button>
       </div>
 

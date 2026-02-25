@@ -46,21 +46,21 @@ interface InviteTeacherOption {
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Student Account Management</h2>
-        <a routerLink="/teacher/dashboard" style="margin-left:auto;">Back</a>
+        <h2 style="margin:0;">学生账号管理</h2>
+        <a routerLink="/teacher/dashboard" style="margin-left:auto;">返回</a>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <div *ngIf="isAdminUser" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-              Teacher
+              教师
               <select
                 [(ngModel)]="selectedInviteTeacherId"
                 [disabled]="creatingInvite || loadingInviteTeachers"
                 style="padding:7px 8px;min-width:180px;"
               >
-                <option [ngValue]="null">{{ loadingInviteTeachers ? 'Loading...' : 'Select Teacher ID' }}</option>
+                <option [ngValue]="null">{{ loadingInviteTeachers ? '加载中...' : '选择教师 ID' }}</option>
                 <option *ngFor="let option of inviteTeacherOptions" [ngValue]="option.teacherId">
                   {{ option.label }}
                 </option>
@@ -72,12 +72,12 @@ interface InviteTeacherOption {
               (click)="refreshInviteTeachers()"
               [disabled]="creatingInvite || loadingInviteTeachers"
             >
-              {{ loadingInviteTeachers ? 'Loading Teachers...' : 'Refresh Teachers' }}
+              {{ loadingInviteTeachers ? '加载教师中...' : '刷新教师列表' }}
             </button>
           </div>
 
           <button type="button" (click)="loadStudents()" [disabled]="loadingList">
-            {{ loadingList ? 'Loading...' : 'Refresh List' }}
+            {{ loadingList ? '加载中...' : '刷新列表' }}
           </button>
 
           <button
@@ -85,11 +85,11 @@ interface InviteTeacherOption {
             (click)="createInviteLink()"
             [disabled]="creatingInvite || (isAdminUser && !selectedInviteTeacherId)"
           >
-            {{ creatingInvite ? 'Generating Invite...' : 'Generate Student Invite Link' }}
+            {{ creatingInvite ? '生成中...' : '生成学生邀请链接' }}
           </button>
         </div>
 
-        <span style="color:#666;font-size:13px;">Total: {{ students.length }}</span>
+        <span style="color:#666;font-size:13px;">总数：{{ students.length }}</span>
       </div>
 
       <div
@@ -110,8 +110,8 @@ interface InviteTeacherOption {
         *ngIf="inviteLink"
         style="margin:0 0 12px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Student invite link generated</div>
-        <div style="margin-top:6px;color:#555;">One link can register one new student account.</div>
+        <div style="font-weight:bold;">学生邀请链接已生成</div>
+        <div style="margin-top:6px;color:#555;">一个链接只能注册一个新学生账号。</div>
 
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
           <input
@@ -119,11 +119,11 @@ interface InviteTeacherOption {
             readonly
             style="flex:1 1 520px;min-width:280px;padding:8px;border:1px solid #ccc;border-radius:6px;"
           />
-          <button type="button" (click)="copyInviteLink()">{{ inviteCopied ? 'Copied' : 'Copy Link' }}</button>
+          <button type="button" (click)="copyInviteLink()">{{ inviteCopied ? '已复制' : '复制链接' }}</button>
         </div>
 
         <div *ngIf="inviteExpiresAt" style="margin-top:8px;color:#666;">
-          <b>Expires at:</b> {{ inviteExpiresAt }}
+          <b>过期时间：</b> {{ inviteExpiresAt }}
         </div>
       </div>
 
@@ -143,12 +143,12 @@ interface InviteTeacherOption {
       >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? 'Hide Inactive' : 'Show Inactive' }}
+            {{ showInactive ? '隐藏已归档' : '显示已归档' }}
           </button>
 
           <input
             type="search"
-            placeholder="Search by id, username, name, email"
+            placeholder="按 ID、用户名、姓名、邮箱搜索"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
@@ -160,17 +160,17 @@ interface InviteTeacherOption {
             (click)="clearListControls()"
             [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim())"
           >
-            Clear
+            清空
           </button>
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
           <span style="color:#666;font-size:13px;white-space:nowrap;">
-            Showing: {{ visibleStudents.length }} / Filtered: {{ filteredCount }}
+            显示：{{ visibleStudents.length }} / 筛选后：{{ filteredCount }}
           </span>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            Limit
+            数量
             <select
               [(ngModel)]="listLimit"
               (ngModelChange)="applyListView()"
@@ -194,13 +194,13 @@ interface InviteTeacherOption {
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Student ID</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Username</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Display Name</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Email</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Profile</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Reset Password</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">Active</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">学生 ID</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">档案</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">重置密码</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">启用</th>
             </tr>
           </thead>
           <tbody>
@@ -215,7 +215,7 @@ interface InviteTeacherOption {
                   [routerLink]="profileRoute(student)"
                   [disabled]="!resolveStudentId(student)"
                 >
-                  Edit Profile
+                  编辑档案
                 </button>
               </td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">
@@ -230,8 +230,8 @@ interface InviteTeacherOption {
                 >
                   {{
                     resettingStudentId === resolveStudentId(student)
-                      ? 'Resetting...'
-                      : 'Reset password'
+                      ? '重置中...'
+                      : '重置密码'
                   }}
                 </button>
               </td>
@@ -239,7 +239,7 @@ interface InviteTeacherOption {
                 <label
                   style="display:inline-flex;align-items:center;cursor:pointer;user-select:none;"
                   [style.opacity]="statusUpdatingStudentId === resolveStudentId(student) ? '0.7' : '1'"
-                  title="Active"
+                  title="启用"
                 >
                   <input
                     type="checkbox"
@@ -270,7 +270,7 @@ interface InviteTeacherOption {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleStudents.length === 0">
-              <td colspan="7" style="padding:14px;color:#666;text-align:center;">No students found.</td>
+              <td colspan="7" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
             </tr>
           </tbody>
         </table>
@@ -287,19 +287,19 @@ interface InviteTeacherOption {
         *ngIf="statusResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Account status updated successfully</div>
-        <div style="margin-top:8px;"><b>Student:</b> {{ statusResult.username }}</div>
-        <div style="margin-top:8px;"><b>New Status:</b> {{ statusResult.status }}</div>
+        <div style="font-weight:bold;">账号状态更新成功</div>
+        <div style="margin-top:8px;"><b>学生：</b> {{ statusResult.username }}</div>
+        <div style="margin-top:8px;"><b>新状态：</b> {{ statusResult.status === 'ACTIVE' ? '启用' : '归档' }}</div>
       </div>
 
       <div
         *ngIf="resetResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">Temporary password reset successfully</div>
-        <div style="margin-top:8px;"><b>Student:</b> {{ resetResult.username }}</div>
+        <div style="font-weight:bold;">临时密码重置成功</div>
+        <div style="margin-top:8px;"><b>学生：</b> {{ resetResult.username }}</div>
         <div style="margin-top:8px;">
-          <b>Temporary Password (show once):</b>
+          <b>临时密码（仅显示一次）：</b>
           <pre
             style="margin:8px 0 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:16px;"
           >{{ resetResult.tempPassword }}</pre>
@@ -390,7 +390,7 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.inviteTeacherLoadError = this.extractErrorMessage(err) || 'Failed to load teacher IDs.';
+          this.inviteTeacherLoadError = this.extractErrorMessage(err) || '加载教师 ID 列表失败。';
           this.inviteTeacherOptions = [];
           this.selectedInviteTeacherId = null;
           this.cdr.detectChanges();
@@ -442,7 +442,7 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.listError = this.extractErrorMessage(err) || 'Failed to load student list.';
+          this.listError = this.extractErrorMessage(err) || '加载学生列表失败。';
           this.students = [];
           this.applyListView();
           this.cdr.detectChanges();
@@ -455,7 +455,7 @@ export class StudentManagementComponent implements OnInit {
 
     const targetTeacherId = this.resolveTargetTeacherIdForInvite();
     if (this.isAdminUser && !targetTeacherId) {
-      this.inviteError = 'Teacher ID is required for admin invite generation.';
+      this.inviteError = '管理员生成邀请链接时必须选择教师 ID。';
       this.cdr.detectChanges();
       return;
     }
@@ -479,7 +479,7 @@ export class StudentManagementComponent implements OnInit {
         next: (resp: CreateStudentInviteResponse) => {
           const resolvedLink = this.resolveInviteLink(resp);
           if (!resolvedLink) {
-            this.inviteError = 'Invite created but invite link is missing in response.';
+            this.inviteError = '邀请创建成功，但响应中缺少邀请链接。';
             this.cdr.detectChanges();
             return;
           }
@@ -490,7 +490,7 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.inviteError = this.extractErrorMessage(err) || 'Failed to generate student invite link.';
+          this.inviteError = this.extractErrorMessage(err) || '生成学生邀请链接失败。';
           this.cdr.detectChanges();
         },
       });
@@ -538,7 +538,7 @@ export class StudentManagementComponent implements OnInit {
   resetPassword(student: StudentAccount): void {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
-      this.actionError = 'Missing student id, unable to reset password.';
+      this.actionError = '缺少学生 ID，无法重置密码。';
       this.cdr.detectChanges();
       return;
     }
@@ -560,7 +560,7 @@ export class StudentManagementComponent implements OnInit {
       .subscribe({
         next: (resp: ResetStudentPasswordResponse) => {
           if (!resp?.tempPassword) {
-            this.actionError = 'Reset succeeded but temp password is missing in response.';
+            this.actionError = '重置成功，但响应中缺少临时密码。';
             this.cdr.detectChanges();
             return;
           }
@@ -573,7 +573,7 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.actionError = this.extractErrorMessage(err) || 'Failed to reset password.';
+          this.actionError = this.extractErrorMessage(err) || '重置密码失败。';
           this.cdr.detectChanges();
         },
       });
@@ -587,7 +587,7 @@ export class StudentManagementComponent implements OnInit {
   setStudentStatus(student: StudentAccount, targetStatus: StudentAccountStatus): void {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
-      this.actionError = 'Missing student id, unable to update account status.';
+      this.actionError = '缺少学生 ID，无法更新账号状态。';
       this.cdr.detectChanges();
       return;
     }
@@ -621,7 +621,7 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.actionError = this.extractStatusUpdateErrorMessage(err) || 'Failed to update account status.';
+          this.actionError = this.extractStatusUpdateErrorMessage(err) || '更新账号状态失败。';
           this.cdr.detectChanges();
         },
       });
@@ -707,7 +707,7 @@ export class StudentManagementComponent implements OnInit {
 
       const username = String(teacher?.username || '').trim();
       const displayName = String(teacher?.displayName || '').trim();
-      const name = displayName || username || 'Unknown';
+      const name = displayName || username || '未知';
 
       unique.set(teacherId, {
         teacherId,
@@ -832,19 +832,19 @@ export class StudentManagementComponent implements OnInit {
     const code = this.extractErrorCode(err);
 
     if (status === 401) {
-      return 'Unauthenticated. Please login again.';
+      return '未登录或登录已过期，请重新登录。';
     }
     if (status === 403 && code === 'MUST_CHANGE_PASSWORD_REQUIRED') {
-      return 'Password change required before account management.';
+      return '请先修改密码后再进行账号管理。';
     }
     if (status === 403) {
-      return this.extractErrorMessage(err) || 'Forbidden: teacher/admin role required.';
+      return this.extractErrorMessage(err) || '无权限：需要教师或管理员角色。';
     }
     if (status === 404 && code === 'NOT_FOUND') {
-      return this.extractErrorMessage(err) || 'Student account not found.';
+      return this.extractErrorMessage(err) || '未找到学生账号。';
     }
     if (status === 400 && code === 'BAD_REQUEST') {
-      return this.extractErrorMessage(err) || 'Invalid account status. Expected ACTIVE or ARCHIVED.';
+      return this.extractErrorMessage(err) || '无效账号状态，必须为 ACTIVE 或 ARCHIVED。';
     }
 
     return this.extractErrorMessage(err);

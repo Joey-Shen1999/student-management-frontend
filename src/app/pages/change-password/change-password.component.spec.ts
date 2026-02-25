@@ -38,7 +38,7 @@ describe('ChangePasswordComponent', () => {
     (auth.getAuthorizationHeaderValue as any).mockReturnValue(null);
     component.ngOnInit();
 
-    expect(component.error).toBe('Missing login session. Please login again.');
+    expect(component.error).toBe('登录会话已失效，请重新登录。');
   });
 
   it('submit should block weak password before API call', () => {
@@ -48,7 +48,7 @@ describe('ChangePasswordComponent', () => {
 
     component.submit();
 
-    expect(component.error).toContain('Password does not meet requirements');
+    expect(component.error).toContain('密码不符合要求');
     expect(auth.setPassword).not.toHaveBeenCalled();
   });
 

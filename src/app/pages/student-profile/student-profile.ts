@@ -23,8 +23,14 @@ interface AddressModel {
   postal: string;
 }
 
-interface CourseModel {
+interface HighSchoolModel {
   schoolType: SchoolType;
+  schoolName: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface ExternalCourseModel {
   schoolName: string;
   courseCode: string;
   mark: number | null;
@@ -55,7 +61,8 @@ interface StudentProfileModel {
 
   identityFileNote: string;
 
-  otherCourses: CourseModel[];
+  highSchools: HighSchoolModel[];
+  externalCourses: ExternalCourseModel[];
 }
 
 @Component({
@@ -93,9 +100,21 @@ export class StudentProfile implements OnInit {
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
   }
 
-  addCourse(): void {
-    this.model.otherCourses.push({
+  addHighSchool(): void {
+    this.model.highSchools.push({
       schoolType: '',
+      schoolName: '',
+      startTime: '',
+      endTime: '',
+    });
+  }
+
+  removeHighSchool(index: number): void {
+    this.model.highSchools.splice(index, 1);
+  }
+
+  addExternalCourse(): void {
+    this.model.externalCourses.push({
       schoolName: '',
       courseCode: '',
       mark: null,
@@ -105,8 +124,8 @@ export class StudentProfile implements OnInit {
     });
   }
 
-  removeCourse(index: number): void {
-    this.model.otherCourses.splice(index, 1);
+  removeExternalCourse(index: number): void {
+    this.model.externalCourses.splice(index, 1);
   }
 
   loadProfile(): void {
@@ -136,7 +155,7 @@ export class StudentProfile implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Failed to load profile.';
+          this.error = this.extractErrorMessage(err) || '加载档案失败。';
           this.cdr.detectChanges();
         },
       });
@@ -144,7 +163,7 @@ export class StudentProfile implements OnInit {
 
   save(): void {
     if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
-      this.error = 'Invalid student id in route.';
+      this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
       return;
     }
@@ -178,7 +197,7 @@ export class StudentProfile implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Failed to save profile.';
+          this.error = this.extractErrorMessage(err) || '保存档案失败。';
           this.cdr.detectChanges();
         },
       });
@@ -202,7 +221,7 @@ export class StudentProfile implements OnInit {
       this.model = this.defaultModel();
       this.loading = false;
       this.saved = false;
-      this.error = 'Invalid student id in route.';
+      this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
       return;
     }
@@ -240,7 +259,8 @@ export class StudentProfile implements OnInit {
       ib: '',
       ap: false,
       identityFileNote: '',
-      otherCourses: [],
+      highSchools: [],
+      externalCourses: [],
     };
   }
 
@@ -257,7 +277,8 @@ export class StudentProfile implements OnInit {
     const defaults = this.defaultModel();
     const source: any = payload || {};
     const rawAddress = source.address && typeof source.address === 'object' ? source.address : {};
-    const rawCourses: unknown[] = Array.isArray(source.otherCourses) ? source.otherCourses : [];
+    const rawCourses = this.resolveExternalCourses(source);
+    const rawSchools = this.resolveSchoolRecords(source, rawCourses);
 
     return {
       legalFirstName: this.toText(source.legalFirstName || source.firstName),
@@ -287,11 +308,12 @@ export class StudentProfile implements OnInit {
       ap: this.toBoolean(source.ap),
       identityFileNote: this.toText(source.identityFileNote),
 
-      otherCourses: rawCourses.map((course: unknown) => this.normalizeCourse(course)),
+      highSchools: rawSchools.map((school: unknown) => this.normalizeHighSchool(school)),
+      externalCourses: rawCourses.map((course: unknown) => this.normalizeExternalCourse(course)),
     };
   }
 
-  private normalizeCourse(value: unknown): CourseModel {
+  private normalizeHighSchool(value: unknown): HighSchoolModel {
     const source: any = value && typeof value === 'object' ? value : {};
     const schoolTypeRaw = String(source.schoolType || '')
       .trim()
@@ -300,6 +322,16 @@ export class StudentProfile implements OnInit {
 
     return {
       schoolType,
+      schoolName: this.toText(source.schoolName),
+      startTime: this.normalizeDate(source.startTime),
+      endTime: this.normalizeDate(source.endTime),
+    };
+  }
+
+  private normalizeExternalCourse(value: unknown): ExternalCourseModel {
+    const source: any = value && typeof value === 'object' ? value : {};
+
+    return {
       schoolName: this.toText(source.schoolName),
       courseCode: this.toText(source.courseCode),
       mark: this.toOptionalNumber(source.mark),
@@ -334,8 +366,15 @@ export class StudentProfile implements OnInit {
       ib: this.toText(model.ib),
       ap: !!model.ap,
       identityFileNote: this.toText(model.identityFileNote),
-      otherCourses: model.otherCourses.map((course) => ({
-        schoolType: course.schoolType || undefined,
+      schools: model.highSchools.map((school) => ({
+        schoolType: school.schoolType || undefined,
+        schoolName: this.toText(school.schoolName),
+        startTime: this.normalizeDate(school.startTime),
+        endTime: this.normalizeDate(school.endTime),
+      })),
+      otherCourses: model.externalCourses.map((course) => ({
+        // 校外课程固定按 OTHER 提交，避免和高中学校经历混淆
+        schoolType: 'OTHER',
         schoolName: this.toText(course.schoolName),
         courseCode: this.toText(course.courseCode),
         mark: this.toOptionalNumber(course.mark),
@@ -344,6 +383,52 @@ export class StudentProfile implements OnInit {
         endTime: this.normalizeDate(course.endTime),
       })),
     };
+  }
+
+  private resolveExternalCourses(source: any): unknown[] {
+    if (Array.isArray(source?.otherCourses)) {
+      return source.otherCourses;
+    }
+    if (Array.isArray(source?.externalCourses)) {
+      return source.externalCourses;
+    }
+    return [];
+  }
+
+  private resolveSchoolRecords(source: any, rawCourses: unknown[]): unknown[] {
+    if (Array.isArray(source?.schools)) {
+      return source.schools;
+    }
+    if (Array.isArray(source?.schoolRecords)) {
+      return source.schoolRecords;
+    }
+
+    // 向后兼容：老数据可能把学校信息混在 otherCourses 里
+    const unique = new Map<string, HighSchoolModel>();
+    for (const item of rawCourses) {
+      const sourceItem: any = item && typeof item === 'object' ? item : {};
+      const schoolName = this.toText(sourceItem.schoolName);
+      const schoolTypeRaw = String(sourceItem.schoolType || '')
+        .trim()
+        .toUpperCase();
+      const schoolType: SchoolType = schoolTypeRaw === 'MAIN' || schoolTypeRaw === 'OTHER' ? schoolTypeRaw : '';
+
+      if (!schoolName && !schoolType) continue;
+
+      const startTime = this.normalizeDate(sourceItem.startTime);
+      const endTime = this.normalizeDate(sourceItem.endTime);
+      const key = `${schoolType}|${schoolName}|${startTime}|${endTime}`;
+      if (unique.has(key)) continue;
+
+      unique.set(key, {
+        schoolType,
+        schoolName,
+        startTime,
+        endTime,
+      });
+    }
+
+    return Array.from(unique.values());
   }
 
   private normalizeGender(value: unknown): Gender {

@@ -210,7 +210,7 @@ describe('StudentManagementComponent', () => {
     component.createInviteLink();
 
     expect(inviteApi.createInvite).not.toHaveBeenCalled();
-    expect(component.inviteError).toBe('Teacher ID is required for admin invite generation.');
+    expect(component.inviteError).toBe('管理员生成邀请链接时必须选择教师 ID。');
   });
 
   it('resetPassword should call API and expose temp password', () => {

@@ -1,13 +1,13 @@
 <form (submit)="submit($event)" style="max-width:600px;margin:40px auto;font-family:Arial">
-  <h2>Create account</h2>
+  <h2>创建账号</h2>
 
   @if (inviteToken) {
     <div style="margin:12px 0;padding:12px;border:1px solid #d8e6ff;background:#f7faff;border-radius:8px;">
-      <div style="font-weight:bold;">Invite registration</div>
-      <div style="margin-top:6px;color:#555;">This link is for one new student account only.</div>
+      <div style="font-weight:bold;">邀请注册</div>
+      <div style="margin-top:6px;color:#555;">该链接仅可注册一个新的学生账号。</div>
 
       @if (inviteValidationLoading) {
-        <div style="margin-top:6px;color:#555;">Verifying invite link...</div>
+        <div style="margin-top:6px;color:#555;">正在校验邀请链接...</div>
       }
 
       @if (!inviteValidationLoading && inviteValidationError) {
@@ -16,25 +16,25 @@
 
       @if (!inviteValidationLoading && !inviteValidationError) {
         @if (invitePreview?.teacherName) {
-          <div style="margin-top:6px;color:#555;"><b>Teacher:</b> {{ invitePreview?.teacherName }}</div>
+          <div style="margin-top:6px;color:#555;"><b>教师：</b> {{ invitePreview?.teacherName }}</div>
         }
         @if (invitePreview?.expiresAt) {
-          <div style="margin-top:6px;color:#555;"><b>Expires at:</b> {{ invitePreview?.expiresAt }}</div>
+          <div style="margin-top:6px;color:#555;"><b>过期时间：</b> {{ invitePreview?.expiresAt }}</div>
         }
       }
     </div>
   }
 
   <div style="margin:12px 0;">
-    <label>Username</label>
+    <label>用户名</label>
     <input [(ngModel)]="username" name="username" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>Password</label>
+    <label>密码</label>
     <input [(ngModel)]="password" name="password" type="password" style="width:100%; padding:8px;" />
     <div style="margin-top:8px; padding:10px; border:1px solid #e2e2e2; border-radius:6px; background:#fafafa;">
-      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">Password requirements</div>
+      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">密码要求</div>
       <div *ngFor="let check of passwordChecks" style="font-size:13px; line-height:1.5;">
         <span [style.color]="check.pass ? '#0b6b0b' : '#b00020'">
           {{ check.pass ? '\u2713' : '\u2717' }}
@@ -45,29 +45,29 @@
   </div>
 
   <div style="margin:12px 0;">
-    <label>Confirm password</label>
+    <label>确认密码</label>
     <input [(ngModel)]="confirmPassword" name="confirmPassword" type="password" style="width:100%; padding:8px;" />
   </div>
 
-  <h3 style="margin-top:18px;">Student Info</h3>
+  <h3 style="margin-top:18px;">学生信息</h3>
 
   <div style="margin:12px 0;">
-    <label>First name</label>
+    <label>名</label>
     <input [(ngModel)]="firstName" name="firstName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>Last name</label>
+    <label>姓</label>
     <input [(ngModel)]="lastName" name="lastName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>Preferred name</label>
+    <label>常用名</label>
     <input [(ngModel)]="preferredName" name="preferredName" style="width:100%; padding:8px;" />
   </div>
 
   <button type="submit" [disabled]="loading" style="padding:10px 14px; margin-top:12px;">
-    {{ loading ? 'Registering...' : 'Create account' }}
+    {{ loading ? '注册中...' : '创建账号' }}
   </button>
 
   @if (error) {
@@ -78,7 +78,7 @@
   }
 
   <p style="margin-top:16px;">
-    Already have an account?
-    <a routerLink="/login">Login</a>
+    已有账号？
+    <a routerLink="/login">去登录</a>
   </p>
 </form>

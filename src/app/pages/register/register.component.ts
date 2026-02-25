@@ -76,12 +76,12 @@ export class RegisterComponent implements OnInit {
     }
 
     if (!payload.username || !payload.password) {
-      this.error = 'Username and password are required.';
+      this.error = '请输入用户名和密码。';
       return;
     }
 
     if (this.inviteToken && this.inviteValidationLoading) {
-      this.error = 'Invite link is being verified. Please retry in a second.';
+      this.error = '邀请链接正在校验中，请稍后重试。';
       return;
     }
 
@@ -97,7 +97,7 @@ export class RegisterComponent implements OnInit {
     }
 
     if (this.password !== this.confirmPassword) {
-      this.error = 'Passwords do not match.';
+      this.error = '两次输入的密码不一致。';
       return;
     }
 
@@ -111,7 +111,7 @@ export class RegisterComponent implements OnInit {
           // ✅ 这里现在能确认 studentId 是否生成
           console.log('[Register] created', res);
 
-          this.success = 'Account created. Redirecting to login...';
+          this.success = '账号创建成功，正在跳转到登录页...';
           setTimeout(() => this.router.navigate(['/login']), 600);
         },
         error: (err) => {
@@ -122,7 +122,7 @@ export class RegisterComponent implements OnInit {
             err?.error?.message ||
             err?.error?.error ||
             err?.message ||
-            'Register failed';
+            '注册失败。';
         },
       });
   }
@@ -138,7 +138,7 @@ export class RegisterComponent implements OnInit {
       .subscribe({
         next: (resp: StudentInvitePreviewResponse) => {
           if (this.isInviteInvalid(resp)) {
-            this.inviteValidationError = 'This invite link is invalid, expired, or already used.';
+            this.inviteValidationError = '该邀请链接无效、已过期或已被使用。';
             return;
           }
 
@@ -149,7 +149,7 @@ export class RegisterComponent implements OnInit {
             err?.error?.message ||
             err?.error?.error ||
             err?.message ||
-            'This invite link is invalid, expired, or already used.';
+            '该邀请链接无效、已过期或已被使用。';
         },
       });
   }

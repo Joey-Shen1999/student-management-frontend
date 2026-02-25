@@ -15,6 +15,14 @@ export interface StudentProfileCoursePayload {
   [key: string]: any;
 }
 
+export interface StudentProfileSchoolPayload {
+  schoolType?: string;
+  schoolName?: string;
+  startTime?: string;
+  endTime?: string;
+  [key: string]: any;
+}
+
 export interface StudentProfileAddressPayload {
   streetAddress?: string;
   streetAddressLine2?: string;
@@ -42,7 +50,10 @@ export interface StudentProfilePayload {
   ib?: string;
   ap?: boolean;
   identityFileNote?: string;
+  schools?: StudentProfileSchoolPayload[];
+  schoolRecords?: StudentProfileSchoolPayload[];
   otherCourses?: StudentProfileCoursePayload[];
+  externalCourses?: StudentProfileCoursePayload[];
   [key: string]: any;
 }
 

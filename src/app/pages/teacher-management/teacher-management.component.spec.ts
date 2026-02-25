@@ -165,7 +165,7 @@ describe('TeacherManagementComponent', () => {
     component.resetPassword({ username: 'teacherX' } as any);
 
     expect(api.resetTeacherPassword).not.toHaveBeenCalled();
-    expect(component.actionError).toBe('Missing teacher id, unable to reset password.');
+    expect(component.actionError).toBe('缺少教师 ID，无法重置密码。');
   });
 
   it('setRole should call API and update role result', () => {

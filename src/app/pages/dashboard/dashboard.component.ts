@@ -9,15 +9,15 @@ import { AuthService } from '../../services/auth.service';
   imports: [CommonModule, RouterModule],
   template: `
     <div style="max-width:600px;margin:40px auto;font-family:Arial">
-      <h2>Dashboard</h2>
+      <h2>学生主页</h2>
 
       <button type="button" (click)="goProfile()" style="margin-bottom:12px;">
-        Complete / Edit Student Profile
+        完善 / 编辑学生档案
       </button>
 
       <pre>{{ session | json }}</pre>
 
-      <button type="button" (click)="logout()">Logout</button>
+      <button type="button" (click)="logout()">退出登录</button>
     </div>
   `,
 })

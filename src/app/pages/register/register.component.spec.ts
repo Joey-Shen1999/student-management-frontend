@@ -47,7 +47,7 @@ describe('RegisterComponent', () => {
 
     component.submit();
 
-    expect(component.error).toContain('Password does not meet requirements');
+    expect(component.error).toContain('密码不符合要求');
     expect(auth.register).not.toHaveBeenCalled();
   });
 
@@ -58,7 +58,7 @@ describe('RegisterComponent', () => {
 
     component.submit();
 
-    expect(component.error).toBe('Passwords do not match.');
+    expect(component.error).toBe('两次输入的密码不一致。');
     expect(auth.register).not.toHaveBeenCalled();
   });
 
@@ -89,7 +89,7 @@ describe('RegisterComponent', () => {
       lastName: 'Zhang',
       preferredName: 'Ali',
     });
-    expect(component.success).toBe('Account created. Redirecting to login...');
+    expect(component.success).toBe('账号创建成功，正在跳转到登录页...');
 
     vi.advanceTimersByTime(600);
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
