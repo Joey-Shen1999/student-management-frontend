@@ -1,6 +1,30 @@
 <form (submit)="submit($event)" style="max-width:600px;margin:40px auto;font-family:Arial">
   <h2>Create account</h2>
 
+  @if (inviteToken) {
+    <div style="margin:12px 0;padding:12px;border:1px solid #d8e6ff;background:#f7faff;border-radius:8px;">
+      <div style="font-weight:bold;">Invite registration</div>
+      <div style="margin-top:6px;color:#555;">This link is for one new student account only.</div>
+
+      @if (inviteValidationLoading) {
+        <div style="margin-top:6px;color:#555;">Verifying invite link...</div>
+      }
+
+      @if (!inviteValidationLoading && inviteValidationError) {
+        <div style="margin-top:6px;color:#b00020;">{{ inviteValidationError }}</div>
+      }
+
+      @if (!inviteValidationLoading && !inviteValidationError) {
+        @if (invitePreview?.teacherName) {
+          <div style="margin-top:6px;color:#555;"><b>Teacher:</b> {{ invitePreview?.teacherName }}</div>
+        }
+        @if (invitePreview?.expiresAt) {
+          <div style="margin-top:6px;color:#555;"><b>Expires at:</b> {{ invitePreview?.expiresAt }}</div>
+        }
+      }
+    </div>
+  }
+
   <div style="margin:12px 0;">
     <label>Username</label>
     <input [(ngModel)]="username" name="username" style="width:100%; padding:8px;" />

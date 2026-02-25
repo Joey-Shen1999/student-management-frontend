@@ -1,4 +1,4 @@
-import { Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -7,21 +7,33 @@ import { RegisterComponent } from './register.component';
 
 describe('RegisterComponent', () => {
   let component: RegisterComponent;
-  let auth: Pick<AuthService, 'register'>;
+  let auth: Pick<AuthService, 'register' | 'getStudentInvitePreview'>;
   let router: Pick<Router, 'navigate'>;
+  let route: ActivatedRoute;
 
   beforeEach(() => {
     vi.useFakeTimers();
 
     auth = {
       register: vi.fn(),
+      getStudentInvitePreview: vi.fn().mockReturnValue(of({ valid: true })),
     };
 
     router = {
       navigate: vi.fn(),
     };
 
-    component = new RegisterComponent(auth as AuthService, router as Router);
+    route = {
+      snapshot: {
+        queryParamMap: convertToParamMap({}),
+      },
+    } as unknown as ActivatedRoute;
+
+    component = new RegisterComponent(
+      auth as AuthService,
+      router as Router,
+      route
+    );
   });
 
   afterEach(() => {
@@ -81,5 +93,41 @@ describe('RegisterComponent', () => {
 
     vi.advanceTimersByTime(600);
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
+  });
+
+  it('should include inviteToken in register payload when invite link is used', () => {
+    route = {
+      snapshot: {
+        queryParamMap: convertToParamMap({ inviteToken: 'invite-abc' }),
+      },
+    } as unknown as ActivatedRoute;
+    component = new RegisterComponent(
+      auth as AuthService,
+      router as Router,
+      route
+    );
+
+    (auth.register as any).mockReturnValue(
+      of({
+        userId: 2,
+        role: 'STUDENT',
+        studentId: 101,
+        teacherId: 3,
+      })
+    );
+
+    component.ngOnInit();
+    component.username = 'bob';
+    component.password = 'Aa1!goodPass';
+    component.confirmPassword = 'Aa1!goodPass';
+
+    component.submit();
+
+    expect(auth.getStudentInvitePreview).toHaveBeenCalledWith('invite-abc');
+    expect(auth.register).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inviteToken: 'invite-abc',
+      })
+    );
   });
 });

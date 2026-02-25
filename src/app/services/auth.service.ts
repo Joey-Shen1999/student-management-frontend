@@ -13,6 +13,7 @@ export interface RegisterRequest {
   username: string;
   password: string;
   role: UserRole;
+  inviteToken?: string;
 
   // student fields (optional)
   firstName?: string;
@@ -50,6 +51,17 @@ export interface RegisterResponse {
   [key: string]: any;
 }
 
+export interface StudentInvitePreviewResponse {
+  inviteId?: number;
+  inviteToken?: string;
+  status?: string;
+  valid?: boolean;
+  expiresAt?: string;
+  teacherId?: number | null;
+  teacherName?: string;
+  [key: string]: any;
+}
+
 export interface SetPasswordRequest {
   userId?: number;
   newPassword: string;
@@ -81,6 +93,13 @@ export class AuthService {
 
   register(req: RegisterRequest): Observable<RegisterResponse> {
     return this.http.post<RegisterResponse>(`${this.baseUrl}/register`, req);
+  }
+
+  getStudentInvitePreview(inviteToken: string): Observable<StudentInvitePreviewResponse> {
+    const normalizedToken = encodeURIComponent(String(inviteToken || '').trim());
+    return this.http.get<StudentInvitePreviewResponse>(
+      `${this.baseUrl}/student-invites/${normalizedToken}`
+    );
   }
 
   setPassword(req: SetPasswordRequest): Observable<ApiResponse> {

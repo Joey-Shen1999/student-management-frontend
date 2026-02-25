@@ -12,6 +12,15 @@ import {
   StudentManagementService,
   UpdateStudentStatusResponse,
 } from '../../services/student-management.service';
+import {
+  CreateStudentInviteResponse,
+  StudentInviteService,
+} from '../../services/student-invite.service';
+import { AuthService } from '../../services/auth.service';
+import {
+  TeacherAccount,
+  TeacherManagementService,
+} from '../../services/teacher-management.service';
 
 interface PasswordResetResult {
   studentId: number;
@@ -23,6 +32,11 @@ interface StatusUpdateResult {
   studentId: number;
   username: string;
   status: StudentAccountStatus;
+}
+
+interface InviteTeacherOption {
+  teacherId: number;
+  label: string;
 }
 
 @Component({
@@ -37,10 +51,80 @@ interface StatusUpdateResult {
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
-        <button type="button" (click)="loadStudents()" [disabled]="loadingList">
-          {{ loadingList ? 'Loading...' : 'Refresh List' }}
-        </button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div *ngIf="isAdminUser" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+              Teacher
+              <select
+                [(ngModel)]="selectedInviteTeacherId"
+                [disabled]="creatingInvite || loadingInviteTeachers"
+                style="padding:7px 8px;min-width:180px;"
+              >
+                <option [ngValue]="null">{{ loadingInviteTeachers ? 'Loading...' : 'Select Teacher ID' }}</option>
+                <option *ngFor="let option of inviteTeacherOptions" [ngValue]="option.teacherId">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              (click)="refreshInviteTeachers()"
+              [disabled]="creatingInvite || loadingInviteTeachers"
+            >
+              {{ loadingInviteTeachers ? 'Loading Teachers...' : 'Refresh Teachers' }}
+            </button>
+          </div>
+
+          <button type="button" (click)="loadStudents()" [disabled]="loadingList">
+            {{ loadingList ? 'Loading...' : 'Refresh List' }}
+          </button>
+
+          <button
+            type="button"
+            (click)="createInviteLink()"
+            [disabled]="creatingInvite || (isAdminUser && !selectedInviteTeacherId)"
+          >
+            {{ creatingInvite ? 'Generating Invite...' : 'Generate Student Invite Link' }}
+          </button>
+        </div>
+
         <span style="color:#666;font-size:13px;">Total: {{ students.length }}</span>
+      </div>
+
+      <div
+        *ngIf="inviteTeacherLoadError"
+        style="margin:0 0 12px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;"
+      >
+        {{ inviteTeacherLoadError }}
+      </div>
+
+      <div
+        *ngIf="inviteError"
+        style="margin:0 0 12px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;"
+      >
+        {{ inviteError }}
+      </div>
+
+      <div
+        *ngIf="inviteLink"
+        style="margin:0 0 12px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
+      >
+        <div style="font-weight:bold;">Student invite link generated</div>
+        <div style="margin-top:6px;color:#555;">One link can register one new student account.</div>
+
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+          <input
+            [value]="inviteLink"
+            readonly
+            style="flex:1 1 520px;min-width:280px;padding:8px;border:1px solid #ccc;border-radius:6px;"
+          />
+          <button type="button" (click)="copyInviteLink()">{{ inviteCopied ? 'Copied' : 'Copy Link' }}</button>
+        </div>
+
+        <div *ngIf="inviteExpiresAt" style="margin-top:8px;color:#666;">
+          <b>Expires at:</b> {{ inviteExpiresAt }}
+        </div>
       </div>
 
       <div
@@ -224,6 +308,17 @@ export class StudentManagementComponent implements OnInit {
   listLimit = 20;
   showInactive = false;
   searchKeyword = '';
+  creatingInvite = false;
+  inviteError = '';
+  inviteLink = '';
+  inviteExpiresAt = '';
+  inviteCopied = false;
+  isAdminUser = false;
+  sessionTeacherId: number | null = null;
+  selectedInviteTeacherId: number | null = null;
+  inviteTeacherOptions: InviteTeacherOption[] = [];
+  loadingInviteTeachers = false;
+  inviteTeacherLoadError = '';
 
   resettingStudentId: number | null = null;
   statusUpdatingStudentId: number | null = null;
@@ -234,11 +329,63 @@ export class StudentManagementComponent implements OnInit {
 
   constructor(
     private studentApi: StudentManagementService,
+    private inviteApi: StudentInviteService,
+    private teacherApi: TeacherManagementService,
+    private auth: AuthService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
-  ) {}
+  ) {
+    this.captureSessionContext();
+  }
 
   ngOnInit(): void {
+    this.refreshInviteTeachers();
     this.loadStudents();
+  }
+
+  refreshInviteTeachers(): void {
+    if (!this.isAdminUser) return;
+
+    this.loadingInviteTeachers = true;
+    this.inviteTeacherLoadError = '';
+    this.cdr.detectChanges();
+
+    this.teacherApi
+      .listTeachers()
+      .pipe(
+        finalize(() => {
+          this.loadingInviteTeachers = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          this.inviteTeacherOptions = this.normalizeInviteTeacherOptions(payload);
+
+          if (
+            this.sessionTeacherId &&
+            this.inviteTeacherOptions.some((option) => option.teacherId === this.sessionTeacherId)
+          ) {
+            this.selectedInviteTeacherId = this.sessionTeacherId;
+          } else if (
+            this.selectedInviteTeacherId &&
+            !this.inviteTeacherOptions.some((option) => option.teacherId === this.selectedInviteTeacherId)
+          ) {
+            this.selectedInviteTeacherId = null;
+          }
+
+          if (!this.selectedInviteTeacherId && this.inviteTeacherOptions.length === 1) {
+            this.selectedInviteTeacherId = this.inviteTeacherOptions[0].teacherId;
+          }
+
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.inviteTeacherLoadError = this.extractErrorMessage(err) || 'Failed to load teacher IDs.';
+          this.inviteTeacherOptions = [];
+          this.selectedInviteTeacherId = null;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   trackStudent = (_index: number, student: StudentAccount): string | number => {
@@ -283,6 +430,91 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  createInviteLink(): void {
+    if (this.creatingInvite) return;
+
+    const targetTeacherId = this.resolveTargetTeacherIdForInvite();
+    if (this.isAdminUser && !targetTeacherId) {
+      this.inviteError = 'Teacher ID is required for admin invite generation.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.creatingInvite = true;
+    this.inviteError = '';
+    this.inviteLink = '';
+    this.inviteExpiresAt = '';
+    this.inviteCopied = false;
+    this.cdr.detectChanges();
+
+    this.inviteApi
+      .createInvite(targetTeacherId || undefined)
+      .pipe(
+        finalize(() => {
+          this.creatingInvite = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp: CreateStudentInviteResponse) => {
+          const resolvedLink = this.resolveInviteLink(resp);
+          if (!resolvedLink) {
+            this.inviteError = 'Invite created but invite link is missing in response.';
+            this.cdr.detectChanges();
+            return;
+          }
+
+          this.inviteLink = resolvedLink;
+          this.inviteExpiresAt = String(resp?.expiresAt || '').trim();
+          this.inviteCopied = false;
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.inviteError = this.extractErrorMessage(err) || 'Failed to generate student invite link.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  copyInviteLink(): void {
+    if (!this.inviteLink) return;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(this.inviteLink)
+        .then(() => {
+          this.inviteCopied = true;
+          this.cdr.detectChanges();
+        })
+        .catch(() => {
+          this.inviteCopied = false;
+          this.cdr.detectChanges();
+        });
+      return;
+    }
+
+    this.inviteCopied = false;
+    this.cdr.detectChanges();
+  }
+
+  private captureSessionContext(): void {
+    const session = this.auth.getSession();
+    const role = String(session?.role || '')
+      .trim()
+      .toUpperCase();
+    this.isAdminUser = role === 'ADMIN';
+
+    const teacherId = Number(session?.teacherId);
+    this.sessionTeacherId = Number.isFinite(teacherId) && teacherId > 0 ? teacherId : null;
+    this.selectedInviteTeacherId = this.sessionTeacherId;
+  }
+
+  private resolveTargetTeacherIdForInvite(): number | null {
+    const value = this.isAdminUser ? this.selectedInviteTeacherId : this.sessionTeacherId;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
   }
 
   resetPassword(student: StudentAccount): void {
@@ -437,6 +669,74 @@ export class StudentManagementComponent implements OnInit {
       ...student,
       status: this.resolveStatus(student),
     }));
+  }
+
+  private normalizeInviteTeacherOptions(
+    payload: TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] } | null | undefined
+  ): InviteTeacherOption[] {
+    const list = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+
+    const unique = new Map<number, InviteTeacherOption>();
+    for (const teacher of list) {
+      const teacherId = this.resolveInviteTeacherId(teacher);
+      if (!teacherId) continue;
+
+      const username = String(teacher?.username || '').trim();
+      const displayName = String(teacher?.displayName || '').trim();
+      const name = displayName || username || 'Unknown';
+
+      unique.set(teacherId, {
+        teacherId,
+        label: `${teacherId} - ${name}`,
+      });
+    }
+
+    return Array.from(unique.values()).sort((a, b) => a.teacherId - b.teacherId);
+  }
+
+  private resolveInviteTeacherId(teacher: TeacherAccount | null | undefined): number | null {
+    const id = teacher?.teacherId ?? teacher?.id ?? teacher?.userId;
+    return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private resolveInviteLink(resp: CreateStudentInviteResponse | null | undefined): string {
+    const directLink = String(resp?.inviteUrl || resp?.registrationUrl || '').trim();
+    if (directLink) return this.toAbsoluteUrl(directLink);
+
+    const inviteToken = String(resp?.inviteToken || '').trim();
+    if (!inviteToken) return '';
+
+    const encodedToken = encodeURIComponent(inviteToken);
+    return this.toAbsoluteUrl(`/register?inviteToken=${encodedToken}`);
+  }
+
+  private toAbsoluteUrl(url: string): string {
+    const normalized = String(url || '').trim();
+    if (!normalized) return '';
+
+    if (/^https?:\/\//i.test(normalized)) {
+      return normalized;
+    }
+
+    const origin = String((globalThis as any)?.location?.origin || '')
+      .trim()
+      .replace(/\/+$/, '');
+    if (!origin) {
+      return normalized;
+    }
+
+    if (normalized.startsWith('/')) {
+      return `${origin}${normalized}`;
+    }
+
+    const cleaned = normalized.replace(/^\.?\//, '');
+    return `${origin}/${cleaned}`;
   }
 
   private resolveStatus(value: unknown): StudentAccountStatus {

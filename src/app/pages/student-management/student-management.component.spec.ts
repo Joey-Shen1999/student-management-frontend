@@ -4,6 +4,9 @@ import { vi } from 'vitest';
 
 import { StudentManagementComponent } from './student-management.component';
 import { StudentManagementService } from '../../services/student-management.service';
+import { StudentInviteService } from '../../services/student-invite.service';
+import { AuthService } from '../../services/auth.service';
+import { TeacherManagementService } from '../../services/teacher-management.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -11,6 +14,9 @@ describe('StudentManagementComponent', () => {
     StudentManagementService,
     'listStudents' | 'resetStudentPassword' | 'updateStudentStatus'
   >;
+  let inviteApi: Pick<StudentInviteService, 'createInvite'>;
+  let auth: Pick<AuthService, 'getSession'>;
+  let teacherApi: Pick<TeacherManagementService, 'listTeachers'>;
 
   beforeEach(() => {
     api = {
@@ -18,8 +24,30 @@ describe('StudentManagementComponent', () => {
       resetStudentPassword: vi.fn(),
       updateStudentStatus: vi.fn(),
     };
+    inviteApi = {
+      createInvite: vi.fn(),
+    };
+    auth = {
+      getSession: vi.fn().mockReturnValue({
+        userId: 99,
+        role: 'TEACHER',
+        studentId: null,
+        teacherId: 7,
+        accessToken: 'token-abc',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-24T12:17:26.239',
+      }),
+    };
+    teacherApi = {
+      listTeachers: vi.fn().mockReturnValue(of([])),
+    };
 
-    component = new StudentManagementComponent(api as StudentManagementService);
+    component = new StudentManagementComponent(
+      api as StudentManagementService,
+      inviteApi as StudentInviteService,
+      teacherApi as TeacherManagementService,
+      auth as AuthService
+    );
   });
 
   it('ngOnInit should load student list', () => {
@@ -34,6 +62,36 @@ describe('StudentManagementComponent', () => {
 
     expect(api.listStudents).toHaveBeenCalledTimes(1);
     expect(component.students.length).toBe(2);
+  });
+
+  it('ngOnInit should load teacher options for admin and auto-select when only one teacher exists', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'ADMIN',
+      studentId: null,
+      teacherId: null,
+      accessToken: 'token-abc',
+      tokenType: 'Bearer',
+      tokenExpiresAt: '2026-02-24T12:17:26.239',
+    });
+    (teacherApi.listTeachers as any).mockReturnValue(
+      of([
+        { teacherId: 12, username: 'teacher12' },
+      ])
+    );
+
+    component = new StudentManagementComponent(
+      api as StudentManagementService,
+      inviteApi as StudentInviteService,
+      teacherApi as TeacherManagementService,
+      auth as AuthService
+    );
+
+    component.ngOnInit();
+
+    expect(teacherApi.listTeachers).toHaveBeenCalledTimes(1);
+    expect(component.selectedInviteTeacherId).toBe(12);
+    expect(component.inviteTeacherOptions).toEqual([{ teacherId: 12, label: '12 - teacher12' }]);
   });
 
   it('loadStudents should support payload with items', () => {
@@ -113,6 +171,46 @@ describe('StudentManagementComponent', () => {
       { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
       { studentId: 2, username: 'alice_archived', displayName: 'Alice B', email: 'alice2@example.com', status: 'ARCHIVED' },
     ]);
+  });
+
+  it('createInviteLink should build register url from invite token', () => {
+    (inviteApi.createInvite as any).mockReturnValue(
+      of({
+        inviteToken: 'token-abc',
+        expiresAt: '2026-03-01T00:00:00.000Z',
+      })
+    );
+
+    component.createInviteLink();
+
+    expect(inviteApi.createInvite).toHaveBeenCalledTimes(1);
+    expect(inviteApi.createInvite).toHaveBeenCalledWith(7);
+    expect(component.inviteLink).toContain('/register?inviteToken=token-abc');
+    expect(component.inviteExpiresAt).toBe('2026-03-01T00:00:00.000Z');
+    expect(component.inviteError).toBe('');
+  });
+
+  it('createInviteLink should convert relative invite url to absolute url', () => {
+    (inviteApi.createInvite as any).mockReturnValue(
+      of({
+        registrationUrl: '/register?inviteToken=token-xyz',
+      })
+    );
+
+    component.createInviteLink();
+
+    expect(component.inviteLink).toContain('/register?inviteToken=token-xyz');
+    expect(component.inviteLink.startsWith('http://') || component.inviteLink.startsWith('https://')).toBe(true);
+  });
+
+  it('createInviteLink should require teacherId for admin user', () => {
+    component.isAdminUser = true;
+    component.selectedInviteTeacherId = null;
+
+    component.createInviteLink();
+
+    expect(inviteApi.createInvite).not.toHaveBeenCalled();
+    expect(component.inviteError).toBe('Teacher ID is required for admin invite generation.');
   });
 
   it('resetPassword should call API and expose temp password', () => {

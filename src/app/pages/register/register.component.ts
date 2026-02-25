@@ -1,9 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { AuthService, RegisterRequest, RegisterResponse } from '../../services/auth.service';
+import {
+  AuthService,
+  RegisterRequest,
+  RegisterResponse,
+  StudentInvitePreviewResponse,
+} from '../../services/auth.service';
 import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/password-policy';
 
 @Component({
@@ -12,7 +17,7 @@ import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/passwor
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './register.html',
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnInit {
   role: 'STUDENT' = 'STUDENT';
 
   username = '';
@@ -26,8 +31,24 @@ export class RegisterComponent {
   error = '';
   success = '';
   loading = false;
+  inviteToken = '';
+  inviteValidationLoading = false;
+  inviteValidationError = '';
+  invitePreview: StudentInvitePreviewResponse | null = null;
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(
+    private auth: AuthService,
+    private router: Router,
+    private route: ActivatedRoute
+  ) {}
+
+  ngOnInit(): void {
+    const inviteToken = String(this.route.snapshot.queryParamMap.get('inviteToken') || '').trim();
+    if (!inviteToken) return;
+
+    this.inviteToken = inviteToken;
+    this.validateInviteToken(inviteToken);
+  }
 
   get passwordChecks(): PasswordPolicyCheck[] {
     return evaluatePasswordPolicy(this.password, this.username).checks;
@@ -50,8 +71,22 @@ export class RegisterComponent {
       preferredName: this.preferredName.trim(),
     };
 
+    if (this.inviteToken) {
+      payload.inviteToken = this.inviteToken;
+    }
+
     if (!payload.username || !payload.password) {
       this.error = 'Username and password are required.';
+      return;
+    }
+
+    if (this.inviteToken && this.inviteValidationLoading) {
+      this.error = 'Invite link is being verified. Please retry in a second.';
+      return;
+    }
+
+    if (this.inviteToken && this.inviteValidationError) {
+      this.error = this.inviteValidationError;
       return;
     }
 
@@ -90,5 +125,43 @@ export class RegisterComponent {
             'Register failed';
         },
       });
+  }
+
+  private validateInviteToken(inviteToken: string): void {
+    this.inviteValidationLoading = true;
+    this.inviteValidationError = '';
+    this.invitePreview = null;
+
+    this.auth
+      .getStudentInvitePreview(inviteToken)
+      .pipe(finalize(() => (this.inviteValidationLoading = false)))
+      .subscribe({
+        next: (resp: StudentInvitePreviewResponse) => {
+          if (this.isInviteInvalid(resp)) {
+            this.inviteValidationError = 'This invite link is invalid, expired, or already used.';
+            return;
+          }
+
+          this.invitePreview = resp;
+        },
+        error: (err) => {
+          this.inviteValidationError =
+            err?.error?.message ||
+            err?.error?.error ||
+            err?.message ||
+            'This invite link is invalid, expired, or already used.';
+        },
+      });
+  }
+
+  private isInviteInvalid(resp: StudentInvitePreviewResponse | null | undefined): boolean {
+    if (!resp) return false;
+    if (resp.valid === false) return true;
+
+    const status = String(resp.status || '')
+      .trim()
+      .toUpperCase();
+
+    return status === 'EXPIRED' || status === 'USED' || status === 'INVALID' || status === 'ARCHIVED';
   }
 }

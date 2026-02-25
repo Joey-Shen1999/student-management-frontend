@@ -61,6 +61,14 @@ describe('AuthService', () => {
     req.flush({ success: true, message: 'ok' });
   });
 
+  it('getStudentInvitePreview should call GET /api/auth/student-invites/{token}', () => {
+    service.getStudentInvitePreview('invite-abc').subscribe();
+
+    const req = httpMock.expectOne('/api/auth/student-invites/invite-abc');
+    expect(req.request.method).toBe('GET');
+    req.flush({ inviteToken: 'invite-abc', valid: true });
+  });
+
   it('changePassword should POST oldPassword/newPassword to change-password endpoint', () => {
     service.changePassword({ oldPassword: 'OldPass!1', newPassword: 'NewPass!2' }).subscribe();
 
