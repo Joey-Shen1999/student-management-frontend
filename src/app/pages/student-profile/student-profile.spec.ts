@@ -116,6 +116,39 @@ describe('StudentProfile', () => {
     expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
   });
 
+  it('should map preset statusInCanada to dropdown selection', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(of({
+      statusInCanada: '留学生(Study permit)',
+    }));
+
+    component.loadProfile();
+
+    expect(component.statusInCanadaSelection).toBe('留学生(Study permit)');
+    expect(component.statusInCanadaOtherText).toBe('');
+  });
+
+  it('should map custom statusInCanada to other input', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(of({
+      statusInCanada: '宗教庇护',
+    }));
+
+    component.loadProfile();
+
+    expect(component.statusInCanadaSelection).toBe(component.statusInCanadaOtherOptionValue);
+    expect(component.statusInCanadaOtherText).toBe('宗教庇护');
+  });
+
+  it('should write selected status to model', () => {
+    component.enterEditMode();
+
+    component.onStatusInCanadaSelectionChange('访问(Visitor)');
+    expect(component.model.statusInCanada).toBe('访问(Visitor)');
+
+    component.onStatusInCanadaSelectionChange(component.statusInCanadaOtherOptionValue);
+    component.onStatusInCanadaOtherTextChange('其他临时身份');
+    expect(component.model.statusInCanada).toBe('其他临时身份');
+  });
+
   it('should auto save when removing external course in edit mode', () => {
     (profileApi.getMyProfile as any).mockReturnValueOnce(of({
       otherCourses: [

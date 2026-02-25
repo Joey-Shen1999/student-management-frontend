@@ -31,14 +31,7 @@
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>
 
-    <div><strong>姓：</strong>{{ displayText(model.legalLastName) }}</div>
-    <div><strong>名：</strong>{{ displayText(model.legalFirstName) }}</div>
-    <div><strong>常用名：</strong>{{ displayText(model.preferredName) }}</div>
-    <div><strong>性别：</strong>{{ displayText(model.gender) }}</div>
-    <div><strong>生日：</strong>{{ displayText(model.birthday) }}</div>
-    <div><strong>电话：</strong>{{ displayText(model.phone) }}</div>
-    <div><strong>邮箱：</strong>{{ displayText(model.email) }}</div>
-    <div><strong>在加身份：</strong>{{ displayText(model.statusInCanada) }}</div>
+    <div><strong>在加拿大的身份：</strong>{{ displayText(model.statusInCanada) }}</div>
     <div><strong>国籍：</strong>{{ displayText(model.citizenship) }}</div>
     <div><strong>第一语言：</strong>{{ displayText(model.firstLanguage) }}</div>
     <div><strong>首次入读日期：</strong>{{ displayText(model.firstBoardingDate) }}</div>
@@ -103,14 +96,27 @@
       <fieldset style="margin-bottom: 16px;">
         <legend>基础信息</legend>
 
-        <div>
-          <label>生日：</label>
-          <input type="date" [(ngModel)]="model.birthday" name="birthday" />
+                <div>
+          <label>在加拿大的身份：</label>
+          <select
+            [(ngModel)]="statusInCanadaSelection"
+            (ngModelChange)="onStatusInCanadaSelectionChange($event)"
+            name="statusInCanadaSelection"
+          >
+            <option value="">请选择</option>
+            <option *ngFor="let option of statusInCanadaPresetOptions" [value]="option">{{ option }}</option>
+            <option [value]="statusInCanadaOtherOptionValue">其他</option>
+          </select>
         </div>
 
-        <div>
-          <label>在加身份：</label>
-          <input [(ngModel)]="model.statusInCanada" name="statusInCanada" placeholder="例如：永久居民 / 公民 / 学签" />
+        <div *ngIf="statusInCanadaSelection === statusInCanadaOtherOptionValue">
+          <label>其他身份：</label>
+          <input
+            [(ngModel)]="statusInCanadaOtherText"
+            (ngModelChange)="onStatusInCanadaOtherTextChange($event)"
+            name="statusInCanadaOtherText"
+            placeholder="请填写具体身份"
+          />
         </div>
 
         <div>

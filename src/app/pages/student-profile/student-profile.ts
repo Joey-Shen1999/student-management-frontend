@@ -80,6 +80,19 @@ interface SaveOptions {
   templateUrl: './student-profile.html',
 })
 export class StudentProfile implements OnInit {
+  readonly statusInCanadaPresetOptions: string[] = [
+    '留学生(Study permit)',
+    '移民(Permanent residence)',
+    '公民(Citizen)',
+    '难民(Refugee)',
+    '外交(Diplomatic)',
+    '访问(Visitor)',
+  ];
+  readonly statusInCanadaOtherOptionValue = '__OTHER__';
+
+  statusInCanadaSelection = '';
+  statusInCanadaOtherText = '';
+
   managedMode = false;
   managedStudentId: number | null = null;
   invalidManagedStudentId = false;
@@ -115,6 +128,7 @@ export class StudentProfile implements OnInit {
   enterEditMode(): void {
     if (this.invalidManagedStudentId || this.loading || this.saving) return;
 
+    this.syncStatusInCanadaControls();
     this.saved = false;
     this.error = '';
     this.editing = true;
@@ -126,6 +140,24 @@ export class StudentProfile implements OnInit {
     if (!this.shouldAutoSaveTarget(event.target)) return;
 
     this.triggerAutoSave();
+  }
+
+  onStatusInCanadaSelectionChange(value: string): void {
+    this.statusInCanadaSelection = String(value ?? '');
+    if (this.statusInCanadaSelection === this.statusInCanadaOtherOptionValue) {
+      this.model.statusInCanada = this.toText(this.statusInCanadaOtherText);
+      return;
+    }
+
+    this.statusInCanadaOtherText = '';
+    this.model.statusInCanada = this.toText(this.statusInCanadaSelection);
+  }
+
+  onStatusInCanadaOtherTextChange(value: string): void {
+    this.statusInCanadaOtherText = String(value ?? '');
+    if (this.statusInCanadaSelection !== this.statusInCanadaOtherOptionValue) return;
+
+    this.model.statusInCanada = this.toText(this.statusInCanadaOtherText);
   }
 
   displayText(value: unknown): string {
@@ -202,6 +234,7 @@ export class StudentProfile implements OnInit {
       .subscribe({
         next: (resp) => {
           this.model = this.normalizeModel(this.unwrapProfile(resp));
+          this.syncStatusInCanadaControls();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
           this.pendingAutoSave = false;
           this.editing = false;
@@ -284,6 +317,7 @@ export class StudentProfile implements OnInit {
             this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
           }
 
+          this.syncStatusInCanadaControls();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
           if (showSavedFeedback) {
             this.saved = true;
@@ -335,6 +369,24 @@ export class StudentProfile implements OnInit {
     return JSON.stringify(this.toPayload(model));
   }
 
+  private syncStatusInCanadaControls(): void {
+    const currentValue = this.toText(this.model.statusInCanada);
+    if (!currentValue) {
+      this.statusInCanadaSelection = '';
+      this.statusInCanadaOtherText = '';
+      return;
+    }
+
+    if (this.statusInCanadaPresetOptions.includes(currentValue)) {
+      this.statusInCanadaSelection = currentValue;
+      this.statusInCanadaOtherText = '';
+      return;
+    }
+
+    this.statusInCanadaSelection = this.statusInCanadaOtherOptionValue;
+    this.statusInCanadaOtherText = currentValue;
+  }
+
   private applyRouteContext(params: ParamMap): void {
     const routeStudentId = params.get('studentId');
     if (routeStudentId === null) {
@@ -353,6 +405,7 @@ export class StudentProfile implements OnInit {
       this.managedStudentId = null;
       this.invalidManagedStudentId = true;
       this.model = this.defaultModel();
+      this.syncStatusInCanadaControls();
       this.loading = false;
       this.saved = false;
       this.editing = false;
