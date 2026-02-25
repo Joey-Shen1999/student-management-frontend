@@ -28,14 +28,14 @@ import {
         <input
           [(ngModel)]="username"
           placeholder="Enter username"
-          style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
+          style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
         <label style="display:block;margin:10px 0 6px;">Display Name (optional)</label>
         <input
           [(ngModel)]="displayName"
           placeholder="Enter display name"
-          style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
+          style="display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
         <button

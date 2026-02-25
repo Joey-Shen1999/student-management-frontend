@@ -29,16 +29,6 @@
     {{ loading ? 'Logging in...' : 'Login' }}
   </button>
 
-  <div style="margin-top:14px;text-align:center;">
-    <span style="color:#666;">No account?</span>
-    <a
-      routerLink="/register"
-      style="margin-left:6px;text-decoration:underline;cursor:pointer;"
-    >
-      Create one
-    </a>
-  </div>
-
   <div *ngIf="loading" style="margin-top:12px;color:#666;">
     Request in progress...
   </div>
