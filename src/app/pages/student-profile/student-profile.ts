@@ -65,6 +65,14 @@ interface StudentProfileModel {
   externalCourses: ExternalCourseModel[];
 }
 
+interface SaveOptions {
+  exitEditMode?: boolean;
+  skipIfUnchanged?: boolean;
+  showSavedFeedback?: boolean;
+  syncModelOnSuccess?: boolean;
+  background?: boolean;
+}
+
 @Component({
   selector: 'app-student-profile',
   standalone: true,
@@ -80,8 +88,12 @@ export class StudentProfile implements OnInit {
   saving = false;
   saved = false;
   error = '';
+  editing = false;
 
   model: StudentProfileModel = this.defaultModel();
+  private lastSavedPayloadDigest = '';
+  private pendingAutoSave = false;
+  private saveInProgress = false;
 
   constructor(
     private router: Router,
@@ -100,6 +112,42 @@ export class StudentProfile implements OnInit {
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
   }
 
+  enterEditMode(): void {
+    if (this.invalidManagedStudentId || this.loading || this.saving) return;
+
+    this.saved = false;
+    this.error = '';
+    this.editing = true;
+    this.cdr.detectChanges();
+  }
+
+  onFormFocusOut(event: FocusEvent): void {
+    if (!this.editing || this.loading || this.invalidManagedStudentId) return;
+    if (!this.shouldAutoSaveTarget(event.target)) return;
+
+    this.triggerAutoSave();
+  }
+
+  displayText(value: unknown): string {
+    const text = this.toText(value);
+    return text || '-';
+  }
+
+  displayNumber(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '-';
+    return String(value);
+  }
+
+  displayBoolean(value: boolean): string {
+    return value ? '是' : '否';
+  }
+
+  displaySchoolType(value: SchoolType): string {
+    if (value === 'MAIN') return '主读学校（MAIN）';
+    if (value === 'OTHER') return '其他学校（OTHER）';
+    return '-';
+  }
+
   addHighSchool(): void {
     this.model.highSchools.push({
       schoolType: '',
@@ -111,6 +159,7 @@ export class StudentProfile implements OnInit {
 
   removeHighSchool(index: number): void {
     this.model.highSchools.splice(index, 1);
+    this.triggerAutoSave();
   }
 
   addExternalCourse(): void {
@@ -126,6 +175,7 @@ export class StudentProfile implements OnInit {
 
   removeExternalCourse(index: number): void {
     this.model.externalCourses.splice(index, 1);
+    this.triggerAutoSave();
   }
 
   loadProfile(): void {
@@ -152,6 +202,9 @@ export class StudentProfile implements OnInit {
       .subscribe({
         next: (resp) => {
           this.model = this.normalizeModel(this.unwrapProfile(resp));
+          this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
+          this.pendingAutoSave = false;
+          this.editing = false;
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
@@ -161,20 +214,44 @@ export class StudentProfile implements OnInit {
       });
   }
 
-  save(): void {
+  save(options: SaveOptions = {}): void {
+    const exitEditMode = options.exitEditMode ?? true;
+    const skipIfUnchanged = options.skipIfUnchanged ?? false;
+    const showSavedFeedback = options.showSavedFeedback ?? true;
+    const syncModelOnSuccess = options.syncModelOnSuccess ?? true;
+    const background = options.background ?? false;
     if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
       this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
       return;
     }
-    if (this.saving || this.loading) return;
-
-    this.error = '';
-    this.saved = false;
-    this.saving = true;
-    this.cdr.detectChanges();
-
     const payload = this.toPayload(this.model);
+    const payloadDigest = JSON.stringify(payload);
+
+    if (skipIfUnchanged && payloadDigest === this.lastSavedPayloadDigest) {
+      this.pendingAutoSave = false;
+      return;
+    }
+
+    if (this.saveInProgress || this.loading) {
+      if (background) {
+        this.pendingAutoSave = true;
+      }
+      return;
+    }
+
+    if (!background) {
+      this.error = '';
+      if (showSavedFeedback) {
+        this.saved = false;
+      }
+    }
+    this.pendingAutoSave = false;
+    this.saveInProgress = true;
+    if (!background) {
+      this.saving = true;
+      this.cdr.detectChanges();
+    }
 
     const request$ =
       this.managedMode && this.managedStudentId
@@ -184,17 +261,39 @@ export class StudentProfile implements OnInit {
     request$
       .pipe(
         finalize(() => {
-          this.saving = false;
-          this.cdr.detectChanges();
+          this.saveInProgress = false;
+          if (!background) {
+            this.saving = false;
+          }
+          const shouldRunPendingAutoSave = this.pendingAutoSave && this.editing;
+          this.pendingAutoSave = false;
+          if (!background) {
+            this.cdr.detectChanges();
+          }
+
+          if (shouldRunPendingAutoSave) {
+            this.triggerAutoSave();
+          }
         })
       )
       .subscribe({
         next: (resp) => {
-          const resolved = this.unwrapProfile(resp);
-          const hasResolvedData = Object.keys(resolved).length > 0;
-          this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
-          this.saved = true;
-          this.cdr.detectChanges();
+          if (syncModelOnSuccess) {
+            const resolved = this.unwrapProfile(resp);
+            const hasResolvedData = Object.keys(resolved).length > 0;
+            this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
+          }
+
+          this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
+          if (showSavedFeedback) {
+            this.saved = true;
+          }
+          if (exitEditMode) {
+            this.editing = false;
+          }
+          if (!background) {
+            this.cdr.detectChanges();
+          }
         },
         error: (err: HttpErrorResponse) => {
           this.error = this.extractErrorMessage(err) || '保存档案失败。';
@@ -203,12 +302,47 @@ export class StudentProfile implements OnInit {
       });
   }
 
+  private triggerAutoSave(): void {
+    if (!this.editing || this.loading || this.invalidManagedStudentId) {
+      this.pendingAutoSave = false;
+      return;
+    }
+
+    this.save({
+      exitEditMode: false,
+      skipIfUnchanged: true,
+      showSavedFeedback: false,
+      syncModelOnSuccess: false,
+      background: true,
+    });
+  }
+
+  private shouldAutoSaveTarget(target: EventTarget | null): boolean {
+    if (!target) return false;
+
+    if (target instanceof HTMLInputElement) {
+      const type = String(target.type || '')
+        .trim()
+        .toLowerCase();
+      if (type === 'button' || type === 'submit' || type === 'reset') return false;
+      return true;
+    }
+
+    return target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+  }
+
+  private buildPayloadDigest(model: StudentProfileModel): string {
+    return JSON.stringify(this.toPayload(model));
+  }
+
   private applyRouteContext(params: ParamMap): void {
     const routeStudentId = params.get('studentId');
     if (routeStudentId === null) {
       this.managedMode = false;
       this.managedStudentId = null;
       this.invalidManagedStudentId = false;
+      this.editing = false;
+      this.pendingAutoSave = false;
       this.loadProfile();
       return;
     }
@@ -221,6 +355,9 @@ export class StudentProfile implements OnInit {
       this.model = this.defaultModel();
       this.loading = false;
       this.saved = false;
+      this.editing = false;
+      this.pendingAutoSave = false;
+      this.lastSavedPayloadDigest = '';
       this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
       return;
@@ -228,6 +365,8 @@ export class StudentProfile implements OnInit {
 
     this.managedStudentId = parsedStudentId;
     this.invalidManagedStudentId = false;
+    this.editing = false;
+    this.pendingAutoSave = false;
     this.loadProfile();
   }
 

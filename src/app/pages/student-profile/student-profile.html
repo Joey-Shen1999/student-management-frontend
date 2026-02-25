@@ -6,7 +6,10 @@
   <button type="button" (click)="back()">
     {{ managedMode ? '返回学生管理' : '返回' }}
   </button>
-  <button type="button" (click)="save()" [disabled]="saving || loading">
+  <button type="button" *ngIf="!editing" (click)="enterEditMode()" [disabled]="loading || saving || invalidManagedStudentId">
+    编辑
+  </button>
+  <button type="button" *ngIf="editing" (click)="save()" [disabled]="saving || loading">
     {{ saving ? '保存中...' : '保存' }}
   </button>
   <button type="button" (click)="loadProfile()" [disabled]="loading || saving">
@@ -24,134 +27,55 @@
   保存成功。
 </div>
 
-<form (ngSubmit)="save()">
+<ng-container *ngIf="!editing; else editModeTpl">
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>
 
-    <div>
-      <label>生日：</label>
-      <input type="date" [(ngModel)]="model.birthday" name="birthday" />
-    </div>
-
-    <div>
-      <label>在加身份：</label>
-      <input [(ngModel)]="model.statusInCanada" name="statusInCanada" placeholder="例如：永久居民 / 公民 / 学签" />
-    </div>
-
-    <div>
-      <label>电话：*</label>
-      <input [(ngModel)]="model.phone" name="phone" placeholder="(xxx) xxx-xxxx" />
-    </div>
-
-    <div>
-      <label>国籍：</label>
-      <input [(ngModel)]="model.citizenship" name="citizenship" placeholder="例如：中国 / 加拿大" />
-    </div>
-
-    <div>
-      <label>第一语言：</label>
-      <input [(ngModel)]="model.firstLanguage" name="firstLanguage" placeholder="例如：中文 / 英文" />
-    </div>
-
-    <div>
-      <label>首次入读日期：</label>
-      <input type="date" [(ngModel)]="model.firstBoardingDate" name="firstBoardingDate" />
-    </div>
+    <div><strong>姓：</strong>{{ displayText(model.legalLastName) }}</div>
+    <div><strong>名：</strong>{{ displayText(model.legalFirstName) }}</div>
+    <div><strong>常用名：</strong>{{ displayText(model.preferredName) }}</div>
+    <div><strong>性别：</strong>{{ displayText(model.gender) }}</div>
+    <div><strong>生日：</strong>{{ displayText(model.birthday) }}</div>
+    <div><strong>电话：</strong>{{ displayText(model.phone) }}</div>
+    <div><strong>邮箱：</strong>{{ displayText(model.email) }}</div>
+    <div><strong>在加身份：</strong>{{ displayText(model.statusInCanada) }}</div>
+    <div><strong>国籍：</strong>{{ displayText(model.citizenship) }}</div>
+    <div><strong>第一语言：</strong>{{ displayText(model.firstLanguage) }}</div>
+    <div><strong>首次入读日期：</strong>{{ displayText(model.firstBoardingDate) }}</div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>地址信息</legend>
 
-    <div>
-      <label>街道地址：</label>
-      <input [(ngModel)]="model.address.streetAddress" name="streetAddress" />
-    </div>
-
-    <div>
-      <label>地址第二行：</label>
-      <input [(ngModel)]="model.address.streetAddressLine2" name="streetAddressLine2" />
-    </div>
-
-    <div>
-      <label>城市：*</label>
-      <input [(ngModel)]="model.address.city" name="city" />
-    </div>
-
-    <div>
-      <label>省/州：</label>
-      <input [(ngModel)]="model.address.state" name="state" placeholder="例如：安省 ON" />
-    </div>
-
-    <div>
-      <label>国家：</label>
-      <input [(ngModel)]="model.address.country" name="country" />
-    </div>
-
-    <div>
-      <label>邮编：</label>
-      <input [(ngModel)]="model.address.postal" name="postal" />
-    </div>
+    <div><strong>街道地址：</strong>{{ displayText(model.address.streetAddress) }}</div>
+    <div><strong>地址第二行：</strong>{{ displayText(model.address.streetAddressLine2) }}</div>
+    <div><strong>城市：</strong>{{ displayText(model.address.city) }}</div>
+    <div><strong>省 / 州：</strong>{{ displayText(model.address.state) }}</div>
+    <div><strong>国家：</strong>{{ displayText(model.address.country) }}</div>
+    <div><strong>邮编：</strong>{{ displayText(model.address.postal) }}</div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>学术信息</legend>
 
-    <div>
-      <label>OEN 编号（可选）：</label>
-      <input [(ngModel)]="model.oenNumber" name="oenNumber" placeholder="可选" />
-    </div>
-
-    <div>
-      <label>IB:</label>
-      <input [(ngModel)]="model.ib" name="ib" placeholder="例如：IB DP / MYP / 无" />
-    </div>
-
-    <div>
-      <label>AP:</label>
-      <input type="checkbox" [(ngModel)]="model.ap" name="ap" />
-    </div>
-
-    <div>
-      <label>身份证明文件备注（占位）：</label>
-      <input [(ngModel)]="model.identityFileNote" name="identityFileNote" placeholder="后续支持上传文件" />
-    </div>
+    <div><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
+    <div><strong>IB：</strong>{{ displayText(model.ib) }}</div>
+    <div><strong>AP：</strong>{{ displayBoolean(model.ap) }}</div>
+    <div><strong>身份证明文件备注：</strong>{{ displayText(model.identityFileNote) }}</div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>高中学校经历</legend>
 
     <div style="margin-bottom: 8px; color: #555;">请填写所有高中学校（包含过去主读学校和当前主读学校）。</div>
-    <button type="button" (click)="addHighSchool()">+ 添加学校</button>
+    <div *ngIf="model.highSchools.length === 0" style="color: #666;">暂无记录</div>
 
     <div *ngFor="let s of model.highSchools; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
-      <div style="display:flex; gap:8px; justify-content: space-between;">
-        <strong>学校 #{{ i + 1 }}</strong>
-        <button type="button" (click)="removeHighSchool(i)">删除</button>
-      </div>
-
-      <div>
-        <label>学校性质：</label>
-        <select [(ngModel)]="s.schoolType" [name]="'highSchoolType_' + i">
-          <option value="">请选择</option>
-          <option value="MAIN">主读学校（MAIN）</option>
-          <option value="OTHER">其他学校（OTHER）</option>
-        </select>
-      </div>
-
-      <div>
-        <label>学校名称：</label>
-        <input [(ngModel)]="s.schoolName" [name]="'highSchoolName_' + i" />
-      </div>
-
-      <div>
-        <label>开始日期：</label>
-        <input type="date" [(ngModel)]="s.startTime" [name]="'highSchoolStartTime_' + i" />
-      </div>
-
-      <div>
-        <label>结束日期：</label>
-        <input type="date" [(ngModel)]="s.endTime" [name]="'highSchoolEndTime_' + i" />
-      </div>
+      <strong>学校 #{{ i + 1 }}</strong>
+      <div><strong>学校性质：</strong>{{ displaySchoolType(s.schoolType) }}</div>
+      <div><strong>学校名称：</strong>{{ displayText(s.schoolName) }}</div>
+      <div><strong>开始日期：</strong>{{ displayText(s.startTime) }}</div>
+      <div><strong>结束日期：</strong>{{ displayText(s.endTime) }}</div>
     </div>
   </fieldset>
 
@@ -159,47 +83,200 @@
     <legend>校外课程学分</legend>
 
     <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（例如：夏校 / 夜校）。</div>
-    <button type="button" (click)="addExternalCourse()">+ 添加课程</button>
+    <div *ngIf="model.externalCourses.length === 0" style="color: #666;">暂无记录</div>
 
     <div *ngFor="let c of model.externalCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
-      <div style="display:flex; gap:8px; justify-content: space-between;">
-        <strong>校外课程 #{{ i + 1 }}</strong>
-        <button type="button" (click)="removeExternalCourse(i)">删除</button>
-      </div>
-
-      <div>
-        <label>开课学校：</label>
-        <input [(ngModel)]="c.schoolName" [name]="'externalSchoolName_' + i" />
-      </div>
-
-      <div>
-        <label>课程代码：</label>
-        <input [(ngModel)]="c.courseCode" [name]="'externalCourseCode_' + i" placeholder="例如：MHF4U" />
-      </div>
-
-      <div>
-        <label>分数：</label>
-        <input type="number" [(ngModel)]="c.mark" [name]="'externalMark_' + i" />
-      </div>
-
-      <div>
-        <label>年级：</label>
-        <input type="number" [(ngModel)]="c.gradeLevel" [name]="'externalGradeLevel_' + i" placeholder="例如：11" />
-      </div>
-
-      <div>
-        <label>开始日期：</label>
-        <input type="date" [(ngModel)]="c.startTime" [name]="'externalStartTime_' + i" />
-      </div>
-
-      <div>
-        <label>结束日期：</label>
-        <input type="date" [(ngModel)]="c.endTime" [name]="'externalEndTime_' + i" />
-      </div>
+      <strong>校外课程 #{{ i + 1 }}</strong>
+      <div><strong>开课学校：</strong>{{ displayText(c.schoolName) }}</div>
+      <div><strong>课程代码：</strong>{{ displayText(c.courseCode) }}</div>
+      <div><strong>分数：</strong>{{ displayNumber(c.mark) }}</div>
+      <div><strong>年级：</strong>{{ displayNumber(c.gradeLevel) }}</div>
+      <div><strong>开始日期：</strong>{{ displayText(c.startTime) }}</div>
+      <div><strong>结束日期：</strong>{{ displayText(c.endTime) }}</div>
     </div>
   </fieldset>
+</ng-container>
 
-  <button type="submit" [disabled]="saving || loading">
-    {{ saving ? '保存中...' : '保存' }}
-  </button>
-</form>
+<ng-template #editModeTpl>
+  <form (ngSubmit)="save()" (focusout)="onFormFocusOut($event)">
+    <fieldset [disabled]="saving || loading" style="margin: 0; padding: 0; border: 0; min-width: 0;">
+      <fieldset style="margin-bottom: 16px;">
+        <legend>基础信息</legend>
+
+        <div>
+          <label>生日：</label>
+          <input type="date" [(ngModel)]="model.birthday" name="birthday" />
+        </div>
+
+        <div>
+          <label>在加身份：</label>
+          <input [(ngModel)]="model.statusInCanada" name="statusInCanada" placeholder="例如：永久居民 / 公民 / 学签" />
+        </div>
+
+        <div>
+          <label>电话：</label>
+          <input [(ngModel)]="model.phone" name="phone" placeholder="(xxx) xxx-xxxx" />
+        </div>
+
+        <div>
+          <label>国籍：</label>
+          <input [(ngModel)]="model.citizenship" name="citizenship" placeholder="例如：中国 / 加拿大" />
+        </div>
+
+        <div>
+          <label>第一语言：</label>
+          <input [(ngModel)]="model.firstLanguage" name="firstLanguage" placeholder="例如：中文 / 英文" />
+        </div>
+
+        <div>
+          <label>首次入读日期：</label>
+          <input type="date" [(ngModel)]="model.firstBoardingDate" name="firstBoardingDate" />
+        </div>
+      </fieldset>
+
+      <fieldset style="margin-bottom: 16px;">
+        <legend>地址信息</legend>
+
+        <div>
+          <label>街道地址：</label>
+          <input [(ngModel)]="model.address.streetAddress" name="streetAddress" />
+        </div>
+
+        <div>
+          <label>地址第二行：</label>
+          <input [(ngModel)]="model.address.streetAddressLine2" name="streetAddressLine2" />
+        </div>
+
+        <div>
+          <label>城市：</label>
+          <input [(ngModel)]="model.address.city" name="city" />
+        </div>
+
+        <div>
+          <label>省 / 州：</label>
+          <input [(ngModel)]="model.address.state" name="state" placeholder="例如：安省 ON" />
+        </div>
+
+        <div>
+          <label>国家：</label>
+          <input [(ngModel)]="model.address.country" name="country" />
+        </div>
+
+        <div>
+          <label>邮编：</label>
+          <input [(ngModel)]="model.address.postal" name="postal" />
+        </div>
+      </fieldset>
+
+      <fieldset style="margin-bottom: 16px;">
+        <legend>学术信息</legend>
+
+        <div>
+          <label>OEN 编号（可选）：</label>
+          <input [(ngModel)]="model.oenNumber" name="oenNumber" placeholder="可选" />
+        </div>
+
+        <div>
+          <label>IB：</label>
+          <input [(ngModel)]="model.ib" name="ib" placeholder="例如：IB DP / MYP / 无" />
+        </div>
+
+        <div>
+          <label>AP：</label>
+          <input type="checkbox" [(ngModel)]="model.ap" name="ap" />
+        </div>
+
+        <div>
+          <label>身份证明文件备注（占位）：</label>
+          <input [(ngModel)]="model.identityFileNote" name="identityFileNote" placeholder="后续支持上传文件" />
+        </div>
+      </fieldset>
+
+      <fieldset style="margin-bottom: 16px;">
+        <legend>高中学校经历</legend>
+
+        <div style="margin-bottom: 8px; color: #555;">请填写所有高中学校（包含过去主读学校和当前主读学校）。</div>
+        <button type="button" (click)="addHighSchool()">+ 添加学校</button>
+
+        <div *ngFor="let s of model.highSchools; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
+          <div style="display:flex; gap:8px; justify-content: space-between;">
+            <strong>学校 #{{ i + 1 }}</strong>
+            <button type="button" (click)="removeHighSchool(i)">删除</button>
+          </div>
+
+          <div>
+            <label>学校性质：</label>
+            <select [(ngModel)]="s.schoolType" [name]="'highSchoolType_' + i">
+              <option value="">请选择</option>
+              <option value="MAIN">主读学校（MAIN）</option>
+              <option value="OTHER">其他学校（OTHER）</option>
+            </select>
+          </div>
+
+          <div>
+            <label>学校名称：</label>
+            <input [(ngModel)]="s.schoolName" [name]="'highSchoolName_' + i" />
+          </div>
+
+          <div>
+            <label>开始日期：</label>
+            <input type="date" [(ngModel)]="s.startTime" [name]="'highSchoolStartTime_' + i" />
+          </div>
+
+          <div>
+            <label>结束日期：</label>
+            <input type="date" [(ngModel)]="s.endTime" [name]="'highSchoolEndTime_' + i" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset style="margin-bottom: 16px;">
+        <legend>校外课程学分</legend>
+
+        <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（例如：夏校 / 夜校）。</div>
+        <button type="button" (click)="addExternalCourse()">+ 添加课程</button>
+
+        <div *ngFor="let c of model.externalCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
+          <div style="display:flex; gap:8px; justify-content: space-between;">
+            <strong>校外课程 #{{ i + 1 }}</strong>
+            <button type="button" (click)="removeExternalCourse(i)">删除</button>
+          </div>
+
+          <div>
+            <label>开课学校：</label>
+            <input [(ngModel)]="c.schoolName" [name]="'externalSchoolName_' + i" />
+          </div>
+
+          <div>
+            <label>课程代码：</label>
+            <input [(ngModel)]="c.courseCode" [name]="'externalCourseCode_' + i" placeholder="例如：MHF4U" />
+          </div>
+
+          <div>
+            <label>分数：</label>
+            <input type="number" [(ngModel)]="c.mark" [name]="'externalMark_' + i" />
+          </div>
+
+          <div>
+            <label>年级：</label>
+            <input type="number" [(ngModel)]="c.gradeLevel" [name]="'externalGradeLevel_' + i" placeholder="例如：11" />
+          </div>
+
+          <div>
+            <label>开始日期：</label>
+            <input type="date" [(ngModel)]="c.startTime" [name]="'externalStartTime_' + i" />
+          </div>
+
+          <div>
+            <label>结束日期：</label>
+            <input type="date" [(ngModel)]="c.endTime" [name]="'externalEndTime_' + i" />
+          </div>
+        </div>
+      </fieldset>
+    </fieldset>
+
+    <button type="submit" [disabled]="saving || loading">
+      {{ saving ? '保存中...' : '保存' }}
+    </button>
+  </form>
+</ng-template>
