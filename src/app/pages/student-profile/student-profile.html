@@ -1,5 +1,5 @@
 <h2>
-  {{ managedMode ? ('学生档案（学生 #' + managedStudentId + '）') : '学生档案' }}
+  {{ managedMode ? ('学生档案（学生#' + managedStudentId + '）') : '学生档案' }}
 </h2>
 
 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
@@ -30,16 +30,15 @@
 <ng-container *ngIf="!editing; else editModeTpl">
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>
-
     <div><strong>在加拿大的身份：</strong>{{ displayText(model.statusInCanada) }}</div>
+    <div><strong>电话：</strong>{{ displayText(model.phone) }}</div>
     <div><strong>国籍：</strong>{{ displayText(model.citizenship) }}</div>
     <div><strong>第一语言：</strong>{{ displayText(model.firstLanguage) }}</div>
-    <div><strong>首次入读日期：</strong>{{ displayText(model.firstBoardingDate) }}</div>
+    <div><strong>第一次入境加拿大的时间：</strong>{{ displayText(model.firstBoardingDate) }}</div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>地址信息</legend>
-
     <div><strong>街道地址：</strong>{{ displayText(model.address.streetAddress) }}</div>
     <div><strong>地址第二行：</strong>{{ displayText(model.address.streetAddressLine2) }}</div>
     <div><strong>城市：</strong>{{ displayText(model.address.city) }}</div>
@@ -50,37 +49,36 @@
 
   <fieldset style="margin-bottom: 16px;">
     <legend>学术信息</legend>
-
     <div><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
     <div><strong>IB：</strong>{{ displayText(model.ib) }}</div>
     <div><strong>AP：</strong>{{ displayBoolean(model.ap) }}</div>
-    <div><strong>身份证明文件备注：</strong>{{ displayText(model.identityFileNote) }}</div>
+    <div><strong>身份说明文件备注：</strong>{{ displayText(model.identityFileNote) }}</div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>高中学校经历</legend>
-
-    <div style="margin-bottom: 8px; color: #555;">请填写所有高中学校（包含过去主读学校和当前主读学校）。</div>
+    <div style="margin-bottom: 8px; color: #555;">请填入就读高中信息</div>
     <div *ngIf="model.highSchools.length === 0" style="color: #666;">暂无记录</div>
 
     <div *ngFor="let s of model.highSchools; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
-      <strong>学校 #{{ i + 1 }}</strong>
-      <div><strong>学校性质：</strong>{{ displaySchoolType(s.schoolType) }}</div>
+      <strong>{{ i === 0 ? '在读学校' : '曾就读高中 #' + i }}</strong>
+      <div><strong>学校性质：</strong>{{ i === 0 ? '在读学校（MAIN）' : '曾就读高中（OTHER）' }}</div>
       <div><strong>学校名称：</strong>{{ displayText(s.schoolName) }}</div>
+      <div><strong>学校完整地址：</strong>{{ displaySchoolAddress(s) }}</div>
       <div><strong>开始日期：</strong>{{ displayText(s.startTime) }}</div>
-      <div><strong>结束日期：</strong>{{ displayText(s.endTime) }}</div>
+      <div><strong>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</strong>{{ displayText(s.endTime) }}</div>
     </div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
     <legend>校外课程学分</legend>
-
-    <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（例如：夏校 / 夜校）。</div>
+    <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（如：夏校 / 夜校）。</div>
     <div *ngIf="model.externalCourses.length === 0" style="color: #666;">暂无记录</div>
 
     <div *ngFor="let c of model.externalCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
       <strong>校外课程 #{{ i + 1 }}</strong>
       <div><strong>开课学校：</strong>{{ displayText(c.schoolName) }}</div>
+      <div><strong>学校完整地址：</strong>{{ displayExternalCourseSchoolAddress(c) }}</div>
       <div><strong>课程代码：</strong>{{ displayText(c.courseCode) }}</div>
       <div><strong>分数：</strong>{{ displayNumber(c.mark) }}</div>
       <div><strong>年级：</strong>{{ displayNumber(c.gradeLevel) }}</div>
@@ -96,7 +94,7 @@
       <fieldset style="margin-bottom: 16px;">
         <legend>基础信息</legend>
 
-                <div>
+        <div>
           <label>在加拿大的身份：</label>
           <select
             [(ngModel)]="statusInCanadaSelection"
@@ -121,22 +119,46 @@
 
         <div>
           <label>电话：</label>
-          <input [(ngModel)]="model.phone" name="phone" placeholder="(xxx) xxx-xxxx" />
+          <input
+            [(ngModel)]="model.phone"
+            (ngModelChange)="onPhoneInputChange($event)"
+            name="phone"
+            placeholder="(xxx) xxx-xxxx"
+          />
         </div>
 
         <div>
           <label>国籍：</label>
-          <input [(ngModel)]="model.citizenship" name="citizenship" placeholder="例如：中国 / 加拿大" />
+          <input
+            [(ngModel)]="model.citizenship"
+            name="citizenship"
+            list="citizenshipOptions"
+            placeholder="请输入或选择国籍"
+          />
+          <datalist id="citizenshipOptions">
+            <option *ngFor="let option of citizenshipOptions" [value]="option"></option>
+          </datalist>
         </div>
 
         <div>
           <label>第一语言：</label>
-          <input [(ngModel)]="model.firstLanguage" name="firstLanguage" placeholder="例如：中文 / 英文" />
+          <input
+            [(ngModel)]="model.firstLanguage"
+            name="firstLanguage"
+            list="firstLanguageOptions"
+            placeholder="请输入或选择第一语言"
+          />
+          <datalist id="firstLanguageOptions">
+            <option *ngFor="let option of firstLanguageOptions" [value]="option"></option>
+          </datalist>
         </div>
 
         <div>
-          <label>首次入读日期：</label>
+          <label>第一次入境加拿大的时间：</label>
           <input type="date" [(ngModel)]="model.firstBoardingDate" name="firstBoardingDate" />
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            请填写入境登陆或者开始学习的时间，旅游不算。
+          </div>
         </div>
       </fieldset>
 
@@ -155,22 +177,52 @@
 
         <div>
           <label>城市：</label>
-          <input [(ngModel)]="model.address.city" name="city" />
+          <input
+            [(ngModel)]="model.address.city"
+            name="city"
+            list="cityOptions"
+            placeholder="请输入或选择城市"
+          />
+          <datalist id="cityOptions">
+            <option *ngFor="let option of cityOptions" [value]="option"></option>
+          </datalist>
         </div>
 
         <div>
           <label>省 / 州：</label>
-          <input [(ngModel)]="model.address.state" name="state" placeholder="例如：安省 ON" />
+          <input
+            [(ngModel)]="model.address.state"
+            name="state"
+            list="provinceOptions"
+            placeholder="e.g. Ontario"
+          />
+          <datalist id="provinceOptions">
+            <option *ngFor="let option of provinceOptions" [value]="option"></option>
+          </datalist>
         </div>
 
         <div>
           <label>国家：</label>
-          <input [(ngModel)]="model.address.country" name="country" />
+          <input
+            [(ngModel)]="model.address.country"
+            (ngModelChange)="onCountryInputChange($event)"
+            name="country"
+            list="countryOptions"
+            placeholder="请输入或选择国家"
+          />
+          <datalist id="countryOptions">
+            <option *ngFor="let option of countryOptions" [value]="option"></option>
+          </datalist>
         </div>
 
         <div>
           <label>邮编：</label>
-          <input [(ngModel)]="model.address.postal" name="postal" />
+          <input
+            [(ngModel)]="model.address.postal"
+            (ngModelChange)="onPostalInputChange($event)"
+            name="postal"
+            [placeholder]="postalPlaceholder"
+          />
         </div>
       </fieldset>
 
@@ -178,8 +230,21 @@
         <legend>学术信息</legend>
 
         <div>
-          <label>OEN 编号（可选）：</label>
-          <input [(ngModel)]="model.oenNumber" name="oenNumber" placeholder="可选" />
+          <label>OEN 编号：</label>
+          <input
+            [(ngModel)]="model.oenNumber"
+            (ngModelChange)="onOenInputChange($event)"
+            name="oenNumber"
+            inputmode="numeric"
+            maxlength="9"
+            placeholder="9位纯数字"
+          />
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            OEN 是安省成绩单（Ontario Student Transcript, OST）上的 9 位学生编号。
+          </div>
+          <div *ngIf="oenError" style="margin-top: 4px; color: #b00020; font-size: 12px;">
+            {{ oenError }}
+          </div>
         </div>
 
         <div>
@@ -201,27 +266,66 @@
       <fieldset style="margin-bottom: 16px;">
         <legend>高中学校经历</legend>
 
-        <div style="margin-bottom: 8px; color: #555;">请填写所有高中学校（包含过去主读学校和当前主读学校）。</div>
-        <button type="button" (click)="addHighSchool()">+ 添加学校</button>
+        <div style="margin-bottom: 8px; color: #555;">请填入就读高中信息</div>
+        <div style="margin-bottom: 8px; color: #555;">输入并从建议中选择安省高中后，会自动填入学校地址。</div>
+        <button type="button" (click)="addHighSchool()">+ 添加其他曾就读高中</button>
 
         <div *ngFor="let s of model.highSchools; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
           <div style="display:flex; gap:8px; justify-content: space-between;">
-            <strong>学校 #{{ i + 1 }}</strong>
-            <button type="button" (click)="removeHighSchool(i)">删除</button>
+            <strong>{{ i === 0 ? '在读学校' : '曾就读高中 #' + i }}</strong>
+            <button type="button" *ngIf="i > 0" (click)="removeHighSchool(i)">删除</button>
           </div>
 
           <div>
             <label>学校性质：</label>
-            <select [(ngModel)]="s.schoolType" [name]="'highSchoolType_' + i">
-              <option value="">请选择</option>
-              <option value="MAIN">主读学校（MAIN）</option>
-              <option value="OTHER">其他学校（OTHER）</option>
-            </select>
+            <span>{{ i === 0 ? '在读学校（MAIN）' : '曾就读高中（OTHER）' }}</span>
           </div>
 
           <div>
             <label>学校名称：</label>
-            <input [(ngModel)]="s.schoolName" [name]="'highSchoolName_' + i" />
+            <input
+              [(ngModel)]="s.schoolName"
+              (ngModelChange)="onHighSchoolNameInputChange(i, $event)"
+              [name]="'highSchoolName_' + i"
+              [attr.list]="'highSchoolOptions_' + i"
+              placeholder="输入学校名称并从建议中选择"
+            />
+            <datalist [id]="'highSchoolOptions_' + i">
+              <option *ngFor="let option of getHighSchoolLookupOptions(i)" [value]="option.name" [label]="option.displayAddress"></option>
+            </datalist>
+            <div *ngIf="highSchoolLookupLoading[i]" style="margin-top: 4px; color: #666; font-size: 12px;">
+              正在匹配学校地址...
+            </div>
+          </div>
+
+          <div>
+            <label>学校地址：</label>
+            <input [(ngModel)]="s.streetAddress" [name]="'highSchoolStreetAddress_' + i" />
+          </div>
+
+          <div>
+            <label>城市：</label>
+            <input [(ngModel)]="s.city" [name]="'highSchoolCity_' + i" />
+          </div>
+
+          <div>
+            <label>省 / 州：</label>
+            <input [(ngModel)]="s.state" [name]="'highSchoolState_' + i" placeholder="e.g. Ontario" />
+          </div>
+
+          <div>
+            <label>国家：</label>
+            <input [(ngModel)]="s.country" [name]="'highSchoolCountry_' + i" placeholder="Canada" />
+          </div>
+
+          <div>
+            <label>邮编：</label>
+            <input
+              [(ngModel)]="s.postal"
+              (ngModelChange)="onHighSchoolPostalInputChange(i, $event)"
+              [name]="'highSchoolPostal_' + i"
+              placeholder="A1A 1A1"
+            />
           </div>
 
           <div>
@@ -230,7 +334,7 @@
           </div>
 
           <div>
-            <label>结束日期：</label>
+            <label>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</label>
             <input type="date" [(ngModel)]="s.endTime" [name]="'highSchoolEndTime_' + i" />
           </div>
         </div>
@@ -239,7 +343,7 @@
       <fieldset style="margin-bottom: 16px;">
         <legend>校外课程学分</legend>
 
-        <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（例如：夏校 / 夜校）。</div>
+        <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（如：夏校 / 夜校）。</div>
         <button type="button" (click)="addExternalCourse()">+ 添加课程</button>
 
         <div *ngFor="let c of model.externalCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
@@ -250,7 +354,58 @@
 
           <div>
             <label>开课学校：</label>
-            <input [(ngModel)]="c.schoolName" [name]="'externalSchoolName_' + i" />
+            <input
+              [(ngModel)]="c.schoolName"
+              (ngModelChange)="onExternalCourseSchoolNameInputChange(i, $event)"
+              [name]="'externalSchoolName_' + i"
+              [attr.list]="'externalCourseProviderOptions_' + i"
+              placeholder="输入学校名称并从建议中选择"
+            />
+            <datalist [id]="'externalCourseProviderOptions_' + i">
+              <option
+                *ngFor="let option of getExternalCourseProviderLookupOptions(i)"
+                [value]="option.name"
+                [label]="option.displayAddress + (option.boardName ? (' | ' + option.boardName) : '') + (option.schoolSpecialConditions ? (' | ' + option.schoolSpecialConditions) : '')"
+              ></option>
+            </datalist>
+            <div *ngIf="externalCourseProviderLookupLoading[i]" style="margin-top: 4px; color: #666; font-size: 12px;">
+              正在匹配开课学校...
+            </div>
+          </div>
+
+          <div>
+            <label>学校地址：</label>
+            <input [(ngModel)]="c.streetAddress" [name]="'externalStreetAddress_' + i" />
+          </div>
+
+          <div>
+            <label>城市：</label>
+            <input [(ngModel)]="c.city" [name]="'externalCity_' + i" />
+          </div>
+
+          <div>
+            <label>省 / 州：</label>
+            <input [(ngModel)]="c.state" [name]="'externalState_' + i" placeholder="e.g. Ontario" />
+          </div>
+
+          <div>
+            <label>国家：</label>
+            <input
+              [(ngModel)]="c.country"
+              (ngModelChange)="onExternalCourseCountryInputChange(i, $event)"
+              [name]="'externalCountry_' + i"
+              placeholder="Canada"
+            />
+          </div>
+
+          <div>
+            <label>邮编：</label>
+            <input
+              [(ngModel)]="c.postal"
+              (ngModelChange)="onExternalCoursePostalInputChange(i, $event)"
+              [name]="'externalPostal_' + i"
+              [placeholder]="getExternalCoursePostalPlaceholder(i)"
+            />
           </div>
 
           <div>

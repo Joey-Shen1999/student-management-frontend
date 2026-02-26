@@ -22,6 +22,83 @@ Frontend references:
 - `src/app/pages/student-profile/student-profile.ts`
 - `src/app/pages/student-profile/student-profile.html`
 
+## Latest Field Update (2026-02-26)
+
+`firstBoardingDate` has been relabeled in UI as:
+
+- `第一次入境加拿大的时间`
+- Helper text: `请填写入境登陆或者开始学习的时间，旅游不算。`
+
+Backend integration requirement:
+
+1. Frontend now sends both fields with the same value:
+   - `firstEntryDateInCanada` (new preferred semantic name)
+   - `firstBoardingDate` (legacy compatibility)
+2. Frontend can read any of these response fields:
+   - `firstEntryDateInCanada`
+   - `firstEntryDate`
+   - `firstArrivalDateInCanada`
+   - `firstBoardingDate`
+3. Backend should persist this as one canonical date and return at least `firstEntryDateInCanada` (recommended), while keeping legacy compatibility during migration.
+
+## Country Standardization Update (2026-02-26)
+
+Frontend now treats `address.country` as an English-standardized field.
+
+Backend integration requirement:
+
+1. Persist and return canonical English country names (for example: `Canada`, `China`, `United States`).
+2. During migration, if backend receives legacy/localized values (for example Chinese aliases), normalize to the canonical English value before persistence.
+3. Response payload should keep `address.country` in canonical English to avoid mixed-language data in UI and future edits.
+
+## High School Address Update (2026-02-26)
+
+Frontend now stores complete address fields for each high school entry.
+
+Backend integration requirement:
+
+1. `schools[]` should support and persist:
+   - `schoolType` (`MAIN|OTHER`)
+   - `schoolName`
+   - `address.streetAddress`
+   - `address.city`
+   - `address.state`
+   - `address.country`
+   - `address.postal`
+   - `startTime`
+   - `endTime`
+2. For compatibility during migration, frontend also submits flat fields (`streetAddress`, `city`, `state`, `country`, `postal`) in each `schools[]` item; backend can accept either nested `address` or flat fields.
+3. Frontend keeps one default current high school record (`MAIN`) and additional historical schools as `OTHER`.
+
+## Canadian High School Offline Lookup (Recommended Backend Ownership)
+
+To support robust auto-fill for school addresses (including fuzzy input such as `Unionville` -> `Unionville High School`), this should be implemented on backend with an offline canonical dataset.
+
+Recommended endpoint:
+
+- `GET /api/reference/canadian-high-schools/search?q=...&limit=15`
+
+Recommended response item:
+
+```json
+{
+  "id": "ON-001234",
+  "name": "Unionville High School",
+  "streetAddress": "201 Town Centre Boulevard",
+  "city": "Markham",
+  "state": "Ontario",
+  "country": "Canada",
+  "postal": "L3R 8G5",
+  "displayAddress": "201 Town Centre Boulevard, Markham, Ontario, L3R 8G5, Canada"
+}
+```
+
+Matching requirements:
+
+1. Support fuzzy search (not exact match only), including partial names, abbreviations, and common typos.
+2. Rank by relevance (name similarity first, then city/province context).
+3. Return stable, normalized addresses from offline data.
+
 ## Scope
 
 ## Phase 1 (must implement now)
