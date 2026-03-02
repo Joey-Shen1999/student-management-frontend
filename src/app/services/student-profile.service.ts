@@ -1,5 +1,5 @@
 ﻿import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
@@ -23,6 +23,7 @@ export interface StudentProfileCoursePayload {
 }
 
 export interface StudentProfileSchoolPayload {
+  schoolRecordId?: number | null;
   schoolType?: string;
   schoolName?: string;
   address?: StudentProfileAddressPayload;
@@ -33,6 +34,20 @@ export interface StudentProfileSchoolPayload {
   postal?: string;
   startTime?: string;
   endTime?: string;
+  transcriptFileName?: string;
+  transcriptSizeBytes?: number | null;
+  transcriptUploadedAt?: string;
+  hasTranscript?: boolean;
+  [key: string]: any;
+}
+
+export interface StudentSchoolTranscriptPayload {
+  schoolRecordId?: number | null;
+  transcriptFileName?: string;
+  transcriptContentType?: string;
+  transcriptSizeBytes?: number | null;
+  transcriptUploadedAt?: string;
+  hasTranscript?: boolean;
   [key: string]: any;
 }
 
@@ -64,6 +79,7 @@ export interface StudentProfilePayload {
   legalLastName?: string;
   preferredName?: string;
   gender?: string;
+  genderOther?: string;
   birthday?: string;
   phone?: string;
   email?: string;
@@ -182,6 +198,58 @@ export class StudentProfileService {
         map((resp) => this.mapBackendSchoolResults(resp)),
         catchError(() => of([]))
       );
+  }
+
+  uploadMySchoolTranscript(
+    schoolRecordId: number,
+    file: File
+  ): Observable<StudentSchoolTranscriptPayload> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<StudentSchoolTranscriptPayload>(
+      `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
+      body,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  uploadStudentSchoolTranscriptForTeacher(
+    studentId: number,
+    schoolRecordId: number,
+    file: File
+  ): Observable<StudentSchoolTranscriptPayload> {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<StudentSchoolTranscriptPayload>(
+      `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
+      body,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  downloadMySchoolTranscript(schoolRecordId: number): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
+      {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
+  downloadStudentSchoolTranscriptForTeacher(
+    studentId: number,
+    schoolRecordId: number
+  ): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
+      {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
   }
 
   private searchCanadianHighSchoolsFromBackend(query: string): Observable<CanadianHighSchoolLookupItem[]> {

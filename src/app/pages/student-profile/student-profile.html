@@ -31,7 +31,10 @@
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>
     <div><strong>在加拿大的身份：</strong>{{ displayText(model.statusInCanada) }}</div>
-    <div><strong>电话：</strong>{{ displayText(model.phone) }}</div>
+    <div><strong>生日：</strong>{{ displayText(model.birthday) }}</div>
+    <div><strong>性别：</strong>{{ displayGender() }}</div>
+    <div><strong>联系电话：</strong>{{ displayText(model.phone) }}</div>
+    <div><strong>邮箱：</strong>{{ displayText(model.email) }}</div>
     <div><strong>国籍：</strong>{{ displayText(model.citizenship) }}</div>
     <div><strong>第一语言：</strong>{{ displayText(model.firstLanguage) }}</div>
     <div><strong>第一次入境加拿大的时间：</strong>{{ displayText(model.firstBoardingDate) }}</div>
@@ -67,6 +70,10 @@
       <div><strong>学校完整地址：</strong>{{ displaySchoolAddress(s) }}</div>
       <div><strong>开始日期：</strong>{{ displayText(s.startTime) }}</div>
       <div><strong>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</strong>{{ displayText(s.endTime) }}</div>
+      <div><strong>成绩单：</strong>{{ displaySchoolTranscript(s) }}</div>
+      <div *ngIf="s.hasTranscript" style="margin-top: 6px;">
+        <button type="button" (click)="downloadHighSchoolTranscript(i)">下载成绩单</button>
+      </div>
     </div>
   </fieldset>
 
@@ -118,13 +125,50 @@
         </div>
 
         <div>
-          <label>电话：</label>
+          <label>生日：</label>
+          <input type="date" [(ngModel)]="model.birthday" name="birthday" />
+        </div>
+
+        <div>
+          <label>性别：</label>
+          <select
+            [(ngModel)]="model.gender"
+            (ngModelChange)="onGenderSelectionChange($event)"
+            name="gender"
+          >
+            <option value="">请选择</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            性别是 OUAC 要求项，仅可选 Male / Female / Other；若选 Other，请另外填写。
+          </div>
+        </div>
+
+        <div *ngIf="model.gender === 'Other'">
+          <label>其他性别说明：</label>
+          <input
+            [(ngModel)]="model.genderOther"
+            (ngModelChange)="onGenderOtherInputChange($event)"
+            name="genderOther"
+            placeholder="请填写具体性别描述"
+          />
+        </div>
+
+        <div>
+          <label>联系电话：</label>
           <input
             [(ngModel)]="model.phone"
             (ngModelChange)="onPhoneInputChange($event)"
             name="phone"
             placeholder="(xxx) xxx-xxxx"
           />
+        </div>
+
+        <div>
+          <label>邮箱：</label>
+          <input type="email" [(ngModel)]="model.email" name="email" placeholder="name@example.com" />
         </div>
 
         <div>
@@ -336,6 +380,30 @@
           <div>
             <label>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</label>
             <input type="date" [(ngModel)]="s.endTime" [name]="'highSchoolEndTime_' + i" />
+          </div>
+
+          <div>
+            <label>成绩单：</label>
+            <div style="margin: 4px 0;">{{ displaySchoolTranscript(s) }}</div>
+            <button
+              type="button"
+              (click)="downloadHighSchoolTranscript(i)"
+              [disabled]="!s.hasTranscript || !s.schoolRecordId"
+            >
+              下载已上传成绩单
+            </button>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              [name]="'highSchoolTranscript_' + i"
+              (change)="onHighSchoolTranscriptFileSelected(i, $event)"
+            />
+            <div *ngIf="highSchoolTranscriptUploading[i]" style="margin-top: 4px; color: #666; font-size: 12px;">
+              正在上传成绩单...
+            </div>
+            <div *ngIf="!s.schoolRecordId" style="margin-top: 4px; color: #666; font-size: 12px;">
+              请先保存学校信息后再上传成绩单。
+            </div>
           </div>
         </div>
       </fieldset>

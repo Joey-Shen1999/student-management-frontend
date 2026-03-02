@@ -9,6 +9,7 @@ import { forkJoin } from 'rxjs';
 import {
   CanadianHighSchoolLookupItem,
   StudentProfilePayload,
+  StudentSchoolTranscriptPayload,
   StudentProfileService,
 } from '../../services/student-profile.service';
 
@@ -26,6 +27,7 @@ interface AddressModel {
 }
 
 interface HighSchoolModel {
+  schoolRecordId: number | null;
   schoolType: SchoolType;
   schoolName: string;
   streetAddress: string;
@@ -35,6 +37,10 @@ interface HighSchoolModel {
   postal: string;
   startTime: string;
   endTime: string;
+  transcriptFileName: string;
+  transcriptSizeBytes: number | null;
+  transcriptUploadedAt: string;
+  hasTranscript: boolean;
 }
 
 interface ExternalCourseModel {
@@ -56,6 +62,7 @@ interface StudentProfileModel {
   legalLastName: string;
   preferredName: string;
   gender: Gender;
+  genderOther: string;
   birthday: string;
   phone: string;
   email: string;
@@ -370,6 +377,7 @@ export class StudentProfile implements OnInit {
   model: StudentProfileModel = this.defaultModel();
   highSchoolLookupOptions: CanadianHighSchoolLookupItem[][] = [[]];
   highSchoolLookupLoading: boolean[] = [false];
+  highSchoolTranscriptUploading: boolean[] = [false];
   externalCourseProviderLookupOptions: CanadianHighSchoolLookupItem[][] = [];
   externalCourseProviderLookupLoading: boolean[] = [];
   private lastSavedPayloadDigest = '';
@@ -434,6 +442,21 @@ export class StudentProfile implements OnInit {
     this.model.phone = this.formatPhoneForDisplay(value);
   }
 
+  onGenderSelectionChange(value: string): void {
+    const normalized = this.normalizeGender(value);
+    this.model.gender = normalized;
+    if (normalized !== 'Other') {
+      this.model.genderOther = '';
+    }
+  }
+
+  onGenderOtherInputChange(value: string): void {
+    this.model.genderOther = this.toText(value);
+    if (this.model.gender !== 'Other' && this.model.genderOther) {
+      this.model.gender = 'Other';
+    }
+  }
+
   onPostalInputChange(value: string): void {
     this.model.address.postal = this.formatPostalForDisplay(value, this.model.address.country);
   }
@@ -461,6 +484,52 @@ export class StudentProfile implements OnInit {
     const school = this.model.highSchools[index];
     if (!school) return;
     school.postal = this.formatPostalForDisplay(value, school.country || 'Canada');
+  }
+
+  onHighSchoolTranscriptFileSelected(index: number, event: Event): void {
+    const school = this.model.highSchools[index];
+    if (!school) return;
+
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+
+    if (!school.schoolRecordId) {
+      this.error = '请先保存学校信息，再上传成绩单。';
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.uploadSchoolTranscript(index, school.schoolRecordId, file, input);
+  }
+
+  downloadHighSchoolTranscript(index: number): void {
+    const school = this.model.highSchools[index];
+    if (!school || !school.schoolRecordId || !school.hasTranscript) return;
+    if (this.loading || this.saving) return;
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.downloadStudentSchoolTranscriptForTeacher(this.managedStudentId, school.schoolRecordId)
+        : this.profileApi.downloadMySchoolTranscript(school.schoolRecordId);
+
+    request$.subscribe({
+      next: (resp) => {
+        const blob = resp.body;
+        if (!blob) return;
+        const contentDisposition = resp.headers.get('content-disposition');
+        const fileName =
+          this.resolveDownloadFileName(contentDisposition) ||
+          this.toText(school.transcriptFileName) ||
+          'school-transcript.bin';
+        this.triggerBlobDownload(blob, fileName);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.error = this.extractErrorMessage(err) || '下载成绩单失败。';
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   onExternalCourseSchoolNameInputChange(index: number, value: string): void {
@@ -503,8 +572,27 @@ export class StudentProfile implements OnInit {
     return String(value);
   }
 
+  formatBytes(value: number | null | undefined): string {
+    if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) return '-';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = value;
+    let index = 0;
+    while (size >= 1024 && index < units.length - 1) {
+      size /= 1024;
+      index += 1;
+    }
+    return `${size >= 10 || index === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[index]}`;
+  }
+
   displayBoolean(value: boolean): string {
     return value ? '是' : '否';
+  }
+
+  displayGender(): string {
+    if (!this.model.gender) return '-';
+    if (this.model.gender !== 'Other') return this.model.gender;
+    const detail = this.toText(this.model.genderOther);
+    return detail ? `Other (${detail})` : 'Other';
   }
 
   displaySchoolType(value: SchoolType): string {
@@ -522,6 +610,19 @@ export class StudentProfile implements OnInit {
       this.toText(school.postal),
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : '-';
+  }
+
+  displaySchoolTranscript(school: HighSchoolModel): string {
+    if (!school.hasTranscript) return '未上传';
+    const name = this.toText(school.transcriptFileName) || '已上传文件';
+    const size = this.formatBytes(school.transcriptSizeBytes);
+    const uploadedAt = this.toText(school.transcriptUploadedAt);
+    if (size !== '-') {
+      if (uploadedAt) return `${name} (${size}, ${uploadedAt})`;
+      return `${name} (${size})`;
+    }
+    if (uploadedAt) return `${name} (${uploadedAt})`;
+    return name;
   }
 
   displayExternalCourseSchoolAddress(course: ExternalCourseModel): string {
@@ -549,6 +650,7 @@ export class StudentProfile implements OnInit {
     this.model.highSchools.push(this.createPastHighSchool());
     this.highSchoolLookupOptions.push([]);
     this.highSchoolLookupLoading.push(false);
+    this.highSchoolTranscriptUploading.push(false);
   }
 
   removeHighSchool(index: number): void {
@@ -558,6 +660,7 @@ export class StudentProfile implements OnInit {
     this.model.highSchools.splice(index, 1);
     this.highSchoolLookupOptions.splice(index, 1);
     this.highSchoolLookupLoading.splice(index, 1);
+    this.highSchoolTranscriptUploading.splice(index, 1);
     this.clearHighSchoolLookupTimer(index);
     this.triggerAutoSave();
   }
@@ -588,6 +691,79 @@ export class StudentProfile implements OnInit {
     this.clearExternalCourseProviderLookupTimer(index);
     this.syncExternalCourseProviderLookupState();
     this.triggerAutoSave();
+  }
+
+  private uploadSchoolTranscript(
+    index: number,
+    schoolRecordId: number,
+    file: File,
+    input: HTMLInputElement | null
+  ): void {
+    this.highSchoolTranscriptUploading[index] = true;
+    this.error = '';
+    this.cdr.detectChanges();
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.uploadStudentSchoolTranscriptForTeacher(this.managedStudentId, schoolRecordId, file)
+        : this.profileApi.uploadMySchoolTranscript(schoolRecordId, file);
+
+    request$.subscribe({
+      next: (payload) => {
+        const school = this.model.highSchools[index];
+        if (!school) return;
+        this.applySchoolTranscriptPayload(school, payload);
+        this.saved = true;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.error = this.extractErrorMessage(err) || '上传成绩单失败。';
+      },
+      complete: () => {
+        this.highSchoolTranscriptUploading[index] = false;
+        if (input) input.value = '';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private applySchoolTranscriptPayload(school: HighSchoolModel, payload: StudentSchoolTranscriptPayload): void {
+    school.schoolRecordId =
+      payload.schoolRecordId === null || payload.schoolRecordId === undefined
+        ? school.schoolRecordId
+        : Number(payload.schoolRecordId);
+    school.transcriptFileName = this.toText(payload.transcriptFileName);
+    school.transcriptSizeBytes = this.toOptionalNumber(payload.transcriptSizeBytes);
+    school.transcriptUploadedAt = this.toText(payload.transcriptUploadedAt);
+    school.hasTranscript = !!payload.hasTranscript || !!school.transcriptFileName;
+  }
+
+  private triggerBlobDownload(blob: Blob, fileName: string): void {
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName || 'download.bin';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  private resolveDownloadFileName(contentDisposition: string | null): string {
+    const header = this.toText(contentDisposition);
+    if (!header) return '';
+
+    const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        return utf8Match[1];
+      }
+    }
+
+    const asciiMatch = header.match(/filename="?([^\";]+)"?/i);
+    if (asciiMatch && asciiMatch[1]) return asciiMatch[1];
+    return '';
   }
 
   private fetchHighSchoolLookupOptions(index: number, keyword: string): void {
@@ -673,9 +849,13 @@ export class StudentProfile implements OnInit {
   private syncHighSchoolLookupState(): void {
     const options = this.model.highSchools.map((_, index) => this.highSchoolLookupOptions[index] || []);
     const loading = this.model.highSchools.map((_, index) => this.highSchoolLookupLoading[index] || false);
+    const transcriptUploading = this.model.highSchools.map(
+      (_, index) => this.highSchoolTranscriptUploading[index] || false
+    );
 
     this.highSchoolLookupOptions = options;
     this.highSchoolLookupLoading = loading;
+    this.highSchoolTranscriptUploading = transcriptUploading;
 
     for (const key of Object.keys(this.highSchoolLookupTimer)) {
       const index = Number(key);
@@ -1039,6 +1219,7 @@ export class StudentProfile implements OnInit {
       legalLastName: '',
       preferredName: '',
       gender: '',
+      genderOther: '',
       birthday: '',
       phone: '',
       email: '',
@@ -1078,6 +1259,7 @@ export class StudentProfile implements OnInit {
   private normalizeModel(payload: StudentProfilePayload): StudentProfileModel {
     const defaults = this.defaultModel();
     const source: any = payload || {};
+    const normalizedGender = this.normalizeGenderValue(source.gender, source.genderOther);
     const rawAddress = source.address && typeof source.address === 'object' ? source.address : {};
     const normalizedCountry = this.normalizeCountryToStandardEnglish(rawAddress.country || defaults.address.country);
     const rawCourses = this.resolveExternalCourses(source);
@@ -1087,7 +1269,8 @@ export class StudentProfile implements OnInit {
       legalFirstName: this.toText(source.legalFirstName || source.firstName),
       legalLastName: this.toText(source.legalLastName || source.lastName),
       preferredName: this.toText(source.preferredName || source.nickName),
-      gender: this.normalizeGender(source.gender),
+      gender: normalizedGender.gender,
+      genderOther: normalizedGender.genderOther,
       birthday: this.normalizeDate(source.birthday),
       phone: this.formatPhoneForDisplay(source.phone),
       email: this.toText(source.email),
@@ -1138,6 +1321,9 @@ export class StudentProfile implements OnInit {
     );
 
     return {
+      schoolRecordId: source.schoolRecordId === null || source.schoolRecordId === undefined
+        ? this.toOptionalNumber(source.id)
+        : this.toOptionalNumber(source.schoolRecordId),
       schoolType,
       schoolName: this.toText(source.schoolName || schoolNode.name),
       streetAddress: this.toText(source.streetAddress || rawAddress.streetAddress),
@@ -1147,11 +1333,16 @@ export class StudentProfile implements OnInit {
       postal: this.formatPostalForDisplay(source.postal || rawAddress.postal, country),
       startTime: this.normalizeDate(source.startTime),
       endTime: this.normalizeDate(source.endTime),
+      transcriptFileName: this.toText(source.transcriptFileName),
+      transcriptSizeBytes: this.toOptionalNumber(source.transcriptSizeBytes),
+      transcriptUploadedAt: this.toText(source.transcriptUploadedAt),
+      hasTranscript: this.toBoolean(source.hasTranscript) || !!this.toText(source.transcriptFileName),
     };
   }
 
   private createCurrentHighSchool(): HighSchoolModel {
     return {
+      schoolRecordId: null,
       schoolType: 'MAIN',
       schoolName: '',
       streetAddress: '',
@@ -1161,11 +1352,16 @@ export class StudentProfile implements OnInit {
       postal: '',
       startTime: '',
       endTime: '',
+      transcriptFileName: '',
+      transcriptSizeBytes: null,
+      transcriptUploadedAt: '',
+      hasTranscript: false,
     };
   }
 
   private createPastHighSchool(): HighSchoolModel {
     return {
+      schoolRecordId: null,
       schoolType: 'OTHER',
       schoolName: '',
       streetAddress: '',
@@ -1175,6 +1371,10 @@ export class StudentProfile implements OnInit {
       postal: '',
       startTime: '',
       endTime: '',
+      transcriptFileName: '',
+      transcriptSizeBytes: null,
+      transcriptUploadedAt: '',
+      hasTranscript: false,
     };
   }
 
@@ -1186,6 +1386,7 @@ export class StudentProfile implements OnInit {
     const normalized = schools.map((school) => {
       const country = this.normalizeCountryToStandardEnglish(school.country || 'Canada');
       return {
+        schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
         schoolType: school.schoolType,
         schoolName: this.toText(school.schoolName),
         streetAddress: this.toText(school.streetAddress),
@@ -1195,6 +1396,10 @@ export class StudentProfile implements OnInit {
         postal: this.formatPostalForDisplay(school.postal, country),
         startTime: this.normalizeDate(school.startTime),
         endTime: this.normalizeDate(school.endTime),
+        transcriptFileName: this.toText(school.transcriptFileName),
+        transcriptSizeBytes: this.toOptionalNumber(school.transcriptSizeBytes),
+        transcriptUploadedAt: this.toText(school.transcriptUploadedAt),
+        hasTranscript: this.toBoolean(school.hasTranscript) || !!this.toText(school.transcriptFileName),
       };
     });
 
@@ -1246,6 +1451,7 @@ export class StudentProfile implements OnInit {
       legalLastName: this.toText(model.legalLastName),
       preferredName: this.toText(model.preferredName),
       gender: model.gender,
+      genderOther: model.gender === 'Other' ? this.toText(model.genderOther) : '',
       birthday: this.normalizeDate(model.birthday),
       phone: this.normalizePhoneForPayload(model.phone),
       email: this.toText(model.email),
@@ -1270,6 +1476,7 @@ export class StudentProfile implements OnInit {
         const schoolCountry = this.normalizeCountryToStandardEnglish(school.country || 'Canada');
         const schoolPostal = this.formatPostalForDisplay(school.postal, schoolCountry);
         return {
+          schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
           schoolType: index === 0 ? 'MAIN' : 'OTHER',
           schoolName: this.toText(school.schoolName),
           address: {
@@ -1286,6 +1493,10 @@ export class StudentProfile implements OnInit {
           postal: schoolPostal,
           startTime: this.normalizeDate(school.startTime),
           endTime: this.normalizeDate(school.endTime),
+          transcriptFileName: this.toText(school.transcriptFileName),
+          transcriptSizeBytes: this.toOptionalNumber(school.transcriptSizeBytes),
+          transcriptUploadedAt: this.toText(school.transcriptUploadedAt),
+          hasTranscript: this.toBoolean(school.hasTranscript),
         };
       }),
       otherCourses: model.externalCourses.map((course) => ({
@@ -1354,6 +1565,7 @@ export class StudentProfile implements OnInit {
       if (unique.has(key)) continue;
 
       unique.set(key, {
+        schoolRecordId: null,
         schoolType,
         schoolName,
         streetAddress: '',
@@ -1363,6 +1575,10 @@ export class StudentProfile implements OnInit {
         postal: '',
         startTime,
         endTime,
+        transcriptFileName: '',
+        transcriptSizeBytes: null,
+        transcriptUploadedAt: '',
+        hasTranscript: false,
       });
     }
 
@@ -1375,6 +1591,46 @@ export class StudentProfile implements OnInit {
     if (normalized === 'female') return 'Female';
     if (normalized === 'other') return 'Other';
     return '';
+  }
+
+  private normalizeGenderValue(
+    genderValue: unknown,
+    genderOtherValue: unknown
+  ): { gender: Gender; genderOther: string } {
+    const rawGender = this.toText(genderValue);
+    const rawGenderOther = this.toText(genderOtherValue);
+
+    if (!rawGender && !rawGenderOther) return { gender: '', genderOther: '' };
+
+    const normalized = rawGender.toLowerCase();
+    if (normalized === 'male') return { gender: 'Male', genderOther: '' };
+    if (normalized === 'female') return { gender: 'Female', genderOther: '' };
+    if (normalized === 'other') {
+      return {
+        gender: 'Other',
+        genderOther: rawGenderOther,
+      };
+    }
+
+    if (/^other\b/i.test(rawGender)) {
+      const detailFromGender = rawGender.replace(/^other\b[\s:：\-,;]*/i, '').trim();
+      return {
+        gender: 'Other',
+        genderOther: rawGenderOther || detailFromGender,
+      };
+    }
+
+    if (rawGender) {
+      return {
+        gender: 'Other',
+        genderOther: rawGenderOther || rawGender,
+      };
+    }
+
+    return {
+      gender: 'Other',
+      genderOther: rawGenderOther,
+    };
   }
 
   private toOptionalNumber(value: unknown): number | null {

@@ -81,12 +81,33 @@ describe('StudentProfile', () => {
     expect(fixture.nativeElement.textContent).toContain('(123) 456-7890');
   });
 
+  it('should render birthday, gender and email in view mode', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        birthday: '2008-09-01',
+        gender: 'Other: Non-binary',
+        email: 'student@example.com',
+      })
+    );
+
+    component.loadProfile();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('2008-09-01');
+    expect(text).toContain('Other (Non-binary)');
+    expect(text).toContain('student@example.com');
+  });
+
   it('should render form controls in edit mode', () => {
     component.enterEditMode();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name=\"birthday\"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('select[name=\"gender\"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('input[name=\"phone\"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name=\"email\"]')).not.toBeNull();
   });
 
   it('should prioritize citizenship options with China, Canada, USA, Taiwan, Hong Kong', () => {
@@ -256,13 +277,22 @@ describe('StudentProfile', () => {
     );
   });
 
+  it('should render OUAC gender helper text in edit mode', () => {
+    component.enterEditMode();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('OUAC');
+    expect(text).toContain('Male / Female / Other');
+  });
+
   it('should render OEN helper text in edit mode', () => {
     component.enterEditMode();
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Ontario Student Transcript');
-    expect(text).not.toContain('\u53ef\u9009');
+    expect(text).not.toContain('OEN 编号（可选）');
   });
 
   it('should initialize with one current high school record', () => {
@@ -288,6 +318,7 @@ describe('StudentProfile', () => {
     component.enterEditMode();
     component.model.highSchools = [
       {
+        schoolRecordId: null,
         schoolType: '',
         schoolName: 'Current High School',
         streetAddress: '',
@@ -297,8 +328,13 @@ describe('StudentProfile', () => {
         postal: '',
         startTime: '2025-09-01',
         endTime: '',
+        transcriptFileName: '',
+        transcriptSizeBytes: null,
+        transcriptUploadedAt: '',
+        hasTranscript: false,
       },
       {
+        schoolRecordId: null,
         schoolType: 'MAIN',
         schoolName: 'Previous High School',
         streetAddress: '',
@@ -308,6 +344,10 @@ describe('StudentProfile', () => {
         postal: '',
         startTime: '2024-09-01',
         endTime: '2025-06-30',
+        transcriptFileName: '',
+        transcriptSizeBytes: null,
+        transcriptUploadedAt: '',
+        hasTranscript: false,
       },
     ];
 
@@ -500,6 +540,58 @@ describe('StudentProfile', () => {
         phone: '1234567890',
       })
     );
+  });
+
+  it('should map Other gender with detail from API', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        gender: 'Other: Non-binary',
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.gender).toBe('Other');
+    expect(component.model.genderOther).toBe('Non-binary');
+  });
+
+  it('should map structured genderOther from API', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        gender: 'Other',
+        genderOther: 'Prefer not to answer',
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.gender).toBe('Other');
+    expect(component.model.genderOther).toBe('Prefer not to answer');
+  });
+
+  it('should save Other gender with detail', () => {
+    component.enterEditMode();
+    component.onGenderSelectionChange('Other');
+    component.onGenderOtherInputChange('Prefer not to specify');
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gender: 'Other',
+        genderOther: 'Prefer not to specify',
+      })
+    );
+  });
+
+  it('should clear genderOther when gender is switched to Male or Female', () => {
+    component.model.gender = 'Other';
+    component.model.genderOther = 'Non-binary';
+
+    component.onGenderSelectionChange('Female');
+
+    expect(component.model.gender).toBe('Female');
+    expect(component.model.genderOther).toBe('');
   });
 
   it('should map firstEntryDateInCanada from API to firstBoardingDate model', () => {
