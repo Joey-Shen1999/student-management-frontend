@@ -42,6 +42,25 @@ export interface StudentProfileSchoolPayload {
   [key: string]: any;
 }
 
+export interface StudentIdentityFilePayload {
+  id?: number | null;
+  identityFileId?: number | null;
+  fileId?: number | null;
+  identityFileName?: string;
+  originalFilename?: string;
+  fileName?: string;
+  mimeType?: string;
+  contentType?: string;
+  identityFileSizeBytes?: number | null;
+  sizeBytes?: number | null;
+  size?: number | null;
+  identityFileUploadedAt?: string;
+  uploadedAt?: string;
+  uploadTime?: string;
+  createdAt?: string;
+  [key: string]: any;
+}
+
 export interface StudentSchoolTranscriptPayload {
   schoolRecordId?: number | null;
   transcriptFileName?: string;
@@ -101,6 +120,7 @@ export interface StudentProfilePayload {
   ib?: string;
   ap?: boolean;
   identityFileNote?: string;
+  identityFiles?: StudentIdentityFilePayload[];
   schools?: StudentProfileSchoolPayload[];
   schoolRecords?: StudentProfileSchoolPayload[];
   otherCourses?: StudentProfileCoursePayload[];
@@ -121,6 +141,8 @@ export class StudentProfileService {
   private readonly ontarioCourseProviderSearchUrl = '/api/reference/ontario-course-providers/search';
   private readonly transcriptPrimaryField = 'file';
   private readonly transcriptFallbackField = 'transcript';
+  private readonly identityFilePrimaryField = 'file';
+  private readonly identityFileFallbackField = 'identity';
 
   constructor(
     private http: HttpClient,
@@ -225,6 +247,19 @@ export class StudentProfileService {
     return this.uploadSchoolTranscriptWithFallback(url, file);
   }
 
+  uploadMyIdentityFile(file: File): Observable<StudentIdentityFilePayload> {
+    const url = `${this.selfProfileUrl}/identity-files`;
+    return this.uploadIdentityFileWithFallback(url, file);
+  }
+
+  uploadStudentIdentityFileForTeacher(
+    studentId: number,
+    file: File
+  ): Observable<StudentIdentityFilePayload> {
+    const url = `${this.resolveTeacherStudentProfileUrl(studentId)}/identity-files`;
+    return this.uploadIdentityFileWithFallback(url, file);
+  }
+
   downloadMySchoolTranscript(schoolRecordId: number): Observable<HttpResponse<Blob>> {
     return this.http.get(
       `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
@@ -242,6 +277,31 @@ export class StudentProfileService {
   ): Observable<HttpResponse<Blob>> {
     return this.http.get(
       `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
+      {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
+  downloadMyIdentityFile(identityFileId: number): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `${this.selfProfileUrl}/identity-files/${Math.trunc(Number(identityFileId))}`,
+      {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
+  downloadStudentIdentityFileForTeacher(
+    studentId: number,
+    identityFileId: number
+  ): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `${this.resolveTeacherStudentProfileUrl(studentId)}/identity-files/${Math.trunc(Number(identityFileId))}`,
       {
         observe: 'response',
         responseType: 'blob',
@@ -273,6 +333,31 @@ export class StudentProfileService {
     const body = new FormData();
     body.append(fieldName, file);
     return this.http.post<StudentSchoolTranscriptPayload>(url, body, this.withAuthHeaderIfAvailable());
+  }
+
+  private uploadIdentityFileWithFallback(
+    url: string,
+    file: File
+  ): Observable<StudentIdentityFilePayload> {
+    return this.uploadIdentityFileWithField(url, file, this.identityFilePrimaryField).pipe(
+      catchError((error: unknown) => {
+        if (!this.shouldRetryTranscriptWithFallbackField(error)) {
+          return throwError(() => error);
+        }
+
+        return this.uploadIdentityFileWithField(url, file, this.identityFileFallbackField);
+      })
+    );
+  }
+
+  private uploadIdentityFileWithField(
+    url: string,
+    file: File,
+    fieldName: string
+  ): Observable<StudentIdentityFilePayload> {
+    const body = new FormData();
+    body.append(fieldName, file);
+    return this.http.post<StudentIdentityFilePayload>(url, body, this.withAuthHeaderIfAvailable());
   }
 
   private shouldRetryTranscriptWithFallbackField(error: unknown): boolean {

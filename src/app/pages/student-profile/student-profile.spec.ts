@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { BehaviorSubject, of, throwError } from 'rxjs';
@@ -22,6 +22,10 @@ describe('StudentProfile', () => {
     | 'uploadStudentSchoolTranscriptForTeacher'
     | 'downloadMySchoolTranscript'
     | 'downloadStudentSchoolTranscriptForTeacher'
+    | 'uploadMyIdentityFile'
+    | 'uploadStudentIdentityFileForTeacher'
+    | 'downloadMyIdentityFile'
+    | 'downloadStudentIdentityFileForTeacher'
   >;
   let routeParams$: BehaviorSubject<any>;
   let router: Pick<Router, 'navigate'>;
@@ -56,6 +60,28 @@ describe('StudentProfile', () => {
         of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
       ),
       downloadStudentSchoolTranscriptForTeacher: vi.fn(() =>
+        of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
+      ),
+      uploadMyIdentityFile: vi.fn(() =>
+        of({
+          identityFileId: 1,
+          identityFileName: 'passport.pdf',
+          identityFileSizeBytes: 123,
+          identityFileUploadedAt: '2026-03-02T10:00:00',
+        })
+      ),
+      uploadStudentIdentityFileForTeacher: vi.fn(() =>
+        of({
+          identityFileId: 1,
+          identityFileName: 'passport.pdf',
+          identityFileSizeBytes: 123,
+          identityFileUploadedAt: '2026-03-02T10:00:00',
+        })
+      ),
+      downloadMyIdentityFile: vi.fn(() =>
+        of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
+      ),
+      downloadStudentIdentityFileForTeacher: vi.fn(() =>
         of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
       ),
     };
@@ -168,11 +194,11 @@ describe('StudentProfile', () => {
 
   it('should prioritize citizenship options with China, Canada, USA, Taiwan, Hong Kong', () => {
     expect(component.citizenshipOptions.slice(0, 5)).toEqual([
-      '中国',
-      '加拿大',
-      '美国',
-      '中国台湾',
-      '中国香港',
+      '\u4e2d\u56fd',
+      '\u52a0\u62ff\u5927',
+      '\u7f8e\u56fd',
+      '\u4e2d\u56fd\u53f0\u6e7e',
+      '\u4e2d\u56fd\u9999\u6e2f',
     ]);
   });
 
@@ -348,7 +374,7 @@ describe('StudentProfile', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Ontario Student Transcript');
-    expect(text).not.toContain('OEN 编号（可选）');
+    expect(text).not.toContain('OEN 缂栧彿锛堝彲閫夛級');
   });
 
   it('should initialize with one current high school record', () => {
@@ -553,6 +579,136 @@ describe('StudentProfile', () => {
     expect(component.model.highSchools[0].hasTranscript).toBe(false);
   });
 
+  it('should upload multiple identity files and append to existing list', () => {
+    component.enterEditMode();
+    component.model.identityFiles = [
+      {
+        identityFileId: 7,
+        identityFileName: 'existing-passport.pdf',
+        identityFileSizeBytes: 90,
+        identityFileUploadedAt: '2026-03-01T10:00:00',
+      },
+    ];
+
+    (profileApi.uploadMyIdentityFile as any)
+      .mockReturnValueOnce(
+        of({
+          identityFileId: 8,
+          identityFileName: 'new-passport.pdf',
+          identityFileSizeBytes: 120,
+          identityFileUploadedAt: '2026-03-02T10:00:00',
+        })
+      )
+      .mockReturnValueOnce(
+        of({
+          identityFileId: 9,
+          identityFileName: 'new-permit.pdf',
+          identityFileSizeBytes: 140,
+          identityFileUploadedAt: '2026-03-03T10:00:00',
+        })
+      );
+
+    const fileOne = new File(['passport'], 'new-passport.pdf', { type: 'application/pdf' });
+    const fileTwo = new File(['permit'], 'new-permit.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [fileOne, fileTwo],
+      configurable: true,
+    });
+
+    component.onIdentityFileSelected({ target: input } as unknown as Event);
+
+    expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledTimes(2);
+    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(1, fileOne);
+    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(2, fileTwo);
+    expect(component.model.identityFiles.length).toBe(3);
+    expect(component.model.identityFiles[1].identityFileName).toBe('new-passport.pdf');
+    expect(component.model.identityFiles[2].identityFileName).toBe('new-permit.pdf');
+  });
+
+  it('should queue identity upload until current save finishes', () => {
+    vi.useFakeTimers();
+    try {
+      component.enterEditMode();
+      (component as any).saveInProgress = true;
+      (component as any).saving = true;
+
+      setTimeout(() => {
+        (component as any).saveInProgress = false;
+        (component as any).saving = false;
+      }, 240);
+
+      const file = new File(['passport'], 'queued-passport.pdf', { type: 'application/pdf' });
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+
+      component.onIdentityFileSelected({ target: input } as unknown as Event);
+
+      expect(profileApi.uploadMyIdentityFile).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(500);
+
+      expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledTimes(1);
+      expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledWith(file);
+      expect(component.error).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should remove identity file and auto-save remaining list', () => {
+    component.enterEditMode();
+    component.model.identityFiles = [
+      {
+        identityFileId: 11,
+        identityFileName: 'passport.pdf',
+        identityFileSizeBytes: 120,
+        identityFileUploadedAt: '2026-03-02T10:00:00',
+      },
+      {
+        identityFileId: 12,
+        identityFileName: 'permit.pdf',
+        identityFileSizeBytes: 140,
+        identityFileUploadedAt: '2026-03-03T10:00:00',
+      },
+    ];
+
+    component.removeIdentityFile(0);
+
+    expect(component.model.identityFiles.length).toBe(1);
+    expect(component.model.identityFiles[0].identityFileId).toBe(12);
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityFiles: [
+          expect.objectContaining({
+            identityFileId: 12,
+            identityFileName: 'permit.pdf',
+          }),
+        ],
+      })
+    );
+  });
+
+  it('should download identity file by identityFileId', () => {
+    const triggerDownloadSpy = vi.spyOn(component as any, 'triggerBlobDownload');
+    component.model.identityFiles = [
+      {
+        identityFileId: 88,
+        identityFileName: 'passport.pdf',
+        identityFileSizeBytes: 120,
+        identityFileUploadedAt: '2026-03-02T10:00:00',
+      },
+    ];
+
+    component.downloadIdentityFile(0);
+
+    expect(profileApi.downloadMyIdentityFile).toHaveBeenCalledWith(88);
+    expect(triggerDownloadSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('should auto-save and then upload transcript when schoolRecordId is missing', () => {
     component.enterEditMode();
     component.model.highSchools[0].schoolRecordId = null;
@@ -678,7 +834,7 @@ describe('StudentProfile', () => {
         () =>
           new HttpErrorResponse({
             status: 400,
-            error: { message: '保存失败' },
+            error: { message: '淇濆瓨澶辫触' },
           })
       )
     );
@@ -693,7 +849,32 @@ describe('StudentProfile', () => {
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
     expect(profileApi.uploadMySchoolTranscript).not.toHaveBeenCalled();
-    expect(component.error).toContain('保存失败');
+    expect(component.error).toContain('淇濆瓨澶辫触');
+  });
+
+  it('should show complete validation details from backend error payload', () => {
+    component.enterEditMode();
+
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: {
+              message: 'Validation failed.',
+              details: [
+                { field: 'schools[0].schoolName', message: 'is required' },
+                { field: 'schools[0].startTime', message: 'is required' },
+              ],
+            },
+          })
+      )
+    );
+
+    component.save();
+
+    expect(component.error).toContain('schools[0].schoolName is required');
+    expect(component.error).toContain('schools[0].startTime is required');
   });
 
   it('should clear uploading state when transcript upload fails', () => {
@@ -705,7 +886,7 @@ describe('StudentProfile', () => {
         () =>
           new HttpErrorResponse({
             status: 500,
-            error: { message: '上传失败' },
+            error: { message: '涓婁紶澶辫触' },
           })
       )
     );
@@ -720,7 +901,7 @@ describe('StudentProfile', () => {
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
     expect(component.highSchoolTranscriptUploading[0]).toBe(false);
-    expect(component.error).toContain('上传失败');
+    expect(component.error).toContain('涓婁紶澶辫触');
   });
 
   it('should show connection-aborted hint when transcript upload returns status 0', () => {
@@ -747,7 +928,61 @@ describe('StudentProfile', () => {
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
     expect(component.highSchoolTranscriptUploading[0]).toBe(false);
-    expect(component.error).toContain('上传连接被中断');
+    expect(component.error).toContain('\u4e0a\u4f20\u8fde\u63a5\u88ab\u4e2d\u65ad');
+  });
+
+  it('should show payload-too-large hint when transcript upload returns status 413', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 413,
+            statusText: 'Payload Too Large',
+          })
+      )
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.highSchoolTranscriptUploading[0]).toBe(false);
+    expect(component.error).toContain('\u6587\u4ef6\u8fc7\u5927');
+  });
+
+  it('should show server-limit hint with file size when transcript upload aborts for file larger than 1MB', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 0,
+            statusText: 'Unknown Error',
+          })
+      )
+    );
+
+    const file = new File([new Uint8Array(2 * 1024 * 1024)], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.highSchoolTranscriptUploading[0]).toBe(false);
+    expect(component.error).toContain('\u4e0a\u4f20\u4e0a\u9650\u8fc7\u5c0f');
   });
 
   it('should show login-expired hint when backend returns UNAUTHENTICATED payload', () => {
@@ -778,7 +1013,7 @@ describe('StudentProfile', () => {
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
     expect(component.highSchoolTranscriptUploading[0]).toBe(false);
-    expect(component.error).toContain('登录状态已失效');
+    expect(component.error).toContain('\u767b\u5f55\u72b6\u6001\u5df2\u5931\u6548');
   });
 
   it('should refresh profile and retry upload when existing schoolRecordId is stale', () => {
@@ -1179,6 +1414,18 @@ describe('StudentProfile', () => {
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
   });
 
+  it('should not auto save when file input itself loses focus', () => {
+    component.enterEditMode();
+    component.model.phone = '1234567890';
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+
+    component.onFormFocusOut({ target: fileInput } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+  });
+
   it('should skip duplicate auto save when payload is unchanged', () => {
     component.enterEditMode();
     component.model.phone = '1234567890';
@@ -1195,24 +1442,24 @@ describe('StudentProfile', () => {
 
   it('should map preset statusInCanada to dropdown selection', () => {
     (profileApi.getMyProfile as any).mockReturnValueOnce(of({
-      statusInCanada: '留学生(Study permit)',
+      statusInCanada: '\u7559\u5b66\u751f(Study permit)',
     }));
 
     component.loadProfile();
 
-    expect(component.statusInCanadaSelection).toBe('留学生(Study permit)');
+    expect(component.statusInCanadaSelection).toBe('\u7559\u5b66\u751f(Study permit)');
     expect(component.statusInCanadaOtherText).toBe('');
   });
 
   it('should map custom statusInCanada to other input', () => {
     (profileApi.getMyProfile as any).mockReturnValueOnce(of({
-      statusInCanada: '宗教庇护',
+      statusInCanada: '瀹楁暀搴囨姢',
     }));
 
     component.loadProfile();
 
     expect(component.statusInCanadaSelection).toBe(component.statusInCanadaOtherOptionValue);
-    expect(component.statusInCanadaOtherText).toBe('宗教庇护');
+    expect(component.statusInCanadaOtherText).toBe('瀹楁暀搴囨姢');
   });
 
   it('should normalize phone from API to formatted display', () => {
@@ -1230,12 +1477,12 @@ describe('StudentProfile', () => {
   it('should write selected status to model', () => {
     component.enterEditMode();
 
-    component.onStatusInCanadaSelectionChange('访问(Visitor)');
-    expect(component.model.statusInCanada).toBe('访问(Visitor)');
+    component.onStatusInCanadaSelectionChange('璁块棶(Visitor)');
+    expect(component.model.statusInCanada).toBe('璁块棶(Visitor)');
 
     component.onStatusInCanadaSelectionChange(component.statusInCanadaOtherOptionValue);
-    component.onStatusInCanadaOtherTextChange('其他临时身份');
-    expect(component.model.statusInCanada).toBe('其他临时身份');
+    component.onStatusInCanadaOtherTextChange('鍏朵粬涓存椂韬唤');
+    expect(component.model.statusInCanada).toBe('鍏朵粬涓存椂韬唤');
   });
 
   it('should auto save when removing external course in edit mode', () => {
@@ -1334,3 +1581,4 @@ describe('StudentProfile', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/teacher/students']);
   });
 });
+

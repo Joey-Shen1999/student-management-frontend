@@ -119,6 +119,73 @@ describe('StudentProfileService', () => {
     expect(nextSpy).toHaveBeenCalledWith({ ok: true });
   });
 
+  it('uploadMyIdentityFile should call POST /api/student/profile/identity-files with multipart body', () => {
+    const file = new File(['doc-content'], 'passport.pdf', { type: 'application/pdf' });
+
+    service.uploadMyIdentityFile(file).subscribe();
+
+    const req = httpMock.expectOne('/api/student/profile/identity-files');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    const formData = req.request.body as FormData;
+    expect(formData.get('file')).toBe(file);
+    expect(formData.get('identity')).toBeNull();
+    req.flush({});
+  });
+
+  it('uploadStudentIdentityFileForTeacher should call teacher identity upload endpoint with multipart body', () => {
+    const file = new File(['doc-content'], 'passport.pdf', { type: 'application/pdf' });
+
+    service.uploadStudentIdentityFileForTeacher(12, file).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/profile/identity-files');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    const formData = req.request.body as FormData;
+    expect(formData.get('file')).toBe(file);
+    expect(formData.get('identity')).toBeNull();
+    req.flush({});
+  });
+
+  it('uploadMyIdentityFile should retry with identity field when primary upload fails', () => {
+    const file = new File(['doc-content'], 'passport.pdf', { type: 'application/pdf' });
+    const nextSpy = vi.fn();
+
+    service.uploadMyIdentityFile(file).subscribe(nextSpy);
+
+    const firstReq = httpMock.expectOne('/api/student/profile/identity-files');
+    const firstBody = firstReq.request.body as FormData;
+    expect(firstBody.get('file')).toBe(file);
+    expect(firstBody.get('identity')).toBeNull();
+    firstReq.flush({ message: 'Unsupported media type' }, { status: 415, statusText: 'Unsupported Media Type' });
+
+    const retryReq = httpMock.expectOne('/api/student/profile/identity-files');
+    const retryBody = retryReq.request.body as FormData;
+    expect(retryBody.get('file')).toBeNull();
+    expect(retryBody.get('identity')).toBe(file);
+    retryReq.flush({ ok: true });
+
+    expect(nextSpy).toHaveBeenCalledWith({ ok: true });
+  });
+
+  it('downloadMyIdentityFile should call GET /api/student/profile/identity-files/{id} with blob response', () => {
+    service.downloadMyIdentityFile(77).subscribe();
+
+    const req = httpMock.expectOne('/api/student/profile/identity-files/77');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['x']));
+  });
+
+  it('downloadStudentIdentityFileForTeacher should call GET /api/teacher/students/{id}/profile/identity-files/{fileId} with blob response', () => {
+    service.downloadStudentIdentityFileForTeacher(12, 77).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/profile/identity-files/77');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['x']));
+  });
+
   it('should attach Authorization header when session exists', () => {
     localStorage.setItem(
       sessionKey,

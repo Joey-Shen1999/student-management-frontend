@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { finalize } from 'rxjs/operators';
-import { forkJoin } from 'rxjs';
+import { concatMap, finalize, tap, toArray } from 'rxjs/operators';
+import { forkJoin, from } from 'rxjs';
 
 import {
   CanadianHighSchoolLookupItem,
+  StudentIdentityFilePayload,
   StudentProfilePayload,
   StudentSchoolTranscriptPayload,
   StudentProfileService,
@@ -84,11 +85,17 @@ interface StudentProfileModel {
   oenNumber: string;
   ib: string;
   ap: boolean;
-
-  identityFileNote: string;
+  identityFiles: IdentityFileModel[];
 
   highSchools: HighSchoolModel[];
   externalCourses: ExternalCourseModel[];
+}
+
+interface IdentityFileModel {
+  identityFileId: number | null;
+  identityFileName: string;
+  identityFileSizeBytes: number | null;
+  identityFileUploadedAt: string;
 }
 
 interface SaveOptions {
@@ -115,6 +122,8 @@ interface SchoolUploadTarget {
 
 const TRANSCRIPT_UPLOAD_RETRY_DELAY_MS = 120;
 const TRANSCRIPT_UPLOAD_RETRY_LIMIT = 25;
+const IDENTITY_UPLOAD_RETRY_DELAY_MS = 120;
+const IDENTITY_UPLOAD_RETRY_LIMIT = 25;
 
 const PRIORITY_CITIZENSHIP_OPTIONS = ['中国', '加拿大', '美国', '中国台湾', '中国香港'] as const;
 
@@ -402,6 +411,7 @@ export class StudentProfile implements OnInit {
   highSchoolLookupOptions: CanadianHighSchoolLookupItem[][] = [[]];
   highSchoolLookupLoading: boolean[] = [false];
   highSchoolTranscriptUploading: boolean[] = [false];
+  identityFileUploading = false;
   externalCourseProviderLookupOptions: CanadianHighSchoolLookupItem[][] = [];
   externalCourseProviderLookupLoading: boolean[] = [];
   private lastSavedPayloadDigest = '';
@@ -533,6 +543,90 @@ export class StudentProfile implements OnInit {
     this.uploadSchoolTranscript(index, schoolRecordId, file, input);
   }
 
+  onIdentityFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const files = Array.from(input?.files ?? []);
+    if (files.length <= 0) return;
+
+    if (this.isProfileBusyForIdentityUpload()) {
+      this.retryIdentityFileUploadWhenIdle(files, input);
+      return;
+    }
+
+    this.uploadIdentityFiles(files, input);
+  }
+
+  private uploadIdentityFiles(files: File[], input: HTMLInputElement | null): void {
+    if (files.length <= 0) return;
+    this.identityFileUploading = true;
+    this.error = '';
+    this.cdr.detectChanges();
+
+    const uploadOne = (file: File) =>
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.uploadStudentIdentityFileForTeacher(this.managedStudentId, file)
+        : this.profileApi.uploadMyIdentityFile(file);
+
+    from(files)
+      .pipe(
+        concatMap((file) =>
+          uploadOne(file).pipe(
+            tap((payload) => {
+              this.applyIdentityFilePayload(payload);
+            })
+          )
+        ),
+        toArray(),
+        finalize(() => {
+          this.identityFileUploading = false;
+          if (input) input.value = '';
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.saved = true;
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          const totalSizeBytes = files.reduce((sum, item) => sum + (item?.size || 0), 0);
+          if ((err.status === 0 || err.status === 413) && totalSizeBytes > 1024 * 1024) {
+            this.error = `上传失败：当前文件总大小 ${this.formatBytes(totalSizeBytes)}，当前服务端上传上限过小（常见为 1MB）。请联系后端调大后再试。`;
+            this.cdr.detectChanges();
+            return;
+          }
+          this.error = this.extractErrorMessage(err) || '上传身份证明文件失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private isProfileBusyForIdentityUpload(): boolean {
+    return this.loading || this.saving || this.saveInProgress || this.identityFileUploading;
+  }
+
+  private retryIdentityFileUploadWhenIdle(
+    files: File[],
+    input: HTMLInputElement | null,
+    retryAttempt = 0
+  ): void {
+    if (retryAttempt >= IDENTITY_UPLOAD_RETRY_LIMIT) {
+      if (input) input.value = '';
+      this.error = '档案仍在保存中，身份证明文件上传未开始，请稍后重试。';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    setTimeout(() => {
+      if (this.isProfileBusyForIdentityUpload()) {
+        this.retryIdentityFileUploadWhenIdle(files, input, retryAttempt + 1);
+        return;
+      }
+
+      this.uploadIdentityFiles(files, input);
+    }, IDENTITY_UPLOAD_RETRY_DELAY_MS);
+  }
+
   downloadHighSchoolTranscript(index: number, transcriptIndex = 0): void {
     const school = this.model.highSchools[index];
     if (!school || !school.schoolRecordId || !school.hasTranscript) return;
@@ -562,6 +656,38 @@ export class StudentProfile implements OnInit {
       },
       error: (err: HttpErrorResponse) => {
         this.error = this.extractErrorMessage(err) || '下载成绩单失败。';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  downloadIdentityFile(index: number): void {
+    const identityFile = this.model.identityFiles[index];
+    if (!identityFile) return;
+    if (!identityFile.identityFileId) return;
+    if (this.loading || this.saving || this.identityFileUploading) return;
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.downloadStudentIdentityFileForTeacher(
+            this.managedStudentId,
+            identityFile.identityFileId
+          )
+        : this.profileApi.downloadMyIdentityFile(identityFile.identityFileId);
+
+    request$.subscribe({
+      next: (resp) => {
+        const blob = resp.body;
+        if (!blob) return;
+        const contentDisposition = resp.headers.get('content-disposition');
+        const fileName =
+          this.resolveDownloadFileName(contentDisposition) ||
+          this.toText(identityFile.identityFileName) ||
+          'identity-file.bin';
+        this.triggerBlobDownload(blob, fileName);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.error = this.extractErrorMessage(err) || '下载身份证明文件失败。';
         this.cdr.detectChanges();
       },
     });
@@ -670,6 +796,39 @@ export class StudentProfile implements OnInit {
     }
     if (uploadedAt) return uploadedAt;
     return '';
+  }
+
+  displayIdentityFilesSummary(): string {
+    const count = Array.isArray(this.model.identityFiles) ? this.model.identityFiles.length : 0;
+    if (count <= 0) return '未上传';
+    return `已上传 ${count} 份`;
+  }
+
+  displayIdentityFileName(index: number): string {
+    const file = this.model.identityFiles[index];
+    const name = this.toText(file?.identityFileName);
+    return name || `已上传文件 #${index + 1}`;
+  }
+
+  displayIdentityFileMeta(index: number): string {
+    const file = this.model.identityFiles[index];
+    if (!file) return '';
+    const size = this.formatBytes(file.identityFileSizeBytes);
+    const uploadedAt = this.toText(file.identityFileUploadedAt);
+    if (size !== '-') {
+      if (uploadedAt) return `${size}, ${uploadedAt}`;
+      return size;
+    }
+    return uploadedAt;
+  }
+
+  removeIdentityFile(index: number): void {
+    if (index < 0 || index >= this.model.identityFiles.length) return;
+    this.model.identityFiles.splice(index, 1);
+    this.error = '';
+    this.saved = false;
+    this.cdr.detectChanges();
+    this.triggerAutoSave();
   }
 
   removeHighSchoolTranscript(index: number, transcriptIndex: number): void {
@@ -790,6 +949,10 @@ export class StudentProfile implements OnInit {
             this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input);
             return;
           }
+          if ((err.status === 0 || err.status === 413) && file.size > 1024 * 1024) {
+            this.error = `上传失败：当前文件 ${this.formatBytes(file.size)}，当前服务端上传上限过小（常见为 1MB）。请联系后端调大后再试。`;
+            return;
+          }
           this.error = this.extractErrorMessage(err) || '上传成绩单失败。';
         },
       });
@@ -881,6 +1044,67 @@ export class StudentProfile implements OnInit {
         : this.appendSchoolTranscripts(school.transcripts, payloadTranscripts);
     }
     this.syncSchoolTranscriptLegacyFields(school);
+  }
+
+  private applyIdentityFilePayload(payload: StudentIdentityFilePayload): void {
+    const payloadIdentityFiles = this.extractIdentityFiles(payload);
+    if (payloadIdentityFiles.length <= 0) return;
+
+    const hasIdentityFileListInPayload = Array.isArray((payload as any)?.identityFiles);
+    this.model.identityFiles = hasIdentityFileListInPayload
+      ? payloadIdentityFiles
+      : [...this.model.identityFiles, ...payloadIdentityFiles];
+    this.model.identityFiles = this.normalizeIdentityFiles(this.model.identityFiles);
+  }
+
+  private extractIdentityFiles(source: unknown): IdentityFileModel[] {
+    const node: any = source && typeof source === 'object' ? source : {};
+    const rawIdentityFiles = Array.isArray(node.identityFiles)
+      ? node.identityFiles
+      : Array.isArray(node.identityDocuments)
+        ? node.identityDocuments
+        : Array.isArray(node.files)
+          ? node.files
+          : [];
+
+    const listFromArray = rawIdentityFiles
+      .map((item: unknown) => this.normalizeIdentityFile(item))
+      .filter((item: IdentityFileModel | null): item is IdentityFileModel => item !== null);
+    if (listFromArray.length > 0) {
+      return this.normalizeIdentityFiles(listFromArray);
+    }
+
+    const single = this.normalizeIdentityFile(node);
+    if (!single) return [];
+    return [single];
+  }
+
+  private normalizeIdentityFile(value: unknown): IdentityFileModel | null {
+    const source: any = value && typeof value === 'object' ? value : {};
+    const fileName = this.toText(
+      source.identityFileName || source.originalFilename || source.fileName || source.name
+    );
+    if (!fileName) return null;
+
+    return {
+      identityFileId: this.toOptionalNumber(source.identityFileId ?? source.fileId ?? source.id),
+      identityFileName: fileName,
+      identityFileSizeBytes: this.toOptionalNumber(
+        source.identityFileSizeBytes ?? source.sizeBytes ?? source.size
+      ),
+      identityFileUploadedAt: this.toText(
+        source.identityFileUploadedAt || source.uploadedAt || source.uploadTime || source.createdAt
+      ),
+    };
+  }
+
+  private normalizeIdentityFiles(files: IdentityFileModel[]): IdentityFileModel[] {
+    return files.map((file) => ({
+      identityFileId: this.toOptionalNumber(file.identityFileId),
+      identityFileName: this.toText(file.identityFileName),
+      identityFileSizeBytes: this.toOptionalNumber(file.identityFileSizeBytes),
+      identityFileUploadedAt: this.toText(file.identityFileUploadedAt),
+    }));
   }
 
   private extractSchoolTranscripts(source: unknown): SchoolTranscriptModel[] {
@@ -1515,7 +1739,7 @@ export class StudentProfile implements OnInit {
       const type = String(target.type || '')
         .trim()
         .toLowerCase();
-      if (type === 'button' || type === 'submit' || type === 'reset') return false;
+      if (type === 'file' || type === 'button' || type === 'submit' || type === 'reset') return false;
       return true;
     }
 
@@ -1610,7 +1834,7 @@ export class StudentProfile implements OnInit {
       oenNumber: '',
       ib: '',
       ap: false,
-      identityFileNote: '',
+      identityFiles: [],
       highSchools: [this.createCurrentHighSchool()],
       externalCourses: [],
     };
@@ -1666,7 +1890,7 @@ export class StudentProfile implements OnInit {
       oenNumber: this.normalizeOenNumber(source.oenNumber),
       ib: this.toText(source.ib),
       ap: this.toBoolean(source.ap),
-      identityFileNote: this.toText(source.identityFileNote),
+      identityFiles: this.normalizeIdentityFiles(this.extractIdentityFiles(source)),
 
       highSchools: this.normalizeHighSchools(rawSchools.map((school: unknown) => this.normalizeHighSchool(school))),
       externalCourses: rawCourses.map((course: unknown) => this.normalizeExternalCourse(course)),
@@ -1848,7 +2072,13 @@ export class StudentProfile implements OnInit {
       oenNumber: this.normalizeOenNumber(model.oenNumber),
       ib: this.toText(model.ib),
       ap: !!model.ap,
-      identityFileNote: this.toText(model.identityFileNote),
+      identityFiles: this.normalizeIdentityFiles(model.identityFiles).map((file) => ({
+        identityFileId: this.toOptionalNumber(file.identityFileId),
+        id: this.toOptionalNumber(file.identityFileId),
+        identityFileName: this.toText(file.identityFileName),
+        identityFileSizeBytes: this.toOptionalNumber(file.identityFileSizeBytes),
+        identityFileUploadedAt: this.toText(file.identityFileUploadedAt),
+      })),
       schools: this.normalizeHighSchools(model.highSchools).map((school, index) => {
         const schoolCountry = this.normalizeCountryToStandardEnglish(school.country || 'Canada');
         const schoolPostal = this.formatPostalForDisplay(school.postal, schoolCountry);
@@ -2318,6 +2548,10 @@ export class StudentProfile implements OnInit {
       return '登录状态已失效，请重新登录后再试。';
     }
 
+    if (err?.status === 413) {
+      return '文件过大，当前服务端上传大小上限过小。请联系后端调大上传限制后重试。';
+    }
+
     const payload = err?.error;
 
     if (payload && typeof payload === 'object') {
@@ -2327,19 +2561,95 @@ export class StudentProfile implements OnInit {
       if (code === 'UNAUTHENTICATED') {
         return '登录状态已失效，请重新登录后再试。';
       }
-      return String((payload as any).message || (payload as any).error || '');
+      const details = this.extractValidationMessages(payload);
+      const message = String((payload as any).message || (payload as any).error || '');
+      return this.mergeErrorMessageAndDetails(message, details);
     }
 
     if (typeof payload === 'string') {
       try {
         const parsed = JSON.parse(payload);
-        return String(parsed?.message || parsed?.error || payload);
+        const details = this.extractValidationMessages(parsed);
+        const message = String(parsed?.message || parsed?.error || payload);
+        return this.mergeErrorMessageAndDetails(message, details);
       } catch {
         return payload;
       }
     }
 
     return err?.message || '';
+  }
+
+  private mergeErrorMessageAndDetails(message: string, details: string[]): string {
+    const normalizedMessage = this.toText(message);
+    if (details.length <= 0) return normalizedMessage;
+
+    const detailsText = details.join('; ');
+    if (!normalizedMessage) return detailsText;
+    if (normalizedMessage.includes(detailsText)) return normalizedMessage;
+    return `${normalizedMessage} ${detailsText}`;
+  }
+
+  private extractValidationMessages(payload: any): string[] {
+    if (!payload || typeof payload !== 'object') return [];
+
+    const messages: string[] = [];
+    const seen = new Set<string>();
+
+    const append = (value: unknown): void => {
+      const text = this.toText(value);
+      if (!text || seen.has(text)) return;
+      seen.add(text);
+      messages.push(text);
+    };
+
+    const parseDetailEntry = (entry: unknown): string => {
+      if (entry === null || entry === undefined) return '';
+      if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+        return String(entry);
+      }
+      if (typeof entry !== 'object') return '';
+
+      const node: any = entry;
+      const field = this.toText(node.field || node.path || node.property || node.name || node.key);
+      const message = this.toText(node.message || node.defaultMessage || node.error || node.reason || node.msg);
+      if (field && message) return `${field} ${message}`;
+      if (message) return message;
+      if (field) return field;
+      return '';
+    };
+
+    const appendFromArray = (rows: unknown): void => {
+      if (!Array.isArray(rows)) return;
+      for (const row of rows) {
+        const text = parseDetailEntry(row);
+        append(text);
+      }
+    };
+
+    appendFromArray((payload as any).details);
+    appendFromArray((payload as any).errors);
+    appendFromArray((payload as any).fieldErrors);
+    appendFromArray((payload as any).violations);
+    appendFromArray((payload as any).validationErrors);
+
+    const errorMap = (payload as any).errors;
+    if (errorMap && typeof errorMap === 'object' && !Array.isArray(errorMap)) {
+      for (const [field, value] of Object.entries(errorMap)) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const parsed = parseDetailEntry(item);
+            append(parsed ? `${field} ${parsed}` : `${field} is invalid`);
+          }
+          continue;
+        }
+
+        const parsed = parseDetailEntry(value);
+        append(parsed ? `${field} ${parsed}` : `${field} ${String(value ?? '').trim()}`.trim());
+      }
+    }
+
+    return messages;
   }
 }
 

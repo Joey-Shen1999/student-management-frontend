@@ -55,7 +55,23 @@
     <div><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
     <div><strong>IB：</strong>{{ displayText(model.ib) }}</div>
     <div><strong>AP：</strong>{{ displayBoolean(model.ap) }}</div>
-    <div><strong>身份说明文件备注：</strong>{{ displayText(model.identityFileNote) }}</div>
+    <div><strong>身份证明文件：</strong>{{ displayIdentityFilesSummary() }}</div>
+    <div *ngIf="model.identityFiles.length > 0" style="margin-top: 6px;">
+      <div><strong>已上传文件：</strong></div>
+      <div *ngFor="let identityFile of model.identityFiles; let identityIndex = index" style="margin-top: 4px;">
+        <button
+          type="button"
+          (click)="downloadIdentityFile(identityIndex)"
+          [disabled]="!identityFile.identityFileId"
+          style="background: none; border: none; padding: 0; color: #1565c0; text-decoration: underline; cursor: pointer;"
+        >
+          {{ displayIdentityFileName(identityIndex) }}
+        </button>
+        <span style="color: #666; font-size: 12px;" *ngIf="displayIdentityFileMeta(identityIndex)">
+          （{{ displayIdentityFileMeta(identityIndex) }}）
+        </span>
+      </div>
+    </div>
   </fieldset>
 
   <fieldset style="margin-bottom: 16px;">
@@ -315,8 +331,44 @@
         </div>
 
         <div>
-          <label>身份证明文件备注（占位）：</label>
-          <input [(ngModel)]="model.identityFileNote" name="identityFileNote" placeholder="后续支持上传文件" />
+          <label>身份证明文件：</label>
+          <div style="margin: 4px 0;">{{ displayIdentityFilesSummary() }}</div>
+          <div *ngIf="model.identityFiles.length > 0" style="margin: 4px 0;">
+            <div>已上传文件：</div>
+            <div *ngFor="let identityFile of model.identityFiles; let identityIndex = index" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+              <button
+                type="button"
+                (click)="downloadIdentityFile(identityIndex)"
+                [disabled]="!identityFile.identityFileId"
+                style="background: none; border: none; padding: 0; color: #1565c0; text-decoration: underline; cursor: pointer;"
+              >
+                {{ displayIdentityFileName(identityIndex) }}
+              </button>
+              <span style="color: #666; font-size: 12px;" *ngIf="displayIdentityFileMeta(identityIndex)">
+                （{{ displayIdentityFileMeta(identityIndex) }}）
+              </span>
+              <button
+                type="button"
+                (click)="removeIdentityFile(identityIndex)"
+                style="border: none; background: transparent; color: #b00020; cursor: pointer; font-weight: 700; line-height: 1;"
+                aria-label="删除身份证明文件"
+                title="删除身份证明文件"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            name="identityFiles"
+            multiple
+            [disabled]="identityFileUploading"
+            (change)="onIdentityFileSelected($event)"
+          />
+          <div *ngIf="identityFileUploading" style="margin-top: 4px; color: #666; font-size: 12px;">
+            正在上传身份证明文件...
+          </div>
         </div>
       </fieldset>
 
