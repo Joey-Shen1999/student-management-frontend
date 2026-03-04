@@ -72,7 +72,17 @@
       <div><strong>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</strong>{{ displayText(s.endTime) }}</div>
       <div><strong>成绩单：</strong>{{ displaySchoolTranscript(s) }}</div>
       <div *ngIf="s.hasTranscript" style="margin-top: 6px;">
-        <button type="button" (click)="downloadHighSchoolTranscript(i)">下载成绩单</button>
+        <div>
+          <strong>已上传文件：</strong>
+          <button
+            type="button"
+            (click)="downloadHighSchoolTranscript(i)"
+            [disabled]="!s.schoolRecordId"
+            style="background: none; border: none; padding: 0; color: #1565c0; text-decoration: underline; cursor: pointer;"
+          >
+            {{ displaySchoolTranscriptFileName(s) }}
+          </button>
+        </div>
       </div>
     </div>
   </fieldset>
@@ -385,13 +395,17 @@
           <div>
             <label>成绩单：</label>
             <div style="margin: 4px 0;">{{ displaySchoolTranscript(s) }}</div>
-            <button
-              type="button"
-              (click)="downloadHighSchoolTranscript(i)"
-              [disabled]="!s.hasTranscript || !s.schoolRecordId"
-            >
-              下载已上传成绩单
-            </button>
+            <div *ngIf="s.hasTranscript" style="margin: 4px 0;">
+              已上传文件：
+              <button
+                type="button"
+                (click)="downloadHighSchoolTranscript(i)"
+                [disabled]="!s.schoolRecordId"
+                style="background: none; border: none; padding: 0; color: #1565c0; text-decoration: underline; cursor: pointer;"
+              >
+                {{ displaySchoolTranscriptFileName(s) }}
+              </button>
+            </div>
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
@@ -402,7 +416,7 @@
               正在上传成绩单...
             </div>
             <div *ngIf="!s.schoolRecordId" style="margin-top: 4px; color: #666; font-size: 12px;">
-              请先保存学校信息后再上传成绩单。
+              首次上传会先自动保存学校信息，再继续上传成绩单。
             </div>
           </div>
         </div>

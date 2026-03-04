@@ -1,6 +1,6 @@
 ﻿import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { AuthService } from './auth.service';
@@ -44,10 +44,14 @@ export interface StudentProfileSchoolPayload {
 export interface StudentSchoolTranscriptPayload {
   schoolRecordId?: number | null;
   transcriptFileName?: string;
+  transcriptOriginalFilename?: string;
   transcriptContentType?: string;
   transcriptSizeBytes?: number | null;
+  sizeBytes?: number | null;
   transcriptUploadedAt?: string;
+  uploadedAt?: string;
   hasTranscript?: boolean;
+  transcriptAvailable?: boolean;
   [key: string]: any;
 }
 
@@ -113,6 +117,8 @@ export class StudentProfileService {
   private readonly teacherStudentProfileBaseUrl = '/api/teacher/students';
   private readonly canadianHighSchoolSearchUrl = '/api/reference/canadian-high-schools/search';
   private readonly ontarioCourseProviderSearchUrl = '/api/reference/ontario-course-providers/search';
+  private readonly transcriptPrimaryField = 'file';
+  private readonly transcriptFallbackField = 'transcript';
 
   constructor(
     private http: HttpClient,
@@ -204,13 +210,8 @@ export class StudentProfileService {
     schoolRecordId: number,
     file: File
   ): Observable<StudentSchoolTranscriptPayload> {
-    const body = new FormData();
-    body.append('file', file);
-    return this.http.post<StudentSchoolTranscriptPayload>(
-      `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
-      body,
-      this.withAuthHeaderIfAvailable()
-    );
+    const url = `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`;
+    return this.uploadSchoolTranscriptWithFallback(url, file);
   }
 
   uploadStudentSchoolTranscriptForTeacher(
@@ -218,13 +219,8 @@ export class StudentProfileService {
     schoolRecordId: number,
     file: File
   ): Observable<StudentSchoolTranscriptPayload> {
-    const body = new FormData();
-    body.append('file', file);
-    return this.http.post<StudentSchoolTranscriptPayload>(
-      `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`,
-      body,
-      this.withAuthHeaderIfAvailable()
-    );
+    const url = `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`;
+    return this.uploadSchoolTranscriptWithFallback(url, file);
   }
 
   downloadMySchoolTranscript(schoolRecordId: number): Observable<HttpResponse<Blob>> {
@@ -250,6 +246,36 @@ export class StudentProfileService {
         ...this.withAuthHeaderIfAvailable(),
       }
     );
+  }
+
+  private uploadSchoolTranscriptWithFallback(
+    url: string,
+    file: File
+  ): Observable<StudentSchoolTranscriptPayload> {
+    return this.uploadSchoolTranscriptWithField(url, file, this.transcriptPrimaryField).pipe(
+      catchError((error: unknown) => {
+        if (!this.shouldRetryTranscriptWithFallbackField(error)) {
+          return throwError(() => error);
+        }
+
+        return this.uploadSchoolTranscriptWithField(url, file, this.transcriptFallbackField);
+      })
+    );
+  }
+
+  private uploadSchoolTranscriptWithField(
+    url: string,
+    file: File,
+    fieldName: string
+  ): Observable<StudentSchoolTranscriptPayload> {
+    const body = new FormData();
+    body.append(fieldName, file);
+    return this.http.post<StudentSchoolTranscriptPayload>(url, body, this.withAuthHeaderIfAvailable());
+  }
+
+  private shouldRetryTranscriptWithFallbackField(error: unknown): boolean {
+    if (!(error instanceof HttpErrorResponse)) return false;
+    return error.status === 0 || error.status === 400 || error.status === 415 || error.status === 422;
   }
 
   private searchCanadianHighSchoolsFromBackend(query: string): Observable<CanadianHighSchoolLookupItem[]> {

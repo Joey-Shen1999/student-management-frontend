@@ -92,6 +92,23 @@ interface SaveOptions {
   background?: boolean;
 }
 
+interface SchoolUploadHint {
+  schoolType: SchoolType;
+  schoolName: string;
+  startTime: string;
+  endTime: string;
+  city: string;
+  postal: string;
+}
+
+interface SchoolUploadTarget {
+  index: number;
+  schoolRecordId: number;
+}
+
+const TRANSCRIPT_UPLOAD_RETRY_DELAY_MS = 120;
+const TRANSCRIPT_UPLOAD_RETRY_LIMIT = 25;
+
 const PRIORITY_CITIZENSHIP_OPTIONS = ['中国', '加拿大', '美国', '中国台湾', '中国香港'] as const;
 
 const FALLBACK_CITIZENSHIP_OPTIONS = [
@@ -415,6 +432,7 @@ export class StudentProfile implements OnInit {
 
   onFormFocusOut(event: FocusEvent): void {
     if (!this.editing || this.loading || this.invalidManagedStudentId) return;
+    if (this.shouldSkipAutoSaveForNextTarget(event.relatedTarget)) return;
     if (!this.shouldAutoSaveTarget(event.target)) return;
 
     this.triggerAutoSave();
@@ -494,14 +512,18 @@ export class StudentProfile implements OnInit {
     const file = input?.files?.[0];
     if (!file) return;
 
-    if (!school.schoolRecordId) {
-      this.error = '请先保存学校信息，再上传成绩单。';
-      if (input) input.value = '';
-      this.cdr.detectChanges();
+    if (this.isProfileBusyForTranscriptUpload()) {
+      this.retrySchoolTranscriptUploadWhenIdle(index, file, input);
       return;
     }
 
-    this.uploadSchoolTranscript(index, school.schoolRecordId, file, input);
+    const schoolRecordId = this.toOptionalNumber(school.schoolRecordId);
+    if (schoolRecordId === null) {
+      this.persistProfileThenUploadSchoolTranscript(index, file, input);
+      return;
+    }
+
+    this.uploadSchoolTranscript(index, schoolRecordId, file, input);
   }
 
   downloadHighSchoolTranscript(index: number): void {
@@ -625,6 +647,11 @@ export class StudentProfile implements OnInit {
     return name;
   }
 
+  displaySchoolTranscriptFileName(school: HighSchoolModel): string {
+    const name = this.toText(school.transcriptFileName);
+    return name || '已上传文件';
+  }
+
   displayExternalCourseSchoolAddress(course: ExternalCourseModel): string {
     const parts = [
       this.toText(course.streetAddress),
@@ -697,8 +724,10 @@ export class StudentProfile implements OnInit {
     index: number,
     schoolRecordId: number,
     file: File,
-    input: HTMLInputElement | null
+    input: HTMLInputElement | null,
+    allowRefreshOnNotFound = true
   ): void {
+    const uploadHint = this.buildSchoolUploadHint(index);
     this.highSchoolTranscriptUploading[index] = true;
     this.error = '';
     this.cdr.detectChanges();
@@ -708,33 +737,253 @@ export class StudentProfile implements OnInit {
         ? this.profileApi.uploadStudentSchoolTranscriptForTeacher(this.managedStudentId, schoolRecordId, file)
         : this.profileApi.uploadMySchoolTranscript(schoolRecordId, file);
 
+    request$
+      .pipe(
+        finalize(() => {
+          this.highSchoolTranscriptUploading[index] = false;
+          if (input) input.value = '';
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          const school = this.model.highSchools[index];
+          if (!school) return;
+          this.applySchoolTranscriptPayload(school, payload);
+          this.saved = true;
+        },
+        error: (err: HttpErrorResponse) => {
+          if (allowRefreshOnNotFound && err.status === 404) {
+            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input);
+            return;
+          }
+          this.error = this.extractErrorMessage(err) || '上传成绩单失败。';
+        },
+      });
+  }
+
+  private persistProfileThenUploadSchoolTranscript(
+    index: number,
+    file: File,
+    input: HTMLInputElement | null,
+    retryAttempt = 0
+  ): void {
+    if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
+      this.error = '路由中的学生 ID 无效。';
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.isProfileBusyForTranscriptUpload()) {
+      this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt);
+      return;
+    }
+
+    if (!this.validateOenNumber()) {
+      this.error = this.oenError;
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const uploadHint = this.buildSchoolUploadHint(index);
+    const payload = this.toPayload(this.model);
+    this.error = '';
+    this.saved = false;
+    this.saveInProgress = true;
+    this.saving = true;
+    this.cdr.detectChanges();
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.saveStudentProfileForTeacher(this.managedStudentId, payload)
+        : this.profileApi.saveMyProfile(payload);
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.saveInProgress = false;
+          this.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          const resolved = this.unwrapProfile(resp);
+          const hasResolvedData = Object.keys(resolved).length > 0;
+          this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
+          this.syncHighSchoolLookupState();
+          this.syncExternalCourseProviderLookupState();
+          this.syncStatusInCanadaControls();
+          this.validateOenNumber();
+          this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
+
+          const uploadTarget = this.resolveSchoolUploadTarget(index, uploadHint);
+          if (!uploadTarget) {
+            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input);
+            return;
+          }
+
+          this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.error = this.extractErrorMessage(err) || '保存学校信息失败，无法上传成绩单。';
+          if (input) input.value = '';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private applySchoolTranscriptPayload(school: HighSchoolModel, payload: StudentSchoolTranscriptPayload): void {
+    const fileName = this.toText(
+      payload.transcriptFileName || payload.transcriptOriginalFilename || payload['fileName']
+    );
+    school.schoolRecordId =
+      payload.schoolRecordId === null || payload.schoolRecordId === undefined
+        ? school.schoolRecordId
+        : Number(payload.schoolRecordId);
+    school.transcriptFileName = fileName;
+    school.transcriptSizeBytes = this.toOptionalNumber(payload.transcriptSizeBytes ?? payload.sizeBytes);
+    school.transcriptUploadedAt = this.toText(payload.transcriptUploadedAt || payload.uploadedAt);
+    school.hasTranscript =
+      this.toBoolean(payload.hasTranscript) ||
+      this.toBoolean(payload.transcriptAvailable) ||
+      !!school.transcriptFileName;
+  }
+
+  private refreshProfileThenUploadSchoolTranscript(
+    fallbackIndex: number,
+    uploadHint: SchoolUploadHint | null,
+    file: File,
+    input: HTMLInputElement | null
+  ): void {
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.getStudentProfileForTeacher(this.managedStudentId)
+        : this.profileApi.getMyProfile();
+
     request$.subscribe({
-      next: (payload) => {
-        const school = this.model.highSchools[index];
-        if (!school) return;
-        this.applySchoolTranscriptPayload(school, payload);
-        this.saved = true;
+      next: (resp) => {
+        this.model = this.normalizeModel(this.unwrapProfile(resp));
+        this.syncHighSchoolLookupState();
+        this.syncExternalCourseProviderLookupState();
+        this.syncStatusInCanadaControls();
+        this.validateOenNumber();
+        this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
+
+        const uploadTarget = this.resolveSchoolUploadTarget(fallbackIndex, uploadHint);
+        if (!uploadTarget) {
+          this.error = '保存后未获取学校记录 ID，请先点保存后再上传。';
+          if (input) input.value = '';
+          this.cdr.detectChanges();
+          return;
+        }
+
+        this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input, false);
       },
       error: (err: HttpErrorResponse) => {
-        this.error = this.extractErrorMessage(err) || '上传成绩单失败。';
-      },
-      complete: () => {
-        this.highSchoolTranscriptUploading[index] = false;
+        this.error = this.extractErrorMessage(err) || '刷新学校信息失败，无法上传成绩单。';
         if (input) input.value = '';
         this.cdr.detectChanges();
       },
     });
   }
 
-  private applySchoolTranscriptPayload(school: HighSchoolModel, payload: StudentSchoolTranscriptPayload): void {
-    school.schoolRecordId =
-      payload.schoolRecordId === null || payload.schoolRecordId === undefined
-        ? school.schoolRecordId
-        : Number(payload.schoolRecordId);
-    school.transcriptFileName = this.toText(payload.transcriptFileName);
-    school.transcriptSizeBytes = this.toOptionalNumber(payload.transcriptSizeBytes);
-    school.transcriptUploadedAt = this.toText(payload.transcriptUploadedAt);
-    school.hasTranscript = !!payload.hasTranscript || !!school.transcriptFileName;
+  private resolveSchoolUploadTarget(
+    fallbackIndex: number,
+    uploadHint: SchoolUploadHint | null
+  ): SchoolUploadTarget | null {
+    const fallbackSchool = this.model.highSchools[fallbackIndex];
+    const fallbackSchoolRecordId = this.toOptionalNumber(fallbackSchool?.schoolRecordId);
+    if (fallbackSchool && fallbackSchoolRecordId !== null) {
+      return {
+        index: fallbackIndex,
+        schoolRecordId: fallbackSchoolRecordId,
+      };
+    }
+
+    if (!uploadHint) return null;
+
+    const normalizedHintName = this.normalizeLookupText(uploadHint.schoolName);
+    const normalizedHintCity = this.normalizeLookupText(uploadHint.city);
+    const normalizedHintPostal = this.normalizeLookupText(uploadHint.postal);
+    for (let index = 0; index < this.model.highSchools.length; index += 1) {
+      const school = this.model.highSchools[index];
+      const schoolRecordId = this.toOptionalNumber(school?.schoolRecordId);
+      if (!school || schoolRecordId === null) continue;
+      if (school.schoolType !== uploadHint.schoolType) continue;
+
+      const schoolNameMatches = this.normalizeLookupText(school.schoolName) === normalizedHintName;
+      if (!schoolNameMatches) continue;
+
+      const startMatches = this.normalizeDate(school.startTime) === uploadHint.startTime;
+      const endMatches = this.normalizeDate(school.endTime) === uploadHint.endTime;
+      if (startMatches && endMatches) {
+        return { index, schoolRecordId };
+      }
+
+      const cityMatches = this.normalizeLookupText(school.city) === normalizedHintCity;
+      const postalMatches = this.normalizeLookupText(school.postal) === normalizedHintPostal;
+      if (cityMatches || postalMatches) {
+        return { index, schoolRecordId };
+      }
+    }
+
+    return null;
+  }
+
+  private buildSchoolUploadHint(index: number): SchoolUploadHint | null {
+    const school = this.model.highSchools[index];
+    if (!school) return null;
+
+    return {
+      schoolType: school.schoolType,
+      schoolName: this.toText(school.schoolName),
+      startTime: this.normalizeDate(school.startTime),
+      endTime: this.normalizeDate(school.endTime),
+      city: this.toText(school.city),
+      postal: this.toText(school.postal),
+    };
+  }
+
+  private isProfileBusyForTranscriptUpload(): boolean {
+    return this.saveInProgress || this.loading || this.saving;
+  }
+
+  private retrySchoolTranscriptUploadWhenIdle(
+    index: number,
+    file: File,
+    input: HTMLInputElement | null,
+    retryAttempt = 0
+  ): void {
+    if (retryAttempt >= TRANSCRIPT_UPLOAD_RETRY_LIMIT) {
+      this.error = '档案正在保存中，请稍后重试上传。';
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    setTimeout(() => {
+      const school = this.model.highSchools[index];
+      if (!school) {
+        if (input) input.value = '';
+        return;
+      }
+
+      if (this.isProfileBusyForTranscriptUpload()) {
+        this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt + 1);
+        return;
+      }
+
+      const schoolRecordId = this.toOptionalNumber(school.schoolRecordId);
+      if (schoolRecordId !== null) {
+        this.uploadSchoolTranscript(index, schoolRecordId, file, input);
+        return;
+      }
+
+      this.persistProfileThenUploadSchoolTranscript(index, file, input, retryAttempt + 1);
+    }, TRANSCRIPT_UPLOAD_RETRY_DELAY_MS);
   }
 
   private triggerBlobDownload(blob: Blob, fileName: string): void {
@@ -1134,9 +1383,26 @@ export class StudentProfile implements OnInit {
       exitEditMode: false,
       skipIfUnchanged: true,
       showSavedFeedback: false,
-      syncModelOnSuccess: false,
+      syncModelOnSuccess: true,
       background: true,
     });
+  }
+
+  private shouldSkipAutoSaveForNextTarget(target: EventTarget | null): boolean {
+    if (!target) return false;
+
+    if (target instanceof HTMLButtonElement) {
+      return true;
+    }
+
+    if (target instanceof HTMLInputElement) {
+      const inputType = String(target.type || '')
+        .trim()
+        .toLowerCase();
+      return inputType === 'file' || inputType === 'button' || inputType === 'submit' || inputType === 'reset';
+    }
+
+    return false;
   }
 
   private shouldAutoSaveTarget(target: EventTarget | null): boolean {
@@ -1319,6 +1585,13 @@ export class StudentProfile implements OnInit {
     const country = this.normalizeCountryToStandardEnglish(
       source.country || rawAddress.country || 'Canada'
     );
+    const transcriptFileName = this.toText(
+      source.transcriptFileName || source.transcriptOriginalFilename || source.fileName
+    );
+    const transcriptSizeBytes = this.toOptionalNumber(source.transcriptSizeBytes ?? source.sizeBytes);
+    const transcriptUploadedAt = this.toText(source.transcriptUploadedAt || source.uploadedAt);
+    const hasTranscript =
+      this.toBoolean(source.hasTranscript) || this.toBoolean(source.transcriptAvailable) || !!transcriptFileName;
 
     return {
       schoolRecordId: source.schoolRecordId === null || source.schoolRecordId === undefined
@@ -1333,10 +1606,10 @@ export class StudentProfile implements OnInit {
       postal: this.formatPostalForDisplay(source.postal || rawAddress.postal, country),
       startTime: this.normalizeDate(source.startTime),
       endTime: this.normalizeDate(source.endTime),
-      transcriptFileName: this.toText(source.transcriptFileName),
-      transcriptSizeBytes: this.toOptionalNumber(source.transcriptSizeBytes),
-      transcriptUploadedAt: this.toText(source.transcriptUploadedAt),
-      hasTranscript: this.toBoolean(source.hasTranscript) || !!this.toText(source.transcriptFileName),
+      transcriptFileName,
+      transcriptSizeBytes,
+      transcriptUploadedAt,
+      hasTranscript,
     };
   }
 
@@ -1924,9 +2197,23 @@ export class StudentProfile implements OnInit {
   }
 
   private extractErrorMessage(err: HttpErrorResponse): string {
+    if (err?.status === 0) {
+      return '上传连接被中断（ERR_CONNECTION_ABORTED/RESET）。请检查后端服务和上传大小限制后重试。';
+    }
+
+    if (err?.status === 401) {
+      return '登录状态已失效，请重新登录后再试。';
+    }
+
     const payload = err?.error;
 
     if (payload && typeof payload === 'object') {
+      const code = String((payload as any).code || '')
+        .trim()
+        .toUpperCase();
+      if (code === 'UNAUTHENTICATED') {
+        return '登录状态已失效，请重新登录后再试。';
+      }
       return String((payload as any).message || (payload as any).error || '');
     }
 

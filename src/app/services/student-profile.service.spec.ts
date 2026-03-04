@@ -70,6 +70,55 @@ describe('StudentProfileService', () => {
     req.flush({});
   });
 
+  it('uploadMySchoolTranscript should call POST /api/student/profile/schools/{id}/transcript with multipart body', () => {
+    const file = new File(['pdf-content'], 'transcript.pdf', { type: 'application/pdf' });
+
+    service.uploadMySchoolTranscript(9, file).subscribe();
+
+    const req = httpMock.expectOne('/api/student/profile/schools/9/transcript');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    const formData = req.request.body as FormData;
+    expect(formData.get('file')).toBe(file);
+    expect(formData.get('transcript')).toBeNull();
+    req.flush({});
+  });
+
+  it('uploadStudentSchoolTranscriptForTeacher should call teacher upload endpoint with multipart body', () => {
+    const file = new File(['pdf-content'], 'transcript.pdf', { type: 'application/pdf' });
+
+    service.uploadStudentSchoolTranscriptForTeacher(12, 33, file).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/profile/schools/33/transcript');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    const formData = req.request.body as FormData;
+    expect(formData.get('file')).toBe(file);
+    expect(formData.get('transcript')).toBeNull();
+    req.flush({});
+  });
+
+  it('uploadMySchoolTranscript should retry with transcript field when primary upload fails', () => {
+    const file = new File(['pdf-content'], 'transcript.pdf', { type: 'application/pdf' });
+    const nextSpy = vi.fn();
+
+    service.uploadMySchoolTranscript(9, file).subscribe(nextSpy);
+
+    const firstReq = httpMock.expectOne('/api/student/profile/schools/9/transcript');
+    const firstBody = firstReq.request.body as FormData;
+    expect(firstBody.get('file')).toBe(file);
+    expect(firstBody.get('transcript')).toBeNull();
+    firstReq.flush({ message: 'Unsupported media type' }, { status: 415, statusText: 'Unsupported Media Type' });
+
+    const retryReq = httpMock.expectOne('/api/student/profile/schools/9/transcript');
+    const retryBody = retryReq.request.body as FormData;
+    expect(retryBody.get('file')).toBeNull();
+    expect(retryBody.get('transcript')).toBe(file);
+    retryReq.flush({ ok: true });
+
+    expect(nextSpy).toHaveBeenCalledWith({ ok: true });
+  });
+
   it('should attach Authorization header when session exists', () => {
     localStorage.setItem(
       sessionKey,
@@ -88,6 +137,29 @@ describe('StudentProfileService', () => {
     service.getMyProfile().subscribe();
 
     const req = httpMock.expectOne('/api/student/profile');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer token-xyz');
+    req.flush({});
+  });
+
+  it('uploadMySchoolTranscript should attach Authorization header when session exists', () => {
+    localStorage.setItem(
+      sessionKey,
+      JSON.stringify({
+        userId: 9,
+        role: 'STUDENT',
+        studentId: 1001,
+        teacherId: null,
+        accessToken: 'token-xyz',
+        tokenType: 'Bearer',
+        tokenExpiresAt: '2026-02-25T12:00:00.000',
+        mustChangePassword: false,
+      })
+    );
+
+    const file = new File(['pdf-content'], 'transcript.pdf', { type: 'application/pdf' });
+    service.uploadMySchoolTranscript(9, file).subscribe();
+
+    const req = httpMock.expectOne('/api/student/profile/schools/9/transcript');
     expect(req.request.headers.get('Authorization')).toBe('Bearer token-xyz');
     req.flush({});
   });

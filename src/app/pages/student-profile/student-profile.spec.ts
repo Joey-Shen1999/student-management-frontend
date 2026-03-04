@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { StudentProfile } from './student-profile';
@@ -17,6 +18,10 @@ describe('StudentProfile', () => {
     | 'saveStudentProfileForTeacher'
     | 'searchCanadianHighSchools'
     | 'searchOntarioCourseProviders'
+    | 'uploadMySchoolTranscript'
+    | 'uploadStudentSchoolTranscriptForTeacher'
+    | 'downloadMySchoolTranscript'
+    | 'downloadStudentSchoolTranscriptForTeacher'
   >;
   let routeParams$: BehaviorSubject<any>;
   let router: Pick<Router, 'navigate'>;
@@ -29,6 +34,30 @@ describe('StudentProfile', () => {
       saveStudentProfileForTeacher: vi.fn(() => of({})),
       searchCanadianHighSchools: vi.fn(() => of([])),
       searchOntarioCourseProviders: vi.fn(() => of([])),
+      uploadMySchoolTranscript: vi.fn(() =>
+        of({
+          schoolRecordId: 1,
+          transcriptFileName: 'transcript.pdf',
+          transcriptSizeBytes: 123,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+          hasTranscript: true,
+        })
+      ),
+      uploadStudentSchoolTranscriptForTeacher: vi.fn(() =>
+        of({
+          schoolRecordId: 1,
+          transcriptFileName: 'transcript.pdf',
+          transcriptSizeBytes: 123,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+          hasTranscript: true,
+        })
+      ),
+      downloadMySchoolTranscript: vi.fn(() =>
+        of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
+      ),
+      downloadStudentSchoolTranscriptForTeacher: vi.fn(() =>
+        of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
+      ),
     };
     routeParams$ = new BehaviorSubject(convertToParamMap({}));
     router = { navigate: vi.fn() };
@@ -97,6 +126,33 @@ describe('StudentProfile', () => {
     expect(text).toContain('2008-09-01');
     expect(text).toContain('Other (Non-binary)');
     expect(text).toContain('student@example.com');
+  });
+
+  it('should render uploaded transcript filename as clickable download button', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        schools: [
+          {
+            schoolRecordId: 88,
+            schoolType: 'MAIN',
+            schoolName: 'Unionville High School',
+            transcriptFileName: 'Transcript-UHS.pdf',
+            hasTranscript: true,
+          },
+        ],
+      })
+    );
+
+    component.loadProfile();
+    fixture.detectChanges();
+
+    const clickSpy = vi.spyOn(component, 'downloadHighSchoolTranscript');
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    const fileButton = buttons.find((button) => button.textContent?.includes('Transcript-UHS.pdf')) || null;
+
+    expect(fileButton).not.toBeNull();
+    fileButton?.click();
+    expect(clickSpy).toHaveBeenCalledWith(0);
   });
 
   it('should render form controls in edit mode', () => {
@@ -366,6 +422,332 @@ describe('StudentProfile', () => {
         schoolName: 'Current High School',
       })
     );
+  });
+
+  it('should upload transcript directly when schoolRecordId exists', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(101, file);
+    expect(component.model.highSchools[0].hasTranscript).toBe(true);
+    expect(component.model.highSchools[0].transcriptFileName).toBe('transcript.pdf');
+  });
+
+  it('should auto-save and then upload transcript when schoolRecordId is missing', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = null;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(
+      of({
+        schools: [
+          {
+            schoolRecordId: 88,
+            schoolType: 'MAIN',
+            schoolName: 'Unionville High School',
+            country: 'Canada',
+          },
+        ],
+      })
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(88, file);
+  });
+
+  it('should refresh profile and continue transcript upload when save response misses schoolRecordId', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = null;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+    component.model.highSchools[0].city = 'Markham';
+    component.model.highSchools[0].postal = 'L3R 8G5';
+
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(of({}));
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        schools: [
+          {
+            schoolRecordId: 188,
+            schoolType: 'MAIN',
+            schoolName: 'Unionville High School',
+            city: 'Markham',
+            country: 'Canada',
+            postal: 'L3R 8G5',
+          },
+        ],
+      })
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(profileApi.getMyProfile).toHaveBeenCalled();
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(188, file);
+  });
+
+  it('should queue transcript upload until current save finishes', () => {
+    vi.useFakeTimers();
+    try {
+      component.enterEditMode();
+      component.model.highSchools[0].schoolRecordId = null;
+      component.model.highSchools[0].schoolName = 'Unionville High School';
+
+      (component as any).saveInProgress = true;
+      (component as any).saving = true;
+      setTimeout(() => {
+        (component as any).saveInProgress = false;
+        (component as any).saving = false;
+      }, 240);
+
+      (profileApi.saveMyProfile as any).mockReturnValueOnce(
+        of({
+          schools: [
+            {
+              schoolRecordId: 288,
+              schoolType: 'MAIN',
+              schoolName: 'Unionville High School',
+              country: 'Canada',
+            },
+          ],
+        })
+      );
+
+      const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+
+      component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+      expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(600);
+
+      expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+      expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(288, file);
+      expect(component.error).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should stop upload when auto-save fails before transcript upload', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = null;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: { message: '保存失败' },
+          })
+      )
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.uploadMySchoolTranscript).not.toHaveBeenCalled();
+    expect(component.error).toContain('保存失败');
+  });
+
+  it('should clear uploading state when transcript upload fails', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 500,
+            error: { message: '上传失败' },
+          })
+      )
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.highSchoolTranscriptUploading[0]).toBe(false);
+    expect(component.error).toContain('上传失败');
+  });
+
+  it('should show connection-aborted hint when transcript upload returns status 0', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 0,
+            statusText: 'Unknown Error',
+          })
+      )
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.highSchoolTranscriptUploading[0]).toBe(false);
+    expect(component.error).toContain('上传连接被中断');
+  });
+
+  it('should show login-expired hint when backend returns UNAUTHENTICATED payload', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 500,
+            error: {
+              status: 401,
+              code: 'UNAUTHENTICATED',
+              message: 'Unauthenticated.',
+            },
+          })
+      )
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.highSchoolTranscriptUploading[0]).toBe(false);
+    expect(component.error).toContain('登录状态已失效');
+  });
+
+  it('should refresh profile and retry upload when existing schoolRecordId is stale', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+    component.model.highSchools[0].city = 'Markham';
+    component.model.highSchools[0].postal = 'L3R 8G5';
+
+    (profileApi.uploadMySchoolTranscript as any)
+      .mockReturnValueOnce(
+        throwError(
+          () =>
+            new HttpErrorResponse({
+              status: 404,
+              error: { message: 'School record not found.' },
+            })
+        )
+      )
+      .mockReturnValueOnce(
+        of({
+          schoolRecordId: 301,
+          transcriptFileName: 'transcript.pdf',
+          transcriptSizeBytes: 123,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+          hasTranscript: true,
+        })
+      );
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        schools: [
+          {
+            schoolRecordId: 301,
+            schoolType: 'MAIN',
+            schoolName: 'Unionville High School',
+            city: 'Markham',
+            country: 'Canada',
+            postal: 'L3R 8G5',
+          },
+        ],
+      })
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(1, 101, file);
+    expect(profileApi.getMyProfile).toHaveBeenCalled();
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(2, 301, file);
+    expect(component.error).toBe('');
+  });
+
+  it('should map uploaded transcript fields from legacy backend names', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        schools: [
+          {
+            schoolType: 'MAIN',
+            schoolName: 'Unionville High School',
+            transcriptOriginalFilename: 'Transcript-UHS.pdf',
+            sizeBytes: 2048,
+            uploadedAt: '2026-03-02T10:00:00',
+            transcriptAvailable: true,
+          },
+        ],
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.highSchools[0].transcriptFileName).toBe('Transcript-UHS.pdf');
+    expect(component.model.highSchools[0].transcriptSizeBytes).toBe(2048);
+    expect(component.model.highSchools[0].transcriptUploadedAt).toBe('2026-03-02T10:00:00');
+    expect(component.model.highSchools[0].hasTranscript).toBe(true);
   });
 
   it('should auto fill high school address from lookup result', () => {
@@ -665,6 +1047,23 @@ describe('StudentProfile', () => {
     const input = document.createElement('input');
     input.type = 'text';
     component.onFormFocusOut({ target: input } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+  });
+
+  it('should not auto save when focus moves to transcript file input', () => {
+    component.enterEditMode();
+    component.model.phone = '1234567890';
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+
+    component.onFormFocusOut({
+      target: textInput,
+      relatedTarget: fileInput,
+    } as unknown as FocusEvent);
 
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
   });
