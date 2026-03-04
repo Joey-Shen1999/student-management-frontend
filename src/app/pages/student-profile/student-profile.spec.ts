@@ -479,6 +479,54 @@ describe('StudentProfile', () => {
     expect(component.model.highSchools[0].hasTranscript).toBe(true);
   });
 
+  it('should keep all uploads even when transcript filename repeats', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+
+    (profileApi.uploadMySchoolTranscript as any)
+      .mockReturnValueOnce(
+        of({
+          transcriptFileName: 'repeat.pdf',
+          transcriptSizeBytes: 100,
+          transcriptUploadedAt: '2026-03-01T10:00:00',
+          hasTranscript: true,
+        })
+      )
+      .mockReturnValueOnce(
+        of({
+          transcriptFileName: 'repeat.pdf',
+          transcriptSizeBytes: 100,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+          hasTranscript: true,
+        })
+      )
+      .mockReturnValueOnce(
+        of({
+          transcriptFileName: 'repeat.pdf',
+          transcriptSizeBytes: 100,
+          transcriptUploadedAt: '2026-03-03T10:00:00',
+          hasTranscript: true,
+        })
+      );
+
+    const createEvent = (name: string): Event => {
+      const file = new File(['pdf-content'], name, { type: 'application/pdf' });
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+      return { target: input } as unknown as Event;
+    };
+
+    component.onHighSchoolTranscriptFileSelected(0, createEvent('a.pdf'));
+    component.onHighSchoolTranscriptFileSelected(0, createEvent('b.pdf'));
+    component.onHighSchoolTranscriptFileSelected(0, createEvent('c.pdf'));
+
+    expect(component.model.highSchools[0].transcripts.length).toBe(3);
+    expect(component.model.highSchools[0].hasTranscript).toBe(true);
+  });
+
   it('should remove selected transcript from school transcript list', () => {
     component.enterEditMode();
     component.model.highSchools[0].transcripts = [

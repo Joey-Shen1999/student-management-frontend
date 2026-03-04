@@ -898,7 +898,7 @@ export class StudentProfile implements OnInit {
       .filter((item: SchoolTranscriptModel | null): item is SchoolTranscriptModel => item !== null);
 
     if (listFromArray.length > 0) {
-      return this.deduplicateSchoolTranscripts(listFromArray);
+      return listFromArray;
     }
 
     const single = this.normalizeSchoolTranscript(node);
@@ -932,36 +932,20 @@ export class StudentProfile implements OnInit {
     current: SchoolTranscriptModel[],
     incoming: SchoolTranscriptModel[]
   ): SchoolTranscriptModel[] {
-    return this.deduplicateSchoolTranscripts([
-      ...(Array.isArray(current) ? current : []),
-      ...incoming,
-    ]);
-  }
-
-  private deduplicateSchoolTranscripts(transcripts: SchoolTranscriptModel[]): SchoolTranscriptModel[] {
-    const seen = new Set<string>();
-    const deduped: SchoolTranscriptModel[] = [];
-    for (const transcript of transcripts) {
-      const key = [
-        this.toText(transcript.transcriptFileName).toLowerCase(),
-        this.toText(transcript.transcriptUploadedAt),
-        this.toOptionalNumber(transcript.transcriptSizeBytes) ?? '',
-      ].join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      deduped.push({
-        transcriptFileName: this.toText(transcript.transcriptFileName),
-        transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
-        transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
-      });
-    }
-    return deduped;
+    const base = Array.isArray(current) ? current : [];
+    return [...base, ...incoming].map((transcript) => ({
+      transcriptFileName: this.toText(transcript.transcriptFileName),
+      transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
+      transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+    }));
   }
 
   private syncSchoolTranscriptLegacyFields(school: HighSchoolModel): void {
-    const transcripts = this.deduplicateSchoolTranscripts(
-      Array.isArray(school.transcripts) ? school.transcripts : []
-    );
+    const transcripts = (Array.isArray(school.transcripts) ? school.transcripts : []).map((transcript) => ({
+      transcriptFileName: this.toText(transcript.transcriptFileName),
+      transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
+      transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+    }));
     school.transcripts = transcripts;
 
     const latest = transcripts.length > 0 ? transcripts[transcripts.length - 1] : null;
