@@ -41,6 +41,13 @@ interface HighSchoolModel {
   transcriptSizeBytes: number | null;
   transcriptUploadedAt: string;
   hasTranscript: boolean;
+  transcripts: SchoolTranscriptModel[];
+}
+
+interface SchoolTranscriptModel {
+  transcriptFileName: string;
+  transcriptSizeBytes: number | null;
+  transcriptUploadedAt: string;
 }
 
 interface ExternalCourseModel {
@@ -526,10 +533,15 @@ export class StudentProfile implements OnInit {
     this.uploadSchoolTranscript(index, schoolRecordId, file, input);
   }
 
-  downloadHighSchoolTranscript(index: number): void {
+  downloadHighSchoolTranscript(index: number, transcriptIndex = 0): void {
     const school = this.model.highSchools[index];
     if (!school || !school.schoolRecordId || !school.hasTranscript) return;
     if (this.loading || this.saving) return;
+
+    const selectedTranscript =
+      transcriptIndex >= 0 && transcriptIndex < school.transcripts.length
+        ? school.transcripts[transcriptIndex]
+        : null;
 
     const request$ =
       this.managedMode && this.managedStudentId
@@ -543,6 +555,7 @@ export class StudentProfile implements OnInit {
         const contentDisposition = resp.headers.get('content-disposition');
         const fileName =
           this.resolveDownloadFileName(contentDisposition) ||
+          this.toText(selectedTranscript?.transcriptFileName) ||
           this.toText(school.transcriptFileName) ||
           'school-transcript.bin';
         this.triggerBlobDownload(blob, fileName);
@@ -635,21 +648,41 @@ export class StudentProfile implements OnInit {
   }
 
   displaySchoolTranscript(school: HighSchoolModel): string {
-    if (!school.hasTranscript) return '未上传';
-    const name = this.toText(school.transcriptFileName) || '已上传文件';
-    const size = this.formatBytes(school.transcriptSizeBytes);
-    const uploadedAt = this.toText(school.transcriptUploadedAt);
-    if (size !== '-') {
-      if (uploadedAt) return `${name} (${size}, ${uploadedAt})`;
-      return `${name} (${size})`;
-    }
-    if (uploadedAt) return `${name} (${uploadedAt})`;
-    return name;
+    const count = Array.isArray(school.transcripts) ? school.transcripts.length : 0;
+    if (count <= 0) return '未上传';
+    return `已上传 ${count} 份`;
   }
 
-  displaySchoolTranscriptFileName(school: HighSchoolModel): string {
-    const name = this.toText(school.transcriptFileName);
-    return name || '已上传文件';
+  displaySchoolTranscriptFileName(school: HighSchoolModel, transcriptIndex: number): string {
+    const transcript = school.transcripts[transcriptIndex];
+    const name = this.toText(transcript?.transcriptFileName);
+    return name || `已上传文件 #${transcriptIndex + 1}`;
+  }
+
+  displaySchoolTranscriptMeta(school: HighSchoolModel, transcriptIndex: number): string {
+    const transcript = school.transcripts[transcriptIndex];
+    if (!transcript) return '';
+    const size = this.formatBytes(transcript.transcriptSizeBytes);
+    const uploadedAt = this.toText(transcript.transcriptUploadedAt);
+    if (size !== '-') {
+      if (uploadedAt) return `${size}, ${uploadedAt}`;
+      return size;
+    }
+    if (uploadedAt) return uploadedAt;
+    return '';
+  }
+
+  removeHighSchoolTranscript(index: number, transcriptIndex: number): void {
+    const school = this.model.highSchools[index];
+    if (!school) return;
+    if (transcriptIndex < 0 || transcriptIndex >= school.transcripts.length) return;
+
+    school.transcripts.splice(transcriptIndex, 1);
+    this.syncSchoolTranscriptLegacyFields(school);
+    this.error = '';
+    this.saved = false;
+    this.cdr.detectChanges();
+    this.triggerAutoSave();
   }
 
   displayExternalCourseSchoolAddress(course: ExternalCourseModel): string {
@@ -836,20 +869,106 @@ export class StudentProfile implements OnInit {
   }
 
   private applySchoolTranscriptPayload(school: HighSchoolModel, payload: StudentSchoolTranscriptPayload): void {
-    const fileName = this.toText(
-      payload.transcriptFileName || payload.transcriptOriginalFilename || payload['fileName']
-    );
     school.schoolRecordId =
       payload.schoolRecordId === null || payload.schoolRecordId === undefined
         ? school.schoolRecordId
         : Number(payload.schoolRecordId);
-    school.transcriptFileName = fileName;
-    school.transcriptSizeBytes = this.toOptionalNumber(payload.transcriptSizeBytes ?? payload.sizeBytes);
-    school.transcriptUploadedAt = this.toText(payload.transcriptUploadedAt || payload.uploadedAt);
-    school.hasTranscript =
-      this.toBoolean(payload.hasTranscript) ||
-      this.toBoolean(payload.transcriptAvailable) ||
-      !!school.transcriptFileName;
+    const payloadTranscripts = this.extractSchoolTranscripts(payload);
+    if (payloadTranscripts.length > 0) {
+      const hasTranscriptListInPayload = Array.isArray((payload as any)?.transcripts);
+      school.transcripts = hasTranscriptListInPayload
+        ? payloadTranscripts
+        : this.appendSchoolTranscripts(school.transcripts, payloadTranscripts);
+    }
+    this.syncSchoolTranscriptLegacyFields(school);
+  }
+
+  private extractSchoolTranscripts(source: unknown): SchoolTranscriptModel[] {
+    const node: any = source && typeof source === 'object' ? source : {};
+    const rawTranscripts = Array.isArray(node.transcripts)
+      ? node.transcripts
+      : Array.isArray(node.files)
+        ? node.files
+        : Array.isArray(node.attachments)
+          ? node.attachments
+          : [];
+
+    const listFromArray = rawTranscripts
+      .map((item: unknown) => this.normalizeSchoolTranscript(item))
+      .filter((item: SchoolTranscriptModel | null): item is SchoolTranscriptModel => item !== null);
+
+    if (listFromArray.length > 0) {
+      return this.deduplicateSchoolTranscripts(listFromArray);
+    }
+
+    const single = this.normalizeSchoolTranscript(node);
+    if (!single) return [];
+    return [single];
+  }
+
+  private normalizeSchoolTranscript(value: unknown): SchoolTranscriptModel | null {
+    const source: any = value && typeof value === 'object' ? value : {};
+    const fileName = this.toText(
+      source.transcriptFileName ||
+        source.transcriptOriginalFilename ||
+        source.fileName ||
+        source.originalFilename ||
+        source.name
+    );
+    if (!fileName) return null;
+
+    return {
+      transcriptFileName: fileName,
+      transcriptSizeBytes: this.toOptionalNumber(
+        source.transcriptSizeBytes ?? source.sizeBytes ?? source.size
+      ),
+      transcriptUploadedAt: this.toText(
+        source.transcriptUploadedAt || source.uploadedAt || source.uploadTime || source.createdAt
+      ),
+    };
+  }
+
+  private appendSchoolTranscripts(
+    current: SchoolTranscriptModel[],
+    incoming: SchoolTranscriptModel[]
+  ): SchoolTranscriptModel[] {
+    return this.deduplicateSchoolTranscripts([
+      ...(Array.isArray(current) ? current : []),
+      ...incoming,
+    ]);
+  }
+
+  private deduplicateSchoolTranscripts(transcripts: SchoolTranscriptModel[]): SchoolTranscriptModel[] {
+    const seen = new Set<string>();
+    const deduped: SchoolTranscriptModel[] = [];
+    for (const transcript of transcripts) {
+      const key = [
+        this.toText(transcript.transcriptFileName).toLowerCase(),
+        this.toText(transcript.transcriptUploadedAt),
+        this.toOptionalNumber(transcript.transcriptSizeBytes) ?? '',
+      ].join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push({
+        transcriptFileName: this.toText(transcript.transcriptFileName),
+        transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
+        transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+      });
+    }
+    return deduped;
+  }
+
+  private syncSchoolTranscriptLegacyFields(school: HighSchoolModel): void {
+    const transcripts = this.deduplicateSchoolTranscripts(
+      Array.isArray(school.transcripts) ? school.transcripts : []
+    );
+    school.transcripts = transcripts;
+
+    const latest = transcripts.length > 0 ? transcripts[transcripts.length - 1] : null;
+    school.transcriptFileName = this.toText(latest?.transcriptFileName);
+    school.transcriptSizeBytes = this.toOptionalNumber(latest?.transcriptSizeBytes);
+    school.transcriptUploadedAt = this.toText(latest?.transcriptUploadedAt);
+    school.hasTranscript = transcripts.length > 0;
   }
 
   private refreshProfileThenUploadSchoolTranscript(
@@ -1585,15 +1704,8 @@ export class StudentProfile implements OnInit {
     const country = this.normalizeCountryToStandardEnglish(
       source.country || rawAddress.country || 'Canada'
     );
-    const transcriptFileName = this.toText(
-      source.transcriptFileName || source.transcriptOriginalFilename || source.fileName
-    );
-    const transcriptSizeBytes = this.toOptionalNumber(source.transcriptSizeBytes ?? source.sizeBytes);
-    const transcriptUploadedAt = this.toText(source.transcriptUploadedAt || source.uploadedAt);
-    const hasTranscript =
-      this.toBoolean(source.hasTranscript) || this.toBoolean(source.transcriptAvailable) || !!transcriptFileName;
-
-    return {
+    const transcripts = this.extractSchoolTranscripts(source);
+    const school: HighSchoolModel = {
       schoolRecordId: source.schoolRecordId === null || source.schoolRecordId === undefined
         ? this.toOptionalNumber(source.id)
         : this.toOptionalNumber(source.schoolRecordId),
@@ -1606,11 +1718,14 @@ export class StudentProfile implements OnInit {
       postal: this.formatPostalForDisplay(source.postal || rawAddress.postal, country),
       startTime: this.normalizeDate(source.startTime),
       endTime: this.normalizeDate(source.endTime),
-      transcriptFileName,
-      transcriptSizeBytes,
-      transcriptUploadedAt,
-      hasTranscript,
+      transcriptFileName: '',
+      transcriptSizeBytes: null,
+      transcriptUploadedAt: '',
+      hasTranscript: this.toBoolean(source.hasTranscript) || this.toBoolean(source.transcriptAvailable),
+      transcripts,
     };
+    this.syncSchoolTranscriptLegacyFields(school);
+    return school;
   }
 
   private createCurrentHighSchool(): HighSchoolModel {
@@ -1629,6 +1744,7 @@ export class StudentProfile implements OnInit {
       transcriptSizeBytes: null,
       transcriptUploadedAt: '',
       hasTranscript: false,
+      transcripts: [],
     };
   }
 
@@ -1648,6 +1764,7 @@ export class StudentProfile implements OnInit {
       transcriptSizeBytes: null,
       transcriptUploadedAt: '',
       hasTranscript: false,
+      transcripts: [],
     };
   }
 
@@ -1658,7 +1775,7 @@ export class StudentProfile implements OnInit {
 
     const normalized = schools.map((school) => {
       const country = this.normalizeCountryToStandardEnglish(school.country || 'Canada');
-      return {
+      const mapped: HighSchoolModel = {
         schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
         schoolType: school.schoolType,
         schoolName: this.toText(school.schoolName),
@@ -1673,7 +1790,10 @@ export class StudentProfile implements OnInit {
         transcriptSizeBytes: this.toOptionalNumber(school.transcriptSizeBytes),
         transcriptUploadedAt: this.toText(school.transcriptUploadedAt),
         hasTranscript: this.toBoolean(school.hasTranscript) || !!this.toText(school.transcriptFileName),
+        transcripts: this.extractSchoolTranscripts(school),
       };
+      this.syncSchoolTranscriptLegacyFields(mapped);
+      return mapped;
     });
 
     const mainIndex = normalized.findIndex((school) => school.schoolType === 'MAIN');
@@ -1748,6 +1868,9 @@ export class StudentProfile implements OnInit {
       schools: this.normalizeHighSchools(model.highSchools).map((school, index) => {
         const schoolCountry = this.normalizeCountryToStandardEnglish(school.country || 'Canada');
         const schoolPostal = this.formatPostalForDisplay(school.postal, schoolCountry);
+        const normalizedTranscripts = this.extractSchoolTranscripts(school);
+        const latestTranscript =
+          normalizedTranscripts.length > 0 ? normalizedTranscripts[normalizedTranscripts.length - 1] : null;
         return {
           schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
           schoolType: index === 0 ? 'MAIN' : 'OTHER',
@@ -1766,10 +1889,15 @@ export class StudentProfile implements OnInit {
           postal: schoolPostal,
           startTime: this.normalizeDate(school.startTime),
           endTime: this.normalizeDate(school.endTime),
-          transcriptFileName: this.toText(school.transcriptFileName),
-          transcriptSizeBytes: this.toOptionalNumber(school.transcriptSizeBytes),
-          transcriptUploadedAt: this.toText(school.transcriptUploadedAt),
-          hasTranscript: this.toBoolean(school.hasTranscript),
+          transcriptFileName: this.toText(latestTranscript?.transcriptFileName),
+          transcriptSizeBytes: this.toOptionalNumber(latestTranscript?.transcriptSizeBytes),
+          transcriptUploadedAt: this.toText(latestTranscript?.transcriptUploadedAt),
+          hasTranscript: normalizedTranscripts.length > 0,
+          transcripts: normalizedTranscripts.map((transcript) => ({
+            transcriptFileName: this.toText(transcript.transcriptFileName),
+            transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
+            transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+          })),
         };
       }),
       otherCourses: model.externalCourses.map((course) => ({
@@ -1852,6 +1980,7 @@ export class StudentProfile implements OnInit {
         transcriptSizeBytes: null,
         transcriptUploadedAt: '',
         hasTranscript: false,
+        transcripts: [],
       });
     }
 

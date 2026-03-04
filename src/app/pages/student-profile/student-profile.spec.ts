@@ -152,7 +152,7 @@ describe('StudentProfile', () => {
 
     expect(fileButton).not.toBeNull();
     fileButton?.click();
-    expect(clickSpy).toHaveBeenCalledWith(0);
+    expect(clickSpy).toHaveBeenCalledWith(0, 0);
   });
 
   it('should render form controls in edit mode', () => {
@@ -388,6 +388,7 @@ describe('StudentProfile', () => {
         transcriptSizeBytes: null,
         transcriptUploadedAt: '',
         hasTranscript: false,
+        transcripts: [],
       },
       {
         schoolRecordId: null,
@@ -404,6 +405,7 @@ describe('StudentProfile', () => {
         transcriptSizeBytes: null,
         transcriptUploadedAt: '',
         hasTranscript: false,
+        transcripts: [],
       },
     ];
 
@@ -440,6 +442,67 @@ describe('StudentProfile', () => {
     expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(101, file);
     expect(component.model.highSchools[0].hasTranscript).toBe(true);
     expect(component.model.highSchools[0].transcriptFileName).toBe('transcript.pdf');
+  });
+
+  it('should append newly uploaded transcript to existing transcript list', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].transcripts = [
+      {
+        transcriptFileName: 'old-transcript.pdf',
+        transcriptSizeBytes: 111,
+        transcriptUploadedAt: '2026-03-01T10:00:00',
+      },
+    ];
+
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(
+      of({
+        transcriptFileName: 'new-transcript.pdf',
+        transcriptSizeBytes: 222,
+        transcriptUploadedAt: '2026-03-02T10:00:00',
+        hasTranscript: true,
+      })
+    );
+
+    const file = new File(['pdf-content'], 'grade12.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(component.model.highSchools[0].transcripts.length).toBe(2);
+    expect(component.model.highSchools[0].transcripts[0].transcriptFileName).toBe('old-transcript.pdf');
+    expect(component.model.highSchools[0].transcripts[1].transcriptFileName).toBe('new-transcript.pdf');
+    expect(component.model.highSchools[0].hasTranscript).toBe(true);
+  });
+
+  it('should remove selected transcript from school transcript list', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].transcripts = [
+      {
+        transcriptFileName: 'transcript-1.pdf',
+        transcriptSizeBytes: 111,
+        transcriptUploadedAt: '2026-03-01T10:00:00',
+      },
+      {
+        transcriptFileName: 'transcript-2.pdf',
+        transcriptSizeBytes: 222,
+        transcriptUploadedAt: '2026-03-02T10:00:00',
+      },
+    ];
+
+    component.removeHighSchoolTranscript(0, 0);
+
+    expect(component.model.highSchools[0].transcripts.length).toBe(1);
+    expect(component.model.highSchools[0].transcripts[0].transcriptFileName).toBe('transcript-2.pdf');
+    expect(component.model.highSchools[0].hasTranscript).toBe(true);
+
+    component.removeHighSchoolTranscript(0, 0);
+    expect(component.model.highSchools[0].transcripts.length).toBe(0);
+    expect(component.model.highSchools[0].hasTranscript).toBe(false);
   });
 
   it('should auto-save and then upload transcript when schoolRecordId is missing', () => {

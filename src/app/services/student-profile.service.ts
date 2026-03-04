@@ -38,6 +38,7 @@ export interface StudentProfileSchoolPayload {
   transcriptSizeBytes?: number | null;
   transcriptUploadedAt?: string;
   hasTranscript?: boolean;
+  transcripts?: StudentSchoolTranscriptPayload[];
   [key: string]: any;
 }
 
@@ -52,6 +53,7 @@ export interface StudentSchoolTranscriptPayload {
   uploadedAt?: string;
   hasTranscript?: boolean;
   transcriptAvailable?: boolean;
+  transcripts?: StudentSchoolTranscriptPayload[];
   [key: string]: any;
 }
 
