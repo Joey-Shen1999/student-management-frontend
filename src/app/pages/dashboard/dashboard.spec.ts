@@ -34,6 +34,11 @@ describe('DashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/student/profile']);
   });
 
+  it('goAccount should navigate to account settings page', () => {
+    component.goAccount();
+    expect(router.navigate).toHaveBeenCalledWith(['/account']);
+  });
+
   it('logout should clear session and navigate to login', () => {
     component.logout();
     expect(auth.logout).toHaveBeenCalledTimes(1);

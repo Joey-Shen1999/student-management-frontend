@@ -13,6 +13,10 @@ export class Dashboard {
     this.router.navigate(['/student/profile']);
   }
 
+  goAccount() {
+    this.router.navigate(['/account']);
+  }
+
   logout() {
     this.auth.logout().subscribe({
       next: () => {

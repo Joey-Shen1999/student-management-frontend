@@ -39,6 +39,13 @@ export interface LoginResponse {
   tokenExpiresAt: string;
 
   mustChangePassword?: boolean;
+  firstLogin?: boolean;
+  isFirstLogin?: boolean;
+  profileCompleted?: boolean;
+  isProfileCompleted?: boolean;
+  requiresProfileCompletion?: boolean;
+  mustCompleteProfile?: boolean;
+  onboardingState?: string;
 
   [key: string]: any;
 }

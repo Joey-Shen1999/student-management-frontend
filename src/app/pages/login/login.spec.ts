@@ -110,6 +110,27 @@ describe('Login', () => {
     });
   });
 
+  it('should prioritize mustChangePassword over requiresProfileCompletion for student', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 71,
+        role: 'STUDENT',
+        studentId: 201,
+        teacherId: null,
+        mustChangePassword: true,
+        requiresProfileCompletion: true,
+      })
+    );
+
+    component.username = 'student201';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/change-password'], {
+      queryParams: { userId: 71 },
+    });
+  });
+
   it('should remember username cookie after successful login when rememberUsername is true', () => {
     (auth.login as any).mockReturnValue(
       of({
@@ -228,6 +249,107 @@ describe('Login', () => {
     component.onSubmit();
 
     expect(router.navigate).toHaveBeenCalledWith(['/teacher/dashboard']);
+  });
+
+  it('should navigate first-login student to profile onboarding', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 10,
+        role: 'STUDENT',
+        studentId: 101,
+        teacherId: null,
+        mustChangePassword: false,
+        firstLogin: true,
+      })
+    );
+
+    component.username = 'student101';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/student/profile'], {
+      queryParams: { onboarding: '1' },
+    });
+  });
+
+  it('should navigate student to profile onboarding when requiresProfileCompletion is true', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 111,
+        role: 'STUDENT',
+        studentId: 202,
+        teacherId: null,
+        mustChangePassword: false,
+        requiresProfileCompletion: true,
+      })
+    );
+
+    component.username = 'student202';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/student/profile'], {
+      queryParams: { onboarding: '1' },
+    });
+  });
+
+  it('should navigate student to profile onboarding when profileCompleted is false', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 11,
+        role: 'STUDENT',
+        studentId: 102,
+        teacherId: null,
+        mustChangePassword: false,
+        profileCompleted: false,
+      })
+    );
+
+    component.username = 'student102';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/student/profile'], {
+      queryParams: { onboarding: '1' },
+    });
+  });
+
+  it('should navigate normal student to dashboard', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 12,
+        role: 'STUDENT',
+        studentId: 103,
+        teacherId: null,
+        mustChangePassword: false,
+      })
+    );
+
+    component.username = 'student103';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+  });
+
+  it('should use requiresProfileCompletion as source of truth when explicitly false', () => {
+    (auth.login as any).mockReturnValue(
+      of({
+        userId: 13,
+        role: 'STUDENT',
+        studentId: 104,
+        teacherId: null,
+        mustChangePassword: false,
+        requiresProfileCompletion: false,
+        profileCompleted: false,
+      })
+    );
+
+    component.username = 'student104';
+    component.password = 'Aa1!goodPass';
+    component.onSubmit();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
   });
 
   it('should show backend error message when login fails', () => {

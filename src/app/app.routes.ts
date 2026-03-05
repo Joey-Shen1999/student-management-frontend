@@ -22,6 +22,20 @@ export const routes: Routes = [
       import('./pages/change-password/change-password.component').then(
         (m) => m.ChangePasswordComponent
       ),
+    data: {
+      passwordMode: 'set',
+    },
+  },
+
+  {
+    path: 'account',
+    loadComponent: () =>
+      import('./pages/change-password/change-password.component').then(
+        (m) => m.ChangePasswordComponent
+      ),
+    data: {
+      passwordMode: 'change',
+    },
   },
 
   { path: 'dashboard', component: DashboardComponent },
@@ -76,6 +90,20 @@ export const routes: Routes = [
           import('./pages/change-password/change-password.component').then(
             (m) => m.ChangePasswordComponent
           ),
+        data: {
+          passwordMode: 'set',
+        },
+      },
+
+      {
+        path: 'account',
+        loadComponent: () =>
+          import('./pages/change-password/change-password.component').then(
+            (m) => m.ChangePasswordComponent
+          ),
+        data: {
+          passwordMode: 'change',
+        },
       },
 
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },

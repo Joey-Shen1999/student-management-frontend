@@ -86,8 +86,10 @@ export const mustChangePasswordInterceptor: HttpInterceptorFn = (req, next) => {
       if (mustChangePasswordRequired) {
         auth.markMustChangePasswordRequired();
         const currentUserId = auth.getCurrentUserId();
+        const role = String(auth.getSession()?.role || '').toUpperCase();
+        const redirectPath = role === 'TEACHER' || role === 'ADMIN' ? '/teacher/change-password' : '/change-password';
 
-        void router.navigate(['/teacher/change-password'], {
+        void router.navigate([redirectPath], {
           queryParams: currentUserId ? { userId: currentUserId } : undefined,
         });
       }

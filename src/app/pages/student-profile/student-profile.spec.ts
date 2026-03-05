@@ -28,6 +28,12 @@ describe('StudentProfile', () => {
     | 'downloadStudentIdentityFileForTeacher'
   >;
   let routeParams$: BehaviorSubject<any>;
+  let activatedRouteStub: {
+    paramMap: ReturnType<BehaviorSubject<any>['asObservable']>;
+    snapshot: {
+      queryParamMap: ReturnType<typeof convertToParamMap>;
+    };
+  };
   let router: Pick<Router, 'navigate'>;
 
   beforeEach(async () => {
@@ -86,6 +92,12 @@ describe('StudentProfile', () => {
       ),
     };
     routeParams$ = new BehaviorSubject(convertToParamMap({}));
+    activatedRouteStub = {
+      paramMap: routeParams$.asObservable(),
+      snapshot: {
+        queryParamMap: convertToParamMap({}),
+      },
+    };
     router = { navigate: vi.fn() };
 
     await TestBed.configureTestingModule({
@@ -95,9 +107,7 @@ describe('StudentProfile', () => {
         { provide: Router, useValue: router },
         {
           provide: ActivatedRoute,
-          useValue: {
-            paramMap: routeParams$.asObservable(),
-          },
+          useValue: activatedRouteStub,
         },
       ],
     })
@@ -114,6 +124,13 @@ describe('StudentProfile', () => {
 
   it('should stay in view mode by default', () => {
     expect(component.editing).toBe(false);
+  });
+
+  it('should enter edit mode when onboarding flag is present in self profile route', () => {
+    activatedRouteStub.snapshot.queryParamMap = convertToParamMap({ onboarding: '1' });
+    routeParams$.next(convertToParamMap({}));
+
+    expect(component.editing).toBe(true);
   });
 
   it('should render read-only content in view mode', () => {

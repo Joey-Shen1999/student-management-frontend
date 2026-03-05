@@ -471,6 +471,7 @@ export class StudentProfile implements OnInit {
   private lastSavedPayloadDigest = '';
   private pendingAutoSave = false;
   private saveInProgress = false;
+  private pendingSelfOnboardingEdit = false;
   private highSchoolLookupTimer: Record<number, ReturnType<typeof setTimeout> | undefined> = {};
   private externalCourseProviderLookupTimer: Record<number, ReturnType<typeof setTimeout> | undefined> = {};
 
@@ -1652,10 +1653,18 @@ export class StudentProfile implements OnInit {
           this.validateOenNumber();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
           this.pendingAutoSave = false;
-          this.editing = false;
+          if (this.pendingSelfOnboardingEdit && !this.managedMode && !this.invalidManagedStudentId) {
+            this.saved = false;
+            this.error = '';
+            this.editing = true;
+          } else {
+            this.editing = false;
+          }
+          this.pendingSelfOnboardingEdit = false;
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
+          this.pendingSelfOnboardingEdit = false;
           this.error = this.extractErrorMessage(err) || '加载档案失败。';
           this.cdr.detectChanges();
         },
@@ -1837,6 +1846,7 @@ export class StudentProfile implements OnInit {
       this.invalidManagedStudentId = false;
       this.editing = false;
       this.pendingAutoSave = false;
+      this.pendingSelfOnboardingEdit = this.shouldOpenSelfProfileInEditMode();
       this.loadProfile();
       return;
     }
@@ -1854,6 +1864,7 @@ export class StudentProfile implements OnInit {
       this.saved = false;
       this.editing = false;
       this.pendingAutoSave = false;
+      this.pendingSelfOnboardingEdit = false;
       this.lastSavedPayloadDigest = '';
       this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
@@ -1864,7 +1875,17 @@ export class StudentProfile implements OnInit {
     this.invalidManagedStudentId = false;
     this.editing = false;
     this.pendingAutoSave = false;
+    this.pendingSelfOnboardingEdit = false;
     this.loadProfile();
+  }
+
+  private shouldOpenSelfProfileInEditMode(): boolean {
+    const queryParamMap = (this.route as any)?.snapshot?.queryParamMap;
+    const raw = this.toText(queryParamMap?.get?.('onboarding') || queryParamMap?.get?.('setupProfile'));
+    if (!raw) return false;
+
+    const normalized = raw.toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
   }
 
   private defaultModel(): StudentProfileModel {

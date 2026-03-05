@@ -13,6 +13,7 @@ describe('mustChangePasswordInterceptor', () => {
   const markMustChangePasswordRequired = vi.fn();
   const getCurrentUserId = vi.fn();
   const getAuthorizationHeaderValue = vi.fn();
+  const getSession = vi.fn();
 
   beforeEach(() => {
     navigate.mockReset();
@@ -22,9 +23,11 @@ describe('mustChangePasswordInterceptor', () => {
     markMustChangePasswordRequired.mockReset();
     getCurrentUserId.mockReset();
     getAuthorizationHeaderValue.mockReset();
+    getSession.mockReset();
 
     getCurrentUserId.mockReturnValue(15);
     getAuthorizationHeaderValue.mockReturnValue('Bearer token-15');
+    getSession.mockReturnValue({ role: 'TEACHER' });
 
     TestBed.configureTestingModule({
       providers: [
@@ -36,6 +39,7 @@ describe('mustChangePasswordInterceptor', () => {
             markMustChangePasswordRequired,
             getCurrentUserId,
             getAuthorizationHeaderValue,
+            getSession,
           },
         },
       ],
@@ -135,6 +139,23 @@ describe('mustChangePasswordInterceptor', () => {
 
     expect(markMustChangePasswordRequired).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith(['/teacher/change-password'], {
+      queryParams: { userId: 15 },
+    });
+  });
+
+  it('redirects student to non-teacher change-password route on 403 MUST_CHANGE_PASSWORD_REQUIRED', async () => {
+    getSession.mockReturnValue({ role: 'STUDENT' });
+
+    const error = new HttpErrorResponse({
+      status: 403,
+      error: { code: 'MUST_CHANGE_PASSWORD_REQUIRED', message: 'must change password' },
+    });
+    const next: HttpHandlerFn = () => throwError(() => error);
+
+    await expect(firstValueFrom(run('/api/student/profile', next))).rejects.toBeDefined();
+
+    expect(markMustChangePasswordRequired).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/change-password'], {
       queryParams: { userId: 15 },
     });
   });

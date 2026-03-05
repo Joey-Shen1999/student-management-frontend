@@ -87,6 +87,10 @@ export class Login implements OnInit {
           const role = (resp?.role || '').toUpperCase();
           if (role === 'TEACHER' || role === 'ADMIN') {
             this.router.navigate(['/teacher/dashboard']);
+          } else if (this.shouldRedirectStudentToProfileSetup(resp)) {
+            this.router.navigate(['/student/profile'], {
+              queryParams: { onboarding: '1' },
+            });
           } else {
             this.router.navigate(['/dashboard']);
           }
@@ -203,5 +207,46 @@ export class Login implements OnInit {
     }
 
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+  }
+
+  private shouldRedirectStudentToProfileSetup(resp: LoginResponse): boolean {
+    const role = String(resp?.role || '')
+      .trim()
+      .toUpperCase();
+    if (role !== 'STUDENT') {
+      return false;
+    }
+
+    const requiresProfileCompletion = this.toOptionalBoolean(
+      resp?.requiresProfileCompletion ?? resp?.mustCompleteProfile
+    );
+    if (requiresProfileCompletion !== null) {
+      return requiresProfileCompletion;
+    }
+
+    const firstLogin = this.toOptionalBoolean(resp?.firstLogin ?? resp?.isFirstLogin);
+    if (firstLogin === true) {
+      return true;
+    }
+
+    const profileCompleted = this.toOptionalBoolean(resp?.profileCompleted ?? resp?.isProfileCompleted);
+    if (profileCompleted === false) {
+      return true;
+    }
+
+    const onboardingState = String(resp?.onboardingState || '')
+      .trim()
+      .toUpperCase();
+    return onboardingState === 'FIRST_LOGIN' || onboardingState === 'PROFILE_REQUIRED';
+  }
+
+  private toOptionalBoolean(value: unknown): boolean | null {
+    if (typeof value === 'boolean') return value;
+    if (value === null || value === undefined) return null;
+
+    const text = String(value).trim().toLowerCase();
+    if (text === 'true' || text === '1' || text === 'yes') return true;
+    if (text === 'false' || text === '0' || text === 'no') return false;
+    return null;
   }
 }
