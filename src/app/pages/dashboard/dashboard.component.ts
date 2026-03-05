@@ -1,28 +1,39 @@
 import { Component } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, type LoginResponse } from '../../services/auth.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div style="max-width:600px;margin:40px auto;font-family:Arial">
-      <h2>学生主页</h2>
+    <div class="dashboard-page">
+      <div class="dashboard-shell">
+        <div class="dashboard-header">
+          <div>
+            <h2>Student Dashboard</h2>
+            <p>Current workspace and quick navigation</p>
+          </div>
+          <button type="button" class="action-btn ghost" (click)="logout()">Sign Out</button>
+        </div>
 
-      <button type="button" (click)="goProfile()" style="margin-bottom:12px;">
-        完善 / 编辑学生档案
-      </button>
-
-      <pre>{{ session | json }}</pre>
-
-      <button type="button" (click)="logout()">退出登录</button>
+        <section class="dashboard-card">
+          <h3>Quick Actions</h3>
+          <div class="quick-actions">
+            <button type="button" class="action-btn primary" (click)="goProfile()">Student Profile</button>
+            <button type="button" class="action-btn secondary" (click)="goAccount()">
+              Account Settings
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
   `,
+  styleUrl: './dashboard.scss',
 })
 export class DashboardComponent {
-  session: any;
+  session: LoginResponse | null;
 
   constructor(private auth: AuthService, private router: Router) {
     this.session = this.auth.getSession();
@@ -30,6 +41,10 @@ export class DashboardComponent {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goAccount() {
+    this.router.navigate(['/account']);
   }
 
   logout() {

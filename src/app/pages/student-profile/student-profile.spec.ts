@@ -873,8 +873,30 @@ describe('StudentProfile', () => {
 
     component.save();
 
-    expect(component.error).toContain('schools[0].schoolName is required');
-    expect(component.error).toContain('schools[0].startTime is required');
+    expect(component.error).toContain('高中学校第1项的学校名称为必填项');
+    expect(component.error).toContain('高中学校第1项的开始日期为必填项');
+    expect(component.error).not.toContain('Validation failed');
+  });
+
+  it('should humanize validation path when backend returns raw message only', () => {
+    component.enterEditMode();
+
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: {
+              message: 'schools[0].schoolName is required',
+            },
+          })
+      )
+    );
+
+    component.save();
+
+    expect(component.error).toContain('高中学校第1项的学校名称为必填项');
+    expect(component.error).not.toContain('schools[0].schoolName is required');
   });
 
   it('should clear uploading state when transcript upload fails', () => {

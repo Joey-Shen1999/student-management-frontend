@@ -371,6 +371,60 @@ const COUNTRY_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['u s', 'United States'],
 ] as const;
 
+const VALIDATION_COLLECTION_LABELS: Record<string, string> = {
+  schools: '高中学校',
+  schoolRecords: '高中学校',
+  otherCourses: '校外课程',
+  externalCourses: '校外课程',
+  identityFiles: '身份证明文件',
+};
+
+const VALIDATION_FIELD_LABELS: Record<string, string> = {
+  legalFirstName: '法定名字',
+  legalLastName: '法定姓氏',
+  preferredName: '常用名',
+  gender: '性别',
+  genderOther: '其他性别说明',
+  birthday: '生日',
+  phone: '联系电话',
+  email: '邮箱',
+  statusInCanada: '在加身份',
+  citizenship: '国籍',
+  firstLanguage: '第一语言',
+  firstBoardingDate: '首次入境加拿大时间',
+  firstEntryDateInCanada: '首次入境加拿大时间',
+  oenNumber: 'OEN',
+  ib: 'IB',
+  ap: 'AP',
+  address: '联系地址',
+  streetAddress: '街道地址',
+  streetAddressLine2: '地址第二行',
+  city: '城市',
+  state: '省/州',
+  country: '国家',
+  postal: '邮编',
+  schools: '高中学校',
+  schoolRecords: '高中学校',
+  schoolName: '学校名称',
+  schoolType: '学校类型',
+  startTime: '开始日期',
+  endTime: '结束日期',
+  transcriptFileName: '成绩单文件名',
+  transcriptSizeBytes: '成绩单文件大小',
+  transcriptUploadedAt: '成绩单上传时间',
+  hasTranscript: '成绩单状态',
+  transcripts: '成绩单列表',
+  otherCourses: '校外课程',
+  externalCourses: '校外课程',
+  courseCode: '课程代码',
+  mark: '分数',
+  gradeLevel: '年级',
+  identityFiles: '身份证明文件',
+  identityFileName: '身份证明文件名',
+  identityFileSizeBytes: '身份证明文件大小',
+  identityFileUploadedAt: '身份证明上传时间',
+};
+
 @Component({
   selector: 'app-student-profile',
   standalone: true,
@@ -591,10 +645,12 @@ export class StudentProfile implements OnInit {
         error: (err: HttpErrorResponse) => {
           const totalSizeBytes = files.reduce((sum, item) => sum + (item?.size || 0), 0);
           if ((err.status === 0 || err.status === 413) && totalSizeBytes > 1024 * 1024) {
+            this.saved = false;
             this.error = `上传失败：当前文件总大小 ${this.formatBytes(totalSizeBytes)}，当前服务端上传上限过小（常见为 1MB）。请联系后端调大后再试。`;
             this.cdr.detectChanges();
             return;
           }
+          this.saved = false;
           this.error = this.extractErrorMessage(err) || '上传身份证明文件失败。';
           this.cdr.detectChanges();
         },
@@ -950,9 +1006,11 @@ export class StudentProfile implements OnInit {
             return;
           }
           if ((err.status === 0 || err.status === 413) && file.size > 1024 * 1024) {
+            this.saved = false;
             this.error = `上传失败：当前文件 ${this.formatBytes(file.size)}，当前服务端上传上限过小（常见为 1MB）。请联系后端调大后再试。`;
             return;
           }
+          this.saved = false;
           this.error = this.extractErrorMessage(err) || '上传成绩单失败。';
         },
       });
@@ -1024,6 +1082,7 @@ export class StudentProfile implements OnInit {
           this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input);
         },
         error: (err: HttpErrorResponse) => {
+          this.saved = false;
           this.error = this.extractErrorMessage(err) || '保存学校信息失败，无法上传成绩单。';
           if (input) input.value = '';
           this.cdr.detectChanges();
@@ -1209,11 +1268,12 @@ export class StudentProfile implements OnInit {
 
         this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input, false);
       },
-      error: (err: HttpErrorResponse) => {
-        this.error = this.extractErrorMessage(err) || '刷新学校信息失败，无法上传成绩单。';
-        if (input) input.value = '';
-        this.cdr.detectChanges();
-      },
+        error: (err: HttpErrorResponse) => {
+          this.saved = false;
+          this.error = this.extractErrorMessage(err) || '刷新学校信息失败，无法上传成绩单。';
+          if (input) input.value = '';
+          this.cdr.detectChanges();
+        },
     });
   }
 
@@ -1694,6 +1754,7 @@ export class StudentProfile implements OnInit {
           }
         },
         error: (err: HttpErrorResponse) => {
+          this.saved = false;
           this.error = this.extractErrorMessage(err) || '保存档案失败。';
           this.cdr.detectChanges();
         },
@@ -2562,7 +2623,9 @@ export class StudentProfile implements OnInit {
         return '登录状态已失效，请重新登录后再试。';
       }
       const details = this.extractValidationMessages(payload);
-      const message = String((payload as any).message || (payload as any).error || '');
+      const message = this.humanizeRawValidationText(
+        String((payload as any).message || (payload as any).error || '')
+      );
       return this.mergeErrorMessageAndDetails(message, details);
     }
 
@@ -2570,10 +2633,10 @@ export class StudentProfile implements OnInit {
       try {
         const parsed = JSON.parse(payload);
         const details = this.extractValidationMessages(parsed);
-        const message = String(parsed?.message || parsed?.error || payload);
+        const message = this.humanizeRawValidationText(String(parsed?.message || parsed?.error || payload));
         return this.mergeErrorMessageAndDetails(message, details);
       } catch {
-        return payload;
+        return this.humanizeRawValidationText(payload);
       }
     }
 
@@ -2582,12 +2645,143 @@ export class StudentProfile implements OnInit {
 
   private mergeErrorMessageAndDetails(message: string, details: string[]): string {
     const normalizedMessage = this.toText(message);
-    if (details.length <= 0) return normalizedMessage;
+    const normalizedDetails = details.map((item) => this.toText(item)).filter(Boolean);
+    if (normalizedDetails.length > 0) {
+      return normalizedDetails.join('；');
+    }
 
-    const detailsText = details.join('; ');
-    if (!normalizedMessage) return detailsText;
-    if (normalizedMessage.includes(detailsText)) return normalizedMessage;
-    return `${normalizedMessage} ${detailsText}`;
+    if (!normalizedMessage) return '';
+
+    const lowered = normalizedMessage.toLowerCase();
+    if (
+      lowered === 'validation failed.' ||
+      lowered === 'validation failed' ||
+      lowered === 'request validation failed' ||
+      lowered === 'bad request'
+    ) {
+      return '请检查并完善必填项。';
+    }
+
+    return normalizedMessage;
+  }
+
+  private humanizeValidationFieldPath(rawFieldPath: string): string {
+    const fieldPath = this.toText(rawFieldPath);
+    if (!fieldPath) return '';
+
+    const directLabel = VALIDATION_FIELD_LABELS[fieldPath];
+    if (directLabel) return directLabel;
+
+    const listMatch = fieldPath.match(/^([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\](?:\.(.+))?$/);
+    if (listMatch) {
+      const collectionKey = listMatch[1];
+      const itemIndex = Number(listMatch[2]) + 1;
+      const nestedPath = this.toText(listMatch[3]);
+      const collectionLabel = VALIDATION_COLLECTION_LABELS[collectionKey] || collectionKey;
+      if (!nestedPath) return `${collectionLabel}第${itemIndex}项`;
+      return `${collectionLabel}第${itemIndex}项的${this.humanizeValidationFieldPath(nestedPath)}`;
+    }
+
+    const pathParts = fieldPath.split('.').filter(Boolean);
+    if (pathParts.length <= 1) {
+      return VALIDATION_FIELD_LABELS[fieldPath] || fieldPath;
+    }
+
+    const [head, ...rest] = pathParts;
+    const headLabel = VALIDATION_FIELD_LABELS[head] || head;
+    const restLabel = this.humanizeValidationFieldPath(rest.join('.'));
+    return `${headLabel}的${restLabel}`;
+  }
+
+  private humanizeValidationReason(rawReason: string): string {
+    const reason = this.toText(rawReason);
+    if (!reason) return '';
+
+    const normalized = reason.toLowerCase();
+    if (
+      normalized === 'is required' ||
+      normalized === 'must not be blank' ||
+      normalized === 'must not be empty' ||
+      normalized === 'cannot be blank' ||
+      normalized === 'cannot be empty'
+    ) {
+      return '为必填项';
+    }
+
+    if (normalized === 'is invalid' || normalized === 'invalid') {
+      return '格式不正确';
+    }
+
+    if (normalized.includes('well-formed email')) {
+      return '邮箱格式不正确';
+    }
+
+    const minMatch = normalized.match(/must be greater than or equal to\s*(-?\d+(?:\.\d+)?)/);
+    if (minMatch) {
+      return `不能小于 ${minMatch[1]}`;
+    }
+
+    const maxMatch = normalized.match(/must be less than or equal to\s*(-?\d+(?:\.\d+)?)/);
+    if (maxMatch) {
+      return `不能大于 ${maxMatch[1]}`;
+    }
+
+    const betweenMatch = normalized.match(
+      /size must be between\s*(\d+)\s*and\s*(\d+)|must be between\s*(\d+)\s*and\s*(\d+)/
+    );
+    if (betweenMatch) {
+      const min = betweenMatch[1] || betweenMatch[3];
+      const max = betweenMatch[2] || betweenMatch[4];
+      return `长度需在 ${min} 到 ${max} 之间`;
+    }
+
+    if (normalized.includes('must match')) {
+      return '格式不正确';
+    }
+
+    return reason;
+  }
+
+  private shouldConcatenateValidationReason(reason: string): boolean {
+    const text = this.toText(reason);
+    if (!text) return false;
+    return (
+      text.startsWith('为') ||
+      text.startsWith('需') ||
+      text.startsWith('应') ||
+      text.startsWith('不能') ||
+      text.startsWith('不可') ||
+      text.startsWith('请')
+    );
+  }
+
+  private looksLikeValidationFieldPath(value: string): boolean {
+    const text = this.toText(value);
+    if (!text) return false;
+    return /^[A-Za-z_][A-Za-z0-9_]*(\[\d+\])?(\.[A-Za-z_][A-Za-z0-9_]*(\[\d+\])?)*$/.test(text);
+  }
+
+  private formatValidationFieldAndReason(field: string, reason: string): string {
+    const friendlyField = this.humanizeValidationFieldPath(field);
+    const friendlyReason = this.humanizeValidationReason(reason);
+    if (!friendlyField) return friendlyReason;
+    if (!friendlyReason) return friendlyField;
+    if (this.shouldConcatenateValidationReason(friendlyReason)) {
+      return `${friendlyField}${friendlyReason}`;
+    }
+    return `${friendlyField}：${friendlyReason}`;
+  }
+
+  private humanizeRawValidationText(rawText: string): string {
+    const text = this.toText(rawText);
+    if (!text) return '';
+
+    const pathMessageMatch = text.match(/^([A-Za-z_][A-Za-z0-9_.\[\]]*)\s+(.+)$/);
+    if (pathMessageMatch && this.looksLikeValidationFieldPath(pathMessageMatch[1])) {
+      return this.formatValidationFieldAndReason(pathMessageMatch[1], pathMessageMatch[2]);
+    }
+
+    return this.humanizeValidationReason(text);
   }
 
   private extractValidationMessages(payload: any): string[] {
@@ -2606,16 +2800,16 @@ export class StudentProfile implements OnInit {
     const parseDetailEntry = (entry: unknown): string => {
       if (entry === null || entry === undefined) return '';
       if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
-        return String(entry);
+        return this.humanizeRawValidationText(String(entry));
       }
       if (typeof entry !== 'object') return '';
 
       const node: any = entry;
       const field = this.toText(node.field || node.path || node.property || node.name || node.key);
       const message = this.toText(node.message || node.defaultMessage || node.error || node.reason || node.msg);
-      if (field && message) return `${field} ${message}`;
-      if (message) return message;
-      if (field) return field;
+      if (field && message) return this.formatValidationFieldAndReason(field, message);
+      if (message) return this.humanizeRawValidationText(message);
+      if (field) return this.humanizeValidationFieldPath(field);
       return '';
     };
 
@@ -2636,16 +2830,37 @@ export class StudentProfile implements OnInit {
     const errorMap = (payload as any).errors;
     if (errorMap && typeof errorMap === 'object' && !Array.isArray(errorMap)) {
       for (const [field, value] of Object.entries(errorMap)) {
+        const normalizedField = this.toText(field);
         if (Array.isArray(value)) {
           for (const item of value) {
+            const itemNode: any = item && typeof item === 'object' ? item : null;
+            const itemField = this.toText(
+              itemNode?.field || itemNode?.path || itemNode?.property || itemNode?.name || itemNode?.key
+            );
             const parsed = parseDetailEntry(item);
-            append(parsed ? `${field} ${parsed}` : `${field} is invalid`);
+            if (itemField) {
+              append(parsed || this.humanizeValidationFieldPath(itemField));
+              continue;
+            }
+            append(parsed ? this.formatValidationFieldAndReason(normalizedField, parsed) : this.formatValidationFieldAndReason(normalizedField, 'is invalid'));
           }
           continue;
         }
 
+        const valueNode: any = value && typeof value === 'object' ? value : null;
+        const valueField = this.toText(
+          valueNode?.field || valueNode?.path || valueNode?.property || valueNode?.name || valueNode?.key
+        );
         const parsed = parseDetailEntry(value);
-        append(parsed ? `${field} ${parsed}` : `${field} ${String(value ?? '').trim()}`.trim());
+        if (valueField) {
+          append(parsed || this.humanizeValidationFieldPath(valueField));
+          continue;
+        }
+        append(
+          parsed
+            ? this.formatValidationFieldAndReason(normalizedField, parsed)
+            : this.formatValidationFieldAndReason(normalizedField, String(value ?? '').trim())
+        );
       }
     }
 

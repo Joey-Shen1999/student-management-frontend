@@ -1,40 +1,44 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { AuthService } from '../../services/auth.service';
+import { AuthService, type LoginResponse } from '../../services/auth.service';
 
 @Component({
   selector: 'app-teacher-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div style="max-width:760px;margin:40px auto;font-family:Arial">
-      <h2>教师主页</h2>
+    <div class="dashboard-page">
+      <div class="dashboard-shell">
+        <div class="dashboard-header">
+          <div>
+            <h2>Teacher Dashboard</h2>
+            <p>Current workspace and quick navigation</p>
+          </div>
+          <button type="button" class="action-btn ghost" (click)="logout()">Sign Out</button>
+        </div>
 
-      <div style="margin:12px 0; padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <div style="font-weight:bold;">会话信息</div>
-        <pre style="margin:8px 0 0;">{{ session | json }}</pre>
+        <section class="dashboard-card">
+          <h3>Quick Actions</h3>
+          <div class="quick-actions">
+            <button *ngIf="isAdmin" type="button" class="action-btn secondary" (click)="goTeachers()">
+              Teacher Management
+            </button>
+            <button type="button" class="action-btn primary" (click)="goStudents()">
+              Student Management
+            </button>
+            <button type="button" class="action-btn secondary" (click)="goAccount()">
+              Account Settings
+            </button>
+          </div>
+        </section>
       </div>
-
-      <div style="display:flex; gap:10px; margin:12px 0; flex-wrap:wrap;">
-        <button *ngIf="isAdmin" type="button" (click)="goTeachers()" style="padding:10px 12px;">
-          教师账号管理
-        </button>
-
-        <button type="button" (click)="goStudents()" style="padding:10px 12px;">
-          学生账号管理
-        </button>
-
-        <button type="button" (click)="logout()" style="padding:10px 12px;margin-left:auto;">
-          退出登录
-        </button>
-      </div>
-
     </div>
   `,
+  styleUrl: './teacher-dashboard.component.scss',
 })
 export class TeacherDashboardComponent {
-  session: any;
+  session: LoginResponse | null;
   isAdmin = false;
 
   constructor(private auth: AuthService, private router: Router) {
@@ -48,6 +52,10 @@ export class TeacherDashboardComponent {
 
   goStudents() {
     this.router.navigate(['/teacher/students']);
+  }
+
+  goAccount() {
+    this.router.navigate(['/teacher/account']);
   }
 
   logout() {
