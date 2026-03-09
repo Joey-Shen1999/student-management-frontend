@@ -377,7 +377,6 @@
 
         <div style="margin-bottom: 8px; color: #555;">请填入就读高中信息</div>
         <div style="margin-bottom: 8px; color: #555;">输入并从建议中选择安省高中后，会自动填入学校地址。</div>
-        <button type="button" (click)="addHighSchool()">+ 添加其他曾就读高中</button>
 
         <div *ngFor="let s of model.highSchools; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
           <div style="display:flex; gap:8px; justify-content: space-between;">
@@ -489,13 +488,13 @@
             </div>
           </div>
         </div>
+        <button type="button" (click)="addHighSchool()" style="margin-top: 10px;">+ 添加其他曾就读高中</button>
       </fieldset>
 
       <fieldset style="margin-bottom: 16px;">
         <legend>校外课程学分</legend>
 
         <div style="margin-bottom: 8px; color: #555;">仅填写校外修读的高中学分课程（如：夏校 / 夜校）。</div>
-        <button type="button" (click)="addExternalCourse()">+ 添加课程</button>
 
         <div *ngFor="let c of model.externalCourses; let i = index" style="border: 1px solid #ddd; padding: 10px; margin-top: 10px;">
           <div style="display:flex; gap:8px; justify-content: space-between;">
@@ -584,6 +583,7 @@
             <input type="date" [(ngModel)]="c.endTime" [name]="'externalEndTime_' + i" />
           </div>
         </div>
+        <button type="button" (click)="addExternalCourse()" style="margin-top: 10px;">+ 添加课程</button>
       </fieldset>
     </fieldset>
 
