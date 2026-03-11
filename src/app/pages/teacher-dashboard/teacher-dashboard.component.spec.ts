@@ -44,6 +44,14 @@ describe('TeacherDashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/teacher/students']);
   });
 
+  it('goTasks should navigate to task management', () => {
+    const component = new TeacherDashboardComponent(auth as AuthService, router as Router);
+
+    component.goTasks();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/teacher/tasks']);
+  });
+
   it('goAccount should navigate to account settings', () => {
     const component = new TeacherDashboardComponent(auth as AuthService, router as Router);
 

@@ -85,6 +85,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'tasks',
+        loadComponent: () =>
+          import('./pages/task-management/task-management.component').then(
+            (m) => m.TaskManagementComponent
+          ),
+      },
+
+      {
         path: 'change-password',
         loadComponent: () =>
           import('./pages/change-password/change-password.component').then(

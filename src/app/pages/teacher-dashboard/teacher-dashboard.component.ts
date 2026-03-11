@@ -24,6 +24,9 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <button *ngIf="isAdmin" type="button" class="action-btn secondary" (click)="goTeachers()">
               Teacher Management
             </button>
+            <button type="button" class="action-btn primary" (click)="goTasks()">
+              Task Management
+            </button>
             <button type="button" class="action-btn primary" (click)="goStudents()">
               Student Management
             </button>
@@ -52,6 +55,10 @@ export class TeacherDashboardComponent {
 
   goStudents() {
     this.router.navigate(['/teacher/students']);
+  }
+
+  goTasks() {
+    this.router.navigate(['/teacher/tasks']);
   }
 
   goAccount() {
