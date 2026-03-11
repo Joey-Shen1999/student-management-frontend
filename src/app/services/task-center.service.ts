@@ -204,7 +204,7 @@ const MOCK_INFOS: InfoTaskVm[] = [
 @Injectable({ providedIn: 'root' })
 export class TaskCenterService {
   private readonly useMock = false;
-  private readonly useMockInfo = true;
+  private readonly useMockInfo = false;
   private readonly studentBaseUrl = '/api/student/tasks';
   private readonly teacherBaseUrl = '/api/teacher/tasks';
   private readonly requestTimeoutMs = 12000;
