@@ -19,6 +19,7 @@
 - `AWS_PORT`：`22`
 - `DEPLOY_PATH`：`/var/www/student-management-frontend`
 - `NGINX_SITE_PATH`：`/etc/nginx/sites-available/student-management-frontend`
+- `AUTO_BOOTSTRAP_PACKAGES`：`false`（默认建议值；若设为 `true`，部署时检测缺少 `nginx/rsync` 会自动安装）
 
 ## 2. 服务器初始化（Ubuntu）
 
@@ -82,6 +83,16 @@ sudo visudo -cf /etc/sudoers.d/student-management-frontend-deploy
 
 如果你调整了 GitHub Variable `DEPLOY_PATH` 或临时目录，请同步修改 sudoers 里的路径，确保命令仍匹配。
 
+如果你将 `AUTO_BOOTSTRAP_PACKAGES=true` 开启自动安装环境依赖，还需要允许：
+
+```bash
+/usr/bin/apt-get update
+/usr/bin/apt-get install -y nginx
+/usr/bin/apt-get install -y rsync
+```
+
+出于安全考虑，生产环境更建议在服务器初始化阶段手动安装依赖，并保持 `AUTO_BOOTSTRAP_PACKAGES=false`。
+
 ## 6. 工作流触发与部署流程
 
 已配置工作流文件：`.github/workflows/deploy.yml`
@@ -94,10 +105,11 @@ sudo visudo -cf /etc/sudoers.d/student-management-frontend-deploy
 4. 自动识别 Angular 构建目录（`dist/browser`、`dist/<project>/browser`、`dist/<project>`、`dist`）
 5. `rsync --delete` 上传到服务器 `/tmp/student-management-frontend-build/`
 6. 上传 Nginx 站点模板到服务器 `/tmp/student-management-frontend.nginx.conf`
-7. 远程若检测到 `NGINX_SITE_PATH` 不存在，则自动创建并启用站点配置
-8. 远程 `sudo rsync --delete` 同步到 `/var/www/student-management-frontend/`
-9. `nginx -t`
-10. `systemctl reload nginx`
+7. 远程若检测到缺少 `nginx/rsync` 且 `AUTO_BOOTSTRAP_PACKAGES=true`，自动安装缺失包
+8. 远程若检测到 `NGINX_SITE_PATH` 不存在，则自动创建并启用站点配置
+9. 远程 `sudo rsync --delete` 同步到 `/var/www/student-management-frontend/`
+10. `nginx -t`
+11. `systemctl reload nginx`
 
 ## 7. 常见故障排查
 

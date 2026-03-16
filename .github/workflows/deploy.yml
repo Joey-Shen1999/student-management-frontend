@@ -21,6 +21,7 @@ jobs:
       AWS_PORT: ${{ vars.AWS_PORT }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       NGINX_SITE_PATH: ${{ vars.NGINX_SITE_PATH }}
+      AUTO_BOOTSTRAP_PACKAGES: ${{ vars.AUTO_BOOTSTRAP_PACKAGES }}
       REMOTE_BUILD_PATH: /tmp/student-management-frontend-build
       REMOTE_NGINX_CONF_PATH: /tmp/student-management-frontend.nginx.conf
     steps:
@@ -143,6 +144,42 @@ jobs:
           if [[ ! -f "${REMOTE_NGINX_CONF_PATH}" ]]; then
             echo "Remote Nginx template not found: ${REMOTE_NGINX_CONF_PATH}"
             exit 1
+          fi
+
+          need_nginx_install=false
+          need_rsync_install=false
+
+          if ! command -v nginx >/dev/null 2>&1 && [[ ! -x /usr/sbin/nginx && ! -x /usr/bin/nginx ]]; then
+            need_nginx_install=true
+          fi
+
+          if ! command -v rsync >/dev/null 2>&1; then
+            need_rsync_install=true
+          fi
+
+          if [[ "${need_nginx_install}" == "true" || "${need_rsync_install}" == "true" ]]; then
+            if [[ "${AUTO_BOOTSTRAP_PACKAGES:-false}" != "true" ]]; then
+              echo "Required packages are missing (nginx/rsync)."
+              echo "Set GitHub Variable AUTO_BOOTSTRAP_PACKAGES=true to allow automatic package installation."
+              exit 1
+            fi
+
+            if ! command -v apt-get >/dev/null 2>&1; then
+              echo "apt-get not found on server; cannot auto-install packages."
+              exit 1
+            fi
+
+            packages=()
+            if [[ "${need_nginx_install}" == "true" ]]; then
+              packages+=("nginx")
+            fi
+            if [[ "${need_rsync_install}" == "true" ]]; then
+              packages+=("rsync")
+            fi
+
+            echo "Installing missing packages: ${packages[*]}"
+            sudo -n apt-get update
+            sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
           fi
 
           NGINX_BIN="$(command -v nginx || true)"
