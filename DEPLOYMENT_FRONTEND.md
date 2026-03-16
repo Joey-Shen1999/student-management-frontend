@@ -21,6 +21,8 @@
 - `NGINX_SITE_PATH`：`/etc/nginx/sites-available/student-management-frontend`
 - `AUTO_BOOTSTRAP_PACKAGES`：`false`（默认建议值；若设为 `true`，部署时检测缺少 `nginx/rsync` 会自动安装）
 
+注意：`DEPLOY_PATH` 必须是 `/var/www/student-management-frontend`。如果误配为后端目录（例如 `/home/ubuntu/student-management-server`），会覆盖后端文件并导致 API 502。
+
 ## 2. 服务器初始化（Ubuntu）
 
 登录服务器后执行：

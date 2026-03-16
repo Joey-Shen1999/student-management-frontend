@@ -45,6 +45,16 @@ jobs:
             fi
           done
 
+          if [[ "${DEPLOY_PATH}" != "/var/www/student-management-frontend" ]]; then
+            echo "::error::DEPLOY_PATH must be /var/www/student-management-frontend. Current value: ${DEPLOY_PATH}"
+            exit 1
+          fi
+
+          if [[ "${DEPLOY_PATH}" == "/home/ubuntu/student-management-server" || "${DEPLOY_PATH}" == /home/ubuntu/student-management-server/* ]]; then
+            echo "::error::Refusing to deploy frontend into backend directory: ${DEPLOY_PATH}"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: |
           set -euo pipefail
@@ -138,6 +148,11 @@ jobs:
 
           if [[ ! -d "${REMOTE_BUILD_PATH}" ]]; then
             echo "Remote build path does not exist: ${REMOTE_BUILD_PATH}"
+            exit 1
+          fi
+
+          if [[ "${DEPLOY_PATH}" == "/home/ubuntu/student-management-server" || "${DEPLOY_PATH}" == /home/ubuntu/student-management-server/* ]]; then
+            echo "Refusing to deploy frontend into backend directory: ${DEPLOY_PATH}"
             exit 1
           fi
 
