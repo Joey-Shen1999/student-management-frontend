@@ -63,6 +63,8 @@ GitHub Actions 通过 SSH 登录 `ubuntu` 后会执行：
 - `mkdir -p`
 - `rsync --delete`
 - `chown`
+- `install`（首次自动安装 Nginx 站点配置）
+- `ln -sfn`（首次自动启用 Nginx 站点）
 - `nginx -t`
 - `systemctl reload nginx`
 
@@ -70,7 +72,7 @@ GitHub Actions 通过 SSH 登录 `ubuntu` 后会执行：
 
 ```bash
 sudo tee /etc/sudoers.d/student-management-frontend-deploy >/dev/null <<'EOF'
-Cmnd_Alias FRONTEND_DEPLOY = /usr/bin/mkdir -p /var/www/student-management-frontend, /usr/bin/rsync -a --delete /tmp/student-management-frontend-build/ /var/www/student-management-frontend/, /usr/bin/chown -R www-data:www-data /var/www/student-management-frontend, /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
+Cmnd_Alias FRONTEND_DEPLOY = /usr/bin/mkdir -p /var/www/student-management-frontend, /usr/bin/rsync -a --delete /tmp/student-management-frontend-build/ /var/www/student-management-frontend/, /usr/bin/chown -R www-data:www-data /var/www/student-management-frontend, /usr/bin/mkdir -p /etc/nginx/sites-available, /usr/bin/install -m 644 /tmp/student-management-frontend.nginx.conf /etc/nginx/sites-available/student-management-frontend, /usr/bin/ln -sfn /etc/nginx/sites-available/student-management-frontend /etc/nginx/sites-enabled/student-management-frontend, /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
 ubuntu ALL=(root) NOPASSWD: FRONTEND_DEPLOY
 EOF
 
@@ -91,9 +93,11 @@ sudo visudo -cf /etc/sudoers.d/student-management-frontend-deploy
 3. `npm run build`
 4. 自动识别 Angular 构建目录（`dist/browser`、`dist/<project>/browser`、`dist/<project>`、`dist`）
 5. `rsync --delete` 上传到服务器 `/tmp/student-management-frontend-build/`
-6. 远程 `sudo rsync --delete` 同步到 `/var/www/student-management-frontend/`
-7. `nginx -t`
-8. `systemctl reload nginx`
+6. 上传 Nginx 站点模板到服务器 `/tmp/student-management-frontend.nginx.conf`
+7. 远程若检测到 `NGINX_SITE_PATH` 不存在，则自动创建并启用站点配置
+8. 远程 `sudo rsync --delete` 同步到 `/var/www/student-management-frontend/`
+9. `nginx -t`
+10. `systemctl reload nginx`
 
 ## 7. 常见故障排查
 
