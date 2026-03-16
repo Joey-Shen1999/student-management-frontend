@@ -1,0 +1,144 @@
+name: Deploy Frontend to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: frontend-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      AWS_HOST: ${{ vars.AWS_HOST }}
+      AWS_USER: ${{ vars.AWS_USER }}
+      AWS_PORT: ${{ vars.AWS_PORT }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      NGINX_SITE_PATH: ${{ vars.NGINX_SITE_PATH }}
+      REMOTE_BUILD_PATH: /tmp/student-management-frontend-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Validate deployment variables
+        run: |
+          set -euo pipefail
+          required_vars=(AWS_HOST AWS_USER AWS_PORT DEPLOY_PATH NGINX_SITE_PATH)
+          for var_name in "${required_vars[@]}"; do
+            if [[ -z "${!var_name:-}" ]]; then
+              echo "::error::Missing required GitHub Variable: ${var_name}"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          npm run build
+
+      - name: Detect build output directory
+        id: detect_build_dir
+        run: |
+          set -euo pipefail
+
+          if [[ ! -d dist ]]; then
+            echo "::error::dist directory not found after build."
+            exit 1
+          fi
+
+          build_dir=""
+
+          if [[ -d dist/browser ]]; then
+            build_dir="dist/browser"
+          fi
+
+          if [[ -z "${build_dir}" ]]; then
+            browser_subdir="$(find dist -mindepth 2 -maxdepth 2 -type d -name browser | sort | head -n 1 || true)"
+            if [[ -n "${browser_subdir}" ]]; then
+              build_dir="${browser_subdir}"
+            fi
+          fi
+
+          if [[ -z "${build_dir}" ]]; then
+            dist_project_dir="$(find dist -mindepth 1 -maxdepth 1 -type d | sort | while read -r d; do
+              if [[ -f "${d}/index.html" ]]; then
+                echo "${d}"
+                break
+              fi
+            done)"
+            if [[ -n "${dist_project_dir}" ]]; then
+              build_dir="${dist_project_dir}"
+            fi
+          fi
+
+          if [[ -z "${build_dir}" && -f dist/index.html ]]; then
+            build_dir="dist"
+          fi
+
+          if [[ -z "${build_dir}" ]]; then
+            echo "::error::Unable to determine Angular build output directory."
+            find dist -maxdepth 3 -print || true
+            exit 1
+          fi
+
+          echo "build_dir=${build_dir}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved build output: ${build_dir}"
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "${AWS_PORT}" -H "${AWS_HOST}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload build artifacts to server tmp directory
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            -e "ssh -p ${AWS_PORT}" \
+            "${{ steps.detect_build_dir.outputs.build_dir }}/" \
+            "${AWS_USER}@${AWS_HOST}:${REMOTE_BUILD_PATH}/"
+
+      - name: Deploy on server and reload Nginx
+        run: |
+          set -euo pipefail
+          ssh -p "${AWS_PORT}" "${AWS_USER}@${AWS_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' NGINX_SITE_PATH='${NGINX_SITE_PATH}' REMOTE_BUILD_PATH='${REMOTE_BUILD_PATH}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          if [[ ! -d "${REMOTE_BUILD_PATH}" ]]; then
+            echo "Remote build path does not exist: ${REMOTE_BUILD_PATH}"
+            exit 1
+          fi
+
+          if [[ ! -f "${NGINX_SITE_PATH}" ]]; then
+            echo "Nginx site config not found: ${NGINX_SITE_PATH}"
+            exit 1
+          fi
+
+          sudo -n mkdir -p "${DEPLOY_PATH}"
+          sudo -n rsync -a --delete "${REMOTE_BUILD_PATH}/" "${DEPLOY_PATH}/"
+          sudo -n chown -R www-data:www-data "${DEPLOY_PATH}"
+          sudo -n nginx -t
+          sudo -n systemctl reload nginx
+          EOF
