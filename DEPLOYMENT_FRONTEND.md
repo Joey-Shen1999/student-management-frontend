@@ -72,7 +72,7 @@ GitHub Actions 通过 SSH 登录 `ubuntu` 后会执行：
 
 ```bash
 sudo tee /etc/sudoers.d/student-management-frontend-deploy >/dev/null <<'EOF'
-Cmnd_Alias FRONTEND_DEPLOY = /usr/bin/mkdir -p /var/www/student-management-frontend, /usr/bin/rsync -a --delete /tmp/student-management-frontend-build/ /var/www/student-management-frontend/, /usr/bin/chown -R www-data:www-data /var/www/student-management-frontend, /usr/bin/mkdir -p /etc/nginx/sites-available, /usr/bin/install -m 644 /tmp/student-management-frontend.nginx.conf /etc/nginx/sites-available/student-management-frontend, /usr/bin/ln -sfn /etc/nginx/sites-available/student-management-frontend /etc/nginx/sites-enabled/student-management-frontend, /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
+Cmnd_Alias FRONTEND_DEPLOY = /usr/bin/mkdir -p /var/www/student-management-frontend, /usr/bin/rsync -a --delete /tmp/student-management-frontend-build/ /var/www/student-management-frontend/, /usr/bin/chown -R www-data:www-data /var/www/student-management-frontend, /usr/bin/mkdir -p /etc/nginx/sites-available, /usr/bin/install -m 644 /tmp/student-management-frontend.nginx.conf /etc/nginx/sites-available/student-management-frontend, /usr/bin/ln -sfn /etc/nginx/sites-available/student-management-frontend /etc/nginx/sites-enabled/student-management-frontend, /usr/sbin/nginx -t, /usr/bin/nginx -t, /usr/bin/systemctl reload nginx
 ubuntu ALL=(root) NOPASSWD: FRONTEND_DEPLOY
 EOF
 

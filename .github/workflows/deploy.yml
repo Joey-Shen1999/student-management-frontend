@@ -145,6 +145,21 @@ jobs:
             exit 1
           fi
 
+          NGINX_BIN="$(command -v nginx || true)"
+          if [[ -z "${NGINX_BIN}" ]]; then
+            for candidate in /usr/sbin/nginx /usr/bin/nginx; do
+              if [[ -x "${candidate}" ]]; then
+                NGINX_BIN="${candidate}"
+                break
+              fi
+            done
+          fi
+
+          if [[ -z "${NGINX_BIN}" ]]; then
+            echo "Nginx binary not found on server. Please install nginx first: sudo apt update && sudo apt install -y nginx"
+            exit 1
+          fi
+
           if [[ ! -f "${NGINX_SITE_PATH}" ]]; then
             echo "Nginx site config not found. Creating from template..."
             sudo -n mkdir -p "$(dirname "${NGINX_SITE_PATH}")"
@@ -159,6 +174,6 @@ jobs:
           sudo -n mkdir -p "${DEPLOY_PATH}"
           sudo -n rsync -a --delete "${REMOTE_BUILD_PATH}/" "${DEPLOY_PATH}/"
           sudo -n chown -R www-data:www-data "${DEPLOY_PATH}"
-          sudo -n nginx -t
+          sudo -n "${NGINX_BIN}" -t
           sudo -n systemctl reload nginx
           EOF
