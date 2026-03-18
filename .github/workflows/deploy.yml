@@ -19,7 +19,8 @@ jobs:
       AWS_HOST: ${{ vars.AWS_HOST }}
       AWS_USER: ${{ vars.AWS_USER }}
       AWS_PORT: ${{ vars.AWS_PORT }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_PATH: /var/www/student-management-frontend
+      LEGACY_DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       NGINX_SITE_PATH: ${{ vars.NGINX_SITE_PATH }}
       AUTO_BOOTSTRAP_PACKAGES: ${{ vars.AUTO_BOOTSTRAP_PACKAGES }}
       REMOTE_BUILD_PATH: /tmp/student-management-frontend-build
@@ -37,7 +38,7 @@ jobs:
       - name: Validate deployment variables
         run: |
           set -euo pipefail
-          required_vars=(AWS_HOST AWS_USER AWS_PORT DEPLOY_PATH NGINX_SITE_PATH)
+          required_vars=(AWS_HOST AWS_USER AWS_PORT NGINX_SITE_PATH)
           for var_name in "${required_vars[@]}"; do
             if [[ -z "${!var_name:-}" ]]; then
               echo "::error::Missing required GitHub Variable: ${var_name}"
@@ -45,14 +46,12 @@ jobs:
             fi
           done
 
-          canonical_deploy_path="/var/www/student-management-frontend"
-          if [[ "${DEPLOY_PATH}" != "${canonical_deploy_path}" ]]; then
-            echo "::warning::DEPLOY_PATH is forced to ${canonical_deploy_path}. Current value: ${DEPLOY_PATH}"
+          if [[ -n "${LEGACY_DEPLOY_PATH:-}" && "${LEGACY_DEPLOY_PATH}" != "${DEPLOY_PATH}" ]]; then
+            echo "::warning::GitHub Variable DEPLOY_PATH (${LEGACY_DEPLOY_PATH}) is ignored. Using fixed path: ${DEPLOY_PATH}"
           fi
-          echo "DEPLOY_PATH=${canonical_deploy_path}" >> "${GITHUB_ENV}"
 
-          if [[ "${canonical_deploy_path}" == "/home/ubuntu/student-management-server" || "${canonical_deploy_path}" == /home/ubuntu/student-management-server/* ]]; then
-            echo "::error::Refusing to deploy frontend into backend directory: ${canonical_deploy_path}"
+          if [[ "${DEPLOY_PATH}" == "/home/ubuntu/student-management-server" || "${DEPLOY_PATH}" == /home/ubuntu/student-management-server/* ]]; then
+            echo "::error::Refusing to deploy frontend into backend directory: ${DEPLOY_PATH}"
             exit 1
           fi
 
