@@ -13,6 +13,7 @@ export interface StudentAccount {
   firstName?: string;
   lastName?: string;
   email?: string;
+  phone?: string;
   status?: 'ACTIVE' | 'ARCHIVED' | string;
   createdAt?: string;
   [key: string]: any;

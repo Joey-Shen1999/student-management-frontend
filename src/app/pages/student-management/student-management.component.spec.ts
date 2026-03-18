@@ -7,6 +7,7 @@ import { StudentManagementService } from '../../services/student-management.serv
 import { StudentInviteService } from '../../services/student-invite.service';
 import { AuthService } from '../../services/auth.service';
 import { TeacherManagementService } from '../../services/teacher-management.service';
+import { StudentProfileService } from '../../services/student-profile.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -17,6 +18,7 @@ describe('StudentManagementComponent', () => {
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
   let auth: Pick<AuthService, 'getSession'>;
   let teacherApi: Pick<TeacherManagementService, 'listTeachers'>;
+  let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher'>;
 
   beforeEach(() => {
     api = {
@@ -41,9 +43,13 @@ describe('StudentManagementComponent', () => {
     teacherApi = {
       listTeachers: vi.fn().mockReturnValue(of([])),
     };
+    profileApi = {
+      getStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
+    };
 
     component = new StudentManagementComponent(
       api as StudentManagementService,
+      profileApi as StudentProfileService,
       inviteApi as StudentInviteService,
       teacherApi as TeacherManagementService,
       auth as AuthService
@@ -82,6 +88,7 @@ describe('StudentManagementComponent', () => {
 
     component = new StudentManagementComponent(
       api as StudentManagementService,
+      profileApi as StudentProfileService,
       inviteApi as StudentInviteService,
       teacherApi as TeacherManagementService,
       auth as AuthService
@@ -107,6 +114,66 @@ describe('StudentManagementComponent', () => {
       expect.objectContaining({ studentId: 11, username: 'student11', status: 'ACTIVE' }),
     ]);
     expect(component.listError).toBe('');
+  });
+
+  it('loadStudents should normalize email and phone from alternative field names', () => {
+    (api.listStudents as any).mockReturnValue(
+      of([
+        {
+          studentId: 22,
+          username: 'student22',
+          emailAddress: 'student22@example.com',
+          phoneNumber: '1234567890',
+        },
+      ])
+    );
+
+    component.loadStudents();
+
+    expect(component.students).toEqual([
+      expect.objectContaining({
+        studentId: 22,
+        username: 'student22',
+        email: 'student22@example.com',
+        phone: '1234567890',
+        status: 'ACTIVE',
+      }),
+    ]);
+
+    component.searchKeyword = '1234567890';
+    component.applyListView();
+    expect(component.filteredCount).toBe(1);
+  });
+
+  it('loadStudents should hydrate email and phone from profile API when list payload misses both', () => {
+    (api.listStudents as any).mockReturnValue(
+      of([
+        {
+          studentId: 31,
+          username: 'student31',
+        },
+      ])
+    );
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          email: 'student31@example.com',
+          phone: '6470000000',
+        },
+      })
+    );
+
+    component.loadStudents();
+
+    expect(profileApi.getStudentProfileForTeacher).toHaveBeenCalledWith(31);
+    expect(component.students).toEqual([
+      expect.objectContaining({
+        studentId: 31,
+        username: 'student31',
+        email: 'student31@example.com',
+        phone: '6470000000',
+      }),
+    ]);
   });
 
   it('loadStudents should show backend error message on failure', () => {

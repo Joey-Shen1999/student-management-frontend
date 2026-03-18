@@ -21,6 +21,11 @@ import {
   TeacherAccount,
   TeacherManagementService,
 } from '../../services/teacher-management.service';
+import {
+  StudentProfilePayload,
+  StudentProfileResponse,
+  StudentProfileService,
+} from '../../services/student-profile.service';
 
 interface PasswordResetResult {
   studentId: number;
@@ -148,7 +153,7 @@ interface InviteTeacherOption {
 
           <input
             type="search"
-            placeholder="按 ID、用户名、姓名、邮箱搜索"
+            placeholder="按 ID、用户名、姓名、邮箱、电话搜索"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
@@ -194,10 +199,10 @@ interface InviteTeacherOption {
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">学生 ID</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">电话</th>
               <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">档案</th>
               <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">重置密码</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">归档</th>
@@ -205,10 +210,10 @@ interface InviteTeacherOption {
           </thead>
           <tbody>
             <tr *ngFor="let student of visibleStudents; trackBy: trackStudent">
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentId(student) ?? '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.email || '-' }}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentEmail(student) }}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentPhone(student) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
                 <button
                   type="button"
@@ -338,9 +343,12 @@ export class StudentManagementComponent implements OnInit {
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   statusResult: StatusUpdateResult | null = null;
+  private readonly studentContactCache = new Map<number, { email: string; phone: string }>();
+  private readonly studentContactLoadInFlight = new Set<number>();
 
   constructor(
     private studentApi: StudentManagementService,
+    private studentProfileApi: StudentProfileService,
     private inviteApi: StudentInviteService,
     private teacherApi: TeacherManagementService,
     private auth: AuthService,
@@ -416,6 +424,14 @@ export class StudentManagementComponent implements OnInit {
     return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
   }
 
+  resolveStudentEmail(student: StudentAccount): string {
+    return this.resolveStudentEmailValue(student) || '-';
+  }
+
+  resolveStudentPhone(student: StudentAccount): string {
+    return this.resolveStudentPhoneValue(student) || '-';
+  }
+
   profileRoute(student: StudentAccount): string[] {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
@@ -441,6 +457,7 @@ export class StudentManagementComponent implements OnInit {
         next: (payload) => {
           this.students = this.normalizeStudentList(payload);
           this.applyListView();
+          this.hydrateStudentContacts(this.students);
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
@@ -656,7 +673,8 @@ export class StudentManagementComponent implements OnInit {
         String(this.resolveStudentId(student) ?? ''),
         String(student.username || ''),
         this.displayName(student),
-        String(student.email || ''),
+        this.resolveStudentEmailValue(student),
+        this.resolveStudentPhoneValue(student),
       ];
 
       return searchFields.some((field) => field.toLowerCase().includes(keyword));
@@ -685,10 +703,154 @@ export class StudentManagementComponent implements OnInit {
           ? payload.data
           : [];
 
-    return list.map((student) => ({
-      ...student,
-      status: this.resolveStatus(student),
-    }));
+    return list.map((student) => {
+      const email = this.resolveStudentEmailValue(student);
+      const phone = this.resolveStudentPhoneValue(student);
+
+      return {
+        ...student,
+        email: email || undefined,
+        phone: phone || undefined,
+        status: this.resolveStatus(student),
+      };
+    });
+  }
+
+  private hydrateStudentContacts(students: StudentAccount[]): void {
+    for (const student of students) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId) {
+        continue;
+      }
+
+      const email = this.resolveStudentEmailValue(student);
+      const phone = this.resolveStudentPhoneValue(student);
+      if (email && phone) {
+        this.studentContactCache.set(studentId, { email, phone });
+        continue;
+      }
+
+      const cached = this.studentContactCache.get(studentId);
+      if (cached) {
+        this.applyStudentContact(student, cached);
+        continue;
+      }
+
+      if (this.studentContactLoadInFlight.has(studentId)) {
+        continue;
+      }
+
+      this.studentContactLoadInFlight.add(studentId);
+      this.studentProfileApi
+        .getStudentProfileForTeacher(studentId)
+        .pipe(
+          finalize(() => {
+            this.studentContactLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (payload) => {
+            const contact = this.extractStudentContactFromProfile(payload);
+            if (!contact.email && !contact.phone) {
+              return;
+            }
+
+            this.studentContactCache.set(studentId, contact);
+            this.applyStudentContact(student, contact);
+            this.applyListView();
+            this.cdr.detectChanges();
+          },
+          error: () => {},
+        });
+    }
+  }
+
+  private extractStudentContactFromProfile(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): { email: string; phone: string } {
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const profileNode =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : root;
+
+    return {
+      email: this.pickFirstText([
+        profileNode['email'],
+        profileNode['emailAddress'],
+        root['email'],
+        root['emailAddress'],
+        root['contactEmail'],
+      ]),
+      phone: this.pickFirstText([
+        profileNode['phone'],
+        profileNode['phoneNumber'],
+        root['phone'],
+        root['phoneNumber'],
+        root['mobile'],
+        root['mobilePhone'],
+        root['telephone'],
+        root['tel'],
+        root['contactPhone'],
+      ]),
+    };
+  }
+
+  private applyStudentContact(
+    student: StudentAccount,
+    contact: { email: string; phone: string }
+  ): void {
+    if (!this.resolveStudentEmailValue(student) && contact.email) {
+      student.email = contact.email;
+    }
+    if (!this.resolveStudentPhoneValue(student) && contact.phone) {
+      student.phone = contact.phone;
+    }
+  }
+
+  private resolveStudentEmailValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const contact = student?.['contact'] as Record<string, unknown> | undefined;
+
+    return this.pickFirstText([
+      student?.email,
+      student?.['emailAddress'],
+      student?.['contactEmail'],
+      student?.['mail'],
+      profile?.['email'],
+      profile?.['emailAddress'],
+      contact?.['email'],
+    ]);
+  }
+
+  private resolveStudentPhoneValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const contact = student?.['contact'] as Record<string, unknown> | undefined;
+
+    return this.pickFirstText([
+      student?.phone,
+      student?.['phoneNumber'],
+      student?.['mobile'],
+      student?.['mobilePhone'],
+      student?.['telephone'],
+      student?.['tel'],
+      student?.['contactPhone'],
+      profile?.['phone'],
+      profile?.['phoneNumber'],
+      contact?.['phone'],
+    ]);
+  }
+
+  private pickFirstText(candidates: unknown[]): string {
+    for (const candidate of candidates) {
+      const value = String(candidate ?? '').trim();
+      if (value) {
+        return value;
+      }
+    }
+
+    return '';
   }
 
   private normalizeInviteTeacherOptions(
