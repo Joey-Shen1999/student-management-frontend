@@ -44,7 +44,7 @@ interface StudentListMetadata {
 
 const COUNTRY_FILTER_ALL_OPTION = '全部国家';
 const COUNTRY_FILTER_NA_OPTION = 'N/A 尚未填写';
-const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', '中国 / China (Mainland)', 'USA'] as const;
+const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', '中国 / China (Mainland)', 'United States'] as const;
 const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'United Kingdom',
   'Australia',
@@ -989,7 +989,7 @@ export class StudentManagementComponent implements OnInit {
       normalizedKey === 'united states of america' ||
       normalizedKey === 'usa united states'
     ) {
-      return 'USA';
+      return 'United States';
     }
 
     const matched = this.countryFilterOptions.find(

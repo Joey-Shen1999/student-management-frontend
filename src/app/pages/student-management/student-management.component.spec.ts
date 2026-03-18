@@ -221,18 +221,18 @@ describe('StudentManagementComponent', () => {
     component.onCountryFilterInputChange('中国');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([2]);
 
-    component.onCountryFilterInputChange('USA');
+    component.onCountryFilterInputChange('United States');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([3]);
 
     component.onCountryFilterInputChange('N/A 尚未填写');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([4]);
   });
 
-  it('country filter options should prioritize Canada, China and USA', () => {
+  it('country filter options should prioritize Canada, China and United States', () => {
     expect(component.countryFilterOptions.slice(0, 3)).toEqual([
       'Canada',
       '中国 / China (Mainland)',
-      'USA',
+      'United States',
     ]);
   });
 
@@ -240,8 +240,8 @@ describe('StudentManagementComponent', () => {
     component.listLimit = 100;
     component.showInactive = true;
     component.searchKeyword = 'alice';
-    component.countryFilterInput = 'USA';
-    component.countryFilter = 'USA';
+    component.countryFilterInput = 'United States';
+    component.countryFilter = 'United States';
 
     component.clearListControls();
 
