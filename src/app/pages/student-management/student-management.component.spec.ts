@@ -5,8 +5,6 @@ import { vi } from 'vitest';
 import { StudentManagementComponent } from './student-management.component';
 import { StudentManagementService } from '../../services/student-management.service';
 import { StudentInviteService } from '../../services/student-invite.service';
-import { AuthService } from '../../services/auth.service';
-import { TeacherManagementService } from '../../services/teacher-management.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 
 describe('StudentManagementComponent', () => {
@@ -16,8 +14,6 @@ describe('StudentManagementComponent', () => {
     'listStudents' | 'resetStudentPassword' | 'updateStudentStatus'
   >;
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
-  let auth: Pick<AuthService, 'getSession'>;
-  let teacherApi: Pick<TeacherManagementService, 'listTeachers'>;
   let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher'>;
 
   beforeEach(() => {
@@ -29,20 +25,6 @@ describe('StudentManagementComponent', () => {
     inviteApi = {
       createInvite: vi.fn(),
     };
-    auth = {
-      getSession: vi.fn().mockReturnValue({
-        userId: 99,
-        role: 'TEACHER',
-        studentId: null,
-        teacherId: 7,
-        accessToken: 'token-abc',
-        tokenType: 'Bearer',
-        tokenExpiresAt: '2026-02-24T12:17:26.239',
-      }),
-    };
-    teacherApi = {
-      listTeachers: vi.fn().mockReturnValue(of([])),
-    };
     profileApi = {
       getStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
     };
@@ -50,9 +32,7 @@ describe('StudentManagementComponent', () => {
     component = new StudentManagementComponent(
       api as StudentManagementService,
       profileApi as StudentProfileService,
-      inviteApi as StudentInviteService,
-      teacherApi as TeacherManagementService,
-      auth as AuthService
+      inviteApi as StudentInviteService
     );
   });
 
@@ -68,37 +48,6 @@ describe('StudentManagementComponent', () => {
 
     expect(api.listStudents).toHaveBeenCalledTimes(1);
     expect(component.students.length).toBe(2);
-  });
-
-  it('ngOnInit should load teacher options for admin and auto-select when only one teacher exists', () => {
-    (auth.getSession as any).mockReturnValue({
-      userId: 1,
-      role: 'ADMIN',
-      studentId: null,
-      teacherId: null,
-      accessToken: 'token-abc',
-      tokenType: 'Bearer',
-      tokenExpiresAt: '2026-02-24T12:17:26.239',
-    });
-    (teacherApi.listTeachers as any).mockReturnValue(
-      of([
-        { teacherId: 12, username: 'teacher12' },
-      ])
-    );
-
-    component = new StudentManagementComponent(
-      api as StudentManagementService,
-      profileApi as StudentProfileService,
-      inviteApi as StudentInviteService,
-      teacherApi as TeacherManagementService,
-      auth as AuthService
-    );
-
-    component.ngOnInit();
-
-    expect(teacherApi.listTeachers).toHaveBeenCalledTimes(1);
-    expect(component.selectedInviteTeacherId).toBe(12);
-    expect(component.inviteTeacherOptions).toEqual([{ teacherId: 12, label: '12 - teacher12' }]);
   });
 
   it('loadStudents should support payload with items', () => {
@@ -251,7 +200,7 @@ describe('StudentManagementComponent', () => {
     component.createInviteLink();
 
     expect(inviteApi.createInvite).toHaveBeenCalledTimes(1);
-    expect(inviteApi.createInvite).toHaveBeenCalledWith(7);
+    expect(inviteApi.createInvite).toHaveBeenCalledWith();
     expect(component.inviteLink).toContain('/register?inviteToken=token-abc');
     expect(component.inviteExpiresAt).toBe('2026-03-01T00:00:00.000Z');
     expect(component.inviteError).toBe('');
@@ -268,16 +217,6 @@ describe('StudentManagementComponent', () => {
 
     expect(component.inviteLink).toContain('/register?inviteToken=token-xyz');
     expect(component.inviteLink.startsWith('http://') || component.inviteLink.startsWith('https://')).toBe(true);
-  });
-
-  it('createInviteLink should require teacherId for admin user', () => {
-    component.isAdminUser = true;
-    component.selectedInviteTeacherId = null;
-
-    component.createInviteLink();
-
-    expect(inviteApi.createInvite).not.toHaveBeenCalled();
-    expect(component.inviteError).toBe('管理员生成邀请链接时必须选择教师 ID。');
   });
 
   it('resetPassword should call API and expose temp password', () => {

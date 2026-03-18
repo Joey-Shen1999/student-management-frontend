@@ -15,9 +15,6 @@
       }
 
       @if (!inviteValidationLoading && !inviteValidationError) {
-        @if (invitePreview?.teacherName) {
-          <div style="margin-top:6px;color:#555;"><b>教师：</b> {{ invitePreview?.teacherName }}</div>
-        }
         @if (invitePreview?.expiresAt) {
           <div style="margin-top:6px;color:#555;"><b>过期时间：</b> {{ invitePreview?.expiresAt }}</div>
         }

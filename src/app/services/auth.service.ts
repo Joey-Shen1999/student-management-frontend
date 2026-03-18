@@ -64,8 +64,6 @@ export interface StudentInvitePreviewResponse {
   status?: string;
   valid?: boolean;
   expiresAt?: string;
-  teacherId?: number | null;
-  teacherName?: string;
   [key: string]: any;
 }
 

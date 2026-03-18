@@ -36,16 +36,10 @@ export class StudentInviteService {
     };
   }
 
-  createInvite(teacherId?: number): Observable<CreateStudentInviteResponse> {
-    const normalizedTeacherId =
-      typeof teacherId === 'number' && Number.isFinite(teacherId) && teacherId > 0
-        ? Math.trunc(teacherId)
-        : null;
-    const payload = normalizedTeacherId ? { teacherId: normalizedTeacherId } : {};
-
+  createInvite(): Observable<CreateStudentInviteResponse> {
     return this.http.post<CreateStudentInviteResponse>(
       this.baseUrl,
-      payload,
+      {},
       this.withAuthHeaderIfAvailable()
     );
   }

@@ -16,11 +16,6 @@ import {
   CreateStudentInviteResponse,
   StudentInviteService,
 } from '../../services/student-invite.service';
-import { AuthService } from '../../services/auth.service';
-import {
-  TeacherAccount,
-  TeacherManagementService,
-} from '../../services/teacher-management.service';
 import {
   StudentProfilePayload,
   StudentProfileResponse,
@@ -39,11 +34,6 @@ interface StatusUpdateResult {
   status: StudentAccountStatus;
 }
 
-interface InviteTeacherOption {
-  teacherId: number;
-  label: string;
-}
-
 @Component({
   selector: 'app-student-management',
   standalone: true,
@@ -57,30 +47,6 @@ interface InviteTeacherOption {
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <div *ngIf="isAdminUser" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-              教师
-              <select
-                [(ngModel)]="selectedInviteTeacherId"
-                [disabled]="creatingInvite || loadingInviteTeachers"
-                style="padding:7px 8px;min-width:180px;"
-              >
-                <option [ngValue]="null">{{ loadingInviteTeachers ? '加载中...' : '选择教师 ID' }}</option>
-                <option *ngFor="let option of inviteTeacherOptions" [ngValue]="option.teacherId">
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
-
-            <button
-              type="button"
-              (click)="refreshInviteTeachers()"
-              [disabled]="creatingInvite || loadingInviteTeachers"
-            >
-              {{ loadingInviteTeachers ? '加载教师中...' : '刷新教师列表' }}
-            </button>
-          </div>
-
           <button type="button" (click)="loadStudents()" [disabled]="loadingList">
             {{ loadingList ? '加载中...' : '刷新列表' }}
           </button>
@@ -88,20 +54,13 @@ interface InviteTeacherOption {
           <button
             type="button"
             (click)="createInviteLink()"
-            [disabled]="creatingInvite || (isAdminUser && !selectedInviteTeacherId)"
+            [disabled]="creatingInvite"
           >
             {{ creatingInvite ? '生成中...' : '生成学生邀请链接' }}
           </button>
         </div>
 
         <span style="color:#666;font-size:13px;">总数：{{ students.length }}</span>
-      </div>
-
-      <div
-        *ngIf="inviteTeacherLoadError"
-        style="margin:0 0 12px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;"
-      >
-        {{ inviteTeacherLoadError }}
       </div>
 
       <div
@@ -330,12 +289,6 @@ export class StudentManagementComponent implements OnInit {
   inviteLink = '';
   inviteExpiresAt = '';
   inviteCopied = false;
-  isAdminUser = false;
-  sessionTeacherId: number | null = null;
-  selectedInviteTeacherId: number | null = null;
-  inviteTeacherOptions: InviteTeacherOption[] = [];
-  loadingInviteTeachers = false;
-  inviteTeacherLoadError = '';
 
   resettingStudentId: number | null = null;
   statusUpdatingStudentId: number | null = null;
@@ -350,62 +303,11 @@ export class StudentManagementComponent implements OnInit {
     private studentApi: StudentManagementService,
     private studentProfileApi: StudentProfileService,
     private inviteApi: StudentInviteService,
-    private teacherApi: TeacherManagementService,
-    private auth: AuthService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
-  ) {
-    this.captureSessionContext();
-  }
+  ) {}
 
   ngOnInit(): void {
-    this.refreshInviteTeachers();
     this.loadStudents();
-  }
-
-  refreshInviteTeachers(): void {
-    if (!this.isAdminUser) return;
-
-    this.loadingInviteTeachers = true;
-    this.inviteTeacherLoadError = '';
-    this.cdr.detectChanges();
-
-    this.teacherApi
-      .listTeachers()
-      .pipe(
-        finalize(() => {
-          this.loadingInviteTeachers = false;
-          this.cdr.detectChanges();
-        })
-      )
-      .subscribe({
-        next: (payload) => {
-          this.inviteTeacherOptions = this.normalizeInviteTeacherOptions(payload);
-
-          if (
-            this.sessionTeacherId &&
-            this.inviteTeacherOptions.some((option) => option.teacherId === this.sessionTeacherId)
-          ) {
-            this.selectedInviteTeacherId = this.sessionTeacherId;
-          } else if (
-            this.selectedInviteTeacherId &&
-            !this.inviteTeacherOptions.some((option) => option.teacherId === this.selectedInviteTeacherId)
-          ) {
-            this.selectedInviteTeacherId = null;
-          }
-
-          if (!this.selectedInviteTeacherId && this.inviteTeacherOptions.length === 1) {
-            this.selectedInviteTeacherId = this.inviteTeacherOptions[0].teacherId;
-          }
-
-          this.cdr.detectChanges();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.inviteTeacherLoadError = this.extractErrorMessage(err) || '加载教师 ID 列表失败。';
-          this.inviteTeacherOptions = [];
-          this.selectedInviteTeacherId = null;
-          this.cdr.detectChanges();
-        },
-      });
   }
 
   trackStudent = (_index: number, student: StudentAccount): string | number => {
@@ -472,13 +374,6 @@ export class StudentManagementComponent implements OnInit {
   createInviteLink(): void {
     if (this.creatingInvite) return;
 
-    const targetTeacherId = this.resolveTargetTeacherIdForInvite();
-    if (this.isAdminUser && !targetTeacherId) {
-      this.inviteError = '管理员生成邀请链接时必须选择教师 ID。';
-      this.cdr.detectChanges();
-      return;
-    }
-
     this.creatingInvite = true;
     this.inviteError = '';
     this.inviteLink = '';
@@ -487,7 +382,7 @@ export class StudentManagementComponent implements OnInit {
     this.cdr.detectChanges();
 
     this.inviteApi
-      .createInvite(targetTeacherId || undefined)
+      .createInvite()
       .pipe(
         finalize(() => {
           this.creatingInvite = false;
@@ -534,24 +429,6 @@ export class StudentManagementComponent implements OnInit {
 
     this.inviteCopied = false;
     this.cdr.detectChanges();
-  }
-
-  private captureSessionContext(): void {
-    const session = this.auth.getSession();
-    const role = String(session?.role || '')
-      .trim()
-      .toUpperCase();
-    this.isAdminUser = role === 'ADMIN';
-
-    const teacherId = Number(session?.teacherId);
-    this.sessionTeacherId = Number.isFinite(teacherId) && teacherId > 0 ? teacherId : null;
-    this.selectedInviteTeacherId = this.sessionTeacherId;
-  }
-
-  private resolveTargetTeacherIdForInvite(): number | null {
-    const value = this.isAdminUser ? this.selectedInviteTeacherId : this.sessionTeacherId;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
   }
 
   resetPassword(student: StudentAccount): void {
@@ -851,40 +728,6 @@ export class StudentManagementComponent implements OnInit {
     }
 
     return '';
-  }
-
-  private normalizeInviteTeacherOptions(
-    payload: TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] } | null | undefined
-  ): InviteTeacherOption[] {
-    const list = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.items)
-        ? payload.items
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : [];
-
-    const unique = new Map<number, InviteTeacherOption>();
-    for (const teacher of list) {
-      const teacherId = this.resolveInviteTeacherId(teacher);
-      if (!teacherId) continue;
-
-      const username = String(teacher?.username || '').trim();
-      const displayName = String(teacher?.displayName || '').trim();
-      const name = displayName || username || '未知';
-
-      unique.set(teacherId, {
-        teacherId,
-        label: `${teacherId} - ${name}`,
-      });
-    }
-
-    return Array.from(unique.values()).sort((a, b) => a.teacherId - b.teacherId);
-  }
-
-  private resolveInviteTeacherId(teacher: TeacherAccount | null | undefined): number | null {
-    const id = teacher?.teacherId ?? teacher?.id ?? teacher?.userId;
-    return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
   }
 
   private resolveInviteLink(resp: CreateStudentInviteResponse | null | undefined): string {

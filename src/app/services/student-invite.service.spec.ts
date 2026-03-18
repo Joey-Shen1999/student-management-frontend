@@ -33,15 +33,6 @@ describe('StudentInviteService', () => {
     req.flush({ inviteToken: 'invite-abc' });
   });
 
-  it('createInvite should include teacherId when provided', () => {
-    service.createInvite(88).subscribe();
-
-    const req = httpMock.expectOne('/api/teacher/student-invites');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ teacherId: 88 });
-    req.flush({ inviteToken: 'invite-abc' });
-  });
-
   it('should attach Authorization header when session exists', () => {
     localStorage.setItem(
       sessionKey,
