@@ -45,13 +45,14 @@ jobs:
             fi
           done
 
-          if [[ "${DEPLOY_PATH}" != "/var/www/student-management-frontend" ]]; then
-            echo "::error::DEPLOY_PATH must be /var/www/student-management-frontend. Current value: ${DEPLOY_PATH}"
-            exit 1
+          canonical_deploy_path="/var/www/student-management-frontend"
+          if [[ "${DEPLOY_PATH}" != "${canonical_deploy_path}" ]]; then
+            echo "::warning::DEPLOY_PATH is forced to ${canonical_deploy_path}. Current value: ${DEPLOY_PATH}"
           fi
+          echo "DEPLOY_PATH=${canonical_deploy_path}" >> "${GITHUB_ENV}"
 
-          if [[ "${DEPLOY_PATH}" == "/home/ubuntu/student-management-server" || "${DEPLOY_PATH}" == /home/ubuntu/student-management-server/* ]]; then
-            echo "::error::Refusing to deploy frontend into backend directory: ${DEPLOY_PATH}"
+          if [[ "${canonical_deploy_path}" == "/home/ubuntu/student-management-server" || "${canonical_deploy_path}" == /home/ubuntu/student-management-server/* ]]; then
+            echo "::error::Refusing to deploy frontend into backend directory: ${canonical_deploy_path}"
             exit 1
           fi
 
