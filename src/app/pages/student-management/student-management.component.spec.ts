@@ -224,14 +224,16 @@ describe('StudentManagementComponent', () => {
     component.onCountryFilterInputChange('United States');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([3]);
 
-    component.onCountryFilterInputChange('N/A 尚未填写');
+    component.onCountryFilterInputChange('N/A');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([4]);
   });
 
-  it('country filter options should prioritize Canada, China and United States', () => {
-    expect(component.countryFilterOptions.slice(0, 3)).toEqual([
+  it('country filter options should place N/A and All first, then core countries', () => {
+    expect(component.countryFilterOptions.slice(0, 5)).toEqual([
+      'N/A',
+      'All',
       'Canada',
-      '中国 / China (Mainland)',
+      'China (mainland)',
       'United States',
     ]);
   });
@@ -248,7 +250,7 @@ describe('StudentManagementComponent', () => {
     expect(component.listLimit).toBe(20);
     expect(component.showInactive).toBe(false);
     expect(component.searchKeyword).toBe('');
-    expect(component.countryFilterInput).toBe('全部国家');
+    expect(component.countryFilterInput).toBe('All');
     expect(component.countryFilter).toBe('ALL');
   });
 

@@ -42,9 +42,9 @@ interface StudentListMetadata {
   currentSchoolCountry: string;
 }
 
-const COUNTRY_FILTER_ALL_OPTION = '全部国家';
-const COUNTRY_FILTER_NA_OPTION = 'N/A 尚未填写';
-const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', '中国 / China (Mainland)', 'United States'] as const;
+const COUNTRY_FILTER_ALL_OPTION = 'All';
+const COUNTRY_FILTER_NA_OPTION = 'N/A';
+const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', 'China (mainland)', 'United States'] as const;
 const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'United Kingdom',
   'Australia',
@@ -171,7 +171,7 @@ const COUNTRY_FILTER_FALLBACK_OPTIONS = [
               (ngModelChange)="onCountryFilterInputChange($event)"
               name="countryFilter"
               list="countryFilterOptions"
-              placeholder="全部国家"
+              placeholder="All"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:180px;"
             />
@@ -957,7 +957,8 @@ export class StudentManagementComponent implements OnInit {
       normalizedKey === 'not available' ||
       normalizedKey === '尚未填写' ||
       normalizedKey === '未填写' ||
-      normalizedKey === 'n a 尚未填写'
+      normalizedKey === 'n a 尚未填写' ||
+      normalizedKey === 'n a 未填写'
     ) {
       return 'N/A';
     }
@@ -975,7 +976,7 @@ export class StudentManagementComponent implements OnInit {
       normalizedKey === 'china mainland' ||
       normalizedKey === '中国 china mainland'
     ) {
-      return 'China (Mainland)';
+      return 'China (mainland)';
     }
 
     if (
@@ -1018,11 +1019,11 @@ export class StudentManagementComponent implements OnInit {
       options.push(text);
     };
 
-    COUNTRY_FILTER_PRIORITY_OPTIONS.forEach(append);
     append(COUNTRY_FILTER_NA_OPTION);
+    append(COUNTRY_FILTER_ALL_OPTION);
+    COUNTRY_FILTER_PRIORITY_OPTIONS.forEach(append);
     this.buildRegionCountryFilterOptions().forEach(append);
     COUNTRY_FILTER_FALLBACK_OPTIONS.forEach(append);
-    append(COUNTRY_FILTER_ALL_OPTION);
 
     return options;
   }
