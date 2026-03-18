@@ -514,11 +514,14 @@ export class StudentProfile implements OnInit {
     this.statusInCanadaSelection = String(value ?? '');
     if (this.statusInCanadaSelection === this.statusInCanadaOtherOptionValue) {
       this.model.statusInCanada = this.toText(this.statusInCanadaOtherText);
+      if (!this.model.statusInCanada) return;
+      this.triggerAutoSave();
       return;
     }
 
     this.statusInCanadaOtherText = '';
     this.model.statusInCanada = this.toText(this.statusInCanadaSelection);
+    this.triggerAutoSave();
   }
 
   onStatusInCanadaOtherTextChange(value: string): void {

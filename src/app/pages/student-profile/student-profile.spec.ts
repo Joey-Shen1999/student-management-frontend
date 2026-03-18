@@ -1524,6 +1524,23 @@ describe('StudentProfile', () => {
     expect(component.model.statusInCanada).toBe('鍏朵粬涓存椂韬唤');
   });
 
+  it('should auto save immediately when selecting preset status in dropdown', () => {
+    component.enterEditMode();
+
+    component.onStatusInCanadaSelectionChange('璁块棶(Visitor)');
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(component.editing).toBe(true);
+  });
+
+  it('should not auto save when selecting Other status without detail text', () => {
+    component.enterEditMode();
+
+    component.onStatusInCanadaSelectionChange(component.statusInCanadaOtherOptionValue);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+  });
+
   it('should auto save when removing external course in edit mode', () => {
     (profileApi.getMyProfile as any).mockReturnValueOnce(of({
       otherCourses: [
