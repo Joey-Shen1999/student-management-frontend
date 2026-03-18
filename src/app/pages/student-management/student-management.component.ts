@@ -34,6 +34,49 @@ interface StatusUpdateResult {
   status: StudentAccountStatus;
 }
 
+type StudentCountryFilter = 'ALL' | 'N/A' | string;
+
+interface StudentListMetadata {
+  email: string;
+  phone: string;
+  currentSchoolCountry: string;
+}
+
+const COUNTRY_FILTER_ALL_OPTION = '全部国家';
+const COUNTRY_FILTER_NA_OPTION = 'N/A 尚未填写';
+const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', '中国 / China (Mainland)', 'USA'] as const;
+const COUNTRY_FILTER_FALLBACK_OPTIONS = [
+  'United Kingdom',
+  'Australia',
+  'New Zealand',
+  'Japan',
+  'South Korea',
+  'Singapore',
+  'India',
+  'France',
+  'Germany',
+  'Italy',
+  'Spain',
+  'Netherlands',
+  'Switzerland',
+  'Sweden',
+  'Norway',
+  'Denmark',
+  'Finland',
+  'Ireland',
+  'Belgium',
+  'Austria',
+  'Portugal',
+  'Mexico',
+  'Brazil',
+  'Argentina',
+  'Chile',
+  'South Africa',
+  'Egypt',
+  'Saudi Arabia',
+  'United Arab Emirates',
+] as const;
+
 @Component({
   selector: 'app-student-management',
   standalone: true,
@@ -114,17 +157,33 @@ interface StatusUpdateResult {
 
           <input
             type="search"
-            placeholder="按 ID、用户名、姓名、邮箱、电话搜索"
+            placeholder="按 ID、姓名、邮箱、电话搜索"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
             style="min-width:260px;max-width:360px;flex:1 1 300px;padding:6px 8px;"
           />
 
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            国家
+            <input
+              [(ngModel)]="countryFilterInput"
+              (ngModelChange)="onCountryFilterInputChange($event)"
+              name="countryFilter"
+              list="countryFilterOptions"
+              placeholder="全部国家"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:180px;"
+            />
+            <datalist id="countryFilterOptions">
+              <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim())"
+            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL')"
           >
             清空
           </button>
@@ -156,12 +215,25 @@ interface StatusUpdateResult {
         {{ listError }}
       </div>
 
+      <div
+        *ngIf="resetResult"
+        style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
+      >
+        <div style="font-weight:bold;">临时密码重置成功</div>
+        <div style="margin-top:8px;"><b>登录用户名：</b> {{ resetResult.username }}</div>
+        <div style="margin-top:8px;">
+          <b>临时密码（仅显示一次）：</b>
+          <pre
+            style="margin:8px 0 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:16px;"
+          >{{ resetResult.tempPassword }}</pre>
+        </div>
+      </div>
+
       <div style="margin-top:12px;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;">
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">姓名</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">电话</th>
               <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">档案</th>
@@ -171,7 +243,6 @@ interface StatusUpdateResult {
           </thead>
           <tbody>
             <tr *ngFor="let student of visibleStudents; trackBy: trackStudent">
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ student.username || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentEmail(student) }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentPhone(student) }}</td>
@@ -238,7 +309,7 @@ interface StatusUpdateResult {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleStudents.length === 0">
-              <td colspan="7" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
+              <td colspan="6" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
             </tr>
           </tbody>
         </table>
@@ -260,19 +331,6 @@ interface StatusUpdateResult {
         <div style="margin-top:8px;"><b>新状态：</b> {{ statusResult.status === 'ACTIVE' ? '启用' : '归档' }}</div>
       </div>
 
-      <div
-        *ngIf="resetResult"
-        style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
-      >
-        <div style="font-weight:bold;">临时密码重置成功</div>
-        <div style="margin-top:8px;"><b>学生：</b> {{ resetResult.username }}</div>
-        <div style="margin-top:8px;">
-          <b>临时密码（仅显示一次）：</b>
-          <pre
-            style="margin:8px 0 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:16px;"
-          >{{ resetResult.tempPassword }}</pre>
-        </div>
-      </div>
     </div>
   `,
   styles: [
@@ -309,6 +367,7 @@ interface StatusUpdateResult {
 })
 export class StudentManagementComponent implements OnInit {
   readonly limitOptions: number[] = [20, 50, 100];
+  readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
   filteredCount = 0;
@@ -317,6 +376,8 @@ export class StudentManagementComponent implements OnInit {
   listLimit = 20;
   showInactive = false;
   searchKeyword = '';
+  countryFilterInput = COUNTRY_FILTER_ALL_OPTION;
+  countryFilter: StudentCountryFilter = 'ALL';
   creatingInvite = false;
   inviteError = '';
   inviteLink = '';
@@ -329,7 +390,7 @@ export class StudentManagementComponent implements OnInit {
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   statusResult: StatusUpdateResult | null = null;
-  private readonly studentContactCache = new Map<number, { email: string; phone: string }>();
+  private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
 
   constructor(
@@ -348,10 +409,12 @@ export class StudentManagementComponent implements OnInit {
   };
 
   displayName(student: StudentAccount): string {
+    const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+    if (fullName) return fullName;
+
     if (student.displayName?.trim()) return student.displayName.trim();
 
-    const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim();
-    return fullName || '-';
+    return '-';
   }
 
   resolveStudentId(student: StudentAccount): number | null {
@@ -365,6 +428,60 @@ export class StudentManagementComponent implements OnInit {
 
   resolveStudentPhone(student: StudentAccount): string {
     return this.resolveStudentPhoneValue(student) || '-';
+  }
+
+  onCountryFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.countryFilterInput = input || COUNTRY_FILTER_ALL_OPTION;
+    this.countryFilter = this.resolveCountryFilterSelection(this.countryFilterInput);
+    this.applyListView();
+  }
+
+  private resolveCurrentSchoolCountryForFilter(student: StudentAccount): StudentCountryFilter {
+    const normalized = this.normalizeCountryFilterValue(this.resolveCurrentSchoolCountryValue(student));
+    return normalized || 'N/A';
+  }
+
+  private resolveCurrentSchoolCountryValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return this.pickFirstText([
+      student?.['currentSchoolCountry'],
+      student?.['schoolCountry'],
+      student?.['country'],
+      profileNode['currentSchoolCountry'],
+      profileNode['schoolCountry'],
+      currentSchool['country'],
+      schoolAddress['country'],
+    ]);
   }
 
   profileRoute(student: StudentAccount): string[] {
@@ -392,7 +509,7 @@ export class StudentManagementComponent implements OnInit {
         next: (payload) => {
           this.students = this.normalizeStudentList(payload);
           this.applyListView();
-          this.hydrateStudentContacts(this.students);
+          this.hydrateStudentMetadata(this.students);
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
@@ -560,6 +677,8 @@ export class StudentManagementComponent implements OnInit {
     this.listLimit = 20;
     this.showInactive = false;
     this.searchKeyword = '';
+    this.countryFilterInput = COUNTRY_FILTER_ALL_OPTION;
+    this.countryFilter = 'ALL';
     this.applyListView();
   }
 
@@ -575,13 +694,23 @@ export class StudentManagementComponent implements OnInit {
         return false;
       }
 
+      if (this.countryFilter !== 'ALL') {
+        const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
+        if (this.countryFilter === 'N/A') {
+          return studentCountry === 'N/A';
+        }
+        if (this.countryFilter === 'Canada') {
+          return studentCountry === 'Canada' || studentCountry === 'N/A';
+        }
+        return studentCountry === this.countryFilter;
+      }
+
       if (!keyword) {
         return true;
       }
 
       const searchFields = [
         String(this.resolveStudentId(student) ?? ''),
-        String(student.username || ''),
         this.displayName(student),
         this.resolveStudentEmailValue(student),
         this.resolveStudentPhoneValue(student),
@@ -616,33 +745,35 @@ export class StudentManagementComponent implements OnInit {
     return list.map((student) => {
       const email = this.resolveStudentEmailValue(student);
       const phone = this.resolveStudentPhoneValue(student);
+      const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
 
       return {
         ...student,
         email: email || undefined,
         phone: phone || undefined,
+        currentSchoolCountry: currentSchoolCountry || undefined,
         status: this.resolveStatus(student),
       };
     });
   }
 
-  private hydrateStudentContacts(students: StudentAccount[]): void {
+  private hydrateStudentMetadata(students: StudentAccount[]): void {
     for (const student of students) {
       const studentId = this.resolveStudentId(student);
       if (!studentId) {
         continue;
       }
 
-      const email = this.resolveStudentEmailValue(student);
-      const phone = this.resolveStudentPhoneValue(student);
-      if (email && phone) {
-        this.studentContactCache.set(studentId, { email, phone });
-        continue;
-      }
-
       const cached = this.studentContactCache.get(studentId);
       if (cached) {
-        this.applyStudentContact(student, cached);
+        this.applyStudentMetadata(student, cached);
+      }
+
+      const email = this.resolveStudentEmailValue(student);
+      const phone = this.resolveStudentPhoneValue(student);
+      const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
+      if (email && phone && currentSchoolCountry) {
+        this.studentContactCache.set(studentId, { email, phone, currentSchoolCountry });
         continue;
       }
 
@@ -660,13 +791,13 @@ export class StudentManagementComponent implements OnInit {
         )
         .subscribe({
           next: (payload) => {
-            const contact = this.extractStudentContactFromProfile(payload);
-            if (!contact.email && !contact.phone) {
+            const metadata = this.extractStudentMetadataFromProfile(payload);
+            if (!metadata.email && !metadata.phone && !metadata.currentSchoolCountry) {
               return;
             }
 
-            this.studentContactCache.set(studentId, contact);
-            this.applyStudentContact(student, contact);
+            this.studentContactCache.set(studentId, metadata);
+            this.applyStudentMetadata(student, metadata);
             this.applyListView();
             this.cdr.detectChanges();
           },
@@ -675,15 +806,39 @@ export class StudentManagementComponent implements OnInit {
     }
   }
 
-  private extractStudentContactFromProfile(
+  private extractStudentMetadataFromProfile(
     payload: StudentProfilePayload | StudentProfileResponse | null | undefined
-  ): { email: string; phone: string } {
+  ): StudentListMetadata {
     const root =
       payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     const profileNode =
       root['profile'] && typeof root['profile'] === 'object'
         ? (root['profile'] as Record<string, unknown>)
         : root;
+    const schoolRows =
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      (Array.isArray(root['schools']) ? root['schools'] : null) ||
+      (Array.isArray(root['schoolRecords']) ? root['schoolRecords'] : null) ||
+      (Array.isArray(root['highSchools']) ? root['highSchools'] : null) ||
+      [];
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
 
     return {
       email: this.pickFirstText([
@@ -704,18 +859,29 @@ export class StudentManagementComponent implements OnInit {
         root['tel'],
         root['contactPhone'],
       ]),
+      currentSchoolCountry: this.pickFirstText([
+        profileNode['currentSchoolCountry'],
+        profileNode['schoolCountry'],
+        root['currentSchoolCountry'],
+        root['schoolCountry'],
+        currentSchool['country'],
+        schoolAddress['country'],
+      ]),
     };
   }
 
-  private applyStudentContact(
+  private applyStudentMetadata(
     student: StudentAccount,
-    contact: { email: string; phone: string }
+    metadata: StudentListMetadata
   ): void {
-    if (!this.resolveStudentEmailValue(student) && contact.email) {
-      student.email = contact.email;
+    if (!this.resolveStudentEmailValue(student) && metadata.email) {
+      student.email = metadata.email;
     }
-    if (!this.resolveStudentPhoneValue(student) && contact.phone) {
-      student.phone = contact.phone;
+    if (!this.resolveStudentPhoneValue(student) && metadata.phone) {
+      student.phone = metadata.phone;
+    }
+    if (!this.resolveCurrentSchoolCountryValue(student) && metadata.currentSchoolCountry) {
+      student['currentSchoolCountry'] = metadata.currentSchoolCountry;
     }
   }
 
@@ -761,6 +927,126 @@ export class StudentManagementComponent implements OnInit {
     }
 
     return '';
+  }
+
+  private resolveCountryFilterSelection(value: unknown): StudentCountryFilter {
+    const normalized = this.normalizeCountryFilterValue(value);
+    return normalized || 'ALL';
+  }
+
+  private normalizeCountryFilterValue(value: unknown): StudentCountryFilter | '' {
+    const rawText = String(value ?? '').trim();
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (
+      normalizedKey === 'all' ||
+      normalizedKey === 'all countries' ||
+      normalizedKey === 'all country' ||
+      normalizedKey === '全部' ||
+      normalizedKey === '全部国家'
+    ) {
+      return 'ALL';
+    }
+
+    if (
+      normalizedKey === 'n a' ||
+      normalizedKey === 'na' ||
+      normalizedKey === 'not available' ||
+      normalizedKey === '尚未填写' ||
+      normalizedKey === '未填写' ||
+      normalizedKey === 'n a 尚未填写'
+    ) {
+      return 'N/A';
+    }
+
+    if (normalizedKey === 'ca' || normalizedKey === 'canada' || normalizedKey === '加拿大') {
+      return 'Canada';
+    }
+
+    if (
+      normalizedKey === 'cn' ||
+      normalizedKey === 'china' ||
+      normalizedKey === '中国' ||
+      normalizedKey === 'pr china' ||
+      normalizedKey === 'peoples republic of china' ||
+      normalizedKey === 'china mainland' ||
+      normalizedKey === '中国 china mainland'
+    ) {
+      return 'China (Mainland)';
+    }
+
+    if (
+      normalizedKey === 'us' ||
+      normalizedKey === 'usa' ||
+      normalizedKey === 'u s' ||
+      normalizedKey === 'u s a' ||
+      normalizedKey === 'america' ||
+      normalizedKey === '美国' ||
+      normalizedKey === 'united states' ||
+      normalizedKey === 'united states of america' ||
+      normalizedKey === 'usa united states'
+    ) {
+      return 'USA';
+    }
+
+    const matched = this.countryFilterOptions.find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private normalizeCountryKey(value: unknown): string {
+    return String(value ?? '')
+      .toLowerCase()
+      .replace(/[.]/g, '')
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ')
+      .trim();
+  }
+
+  private buildCountryFilterOptions(): string[] {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    const append = (value: unknown): void => {
+      const text = String(value ?? '').trim();
+      if (!text) return;
+      const key = text.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      options.push(text);
+    };
+
+    COUNTRY_FILTER_PRIORITY_OPTIONS.forEach(append);
+    append(COUNTRY_FILTER_NA_OPTION);
+    this.buildRegionCountryFilterOptions().forEach(append);
+    COUNTRY_FILTER_FALLBACK_OPTIONS.forEach(append);
+    append(COUNTRY_FILTER_ALL_OPTION);
+
+    return options;
+  }
+
+  private buildRegionCountryFilterOptions(): string[] {
+    try {
+      if (typeof Intl === 'undefined' || typeof Intl.DisplayNames !== 'function') {
+        return [];
+      }
+
+      const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+      const options: string[] = [];
+      for (let first = 65; first <= 90; first += 1) {
+        for (let second = 65; second <= 90; second += 1) {
+          const code = `${String.fromCharCode(first)}${String.fromCharCode(second)}`;
+          const name = displayNames.of(code);
+          if (!name || name === code) continue;
+          options.push(String(name));
+        }
+      }
+      return options;
+    } catch {
+      return [];
+    }
   }
 
   private resolveInviteLink(resp: CreateStudentInviteResponse | null | undefined): string {

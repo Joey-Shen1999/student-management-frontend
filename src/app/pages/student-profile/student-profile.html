@@ -204,6 +204,7 @@
           <label>国籍：</label>
           <input
             [(ngModel)]="model.citizenship"
+            (ngModelChange)="onCitizenshipInputChange($event)"
             name="citizenship"
             list="citizenshipOptions"
             placeholder="请输入或选择国籍"
@@ -423,7 +424,13 @@
 
           <div>
             <label>国家：</label>
-            <input [(ngModel)]="s.country" [name]="'highSchoolCountry_' + i" placeholder="Canada" />
+            <input
+              [(ngModel)]="s.country"
+              (ngModelChange)="onHighSchoolCountryInputChange(i, $event)"
+              [name]="'highSchoolCountry_' + i"
+              list="countryOptions"
+              placeholder="请输入或选择国家"
+            />
           </div>
 
           <div>

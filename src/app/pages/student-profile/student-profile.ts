@@ -125,12 +125,15 @@ const TRANSCRIPT_UPLOAD_RETRY_LIMIT = 25;
 const IDENTITY_UPLOAD_RETRY_DELAY_MS = 120;
 const IDENTITY_UPLOAD_RETRY_LIMIT = 25;
 
-const PRIORITY_CITIZENSHIP_OPTIONS = ['中国', '加拿大', '美国', '中国台湾', '中国香港'] as const;
-
-const FALLBACK_CITIZENSHIP_OPTIONS = [
-  'China',
+const PRIORITY_CITIZENSHIP_OPTIONS = [
+  'China (Mainland)',
   'Canada',
   'United States',
+  'China (Taiwan)',
+  'China (Hong Kong)',
+] as const;
+
+const FALLBACK_CITIZENSHIP_OPTIONS = [
   'United Kingdom',
   'Australia',
   'New Zealand',
@@ -160,6 +163,34 @@ const FALLBACK_CITIZENSHIP_OPTIONS = [
   'Egypt',
   'Saudi Arabia',
   'United Arab Emirates',
+] as const;
+
+const CITIZENSHIP_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
+  ['china', 'China (Mainland)'],
+  ['china mainland', 'China (Mainland)'],
+  ['pr china', 'China (Mainland)'],
+  ['peoples republic of china', 'China (Mainland)'],
+  ['中国', 'China (Mainland)'],
+  ['中国大陆', 'China (Mainland)'],
+  ['中华人民共和国', 'China (Mainland)'],
+  ['canada', 'Canada'],
+  ['加拿大', 'Canada'],
+  ['united states', 'United States'],
+  ['united states of america', 'United States'],
+  ['usa', 'United States'],
+  ['us', 'United States'],
+  ['u s a', 'United States'],
+  ['u s', 'United States'],
+  ['america', 'United States'],
+  ['美国', 'United States'],
+  ['taiwan', 'China (Taiwan)'],
+  ['中国台湾', 'China (Taiwan)'],
+  ['台湾', 'China (Taiwan)'],
+  ['china taiwan', 'China (Taiwan)'],
+  ['hong kong', 'China (Hong Kong)'],
+  ['hong kong sar china', 'China (Hong Kong)'],
+  ['中国香港', 'China (Hong Kong)'],
+  ['香港', 'China (Hong Kong)'],
 ] as const;
 
 const PRIORITY_FIRST_LANGUAGE_OPTIONS = [
@@ -358,6 +389,7 @@ const COUNTRY_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['canada', 'Canada'],
   ['\u52a0\u62ff\u5927', 'Canada'],
   ['china', 'China'],
+  ['china mainland', 'China'],
   ['\u4e2d\u56fd', 'China'],
   ['pr china', 'China'],
   ['peoples republic of china', 'China'],
@@ -535,6 +567,10 @@ export class StudentProfile implements OnInit {
     this.model.phone = this.formatPhoneForDisplay(value);
   }
 
+  onCitizenshipInputChange(value: string): void {
+    this.model.citizenship = this.normalizeCitizenshipToStandardEnglish(value);
+  }
+
   onGenderSelectionChange(value: string): void {
     const normalized = this.normalizeGender(value);
     this.model.gender = normalized;
@@ -577,6 +613,14 @@ export class StudentProfile implements OnInit {
     const school = this.model.highSchools[index];
     if (!school) return;
     school.postal = this.formatPostalForDisplay(value, school.country || 'Canada');
+  }
+
+  onHighSchoolCountryInputChange(index: number, value: string): void {
+    const school = this.model.highSchools[index];
+    if (!school) return;
+    const normalizedCountry = this.normalizeCountryToStandardEnglish(value);
+    school.country = normalizedCountry;
+    school.postal = this.formatPostalForDisplay(school.postal, normalizedCountry);
   }
 
   onHighSchoolTranscriptFileSelected(index: number, event: Event): void {
@@ -1954,7 +1998,7 @@ export class StudentProfile implements OnInit {
       email: this.toText(source.email),
 
       statusInCanada: this.toText(source.statusInCanada),
-      citizenship: this.toText(source.citizenship),
+      citizenship: this.normalizeCitizenshipToStandardEnglish(source.citizenship),
       firstLanguage: this.toText(source.firstLanguage),
       firstBoardingDate: this.normalizeDate(
         source.firstEntryDateInCanada ||
@@ -2142,7 +2186,7 @@ export class StudentProfile implements OnInit {
       phone: this.normalizePhoneForPayload(model.phone),
       email: this.toText(model.email),
       statusInCanada: this.toText(model.statusInCanada),
-      citizenship: this.toText(model.citizenship),
+      citizenship: this.normalizeCitizenshipToStandardEnglish(model.citizenship),
       firstLanguage: this.toText(model.firstLanguage),
       firstBoardingDate: firstEntryDateInCanada,
       firstEntryDateInCanada,
@@ -2345,8 +2389,9 @@ export class StudentProfile implements OnInit {
     const seen = new Set<string>();
     const append = (value: unknown): void => {
       const text = this.toText(value);
-      if (!text || seen.has(text)) return;
-      seen.add(text);
+      const key = text.toLowerCase();
+      if (!text || seen.has(key)) return;
+      seen.add(key);
       options.push(text);
     };
 
@@ -2362,7 +2407,7 @@ export class StudentProfile implements OnInit {
       if (typeof Intl === 'undefined' || typeof Intl.DisplayNames !== 'function') {
         return [];
       }
-      const displayNames = new Intl.DisplayNames(['zh-Hans-CN', 'zh-Hans', 'en'], {
+      const displayNames = new Intl.DisplayNames(['en'], {
         type: 'region',
       });
       const options: string[] = [];
@@ -2371,13 +2416,40 @@ export class StudentProfile implements OnInit {
           const code = `${String.fromCharCode(first)}${String.fromCharCode(second)}`;
           const name = displayNames.of(code);
           if (!name || name === code) continue;
-          options.push(String(name));
+          options.push(this.normalizeCitizenshipAliasOnly(String(name)));
         }
       }
       return options;
     } catch {
       return [];
     }
+  }
+
+  private normalizeCitizenshipToStandardEnglish(value: unknown): string {
+    const rawText = this.toText(value);
+    if (!rawText) return '';
+
+    const fromAlias = this.normalizeCitizenshipAliasOnly(rawText);
+    if (fromAlias !== rawText) {
+      return fromAlias;
+    }
+
+    const matched = this.citizenshipOptions.find(
+      (option) => option.toLowerCase() === rawText.toLowerCase()
+    );
+    return matched || rawText;
+  }
+
+  private normalizeCitizenshipAliasOnly(value: unknown): string {
+    const rawText = this.toText(value);
+    const normalizedKey = this.normalizeTextKey(rawText);
+    if (!normalizedKey) return '';
+
+    for (const [alias, canonical] of CITIZENSHIP_STANDARD_ALIASES) {
+      if (normalizedKey === alias) return canonical;
+    }
+
+    return rawText;
   }
 
   private buildFirstLanguageOptions(): string[] {
@@ -2498,11 +2570,7 @@ export class StudentProfile implements OnInit {
     const rawText = this.toText(value);
     if (!rawText) return '';
 
-    const normalizedKey = rawText
-      .toLowerCase()
-      .replace(/[.]/g, '')
-      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ')
-      .trim();
+    const normalizedKey = this.normalizeTextKey(rawText);
 
     for (const [alias, canonical] of COUNTRY_STANDARD_ALIASES) {
       if (normalizedKey === alias) return canonical;
@@ -2510,6 +2578,14 @@ export class StudentProfile implements OnInit {
 
     const matched = this.countryOptions.find((option) => option.toLowerCase() === rawText.toLowerCase());
     return matched || rawText;
+  }
+
+  private normalizeTextKey(value: unknown): string {
+    return this.toText(value)
+      .toLowerCase()
+      .replace(/[.]/g, '')
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ')
+      .trim();
   }
 
   get postalPlaceholder(): string {

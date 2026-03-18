@@ -209,14 +209,18 @@ describe('StudentProfile', () => {
     expect(fixture.nativeElement.querySelector('input[name=\"email\"]')).not.toBeNull();
   });
 
-  it('should prioritize citizenship options with China, Canada, USA, Taiwan, Hong Kong', () => {
+  it('should prioritize citizenship options with China first', () => {
     expect(component.citizenshipOptions.slice(0, 5)).toEqual([
-      '\u4e2d\u56fd',
-      '\u52a0\u62ff\u5927',
-      '\u7f8e\u56fd',
-      '\u4e2d\u56fd\u53f0\u6e7e',
-      '\u4e2d\u56fd\u9999\u6e2f',
+      'China (Mainland)',
+      'Canada',
+      'United States',
+      'China (Taiwan)',
+      'China (Hong Kong)',
     ]);
+  });
+
+  it('citizenship options should be English only', () => {
+    expect(component.citizenshipOptions.some((option) => /[\u4e00-\u9fff]/.test(option))).toBe(false);
   });
 
   it('should render citizenship input with datalist suggestions', () => {
@@ -318,6 +322,20 @@ describe('StudentProfile', () => {
     expect(countryInput.getAttribute('list')).toBe('countryOptions');
     expect(countryDatalist).not.toBeNull();
     expect(countryDatalist.querySelectorAll('option').length).toBeGreaterThan(10);
+  });
+
+  it('should render high-school country input with datalist suggestions', async () => {
+    component.enterEditMode();
+    component.addHighSchool();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const countryInputs = fixture.nativeElement.querySelectorAll('input[list="countryOptions"]');
+    const countryDatalist = fixture.nativeElement.querySelector('datalist#countryOptions');
+
+    expect(countryInputs.length).toBeGreaterThan(1);
+    expect(countryDatalist).not.toBeNull();
   });
 
   it('should format postal code as XXX XXX', () => {
@@ -1412,6 +1430,31 @@ describe('StudentProfile', () => {
         address: expect.objectContaining({
           country: 'China',
         }),
+      })
+    );
+  });
+
+  it('should normalize citizenship from API to standard English', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        citizenship: '\u4e2d\u56fd',
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.citizenship).toBe('China (Mainland)');
+  });
+
+  it('should normalize citizenship aliases to standard English when saving', () => {
+    component.enterEditMode();
+    component.model.citizenship = '\u7f8e\u56fd';
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        citizenship: 'United States',
       })
     );
   });

@@ -189,6 +189,69 @@ describe('StudentManagementComponent', () => {
     ]);
   });
 
+  it('applyListView should filter by current school country and include N/A in Canada', () => {
+    component.students = [
+      {
+        studentId: 1,
+        username: 'ca_student',
+        displayName: 'CA Student',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+      },
+      {
+        studentId: 2,
+        username: 'cn_student',
+        displayName: 'CN Student',
+        status: 'ACTIVE',
+        currentSchoolCountry: '中国',
+      },
+      {
+        studentId: 3,
+        username: 'us_student',
+        displayName: 'US Student',
+        status: 'ACTIVE',
+        schools: [{ schoolType: 'MAIN', country: 'United States' }],
+      },
+      { studentId: 4, username: 'na_student', displayName: 'NA Student', status: 'ACTIVE' },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1, 4]);
+
+    component.onCountryFilterInputChange('中国');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([2]);
+
+    component.onCountryFilterInputChange('USA');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([3]);
+
+    component.onCountryFilterInputChange('N/A 尚未填写');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([4]);
+  });
+
+  it('country filter options should prioritize Canada, China and USA', () => {
+    expect(component.countryFilterOptions.slice(0, 3)).toEqual([
+      'Canada',
+      '中国 / China (Mainland)',
+      'USA',
+    ]);
+  });
+
+  it('clearListControls should reset country filter to ALL', () => {
+    component.listLimit = 100;
+    component.showInactive = true;
+    component.searchKeyword = 'alice';
+    component.countryFilterInput = 'USA';
+    component.countryFilter = 'USA';
+
+    component.clearListControls();
+
+    expect(component.listLimit).toBe(20);
+    expect(component.showInactive).toBe(false);
+    expect(component.searchKeyword).toBe('');
+    expect(component.countryFilterInput).toBe('全部国家');
+    expect(component.countryFilter).toBe('ALL');
+  });
+
   it('createInviteLink should build register url from invite token', () => {
     (inviteApi.createInvite as any).mockReturnValue(
       of({
