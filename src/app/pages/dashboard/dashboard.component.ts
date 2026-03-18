@@ -193,6 +193,9 @@ import {
           <h3>Quick Actions</h3>
           <div class="quick-actions">
             <button type="button" class="action-btn primary" (click)="goProfile()">Student Profile</button>
+            <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
+              Name Settings
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
               Account Settings
             </button>
@@ -238,6 +241,10 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goAccountProfile() {
+    this.router.navigate(['/account/profile']);
   }
 
   goAccount() {

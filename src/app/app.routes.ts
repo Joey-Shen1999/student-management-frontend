@@ -38,6 +38,14 @@ export const routes: Routes = [
     },
   },
 
+  {
+    path: 'account/profile',
+    loadComponent: () =>
+      import('./pages/account-profile/account-profile.component').then(
+        (m) => m.AccountProfileComponent
+      ),
+  },
+
   { path: 'dashboard', component: DashboardComponent },
 
   {

@@ -111,6 +111,11 @@ describe('DashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/account']);
   });
 
+  it('goAccountProfile should navigate to account profile settings page', () => {
+    component.goAccountProfile();
+    expect(router.navigate).toHaveBeenCalledWith(['/account/profile']);
+  });
+
   it('should load goal and info list on init', () => {
     expect(taskCenter.listMyGoals).toHaveBeenCalledWith({ status: 'ALL', page: 1, size: 8 });
     expect(taskCenter.listMyInfos).toHaveBeenCalledWith({
