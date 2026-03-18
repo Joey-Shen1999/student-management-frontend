@@ -21,7 +21,18 @@ type PasswordMode = 'set' | 'change';
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
-      <h2>{{ isSetMode ? 'Set New Password' : 'Account Settings' }}</h2>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">{{ isSetMode ? 'Set New Password' : 'Account Settings' }}</h2>
+        <button
+          *ngIf="!isSetMode"
+          type="button"
+          [routerLink]="[backRoute]"
+          class="account-back-btn"
+          style="margin-left:auto;"
+        >
+          Back
+        </button>
+      </div>
 
       <p style="color:#666; line-height:1.6;">
         <ng-container *ngIf="isSetMode; else changeModeTip">
@@ -39,6 +50,7 @@ type PasswordMode = 'set' | 'change';
             [(ngModel)]="oldPassword"
             type="password"
             [disabled]="loading"
+            class="account-input"
             style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
           />
         </div>
@@ -48,6 +60,7 @@ type PasswordMode = 'set' | 'change';
           [(ngModel)]="newPassword"
           type="password"
           [disabled]="loading"
+          class="account-input"
           style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
@@ -68,6 +81,7 @@ type PasswordMode = 'set' | 'change';
           [(ngModel)]="confirmPassword"
           type="password"
           [disabled]="loading"
+          class="account-input"
           style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
         />
 
@@ -75,8 +89,6 @@ type PasswordMode = 'set' | 'change';
           <button type="button" (click)="submit()" [disabled]="loading" style="padding:10px 12px;">
             {{ loading ? 'Saving...' : submitLabel }}
           </button>
-
-          <a *ngIf="!isSetMode" [routerLink]="[backRoute]">Back</a>
         </div>
 
         <p *ngIf="successMsg" style="color:#0b6b0b;margin:10px 0 0;">{{ successMsg }}</p>
@@ -84,6 +96,42 @@ type PasswordMode = 'set' | 'change';
       </div>
     </div>
   `,
+  styles: [
+    `
+      .account-input {
+        box-sizing: border-box;
+        max-width: 100%;
+      }
+
+      .account-back-btn {
+        border: 1px solid #c8d2e0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #1f2f47;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(21, 40, 68, 0.12);
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .account-back-btn:hover {
+        border-color: #9db2d0;
+        box-shadow: 0 10px 22px rgba(21, 40, 68, 0.16);
+        transform: translateY(-1px);
+      }
+
+      .account-back-btn:focus-visible {
+        outline: 2px solid #8aa8d3;
+        outline-offset: 2px;
+      }
+    `,
+  ],
 })
 export class ChangePasswordComponent implements OnInit {
   mode: PasswordMode = 'set';

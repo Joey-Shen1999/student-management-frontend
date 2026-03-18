@@ -1,4 +1,14 @@
-<!-- App shell: only router pages -->
-<div style="min-height:100vh;">
+<div class="app-shell">
+  @if (showGlobalSignOut) {
+    <button
+      type="button"
+      class="global-signout-btn"
+      [disabled]="signingOut"
+      (click)="signOut()"
+    >
+      {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+    </button>
+  }
+
   <router-outlet></router-outlet>
 </div>

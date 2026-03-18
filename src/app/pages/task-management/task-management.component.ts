@@ -21,9 +21,11 @@ import {
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
     <div style="max-width:1100px;margin:24px auto;padding:0 12px;font-family:Arial,sans-serif;display:grid;gap:12px;">
-      <div style="display:flex;gap:10px;align-items:center;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <h2 style="margin:0;">Task Management</h2>
-        <button type="button" (click)="goDashboard()" style="margin-left:auto;">返回 Teacher Dashboard</button>
+        <button type="button" (click)="goDashboard()" class="task-back-btn" style="margin-left:auto;">
+          返回
+        </button>
       </div>
 
       <section style="border:1px solid #dfe6f4;border-radius:10px;padding:12px;background:#fff;display:grid;gap:8px;">
@@ -152,6 +154,37 @@ import {
       </section>
     </div>
   `,
+  styles: [
+    `
+      .task-back-btn {
+        border: 1px solid #c8d2e0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #1f2f47;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(21, 40, 68, 0.12);
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .task-back-btn:hover {
+        border-color: #9db2d0;
+        box-shadow: 0 10px 22px rgba(21, 40, 68, 0.16);
+        transform: translateY(-1px);
+      }
+
+      .task-back-btn:focus-visible {
+        outline: 2px solid #8aa8d3;
+        outline-offset: 2px;
+      }
+    `,
+  ],
 })
 export class TaskManagementComponent implements OnInit {
   studentOptions: AssignableStudentOptionVm[] = [];

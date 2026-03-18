@@ -41,7 +41,9 @@ interface StatusUpdateResult {
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">教师账号管理</h2>
-        <a routerLink="/teacher/dashboard" style="margin-left:auto;">返回</a>
+        <button type="button" routerLink="/teacher/dashboard" class="teacher-back-btn" style="margin-left:auto;">
+          返回
+        </button>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
@@ -303,6 +305,37 @@ interface StatusUpdateResult {
       </div>
     </div>
   `,
+  styles: [
+    `
+      .teacher-back-btn {
+        border: 1px solid #c8d2e0;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #1f2f47;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(21, 40, 68, 0.12);
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .teacher-back-btn:hover {
+        border-color: #9db2d0;
+        box-shadow: 0 10px 22px rgba(21, 40, 68, 0.16);
+        transform: translateY(-1px);
+      }
+
+      .teacher-back-btn:focus-visible {
+        outline: 2px solid #8aa8d3;
+        outline-offset: 2px;
+      }
+    `,
+  ],
 })
 export class TeacherManagementComponent implements OnInit {
   readonly limitOptions: number[] = [20, 50, 100];

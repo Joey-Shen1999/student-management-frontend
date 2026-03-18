@@ -15,7 +15,6 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <h2>Teacher Dashboard</h2>
             <p>Current workspace and quick navigation</p>
           </div>
-          <button type="button" class="action-btn ghost" (click)="logout()">Sign Out</button>
         </div>
 
         <section class="dashboard-card">

@@ -24,7 +24,6 @@ import {
             <h2>Student Dashboard</h2>
             <p>Goal 和 Info 会直接显示在首页，便于你快速跟进。</p>
           </div>
-          <button type="button" class="action-btn ghost" (click)="logout()">Sign Out</button>
         </div>
 
         <section class="dashboard-card">
