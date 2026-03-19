@@ -8,6 +8,7 @@ import { forkJoin, from } from 'rxjs';
 
 import {
   CanadianHighSchoolLookupItem,
+  EDUCATION_BOARD_LIBRARY_OPTIONS,
   StudentIdentityFilePayload,
   StudentProfilePayload,
   StudentSchoolTranscriptPayload,
@@ -31,6 +32,7 @@ interface HighSchoolModel {
   schoolRecordId: number | null;
   schoolType: SchoolType;
   schoolName: string;
+  schoolBoard: string;
   streetAddress: string;
   city: string;
   state: string;
@@ -438,6 +440,9 @@ const VALIDATION_FIELD_LABELS: Record<string, string> = {
   schools: '高中学校',
   schoolRecords: '高中学校',
   schoolName: '学校名称',
+  schoolBoard: '所属教育局',
+  boardName: '所属教育局',
+  educationBureau: '所属教育局',
   schoolType: '学校类型',
   startTime: '开始日期',
   endTime: '结束日期',
@@ -478,6 +483,7 @@ export class StudentProfile implements OnInit {
   readonly cityOptions: string[] = this.buildCityOptions();
   readonly provinceOptions: string[] = this.buildProvinceOptions();
   readonly countryOptions: string[] = this.buildCountryOptions();
+  readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
 
   statusInCanadaSelection = '';
   statusInCanadaOtherText = '';
@@ -607,6 +613,13 @@ export class StudentProfile implements OnInit {
 
     school.schoolName = this.toText(value);
     this.fetchHighSchoolLookupOptions(index, school.schoolName);
+  }
+
+  onHighSchoolBoardInputChange(index: number, value: string): void {
+    const school = this.model.highSchools[index];
+    if (!school) return;
+
+    school.schoolBoard = this.toText(value);
   }
 
   onHighSchoolPostalInputChange(index: number, value: string): void {
@@ -1464,11 +1477,17 @@ export class StudentProfile implements OnInit {
     this.highSchoolLookupTimer[index] = setTimeout(() => {
       delete this.highSchoolLookupTimer[index];
       const expectedName = this.toText(this.model.highSchools[index]?.schoolName).toLowerCase();
-      this.profileApi.searchCanadianHighSchools(text).subscribe({
-        next: (options) => {
+      forkJoin({
+        highSchools: this.profileApi.searchCanadianHighSchools(text),
+        providers: this.profileApi.searchOntarioCourseProviders(text),
+      }).subscribe({
+        next: ({ highSchools, providers }) => {
           const currentName = this.toText(this.model.highSchools[index]?.schoolName).toLowerCase();
-          if (currentName !== expectedName) return;
-          this.highSchoolLookupOptions[index] = options;
+          if (currentName !== expectedName) {
+            this.highSchoolLookupLoading[index] = false;
+            return;
+          }
+          this.highSchoolLookupOptions[index] = this.mergeHighSchoolLookupOptions(highSchools, providers);
           this.highSchoolLookupLoading[index] = false;
           this.tryApplyHighSchoolLookup(index, this.model.highSchools[index]?.schoolName || '');
           this.cdr.detectChanges();
@@ -1480,6 +1499,50 @@ export class StudentProfile implements OnInit {
         },
       });
     }, 300);
+  }
+
+  private mergeHighSchoolLookupOptions(
+    highSchools: CanadianHighSchoolLookupItem[],
+    providers: CanadianHighSchoolLookupItem[]
+  ): CanadianHighSchoolLookupItem[] {
+    const merged = [...highSchools, ...providers];
+    const dedupedByKey = new Map<string, CanadianHighSchoolLookupItem>();
+
+    for (const option of merged) {
+      const key = `${this.normalizeLookupText(option.name)}|${this.normalizeLookupText(option.streetAddress)}|${this.normalizeLookupText(option.postal)}`;
+      const existing = dedupedByKey.get(key);
+      if (!existing) {
+        dedupedByKey.set(key, { ...option });
+        continue;
+      }
+
+      if (!this.toText(existing.boardName) && this.toText(option.boardName)) {
+        existing.boardName = this.toText(option.boardName);
+      }
+      if (!this.toText(existing.schoolSpecialConditions) && this.toText(option.schoolSpecialConditions)) {
+        existing.schoolSpecialConditions = this.toText(option.schoolSpecialConditions);
+      }
+      if (!this.toText(existing.streetAddress) && this.toText(option.streetAddress)) {
+        existing.streetAddress = this.toText(option.streetAddress);
+      }
+      if (!this.toText(existing.city) && this.toText(option.city)) {
+        existing.city = this.toText(option.city);
+      }
+      if (!this.toText(existing.state) && this.toText(option.state)) {
+        existing.state = this.toText(option.state);
+      }
+      if (!this.toText(existing.country) && this.toText(option.country)) {
+        existing.country = this.toText(option.country);
+      }
+      if (!this.toText(existing.postal) && this.toText(option.postal)) {
+        existing.postal = this.toText(option.postal);
+      }
+      if (!this.toText(existing.displayAddress) && this.toText(option.displayAddress)) {
+        existing.displayAddress = this.toText(option.displayAddress);
+      }
+    }
+
+    return Array.from(dedupedByKey.values());
   }
 
   private tryApplyHighSchoolLookup(index: number, schoolName: string): void {
@@ -1501,13 +1564,42 @@ export class StudentProfile implements OnInit {
 
     const options = this.getHighSchoolLookupOptions(index);
     if (options.length === 0) return null;
-    for (const option of options) {
-      const optionName = this.normalizeLookupText(option.name);
-      if (optionName === inputText) {
-        return option;
+    const exactMatches = options.filter(
+      (option) => this.normalizeLookupText(option.name) === inputText
+    );
+    if (exactMatches.length <= 0) return null;
+
+    const merged = { ...exactMatches[0] };
+    for (const option of exactMatches.slice(1)) {
+      if (!this.toText(merged.boardName) && this.toText(option.boardName)) {
+        merged.boardName = this.toText(option.boardName);
+      }
+      if (!this.toText(merged.schoolSpecialConditions) && this.toText(option.schoolSpecialConditions)) {
+        merged.schoolSpecialConditions = this.toText(option.schoolSpecialConditions);
+      }
+      if (!this.toText(merged.streetAddress) && this.toText(option.streetAddress)) {
+        merged.streetAddress = this.toText(option.streetAddress);
+      }
+      if (!this.toText(merged.city) && this.toText(option.city)) {
+        merged.city = this.toText(option.city);
+      }
+      if (!this.toText(merged.state) && this.toText(option.state)) {
+        merged.state = this.toText(option.state);
+      }
+      if (!this.toText(merged.country) && this.toText(option.country)) {
+        merged.country = this.toText(option.country);
+      }
+      if (!this.toText(merged.postal) && this.toText(option.postal)) {
+        merged.postal = this.toText(option.postal);
+      }
+      if (!this.toText(merged.displayAddress) && this.toText(option.displayAddress)) {
+        merged.displayAddress = this.toText(option.displayAddress);
+      }
+      if (!this.toText(merged.lookupKey) && this.toText(option.lookupKey)) {
+        merged.lookupKey = this.toText(option.lookupKey);
       }
     }
-    return null;
+    return merged;
   }
 
   private normalizeLookupText(value: string): string {
@@ -1523,6 +1615,10 @@ export class StudentProfile implements OnInit {
     if (!school) return;
 
     school.schoolName = this.toText(option.name) || school.schoolName;
+    const normalizedBoardName = this.toText(option.boardName);
+    if (normalizedBoardName) {
+      school.schoolBoard = normalizedBoardName;
+    }
     school.streetAddress = this.toText(option.streetAddress);
     school.city = this.toText(option.city);
     school.state = this.toText(option.state);
@@ -1836,7 +1932,14 @@ export class StudentProfile implements OnInit {
     if (!target) return false;
 
     if (target instanceof HTMLButtonElement) {
-      return true;
+      const buttonType = String(target.type || '')
+        .trim()
+        .toLowerCase();
+      if (buttonType === 'submit') {
+        return true;
+      }
+
+      return target.dataset?.['skipAutosave'] === 'true';
     }
 
     if (target instanceof HTMLInputElement) {
@@ -2048,6 +2151,13 @@ export class StudentProfile implements OnInit {
         : this.toOptionalNumber(source.schoolRecordId),
       schoolType,
       schoolName: this.toText(source.schoolName || schoolNode.name),
+      schoolBoard: this.toText(
+        source.schoolBoard ||
+          source.boardName ||
+          source.educationBureau ||
+          schoolNode.schoolBoard ||
+          schoolNode.boardName
+      ),
       streetAddress: this.toText(source.streetAddress || rawAddress.streetAddress),
       city: this.toText(source.city || rawAddress.city),
       state: this.toText(source.state || rawAddress.state),
@@ -2070,6 +2180,7 @@ export class StudentProfile implements OnInit {
       schoolRecordId: null,
       schoolType: 'MAIN',
       schoolName: '',
+      schoolBoard: '',
       streetAddress: '',
       city: '',
       state: '',
@@ -2090,6 +2201,7 @@ export class StudentProfile implements OnInit {
       schoolRecordId: null,
       schoolType: 'OTHER',
       schoolName: '',
+      schoolBoard: '',
       streetAddress: '',
       city: '',
       state: '',
@@ -2116,6 +2228,7 @@ export class StudentProfile implements OnInit {
         schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
         schoolType: school.schoolType,
         schoolName: this.toText(school.schoolName),
+        schoolBoard: this.toText(school.schoolBoard),
         streetAddress: this.toText(school.streetAddress),
         city: this.toText(school.city),
         state: this.toText(school.state),
@@ -2218,6 +2331,8 @@ export class StudentProfile implements OnInit {
           schoolRecordId: this.toOptionalNumber(school.schoolRecordId),
           schoolType: index === 0 ? 'MAIN' : 'OTHER',
           schoolName: this.toText(school.schoolName),
+          schoolBoard: this.toText(school.schoolBoard),
+          boardName: this.toText(school.schoolBoard),
           address: {
             streetAddress: this.toText(school.streetAddress),
             city: this.toText(school.city),
@@ -2312,6 +2427,7 @@ export class StudentProfile implements OnInit {
         schoolRecordId: null,
         schoolType,
         schoolName,
+        schoolBoard: '',
         streetAddress: '',
         city: '',
         state: '',

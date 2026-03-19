@@ -119,6 +119,83 @@ describe('StudentProfileService', () => {
     expect(nextSpy).toHaveBeenCalledWith({ ok: true });
   });
 
+  it('searchCanadianHighSchools should keep boardName from richer duplicate rows', () => {
+    const nextSpy = vi.fn();
+    service.searchCanadianHighSchools('Unionville').subscribe(nextSpy);
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === '/api/reference/canadian-high-schools/search' &&
+        request.params.get('q') === 'Unionville'
+    );
+    expect(req.request.method).toBe('GET');
+    expect(req.request.params.get('q')).toBe('Unionville');
+
+    req.flush({
+      items: [
+        {
+          name: 'Unionville High School',
+          streetAddress: '201 Town Centre Boulevard',
+          city: 'Markham',
+          state: 'Ontario',
+          country: 'Canada',
+          postal: 'L3R 8G5',
+          boardName: '',
+        },
+        {
+          name: 'Unionville High School',
+          streetAddress: '201 Town Centre Boulevard',
+          city: 'Markham',
+          state: 'Ontario',
+          country: 'Canada',
+          postal: 'L3R 8G5',
+          boardName: 'YRDSB',
+        },
+      ],
+    });
+
+    expect(nextSpy).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'Unionville High School',
+        boardName: 'YRDSB',
+      }),
+    ]);
+  });
+
+  it('searchCanadianHighSchools should infer boardName from education-board library when payload boardName is missing', () => {
+    const nextSpy = vi.fn();
+    service.searchCanadianHighSchools('Alexander MacKenzie').subscribe(nextSpy);
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === '/api/reference/canadian-high-schools/search' &&
+        request.params.get('q') === 'Alexander MacKenzie'
+    );
+    expect(req.request.method).toBe('GET');
+
+    req.flush({
+      items: [
+        {
+          id: 'on-public:B66095:904040',
+          name: 'Alexander MacKenzie High School',
+          streetAddress: '300 Major MacKenzie Dr W',
+          city: 'Richmond Hill',
+          state: 'Ontario',
+          country: 'Canada',
+          postal: 'L4C 3S3',
+          boardName: '',
+        },
+      ],
+    });
+
+    expect(nextSpy).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'Alexander MacKenzie High School',
+        boardName: 'YRDSB',
+      }),
+    ]);
+  });
+
   it('uploadMyIdentityFile should call POST /api/student/profile/identity-files with multipart body', () => {
     const file = new File(['doc-content'], 'passport.pdf', { type: 'application/pdf' });
 

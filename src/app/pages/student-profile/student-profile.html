@@ -9,7 +9,13 @@
   <button type="button" *ngIf="!editing" (click)="enterEditMode()" [disabled]="loading || saving || invalidManagedStudentId">
     编辑
   </button>
-  <button type="button" *ngIf="editing" (click)="save()" [disabled]="saving || loading">
+  <button
+    type="button"
+    *ngIf="editing"
+    (click)="save()"
+    [disabled]="saving || loading"
+    data-skip-autosave="true"
+  >
     {{ saving ? '保存中...' : '保存' }}
   </button>
   <button type="button" (click)="loadProfile()" [disabled]="loading || saving">
@@ -83,6 +89,7 @@
       <strong>{{ i === 0 ? '在读学校' : '曾就读高中 #' + i }}</strong>
       <div><strong>学校性质：</strong>{{ i === 0 ? '在读学校（MAIN）' : '曾就读高中（OTHER）' }}</div>
       <div><strong>学校名称：</strong>{{ displayText(s.schoolName) }}</div>
+      <div><strong>所属教育局：</strong>{{ displayText(s.schoolBoard) }}</div>
       <div><strong>学校完整地址：</strong>{{ displaySchoolAddress(s) }}</div>
       <div><strong>开始日期：</strong>{{ displayText(s.startTime) }}</div>
       <div><strong>{{ i === 0 ? '预期毕业时间：' : '结束日期：' }}</strong>{{ displayText(s.endTime) }}</div>
@@ -400,11 +407,29 @@
               placeholder="输入学校名称并从建议中选择"
             />
             <datalist [id]="'highSchoolOptions_' + i">
-              <option *ngFor="let option of getHighSchoolLookupOptions(i)" [value]="option.name" [label]="option.displayAddress"></option>
+              <option
+                *ngFor="let option of getHighSchoolLookupOptions(i)"
+                [value]="option.name"
+                [label]="option.displayAddress + (option.boardName ? (' | ' + option.boardName) : '')"
+              ></option>
             </datalist>
             <div *ngIf="highSchoolLookupLoading[i]" style="margin-top: 4px; color: #666; font-size: 12px;">
               正在匹配学校地址...
             </div>
+          </div>
+
+          <div>
+            <label>所属教育局：</label>
+            <input
+              [(ngModel)]="s.schoolBoard"
+              (ngModelChange)="onHighSchoolBoardInputChange(i, $event)"
+              [name]="'highSchoolBoard_' + i"
+              list="schoolBoardOptions"
+              placeholder="例如：YRDSB / TDSB / 私校"
+            />
+            <datalist id="schoolBoardOptions" *ngIf="i === 0">
+              <option *ngFor="let option of schoolBoardOptions" [value]="option"></option>
+            </datalist>
           </div>
 
           <div>

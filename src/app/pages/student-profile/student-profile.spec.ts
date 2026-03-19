@@ -438,6 +438,7 @@ describe('StudentProfile', () => {
         schoolRecordId: null,
         schoolType: '',
         schoolName: 'Current High School',
+        schoolBoard: '',
         streetAddress: '',
         city: '',
         state: '',
@@ -455,6 +456,7 @@ describe('StudentProfile', () => {
         schoolRecordId: null,
         schoolType: 'MAIN',
         schoolName: 'Previous High School',
+        schoolBoard: '',
         streetAddress: '',
         city: '',
         state: '',
@@ -1167,6 +1169,7 @@ describe('StudentProfile', () => {
             postal: 'M4P1T7',
             displayAddress: '17 Broadway Avenue, Toronto, Ontario, M4P 1T7, Canada',
             lookupKey: 'way:34227662:North Toronto Collegiate Institute',
+            boardName: 'TDSB',
           },
         ])
       );
@@ -1180,9 +1183,138 @@ describe('StudentProfile', () => {
       expect(component.model.highSchools[0].state).toBe('Ontario');
       expect(component.model.highSchools[0].country).toBe('Canada');
       expect(component.model.highSchools[0].postal).toBe('M4P 1T7');
+      expect(component.model.highSchools[0].schoolBoard).toBe('TDSB');
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('should auto fill school board from provider lookup when high-school board is missing', () => {
+    vi.useFakeTimers();
+    try {
+      (profileApi.searchCanadianHighSchools as any).mockReturnValueOnce(
+        of([
+          {
+            name: 'Unionville High School',
+            streetAddress: '201 Town Centre Boulevard',
+            city: 'Markham',
+            state: 'Ontario',
+            country: 'Canada',
+            postal: 'L3R8G5',
+            displayAddress: '201 Town Centre Boulevard, Markham, Ontario, L3R 8G5, Canada',
+            lookupKey: 'unionville-high-school',
+            boardName: '',
+          },
+        ])
+      );
+      (profileApi.searchOntarioCourseProviders as any).mockReturnValueOnce(
+        of([
+          {
+            name: 'Unionville High School',
+            streetAddress: '201 Town Centre Boulevard',
+            city: 'Markham',
+            state: 'Ontario',
+            country: 'Canada',
+            postal: 'L3R8G5',
+            displayAddress: '201 Town Centre Boulevard, Markham, Ontario, L3R 8G5, Canada',
+            lookupKey: 'unionville-high-school-provider',
+            boardName: 'YRDSB',
+          },
+        ])
+      );
+
+      component.onHighSchoolNameInputChange(0, 'Unionville High School');
+      vi.advanceTimersByTime(300);
+
+      expect(profileApi.searchCanadianHighSchools).toHaveBeenCalledWith('Unionville High School');
+      expect(profileApi.searchOntarioCourseProviders).toHaveBeenCalledWith('Unionville High School');
+      expect(component.model.highSchools[0].schoolBoard).toBe('YRDSB');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should still auto fill school board when same-name provider row has different address key', () => {
+    vi.useFakeTimers();
+    try {
+      (profileApi.searchCanadianHighSchools as any).mockReturnValueOnce(
+        of([
+          {
+            name: 'Unionville High School',
+            streetAddress: '201 Town Centre Boulevard',
+            city: 'Markham',
+            state: 'Ontario',
+            country: 'Canada',
+            postal: 'L3R8G5',
+            displayAddress: '201 Town Centre Boulevard, Markham, Ontario, L3R 8G5, Canada',
+            lookupKey: 'unionville-high-school',
+            boardName: '',
+          },
+        ])
+      );
+      (profileApi.searchOntarioCourseProviders as any).mockReturnValueOnce(
+        of([
+          {
+            name: 'Unionville High School',
+            streetAddress: '',
+            city: '',
+            state: '',
+            country: 'Canada',
+            postal: '',
+            displayAddress: '',
+            lookupKey: 'unionville-high-school-provider-2',
+            boardName: 'YRDSB',
+          },
+        ])
+      );
+
+      component.onHighSchoolNameInputChange(0, 'Unionville High School');
+      vi.advanceTimersByTime(300);
+
+      expect(component.model.highSchools[0].schoolBoard).toBe('YRDSB');
+      expect(component.model.highSchools[0].streetAddress).toBe('201 Town Centre Boulevard');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should normalize high-school board input by trimming spaces', () => {
+    component.onHighSchoolBoardInputChange(0, '  YRDSB  ');
+
+    expect(component.model.highSchools[0].schoolBoard).toBe('YRDSB');
+  });
+
+  it('should render school-board input with datalist suggestions', async () => {
+    component.enterEditMode();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const boardInput = fixture.nativeElement.querySelector('input[list="schoolBoardOptions"]');
+    const boardDatalist = fixture.nativeElement.querySelector('datalist#schoolBoardOptions');
+
+    expect(boardInput).not.toBeNull();
+    expect(boardInput.getAttribute('list')).toBe('schoolBoardOptions');
+    expect(boardDatalist).not.toBeNull();
+    expect(boardDatalist.querySelectorAll('option').length).toBeGreaterThan(5);
+  });
+
+  it('should include schoolBoard in save payload', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolBoard = 'YRDSB';
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        schools: [
+          expect.objectContaining({
+            schoolBoard: 'YRDSB',
+            boardName: 'YRDSB',
+          }),
+        ],
+      })
+    );
   });
 
   it('should not auto fill high school address on partial name match', () => {
@@ -1491,6 +1623,41 @@ describe('StudentProfile', () => {
     component.onFormFocusOut({
       target: textInput,
       relatedTarget: fileInput,
+    } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+  });
+
+  it('should auto save when focus moves to a normal button', () => {
+    component.enterEditMode();
+    component.model.phone = '1234567890';
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    const normalButton = document.createElement('button');
+    normalButton.type = 'button';
+
+    component.onFormFocusOut({
+      target: textInput,
+      relatedTarget: normalButton,
+    } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not auto save when focus moves to a button marked to skip autosave', () => {
+    component.enterEditMode();
+    component.model.phone = '1234567890';
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.dataset['skipAutosave'] = 'true';
+
+    component.onFormFocusOut({
+      target: textInput,
+      relatedTarget: saveButton,
     } as unknown as FocusEvent);
 
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
