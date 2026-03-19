@@ -244,14 +244,292 @@ describe('StudentManagementComponent', () => {
     component.searchKeyword = 'alice';
     component.countryFilterInput = 'United States';
     component.countryFilter = 'United States';
+    component.provinceFilterInput = 'California';
+    component.provinceFilter = 'California';
+    component.cityFilterInput = 'Los Angeles';
+    component.cityFilter = 'Los Angeles';
 
     component.clearListControls();
 
     expect(component.listLimit).toBe(20);
     expect(component.showInactive).toBe(false);
     expect(component.searchKeyword).toBe('');
-    expect(component.countryFilterInput).toBe('All');
+    expect(component.countryFilterInput).toBe('');
     expect(component.countryFilter).toBe('ALL');
+    expect(component.provinceFilterInput).toBe('');
+    expect(component.provinceFilter).toBe('');
+    expect(component.cityFilterInput).toBe('');
+    expect(component.cityFilter).toBe('');
+  });
+
+  it('country filter input should stay empty when cleared instead of restoring All text', () => {
+    component.onCountryFilterInputChange('All');
+    component.onCountryFilterInputChange('Al');
+    component.onCountryFilterInputChange('A');
+    expect(component.countryFilterInput).toBe('A');
+
+    component.onCountryFilterInputChange('');
+    expect(component.countryFilterInput).toBe('');
+    expect(component.countryFilter).toBe('ALL');
+  });
+
+  it('country filter should expose province options for Canada, China and United States only', () => {
+    component.onCountryFilterInputChange('Canada');
+    expect(component.provinceFilterCountry).toBe('Canada');
+    expect(component.provinceFilterOptions.slice(0, 4)).toEqual([
+      'Ontario',
+      'British Columbia',
+      'Alberta',
+      'Quebec',
+    ]);
+
+    component.onCountryFilterInputChange('China');
+    expect(component.provinceFilterCountry).toBe('China (mainland)');
+    expect(component.provinceFilterOptions).toContain('Guangdong');
+
+    component.onCountryFilterInputChange('United States');
+    expect(component.provinceFilterCountry).toBe('United States');
+    expect(component.provinceFilterOptions).toContain('California');
+
+    component.onCountryFilterInputChange('Japan');
+    expect(component.provinceFilterCountry).toBe('');
+    expect(component.provinceFilterOptions).toEqual([]);
+  });
+
+  it('city options should match selected province', () => {
+    component.students = [
+      {
+        studentId: 101,
+        username: 'ca_toronto',
+        displayName: 'CA Toronto',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+      },
+      {
+        studentId: 102,
+        username: 'ca_vancouver',
+        displayName: 'CA Vancouver',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+        currentSchoolCity: 'Vancouver',
+      },
+      {
+        studentId: 103,
+        username: 'cn_guangzhou',
+        displayName: 'CN Guangzhou',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'China (mainland)',
+        currentSchoolProvince: 'Guangdong',
+        currentSchoolCity: 'Guangzhou',
+      },
+      {
+        studentId: 104,
+        username: 'us_losangeles',
+        displayName: 'US Los Angeles',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'California',
+        currentSchoolCity: 'Los Angeles',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    expect(component.cityFilterCountry).toBe('Canada');
+    expect(component.cityFilterOptions).toEqual(['Toronto']);
+
+    component.onProvinceFilterInputChange('British Columbia');
+    expect(component.cityFilterOptions).toEqual(['Vancouver']);
+
+    component.onCountryFilterInputChange('China');
+    component.onProvinceFilterInputChange('Guangdong');
+    expect(component.cityFilterCountry).toBe('China (mainland)');
+    expect(component.cityFilterOptions).toEqual(['Guangzhou']);
+
+    component.onCountryFilterInputChange('United States');
+    component.onProvinceFilterInputChange('California');
+    expect(component.cityFilterCountry).toBe('United States');
+    expect(component.cityFilterOptions).toEqual(['Los Angeles']);
+
+    component.onCountryFilterInputChange('Japan');
+    expect(component.cityFilterCountry).toBe('');
+    expect(component.cityFilterOptions).toEqual([]);
+  });
+
+  it('city filter options should include dynamic cities from loaded student data', () => {
+    component.students = [
+      {
+        studentId: 21,
+        username: 'us_austin',
+        displayName: 'US Austin',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'Texas',
+        currentSchoolCity: 'Austin',
+      },
+    ];
+
+    component.onCountryFilterInputChange('United States');
+    component.onProvinceFilterInputChange('Texas');
+    expect(component.cityFilterOptions).toContain('Austin');
+  });
+
+  it('province change should clear city filter', () => {
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    component.onCityFilterInputChange('Toronto');
+    expect(component.cityFilterInput).toBe('Toronto');
+    expect(component.cityFilter).toBe('Toronto');
+
+    component.onProvinceFilterInputChange('Quebec');
+    expect(component.cityFilterInput).toBe('');
+    expect(component.cityFilter).toBe('');
+  });
+
+  it('city filter should stay empty when province is not selected', () => {
+    component.students = [
+      {
+        studentId: 41,
+        username: 'ca_toronto',
+        displayName: 'CA Toronto',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+      },
+      {
+        studentId: 42,
+        username: 'ca_vancouver',
+        displayName: 'CA Vancouver',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+        currentSchoolCity: 'Vancouver',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onCityFilterInputChange('Toronto');
+
+    expect(component.cityFilter).toBe('');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([41, 42]);
+  });
+
+  it('province filter should support BC and AB aliases for Canada', () => {
+    component.students = [
+      {
+        studentId: 31,
+        username: 'ca_bc',
+        displayName: 'CA BC',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+      },
+      {
+        studentId: 32,
+        username: 'ca_ab',
+        displayName: 'CA AB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Alberta',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('BC');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([31]);
+
+    component.onProvinceFilterInputChange('ab');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([32]);
+  });
+
+  it('applyListView should filter by province when country supports province options', () => {
+    component.students = [
+      {
+        studentId: 1,
+        username: 'ca_on_student',
+        displayName: 'ON Student',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+      },
+      {
+        studentId: 2,
+        username: 'ca_bc_student',
+        displayName: 'BC Student',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+        currentSchoolCity: 'Vancouver',
+      },
+      {
+        studentId: 3,
+        username: 'us_ca_student',
+        displayName: 'US-CA Student',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'California',
+        currentSchoolCity: 'Los Angeles',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+
+    component.onCountryFilterInputChange('United States');
+    expect(component.provinceFilterInput).toBe('');
+    expect(component.provinceFilter).toBe('');
+    component.onProvinceFilterInputChange('California');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([3]);
+  });
+
+  it('applyListView should filter by city when country supports city options', () => {
+    component.students = [
+      {
+        studentId: 11,
+        username: 'ca_toronto',
+        displayName: 'CA Toronto',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+      },
+      {
+        studentId: 12,
+        username: 'ca_vancouver',
+        displayName: 'CA Vancouver',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+        currentSchoolCity: 'Vancouver',
+      },
+      {
+        studentId: 13,
+        username: 'us_newyork',
+        displayName: 'US New York',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'New York',
+        currentSchoolCity: 'New York',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    component.onCityFilterInputChange('Toronto');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([11]);
+
+    component.onCountryFilterInputChange('United States');
+    expect(component.cityFilterInput).toBe('');
+    expect(component.cityFilter).toBe('');
+    component.onProvinceFilterInputChange('New York');
+    component.onCityFilterInputChange('New York');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([13]);
   });
 
   it('createInviteLink should build register url from invite token', () => {

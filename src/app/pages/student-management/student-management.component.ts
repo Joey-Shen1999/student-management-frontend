@@ -35,11 +35,15 @@ interface StatusUpdateResult {
 }
 
 type StudentCountryFilter = 'ALL' | 'N/A' | string;
+type StudentProvinceFilter = string;
+type ProvinceFilterCountry = 'Canada' | 'China (mainland)' | 'United States';
 
 interface StudentListMetadata {
   email: string;
   phone: string;
   currentSchoolCountry: string;
+  currentSchoolProvince: string;
+  currentSchoolCity: string;
 }
 
 const COUNTRY_FILTER_ALL_OPTION = 'All';
@@ -76,6 +80,309 @@ const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'Saudi Arabia',
   'United Arab Emirates',
 ] as const;
+
+const PROVINCE_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly string[]> = {
+  Canada: [
+    'Ontario',
+    'British Columbia',
+    'Alberta',
+    'Quebec',
+    'Manitoba',
+    'Saskatchewan',
+    'New Brunswick',
+    'Nova Scotia',
+    'Newfoundland and Labrador',
+    'Prince Edward Island',
+    'Northwest Territories',
+    'Nunavut',
+    'Yukon',
+  ],
+  'China (mainland)': [
+    'Anhui',
+    'Beijing',
+    'Chongqing',
+    'Fujian',
+    'Gansu',
+    'Guangdong',
+    'Guangxi',
+    'Guizhou',
+    'Hainan',
+    'Hebei',
+    'Heilongjiang',
+    'Henan',
+    'Hong Kong',
+    'Hubei',
+    'Hunan',
+    'Inner Mongolia',
+    'Jiangsu',
+    'Jiangxi',
+    'Jilin',
+    'Liaoning',
+    'Macao',
+    'Ningxia',
+    'Qinghai',
+    'Shaanxi',
+    'Shandong',
+    'Shanghai',
+    'Shanxi',
+    'Sichuan',
+    'Taiwan',
+    'Tianjin',
+    'Tibet',
+    'Xinjiang',
+    'Yunnan',
+    'Zhejiang',
+  ],
+  'United States': [
+    'Alabama',
+    'Alaska',
+    'Arizona',
+    'Arkansas',
+    'California',
+    'Colorado',
+    'Connecticut',
+    'Delaware',
+    'District of Columbia',
+    'Florida',
+    'Georgia',
+    'Hawaii',
+    'Idaho',
+    'Illinois',
+    'Indiana',
+    'Iowa',
+    'Kansas',
+    'Kentucky',
+    'Louisiana',
+    'Maine',
+    'Maryland',
+    'Massachusetts',
+    'Michigan',
+    'Minnesota',
+    'Mississippi',
+    'Missouri',
+    'Montana',
+    'Nebraska',
+    'Nevada',
+    'New Hampshire',
+    'New Jersey',
+    'New Mexico',
+    'New York',
+    'North Carolina',
+    'North Dakota',
+    'Ohio',
+    'Oklahoma',
+    'Oregon',
+    'Pennsylvania',
+    'Rhode Island',
+    'South Carolina',
+    'South Dakota',
+    'Tennessee',
+    'Texas',
+    'Utah',
+    'Vermont',
+    'Virginia',
+    'Washington',
+    'West Virginia',
+    'Wisconsin',
+    'Wyoming',
+  ],
+};
+
+const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
+  Record<ProvinceFilterCountry, Record<string, string>>
+> = {
+  Canada: {
+    ontario: 'Ontario',
+    on: 'Ontario',
+    安省: 'Ontario',
+    bc: 'British Columbia',
+    'b c': 'British Columbia',
+    'british columbia': 'British Columbia',
+    卑诗省: 'British Columbia',
+    ab: 'Alberta',
+    'a b': 'Alberta',
+    alberta: 'Alberta',
+    阿省: 'Alberta',
+    quebec: 'Quebec',
+    qc: 'Quebec',
+    'q c': 'Quebec',
+    魁省: 'Quebec',
+  },
+};
+
+const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly string[]> = {
+  Canada: [
+    'Toronto',
+    'Montreal',
+    'Vancouver',
+    'Calgary',
+    'Ottawa',
+    'Edmonton',
+    'Winnipeg',
+    'Quebec City',
+    'Halifax',
+    'Mississauga',
+    'Hamilton',
+    'Kitchener',
+    'London',
+    'Victoria',
+    'Oshawa',
+    'Windsor',
+    'Saskatoon',
+    'Regina',
+    "St. John's",
+    'Barrie',
+    'Kelowna',
+    'Sherbrooke',
+    'Guelph',
+    'Thunder Bay',
+    'Moncton',
+    'Brantford',
+    'Saint John',
+    'Red Deer',
+    'Kamloops',
+    'Lethbridge',
+    'Nanaimo',
+    'Peterborough',
+    'Kingston',
+    'Chilliwack',
+    'Sarnia',
+    'Sudbury',
+    'Prince George',
+    'Trois-Rivieres',
+    'Medicine Hat',
+    'Fredericton',
+    'Whitehorse',
+    'Yellowknife',
+    'Iqaluit',
+    'Brampton',
+    'Surrey',
+    'Laval',
+    'Burnaby',
+    'Richmond',
+    'Markham',
+    'Vaughan',
+  ],
+  'China (mainland)': [
+    'Beijing',
+    'Shanghai',
+    'Guangzhou',
+    'Shenzhen',
+    'Chengdu',
+    'Hangzhou',
+    'Wuhan',
+    'Chongqing',
+    'Nanjing',
+    'Tianjin',
+    "Xi'an",
+    'Suzhou',
+    'Qingdao',
+    'Ningbo',
+    'Zhengzhou',
+    'Changsha',
+    'Dongguan',
+    'Foshan',
+    'Shenyang',
+    'Dalian',
+    'Harbin',
+    'Jinan',
+    'Xiamen',
+    'Fuzhou',
+    'Kunming',
+    'Hefei',
+    'Nanchang',
+    'Taiyuan',
+    'Urumqi',
+    'Lanzhou',
+    'Guiyang',
+    'Nanning',
+    'Hohhot',
+    'Haikou',
+    'Shijiazhuang',
+    'Wuxi',
+    'Nantong',
+    'Changzhou',
+    'Wenzhou',
+    'Yantai',
+    'Zhuhai',
+    'Huizhou',
+    'Quanzhou',
+    'Yinchuan',
+    'Xining',
+    'Lhasa',
+    'Jilin',
+    'Luoyang',
+    'Weifang',
+    'Baoding',
+  ],
+  'United States': [
+    'New York',
+    'Los Angeles',
+    'Chicago',
+    'Houston',
+    'Phoenix',
+    'Philadelphia',
+    'San Antonio',
+    'San Diego',
+    'Dallas',
+    'San Jose',
+    'Seattle',
+    'Boston',
+    'Washington',
+    'Austin',
+    'Jacksonville',
+    'Fort Worth',
+    'Columbus',
+    'Charlotte',
+    'San Francisco',
+    'Indianapolis',
+    'Denver',
+    'El Paso',
+    'Nashville',
+    'Detroit',
+    'Oklahoma City',
+    'Portland',
+    'Las Vegas',
+    'Memphis',
+    'Louisville',
+    'Baltimore',
+    'Milwaukee',
+    'Albuquerque',
+    'Tucson',
+    'Fresno',
+    'Sacramento',
+    'Mesa',
+    'Kansas City',
+    'Atlanta',
+    'Omaha',
+    'Colorado Springs',
+    'Raleigh',
+    'Miami',
+    'Virginia Beach',
+    'Oakland',
+    'Minneapolis',
+    'Tulsa',
+    'Tampa',
+    'Arlington',
+    'New Orleans',
+    'Wichita',
+    'Cleveland',
+    'Bakersfield',
+    'Aurora',
+    'Anaheim',
+    'Honolulu',
+    'Santa Ana',
+    'Corpus Christi',
+    'Riverside',
+    'Lexington',
+    'Stockton',
+    'Henderson',
+    'Saint Paul',
+    'St. Louis',
+    'Cincinnati',
+    'Pittsburgh',
+  ],
+};
 
 @Component({
   selector: 'app-student-management',
@@ -180,10 +487,48 @@ const COUNTRY_FILTER_FALLBACK_OPTIONS = [
             </datalist>
           </label>
 
+          <label
+            *ngIf="provinceFilterCountry"
+            style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
+          >
+            省份
+            <input
+              [(ngModel)]="provinceFilterInput"
+              (ngModelChange)="onProvinceFilterInputChange($event)"
+              name="provinceFilter"
+              list="provinceFilterOptions"
+              placeholder="All"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:180px;"
+            />
+            <datalist id="provinceFilterOptions">
+              <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label
+            *ngIf="cityFilterCountry && provinceFilterInput.trim()"
+            style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
+          >
+            城市
+            <input
+              [(ngModel)]="cityFilterInput"
+              (ngModelChange)="onCityFilterInputChange($event)"
+              name="cityFilter"
+              list="cityFilterOptions"
+              placeholder="All"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:180px;"
+            />
+            <datalist id="cityFilterOptions">
+              <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL')"
+            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL' && !provinceFilterInput.trim() && !cityFilterInput.trim())"
           >
             清空
           </button>
@@ -376,8 +721,12 @@ export class StudentManagementComponent implements OnInit {
   listLimit = 20;
   showInactive = false;
   searchKeyword = '';
-  countryFilterInput = COUNTRY_FILTER_ALL_OPTION;
+  countryFilterInput = '';
   countryFilter: StudentCountryFilter = 'ALL';
+  provinceFilterInput = '';
+  provinceFilter: StudentProvinceFilter = '';
+  cityFilterInput = '';
+  cityFilter: string = '';
   creatingInvite = false;
   inviteError = '';
   inviteLink = '';
@@ -430,16 +779,143 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveStudentPhoneValue(student) || '-';
   }
 
+  get provinceFilterCountry(): ProvinceFilterCountry | '' {
+    if (this.countryFilter === 'Canada') return 'Canada';
+    if (this.countryFilter === 'China (mainland)') return 'China (mainland)';
+    if (this.countryFilter === 'United States') return 'United States';
+    return '';
+  }
+
+  get provinceFilterOptions(): readonly string[] {
+    const country = this.provinceFilterCountry;
+    return country
+      ? this.mergeFilterOptions(
+          PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country],
+          this.collectProvinceFilterOptions(country)
+        )
+      : [];
+  }
+
+  get cityFilterCountry(): ProvinceFilterCountry | '' {
+    return this.provinceFilterCountry;
+  }
+
+  get cityFilterOptions(): readonly string[] {
+    const country = this.cityFilterCountry;
+    const province = this.provinceFilter;
+    return country && province ? this.collectCityFilterOptions(country, province) : [];
+  }
+
   onCountryFilterInputChange(value: string): void {
+    const previousCountryFilter = this.countryFilter;
     const input = String(value ?? '').trim();
-    this.countryFilterInput = input || COUNTRY_FILTER_ALL_OPTION;
-    this.countryFilter = this.resolveCountryFilterSelection(this.countryFilterInput);
+    this.countryFilterInput = input;
+    this.countryFilter = input ? this.resolveCountryFilterSelection(input) : 'ALL';
+    if (!this.provinceFilterCountry || this.countryFilter !== previousCountryFilter) {
+      this.provinceFilterInput = '';
+      this.provinceFilter = '';
+      this.cityFilterInput = '';
+      this.cityFilter = '';
+    }
+    this.applyListView();
+  }
+
+  onProvinceFilterInputChange(value: string): void {
+    const previousProvinceFilter = this.provinceFilter;
+    const input = String(value ?? '').trim();
+    this.provinceFilterInput = input;
+    const country = this.provinceFilterCountry;
+    this.provinceFilter =
+      country && input ? this.resolveProvinceFilterSelection(input, country) : '';
+    if (!this.provinceFilter || this.provinceFilter !== previousProvinceFilter) {
+      this.cityFilterInput = '';
+      this.cityFilter = '';
+    }
+    this.applyListView();
+  }
+
+  onCityFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.cityFilterInput = input;
+    const country = this.cityFilterCountry;
+    const province = this.provinceFilter;
+    this.cityFilter =
+      country && province && input ? this.resolveCityFilterSelection(input, country) : '';
     this.applyListView();
   }
 
   private resolveCurrentSchoolCountryForFilter(student: StudentAccount): StudentCountryFilter {
     const normalized = this.normalizeCountryFilterValue(this.resolveCurrentSchoolCountryValue(student));
     return normalized || 'N/A';
+  }
+
+  private resolveCurrentSchoolProvinceForFilter(
+    student: StudentAccount,
+    country: ProvinceFilterCountry | ''
+  ): StudentProvinceFilter {
+    const normalized = this.normalizeProvinceFilterValue(
+      this.resolveCurrentSchoolProvinceValue(student),
+      country
+    );
+    return normalized || '';
+  }
+
+  private collectProvinceFilterOptions(country: ProvinceFilterCountry): string[] {
+    const options: string[] = [];
+    for (const student of this.students) {
+      if (this.resolveCurrentSchoolCountryForFilter(student) !== country) {
+        continue;
+      }
+      const province = this.resolveCurrentSchoolProvinceForFilter(student, country);
+      if (province) {
+        options.push(province);
+      }
+    }
+    return options;
+  }
+
+  private resolveCurrentSchoolCityForFilter(
+    student: StudentAccount,
+    country: ProvinceFilterCountry | ''
+  ): string {
+    const normalized = this.normalizeCityFilterValue(this.resolveCurrentSchoolCityValue(student), country);
+    return normalized || '';
+  }
+
+  private collectCityFilterOptions(country: ProvinceFilterCountry, province: StudentProvinceFilter): string[] {
+    const options: string[] = [];
+    const provinceKey = this.normalizeCountryKey(province);
+    for (const student of this.students) {
+      if (this.resolveCurrentSchoolCountryForFilter(student) !== country) {
+        continue;
+      }
+      const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, country);
+      if (!studentProvince || this.normalizeCountryKey(studentProvince) !== provinceKey) {
+        continue;
+      }
+      const city = this.resolveCurrentSchoolCityForFilter(student, country);
+      if (city) {
+        options.push(city);
+      }
+    }
+    return this.mergeFilterOptions([], options);
+  }
+
+  private mergeFilterOptions(primary: readonly string[], extra: readonly string[]): string[] {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    const append = (value: unknown): void => {
+      const text = String(value ?? '').trim();
+      if (!text) return;
+      const key = this.normalizeCountryKey(text);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      options.push(text);
+    };
+
+    primary.forEach(append);
+    extra.forEach(append);
+    return options;
   }
 
   private resolveCurrentSchoolCountryValue(student: StudentAccount): string {
@@ -481,6 +957,110 @@ export class StudentManagementComponent implements OnInit {
       profileNode['schoolCountry'],
       currentSchool['country'],
       schoolAddress['country'],
+    ]);
+  }
+
+  private resolveCurrentSchoolProvinceValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return this.pickFirstText([
+      student?.['currentSchoolProvince'],
+      student?.['schoolProvince'],
+      student?.['province'],
+      student?.['state'],
+      student?.['region'],
+      profileNode['currentSchoolProvince'],
+      profileNode['schoolProvince'],
+      profileNode['province'],
+      profileNode['state'],
+      profileNode['region'],
+      currentSchool['province'],
+      currentSchool['state'],
+      currentSchool['region'],
+      schoolAddress['province'],
+      schoolAddress['state'],
+      schoolAddress['region'],
+      schoolAddress['administrativeArea'],
+    ]);
+  }
+
+  private resolveCurrentSchoolCityValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return this.pickFirstText([
+      student?.['currentSchoolCity'],
+      student?.['schoolCity'],
+      student?.['city'],
+      student?.['town'],
+      student?.['municipality'],
+      profileNode['currentSchoolCity'],
+      profileNode['schoolCity'],
+      profileNode['city'],
+      profileNode['town'],
+      profileNode['municipality'],
+      currentSchool['city'],
+      currentSchool['town'],
+      currentSchool['municipality'],
+      schoolAddress['city'],
+      schoolAddress['town'],
+      schoolAddress['municipality'],
+      schoolAddress['locality'],
     ]);
   }
 
@@ -677,8 +1257,12 @@ export class StudentManagementComponent implements OnInit {
     this.listLimit = 20;
     this.showInactive = false;
     this.searchKeyword = '';
-    this.countryFilterInput = COUNTRY_FILTER_ALL_OPTION;
+    this.countryFilterInput = '';
     this.countryFilter = 'ALL';
+    this.provinceFilterInput = '';
+    this.provinceFilter = '';
+    this.cityFilterInput = '';
+    this.cityFilter = '';
     this.applyListView();
   }
 
@@ -689,6 +1273,10 @@ export class StudentManagementComponent implements OnInit {
 
   applyListView(): void {
     const keyword = this.searchKeyword.trim().toLowerCase();
+    const provinceCountry = this.provinceFilterCountry;
+    const provinceFilterKey = this.normalizeCountryKey(this.provinceFilter);
+    const cityCountry = this.cityFilterCountry;
+    const cityFilterKey = this.normalizeCountryKey(this.cityFilter);
     const filtered = this.students.filter((student) => {
       if (!this.showInactive && this.resolveStatus(student) !== 'ACTIVE') {
         return false;
@@ -696,13 +1284,37 @@ export class StudentManagementComponent implements OnInit {
 
       if (this.countryFilter !== 'ALL') {
         const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
+        let countryMatched = false;
         if (this.countryFilter === 'N/A') {
-          return studentCountry === 'N/A';
+          countryMatched = studentCountry === 'N/A';
+        } else if (this.countryFilter === 'Canada') {
+          countryMatched = studentCountry === 'Canada' || studentCountry === 'N/A';
+        } else {
+          countryMatched = studentCountry === this.countryFilter;
         }
-        if (this.countryFilter === 'Canada') {
-          return studentCountry === 'Canada' || studentCountry === 'N/A';
+        if (!countryMatched) {
+          return false;
         }
-        return studentCountry === this.countryFilter;
+      }
+
+      if (provinceCountry && provinceFilterKey) {
+        const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, provinceCountry);
+        if (!studentProvince) {
+          return false;
+        }
+        if (this.normalizeCountryKey(studentProvince) !== provinceFilterKey) {
+          return false;
+        }
+      }
+
+      if (cityCountry && cityFilterKey) {
+        const studentCity = this.resolveCurrentSchoolCityForFilter(student, cityCountry);
+        if (!studentCity) {
+          return false;
+        }
+        if (this.normalizeCountryKey(studentCity) !== cityFilterKey) {
+          return false;
+        }
       }
 
       if (!keyword) {
@@ -746,12 +1358,16 @@ export class StudentManagementComponent implements OnInit {
       const email = this.resolveStudentEmailValue(student);
       const phone = this.resolveStudentPhoneValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
+      const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
+      const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
 
       return {
         ...student,
         email: email || undefined,
         phone: phone || undefined,
         currentSchoolCountry: currentSchoolCountry || undefined,
+        currentSchoolProvince: currentSchoolProvince || undefined,
+        currentSchoolCity: currentSchoolCity || undefined,
         status: this.resolveStatus(student),
       };
     });
@@ -772,8 +1388,16 @@ export class StudentManagementComponent implements OnInit {
       const email = this.resolveStudentEmailValue(student);
       const phone = this.resolveStudentPhoneValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
-      if (email && phone && currentSchoolCountry) {
-        this.studentContactCache.set(studentId, { email, phone, currentSchoolCountry });
+      const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
+      const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
+      if (email && phone && currentSchoolCountry && currentSchoolProvince && currentSchoolCity) {
+        this.studentContactCache.set(studentId, {
+          email,
+          phone,
+          currentSchoolCountry,
+          currentSchoolProvince,
+          currentSchoolCity,
+        });
         continue;
       }
 
@@ -792,7 +1416,13 @@ export class StudentManagementComponent implements OnInit {
         .subscribe({
           next: (payload) => {
             const metadata = this.extractStudentMetadataFromProfile(payload);
-            if (!metadata.email && !metadata.phone && !metadata.currentSchoolCountry) {
+            if (
+              !metadata.email &&
+              !metadata.phone &&
+              !metadata.currentSchoolCountry &&
+              !metadata.currentSchoolProvince &&
+              !metadata.currentSchoolCity
+            ) {
               return;
             }
 
@@ -867,6 +1497,44 @@ export class StudentManagementComponent implements OnInit {
         currentSchool['country'],
         schoolAddress['country'],
       ]),
+      currentSchoolProvince: this.pickFirstText([
+        profileNode['currentSchoolProvince'],
+        profileNode['schoolProvince'],
+        profileNode['province'],
+        profileNode['state'],
+        profileNode['region'],
+        root['currentSchoolProvince'],
+        root['schoolProvince'],
+        root['province'],
+        root['state'],
+        root['region'],
+        currentSchool['province'],
+        currentSchool['state'],
+        currentSchool['region'],
+        schoolAddress['province'],
+        schoolAddress['state'],
+        schoolAddress['region'],
+        schoolAddress['administrativeArea'],
+      ]),
+      currentSchoolCity: this.pickFirstText([
+        profileNode['currentSchoolCity'],
+        profileNode['schoolCity'],
+        profileNode['city'],
+        profileNode['town'],
+        profileNode['municipality'],
+        root['currentSchoolCity'],
+        root['schoolCity'],
+        root['city'],
+        root['town'],
+        root['municipality'],
+        currentSchool['city'],
+        currentSchool['town'],
+        currentSchool['municipality'],
+        schoolAddress['city'],
+        schoolAddress['town'],
+        schoolAddress['municipality'],
+        schoolAddress['locality'],
+      ]),
     };
   }
 
@@ -882,6 +1550,12 @@ export class StudentManagementComponent implements OnInit {
     }
     if (!this.resolveCurrentSchoolCountryValue(student) && metadata.currentSchoolCountry) {
       student['currentSchoolCountry'] = metadata.currentSchoolCountry;
+    }
+    if (!this.resolveCurrentSchoolProvinceValue(student) && metadata.currentSchoolProvince) {
+      student['currentSchoolProvince'] = metadata.currentSchoolProvince;
+    }
+    if (!this.resolveCurrentSchoolCityValue(student) && metadata.currentSchoolCity) {
+      student['currentSchoolCity'] = metadata.currentSchoolCity;
     }
   }
 
@@ -994,6 +1668,61 @@ export class StudentManagementComponent implements OnInit {
     }
 
     const matched = this.countryFilterOptions.find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private resolveProvinceFilterSelection(
+    value: unknown,
+    country: ProvinceFilterCountry
+  ): StudentProvinceFilter {
+    const normalized = this.normalizeProvinceFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeProvinceFilterValue(
+    value: unknown,
+    country: ProvinceFilterCountry | ''
+  ): StudentProvinceFilter | '' {
+    const rawText = String(value ?? '').trim();
+    if (!rawText || !country) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[country]?.[normalizedKey];
+    if (alias) {
+      return alias;
+    }
+
+    const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country].find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private resolveCityFilterSelection(value: unknown, country: ProvinceFilterCountry): string {
+    const normalized = this.normalizeCityFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeCityFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText || !country) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[country].find(
       (option) => this.normalizeCountryKey(option) === normalizedKey
     );
     return matched || rawText;
