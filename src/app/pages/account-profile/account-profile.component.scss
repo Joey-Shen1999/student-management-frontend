@@ -1,0 +1,139 @@
+.account-profile-page {
+  min-height: 100vh;
+  padding: 32px 16px;
+  background:
+    radial-gradient(circle at top right, rgba(52, 132, 228, 0.14), transparent 45%),
+    linear-gradient(160deg, #f8f9fd 0%, #eef3fb 100%);
+}
+
+.account-profile-card {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid #dce4f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(17, 40, 74, 0.07);
+  font-family:
+    'Segoe UI',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Helvetica Neue',
+    sans-serif;
+
+  h2 {
+    margin: 0;
+    color: #1e2a3b;
+  }
+}
+
+.subtitle {
+  margin: 8px 0 16px;
+  color: #627085;
+  font-size: 14px;
+}
+
+.state-text {
+  color: #5f708a;
+  font-size: 14px;
+}
+
+.state-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 24px;
+  margin-bottom: 10px;
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  color: #1d4f9b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    text-decoration: none;
+  }
+}
+
+.current-name-card {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #dce4f0;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #2a3c57;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.current-name-value {
+  color: #1f2f45;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.field-note {
+  margin-top: 6px;
+  color: #60718a;
+  font-size: 13px;
+}
+
+.name-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #c9d5e8;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #233247;
+  background: #ffffff;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.save-btn {
+  padding: 10px 14px;
+  border: 1px solid #1f5fbd;
+  border-radius: 8px;
+  background: #1f5fbd;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+}
+
+.success-text {
+  margin: 10px 0 0;
+  color: #0b6b0b;
+  font-size: 14px;
+}
+
+.error-text {
+  margin: 10px 0 0;
+  color: #b00020;
+  font-size: 14px;
+}

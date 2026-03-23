@@ -3,6 +3,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
+import { StudentProfileService } from '../../services/student-profile.service';
 import {
   type GoalTaskVm,
   type InfoTaskVm,
@@ -14,6 +15,7 @@ describe('DashboardComponent', () => {
   let component: DashboardComponent;
   let auth: Pick<AuthService, 'getSession' | 'logout' | 'clearAuthState'>;
   let router: Pick<Router, 'navigate'>;
+  let profileApi: Pick<StudentProfileService, 'getMyProfile'>;
   let taskCenter: Pick<
     TaskCenterService,
     'listMyGoals' | 'updateMyGoalStatus' | 'listMyInfos' | 'markMyInfoAsRead'
@@ -67,6 +69,10 @@ describe('DashboardComponent', () => {
       navigate: vi.fn(),
     };
 
+    profileApi = {
+      getMyProfile: vi.fn().mockReturnValue(of({ profile: {} })),
+    };
+
     taskCenter = {
       listMyGoals: vi.fn().mockReturnValue(of({ items: goalRows, total: 1, page: 1, size: 8 })),
       updateMyGoalStatus: vi.fn().mockReturnValue(
@@ -91,7 +97,8 @@ describe('DashboardComponent', () => {
     component = new DashboardComponent(
       auth as AuthService,
       router as Router,
-      taskCenter as TaskCenterService
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
     );
     component.ngOnInit();
   });
@@ -99,6 +106,103 @@ describe('DashboardComponent', () => {
   it('should create and read session from auth service', () => {
     expect(component).toBeTruthy();
     expect(component.session).toEqual({ userId: 1, role: 'STUDENT' });
+  });
+
+  it('welcomeDisplayName should prefer preferredName from session', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      legalFirstName: 'Alice',
+      legalLastName: 'Wang',
+      preferredName: 'Ali',
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    expect(nextComponent.welcomeDisplayName).toBe('Ali');
+  });
+
+  it('welcomeDisplayName should ignore placeholder Student and use legal name', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      legalFirstName: 'Xiaoming',
+      legalLastName: 'Wang',
+      preferredName: 'Student',
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    expect(nextComponent.welcomeDisplayName).toBe('Wang Xiaoming');
+  });
+
+  it('welcomeDisplayName should use last name + first name order', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      legalFirstName: 'Xiaoming',
+      legalLastName: 'Wang',
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    expect(nextComponent.welcomeDisplayName).toBe('Wang Xiaoming');
+  });
+
+  it('welcomeDisplayName should support snake_case profile payload', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      profile: {
+        last_name: 'Li',
+        first_name: 'Lei',
+      },
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    expect(nextComponent.welcomeDisplayName).toBe('Li Lei');
+  });
+
+  it('welcomeDisplayName should fallback to Student when name is missing', () => {
+    expect(component.welcomeDisplayName).toBe('Student');
+  });
+
+  it('welcomeDisplayName should use profile name when session has no name', () => {
+    (profileApi.getMyProfile as any).mockReturnValue(
+      of({
+        profile: {
+          legalLastName: 'Chen',
+          legalFirstName: 'Xiao',
+        },
+      })
+    );
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    nextComponent.ngOnInit();
+
+    expect(nextComponent.welcomeDisplayName).toBe('Chen Xiao');
   });
 
   it('goProfile should navigate to student profile page', () => {
@@ -114,6 +218,57 @@ describe('DashboardComponent', () => {
   it('goAccountProfile should navigate to account profile settings page', () => {
     component.goAccountProfile();
     expect(router.navigate).toHaveBeenCalledWith(['/account/profile']);
+  });
+
+  it('goAccountProfile should pass resolved name via router state', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      displayName: 'Session Name',
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    nextComponent.goAccountProfile();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/account/profile'], {
+      state: {
+        currentDisplayName: 'Session Name',
+        currentLastName: 'Session',
+        currentFirstName: 'Name',
+      },
+    });
+  });
+
+  it('goAccountProfile should pass first/last name state from session legal fields', () => {
+    (auth.getSession as any).mockReturnValue({
+      userId: 1,
+      role: 'STUDENT',
+      profile: {
+        legalLastName: 'Wang',
+        legalFirstName: 'Xiaoming',
+      },
+    });
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService
+    );
+
+    nextComponent.goAccountProfile();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/account/profile'], {
+      state: {
+        currentLastName: 'Wang',
+        currentFirstName: 'Xiaoming',
+        currentDisplayName: 'Wang Xiaoming',
+      },
+    });
   });
 
   it('should load goal and info list on init', () => {

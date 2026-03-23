@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { finalize } from 'rxjs/operators';
+import { finalize, timeout } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
 import { StudentProfilePayload, StudentProfileService } from '../../services/student-profile.service';
@@ -13,57 +13,73 @@ import { StudentProfilePayload, StudentProfileService } from '../../services/stu
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
-    <div style="max-width:760px;margin:40px auto;font-family:Arial">
-      <h2>Account Profile</h2>
+    <div class="account-profile-page">
+      <div class="account-profile-card">
+        <h2>Name Settings</h2>
+        <p class="subtitle">Display your current name and update first/last name quickly.</p>
 
-      <p style="color:#666; line-height:1.6;">
-        Update your legal first name, legal last name, and preferred name (nickname).
-      </p>
+        <div class="state-row">
+          <div *ngIf="loadingProfile" class="state-text">Loading current name...</div>
+          <button
+            type="button"
+            class="link-btn"
+            (click)="reloadProfile()"
+            [disabled]="loadingProfile || saving"
+          >
+            {{ loadingProfile ? 'Loading...' : 'Reload Current Name' }}
+          </button>
+        </div>
 
-      <div style="margin-top:14px; padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <div *ngIf="loadingProfile" style="color:#666;">Loading current profile...</div>
-
-        <ng-container *ngIf="!loadingProfile">
-          <label style="display:block;margin:12px 0 6px;">Legal Last Name</label>
-          <input
-            [(ngModel)]="lastName"
-            [disabled]="saving"
-            style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
-          />
-
-          <label style="display:block;margin:12px 0 6px;">Legal First Name</label>
-          <input
-            [(ngModel)]="firstName"
-            [disabled]="saving"
-            style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
-          />
-
-          <label style="display:block;margin:12px 0 6px;">Preferred Name (Nickname)</label>
-          <input
-            [(ngModel)]="preferredName"
-            [disabled]="saving"
-            style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"
-          />
-
-          <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;">
-            <button type="button" (click)="submit()" [disabled]="saving" style="padding:10px 12px;">
-              {{ saving ? 'Saving...' : 'Save Changes' }}
-            </button>
-
-            <a [routerLink]="['/dashboard']">Back</a>
+        <section class="current-name-card">
+          <div class="field-label">Current Name</div>
+          <div class="current-name-value">
+            {{ currentDisplayName || '-' }}
           </div>
-        </ng-container>
+          <div class="field-note" *ngIf="currentLegalName">
+            Legal Name: {{ currentLegalName }}
+          </div>
+        </section>
 
-        <p *ngIf="successMsg" style="color:#0b6b0b;margin:10px 0 0;">{{ successMsg }}</p>
-        <p *ngIf="error" style="color:#b00020;margin:10px 0 0;">{{ error }}</p>
+        <label class="field-label" for="newFirstName">New First Name</label>
+        <input
+          id="newFirstName"
+          name="newFirstName"
+          class="name-input"
+          [(ngModel)]="newFirstName"
+          [disabled]="saving"
+          [placeholder]="currentFirstName || currentDisplayName || 'Enter your first name'"
+        />
+
+        <label class="field-label" for="newLastName" style="margin-top: 10px;">New Last Name</label>
+        <input
+          id="newLastName"
+          name="newLastName"
+          class="name-input"
+          [(ngModel)]="newLastName"
+          [disabled]="saving"
+          [placeholder]="currentLastName || 'Enter your last name'"
+        />
+
+        <div class="actions">
+          <button type="button" class="save-btn" (click)="submit()" [disabled]="saving">
+            {{ saving ? 'Saving...' : 'Update Name' }}
+          </button>
+          <a [routerLink]="['/dashboard']">Back</a>
+        </div>
+
+        <p *ngIf="successMsg" class="success-text">{{ successMsg }}</p>
+        <p *ngIf="error" class="error-text">{{ error }}</p>
       </div>
     </div>
   `,
+  styleUrl: './account-profile.component.scss',
 })
 export class AccountProfileComponent implements OnInit {
-  firstName = '';
-  lastName = '';
-  preferredName = '';
+  currentFirstName = '';
+  currentLastName = '';
+  currentPreferredName = '';
+  newFirstName = '';
+  newLastName = '';
 
   loadingProfile = false;
   saving = false;
@@ -71,11 +87,22 @@ export class AccountProfileComponent implements OnInit {
   successMsg = '';
 
   private profileSnapshot: StudentProfilePayload = {};
+  private readonly loadProfileTimeoutMs = 5000;
 
   constructor(
     private auth: AuthService,
     private profileApi: StudentProfileService
   ) {}
+
+  get currentDisplayName(): string {
+    const legalName = this.currentLegalName;
+    if (legalName) return legalName;
+    return this.toText(this.currentPreferredName);
+  }
+
+  get currentLegalName(): string {
+    return this.buildLastFirstName(this.currentLastName, this.currentFirstName);
+  }
 
   ngOnInit(): void {
     const authHeader = this.auth.getAuthorizationHeaderValue();
@@ -84,6 +111,20 @@ export class AccountProfileComponent implements OnInit {
       return;
     }
 
+    this.seedNamesFromNavigationState();
+    this.seedNamesFromSession();
+    const hasFullLegalName =
+      !!this.toText(this.currentFirstName) && !!this.toText(this.currentLastName);
+    if (hasFullLegalName) {
+      this.profileSnapshot = this.buildNameSnapshot();
+      return;
+    }
+
+    this.loadProfile();
+  }
+
+  reloadProfile(): void {
+    if (this.loadingProfile) return;
     this.loadProfile();
   }
 
@@ -99,21 +140,30 @@ export class AccountProfileComponent implements OnInit {
 
     if (this.saving) return;
 
-    const nextFirstName = this.toText(this.firstName);
-    const nextLastName = this.toText(this.lastName);
-    const nextPreferredName = this.toText(this.preferredName);
+    const nextFirstNameInput = this.toText(this.newFirstName);
+    const nextLastNameInput = this.toText(this.newLastName);
+    const currentFirstName = this.toText(this.currentFirstName);
+    const currentLastName = this.toText(this.currentLastName);
 
-    if (!nextFirstName && !nextLastName && !nextPreferredName) {
-      this.error = 'Please provide at least one name field.';
+    if (!nextFirstNameInput && !nextLastNameInput) {
+      this.error = 'Please enter a new first name or last name.';
       return;
     }
 
-    const payload: StudentProfilePayload = {
-      ...this.profileSnapshot,
-      legalFirstName: nextFirstName,
-      legalLastName: nextLastName,
-      preferredName: nextPreferredName,
-    };
+    const nextFirstName = nextFirstNameInput || currentFirstName;
+    const nextLastName = nextLastNameInput || currentLastName;
+
+    if (nextFirstName === currentFirstName && nextLastName === currentLastName) {
+      this.error = 'New name is the same as current name.';
+      return;
+    }
+
+    const payload: StudentProfilePayload = { ...this.profileSnapshot };
+    if (nextFirstName) payload.legalFirstName = nextFirstName;
+    if (nextLastName) payload.legalLastName = nextLastName;
+
+    const safePreferredName = this.toText(this.currentPreferredName);
+    if (safePreferredName) payload.preferredName = safePreferredName;
 
     this.saving = true;
     this.profileApi
@@ -124,11 +174,13 @@ export class AccountProfileComponent implements OnInit {
           const profile = this.normalizeProfilePayload(resp);
           this.profileSnapshot = { ...payload, ...profile };
           this.applyNamesFromProfile(this.profileSnapshot);
+          this.newFirstName = '';
+          this.newLastName = '';
 
-          this.successMsg = this.extractSuccessMessage(resp) || 'Profile updated.';
+          this.successMsg = this.extractSuccessMessage(resp) || 'Name updated.';
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Profile update failed.';
+          this.error = this.extractErrorMessage(err) || 'Name update failed.';
         },
       });
   }
@@ -140,25 +192,78 @@ export class AccountProfileComponent implements OnInit {
 
     this.profileApi
       .getMyProfile()
-      .pipe(finalize(() => (this.loadingProfile = false)))
+      .pipe(
+        timeout(this.loadProfileTimeoutMs),
+        finalize(() => (this.loadingProfile = false))
+      )
       .subscribe({
         next: (resp) => {
           this.profileSnapshot = this.normalizeProfilePayload(resp);
           this.applyNamesFromProfile(this.profileSnapshot);
+          if (!this.currentPreferredName && !this.currentLegalName) {
+            this.seedNamesFromSession();
+          }
         },
-        error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Failed to load current profile.';
+        error: (err: unknown) => {
+          this.error = this.extractErrorMessage(err) || 'Failed to load current name.';
         },
       });
   }
 
   private applyNamesFromProfile(profile: StudentProfilePayload): void {
-    const source = (profile || {}) as Record<string, unknown>;
-    this.firstName = this.toText(source['legalFirstName'] || source['firstName']);
-    this.lastName = this.toText(source['legalLastName'] || source['lastName']);
-    this.preferredName = this.toText(
-      source['preferredName'] || source['nickName'] || source['nickname']
-    );
+    const nameParts = this.resolveNameFromPayload(profile);
+    if (nameParts.firstName) this.currentFirstName = nameParts.firstName;
+    if (nameParts.lastName) this.currentLastName = nameParts.lastName;
+    if (nameParts.directName) this.currentPreferredName = nameParts.directName;
+  }
+
+  private seedNamesFromSession(): void {
+    const nameParts = this.resolveNameFromPayload(this.auth.getSession());
+    if (!this.currentFirstName && nameParts.firstName) this.currentFirstName = nameParts.firstName;
+    if (!this.currentLastName && nameParts.lastName) this.currentLastName = nameParts.lastName;
+    if (!this.currentPreferredName && nameParts.directName) {
+      this.currentPreferredName = nameParts.directName;
+    }
+  }
+
+  private seedNamesFromNavigationState(): void {
+    const state = this.toRecord(globalThis?.history?.state) || {};
+
+    const fromStateLastName = this.toText(state['currentLastName']);
+    const fromStateFirstName = this.toText(state['currentFirstName']);
+    if (!this.currentLastName && fromStateLastName) this.currentLastName = fromStateLastName;
+    if (!this.currentFirstName && fromStateFirstName) this.currentFirstName = fromStateFirstName;
+    if (this.currentFirstName && this.currentLastName) {
+      return;
+    }
+
+    const fromState = this.toText(state['currentDisplayName']);
+    if (!fromState) return;
+    if (fromState.toLowerCase() === 'student') return;
+
+    const nameTokens = fromState.split(/\s+/).filter(Boolean);
+    if (nameTokens.length >= 2) {
+      if (!this.currentLastName) this.currentLastName = nameTokens[0];
+      if (!this.currentFirstName) this.currentFirstName = nameTokens.slice(1).join(' ');
+      return;
+    }
+
+    if (!this.currentPreferredName) {
+      this.currentPreferredName = fromState;
+    }
+  }
+
+  private buildNameSnapshot(): StudentProfilePayload {
+    const snapshot: StudentProfilePayload = {};
+    const legalFirstName = this.toText(this.currentFirstName);
+    const legalLastName = this.toText(this.currentLastName);
+    const preferredName = this.toText(this.currentPreferredName);
+
+    if (legalFirstName) snapshot.legalFirstName = legalFirstName;
+    if (legalLastName) snapshot.legalLastName = legalLastName;
+    if (preferredName) snapshot.preferredName = preferredName;
+
+    return snapshot;
   }
 
   private normalizeProfilePayload(payload: unknown): StudentProfilePayload {
@@ -186,7 +291,20 @@ export class AccountProfileComponent implements OnInit {
     return this.toText((profileNode as Record<string, unknown>)['message']);
   }
 
-  private extractErrorMessage(err: HttpErrorResponse): string {
+  private extractErrorMessage(err: unknown): string {
+    if (err && typeof err === 'object') {
+      const timeoutName = String((err as { name?: unknown }).name || '')
+        .trim()
+        .toLowerCase();
+      if (timeoutName === 'timeouterror') {
+        return 'Loading current name timed out. You can tap "Reload Current Name" to retry.';
+      }
+    }
+
+    if (!(err instanceof HttpErrorResponse)) {
+      return this.toText((err as { message?: unknown } | null | undefined)?.message);
+    }
+
     const payload = err?.error;
 
     if (payload && typeof payload === 'object') {
@@ -210,7 +328,7 @@ export class AccountProfileComponent implements OnInit {
       }
     }
 
-    return this.toText(err?.message);
+    return this.toText(err.message);
   }
 
   private extractValidationDetails(payload: Record<string, unknown>): string {
@@ -246,5 +364,105 @@ export class AccountProfileComponent implements OnInit {
 
   private toText(value: unknown): string {
     return String(value ?? '').trim();
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  }
+
+  private resolveNameFromPayload(payload: unknown): {
+    directName: string;
+    firstName: string;
+    lastName: string;
+  } {
+    const source = this.toRecord(payload);
+    if (!source) return { directName: '', firstName: '', lastName: '' };
+
+    const queue: Record<string, unknown>[] = [];
+    const visited = new Set<Record<string, unknown>>();
+    const maxNodeCount = 30;
+    const enqueue = (value: unknown): void => {
+      const node = this.toRecord(value);
+      if (!node || visited.has(node) || queue.length >= maxNodeCount) return;
+      visited.add(node);
+      queue.push(node);
+    };
+
+    enqueue(source);
+
+    const nestedKeys = [
+      'profile',
+      'student',
+      'user',
+      'data',
+      'result',
+      'payload',
+      'account',
+      'currentUser',
+      'current_user',
+      'loginUser',
+      'login_user',
+      'userInfo',
+      'user_info',
+      'me',
+    ];
+
+    while (queue.length > 0) {
+      const node = queue.shift() as Record<string, unknown>;
+
+      const directName = this.pickFirstText(node, [
+        'preferredName',
+        'preferred_name',
+        'nickName',
+        'nickname',
+        'displayName',
+        'display_name',
+        'fullName',
+        'full_name',
+        'name',
+      ]);
+      const lastName = this.pickFirstText(node, [
+        'legalLastName',
+        'lastName',
+        'surname',
+        'familyName',
+        'legal_last_name',
+        'last_name',
+        'family_name',
+      ]);
+      const firstName = this.pickFirstText(node, [
+        'legalFirstName',
+        'firstName',
+        'givenName',
+        'legal_first_name',
+        'first_name',
+        'given_name',
+      ]);
+
+      if (directName || lastName || firstName) {
+        return { directName, firstName, lastName };
+      }
+
+      for (const key of nestedKeys) {
+        enqueue(node[key]);
+      }
+    }
+
+    return { directName: '', firstName: '', lastName: '' };
+  }
+
+  private pickFirstText(node: Record<string, unknown>, keys: string[]): string {
+    const targets = new Set(keys.map((key) => key.toLowerCase()));
+    for (const [key, value] of Object.entries(node)) {
+      if (!targets.has(String(key).toLowerCase())) continue;
+
+      const text = this.toText(value);
+      if (text) return text;
+    }
+    return '';
+  }
+
+  private buildLastFirstName(lastName: unknown, firstName: unknown): string {
+    return [this.toText(lastName), this.toText(firstName)].filter(Boolean).join(' ').trim();
   }
 }

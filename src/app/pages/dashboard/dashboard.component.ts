@@ -1,9 +1,10 @@
 ﻿import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { finalize } from 'rxjs/operators';
+import { finalize, timeout } from 'rxjs/operators';
 
 import { AuthService, type LoginResponse } from '../../services/auth.service';
+import { StudentProfileService } from '../../services/student-profile.service';
 import {
   type GoalTaskStatus,
   type GoalTaskVm,
@@ -22,7 +23,7 @@ import {
         <div class="dashboard-header">
           <div>
             <h2>Student Dashboard</h2>
-            <p>Goal 和 Info 会直接显示在首页，便于你快速跟进。</p>
+            <p>Welcome {{ welcomeDisplayName }}</p>
           </div>
           <button
             type="button"
@@ -229,20 +230,34 @@ export class DashboardComponent implements OnInit {
   infoTagFilter = '';
   infoUnreadOnly = false;
   signingOut = false;
+  welcomeNameOverride = '';
 
   private goalLoadWatchdog: number | null = null;
   private infoLoadWatchdog: number | null = null;
+  private readonly welcomeNameTimeoutMs = 8000;
 
   constructor(
     private auth: AuthService,
     private router: Router,
     private taskCenter: TaskCenterService,
+    private profileApi: StudentProfileService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {
     this.session = this.auth.getSession();
   }
 
+  get welcomeDisplayName(): string {
+    if (this.welcomeNameOverride) return this.welcomeNameOverride;
+
+    const source = this.toRecord(this.session) || {};
+    const fromSession = this.resolveNameFromPayload(source);
+    if (fromSession) return fromSession;
+
+    return 'Student';
+  }
+
   ngOnInit(): void {
+    this.loadWelcomeNameIfNeeded();
     this.loadGoals();
     this.loadInfos();
   }
@@ -252,6 +267,34 @@ export class DashboardComponent implements OnInit {
   }
 
   goAccountProfile() {
+    const nameParts = this.resolveNamePartsFromPayload(this.session);
+    const resolvedName = this.toText(this.welcomeDisplayName);
+    const navState: {
+      currentFirstName?: string;
+      currentLastName?: string;
+      currentDisplayName?: string;
+    } = {};
+
+    if (nameParts.firstName) navState.currentFirstName = nameParts.firstName;
+    if (nameParts.lastName) navState.currentLastName = nameParts.lastName;
+
+    if (!navState.currentFirstName && !navState.currentLastName) {
+      const tokenized = this.tokenizeName(this.welcomeNameOverride || resolvedName);
+      if (tokenized.length >= 2) {
+        navState.currentLastName = tokenized[0];
+        navState.currentFirstName = tokenized.slice(1).join(' ');
+      }
+    }
+
+    if (resolvedName && resolvedName.toLowerCase() !== 'student') {
+      navState.currentDisplayName = resolvedName;
+    }
+
+    if (Object.keys(navState).length > 0) {
+      this.router.navigate(['/account/profile'], { state: navState });
+      return;
+    }
+
     this.router.navigate(['/account/profile']);
   }
 
@@ -556,6 +599,26 @@ export class DashboardComponent implements OnInit {
     return Number.isFinite(timestamp) ? timestamp : fallback;
   }
 
+  private loadWelcomeNameIfNeeded(): void {
+    if (this.welcomeDisplayName !== 'Student') return;
+
+    this.profileApi
+      .getMyProfile()
+      .pipe(timeout(this.welcomeNameTimeoutMs))
+      .subscribe({
+        next: (payload: unknown) => {
+          const fromProfile = this.resolveNameFromPayload(payload);
+          if (!fromProfile) return;
+
+          this.welcomeNameOverride = fromProfile;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          // Keep Student fallback silently for dashboard header.
+        },
+      });
+  }
+
   private extractErrorMessage(error: unknown): string {
     if (typeof error === 'string') return error;
     if (!error || typeof error !== 'object') return '';
@@ -600,5 +663,125 @@ export class DashboardComponent implements OnInit {
     }
 
     return '';
+  }
+
+  private toText(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  }
+
+  private resolveNameFromPayload(payload: unknown): string {
+    const parts = this.resolveNamePartsFromPayload(payload);
+    const directName = this.toText(parts.directName);
+    const legalName = this.buildLastFirstName(parts.lastName, parts.firstName);
+
+    if (directName && !this.isPlaceholderStudentName(directName)) return directName;
+    return legalName;
+  }
+
+  private resolveNamePartsFromPayload(payload: unknown): {
+    directName: string;
+    firstName: string;
+    lastName: string;
+  } {
+    const source = this.toRecord(payload);
+    if (!source) return { directName: '', firstName: '', lastName: '' };
+
+    const queue: Record<string, unknown>[] = [];
+    const visited = new Set<Record<string, unknown>>();
+    const maxNodeCount = 30;
+    const enqueue = (value: unknown): void => {
+      const node = this.toRecord(value);
+      if (!node || visited.has(node) || queue.length >= maxNodeCount) return;
+      visited.add(node);
+      queue.push(node);
+    };
+
+    enqueue(source);
+
+    const nestedKeys = [
+      'profile',
+      'student',
+      'user',
+      'data',
+      'result',
+      'payload',
+      'account',
+      'currentUser',
+      'current_user',
+      'loginUser',
+      'login_user',
+      'userInfo',
+      'user_info',
+      'me',
+    ];
+
+    while (queue.length > 0) {
+      const node = queue.shift() as Record<string, unknown>;
+      const directName = this.pickFirstText(node, [
+        'preferredName',
+        'preferred_name',
+        'nickName',
+        'nickname',
+        'displayName',
+        'display_name',
+        'fullName',
+        'full_name',
+        'name',
+      ]);
+      const lastName = this.pickFirstText(node, [
+        'legalLastName',
+        'lastName',
+        'surname',
+        'familyName',
+        'legal_last_name',
+        'last_name',
+        'family_name',
+      ]);
+      const firstName = this.pickFirstText(node, [
+        'legalFirstName',
+        'firstName',
+        'givenName',
+        'legal_first_name',
+        'first_name',
+        'given_name',
+      ]);
+
+      if (directName || firstName || lastName) {
+        return { directName, firstName, lastName };
+      }
+
+      for (const key of nestedKeys) {
+        enqueue(node[key]);
+      }
+    }
+
+    return { directName: '', firstName: '', lastName: '' };
+  }
+
+  private pickFirstText(node: Record<string, unknown>, keys: string[]): string {
+    const targets = new Set(keys.map((key) => key.toLowerCase()));
+    for (const [key, value] of Object.entries(node)) {
+      if (!targets.has(String(key).toLowerCase())) continue;
+      const text = this.toText(value);
+      if (text) return text;
+    }
+    return '';
+  }
+
+  private isPlaceholderStudentName(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'student' || normalized === 'students' || value.trim() === '学生';
+  }
+
+  private buildLastFirstName(lastName: unknown, firstName: unknown): string {
+    return [this.toText(lastName), this.toText(firstName)].filter(Boolean).join(' ').trim();
+  }
+
+  private tokenizeName(value: unknown): string[] {
+    return this.toText(value).split(/\s+/).filter(Boolean);
   }
 }
