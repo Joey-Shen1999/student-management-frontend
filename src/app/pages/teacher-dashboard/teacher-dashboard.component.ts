@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
+import { finalize } from 'rxjs/operators';
+
 import { AuthService, type LoginResponse } from '../../services/auth.service';
 
 @Component({
@@ -15,6 +17,14 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <h2>Teacher Dashboard</h2>
             <p>Current workspace and quick navigation</p>
           </div>
+          <button
+            type="button"
+            class="action-btn ghost signout-btn"
+            [disabled]="signingOut"
+            (click)="logout()"
+          >
+            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+          </button>
         </div>
 
         <section class="dashboard-card">
@@ -42,6 +52,7 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
 export class TeacherDashboardComponent {
   session: LoginResponse | null;
   isAdmin = false;
+  signingOut = false;
 
   constructor(private auth: AuthService, private router: Router) {
     this.session = this.auth.getSession();
@@ -65,14 +76,20 @@ export class TeacherDashboardComponent {
   }
 
   logout() {
-    this.auth.logout().subscribe({
-      next: () => {
-        this.router.navigate(['/login']);
-      },
-      error: () => {
-        this.auth.clearAuthState();
-        this.router.navigate(['/login']);
-      },
-    });
+    if (this.signingOut) return;
+
+    this.signingOut = true;
+    this.auth
+      .logout()
+      .pipe(finalize(() => (this.signingOut = false)))
+      .subscribe({
+        next: () => {
+          this.router.navigate(['/login']);
+        },
+        error: () => {
+          this.auth.clearAuthState();
+          this.router.navigate(['/login']);
+        },
+      });
   }
 }
