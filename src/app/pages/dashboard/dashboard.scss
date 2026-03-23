@@ -91,6 +91,13 @@
     transform: translateY(0);
     box-shadow: none;
   }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 .action-btn.compact {
@@ -113,6 +120,10 @@
   background: #ffffff;
   border-color: #c9d5e8;
   color: #21324a;
+}
+
+.signout-btn {
+  min-width: 120px;
 }
 
 .state-text {

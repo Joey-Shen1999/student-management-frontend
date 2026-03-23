@@ -24,6 +24,14 @@ import {
             <h2>Student Dashboard</h2>
             <p>Goal 和 Info 会直接显示在首页，便于你快速跟进。</p>
           </div>
+          <button
+            type="button"
+            class="action-btn ghost signout-btn"
+            [disabled]="signingOut"
+            (click)="logout()"
+          >
+            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+          </button>
         </div>
 
         <section class="dashboard-card">
@@ -220,6 +228,7 @@ export class DashboardComponent implements OnInit {
   infoCategoryFilter: InfoTaskCategory | 'ALL' = 'ALL';
   infoTagFilter = '';
   infoUnreadOnly = false;
+  signingOut = false;
 
   private goalLoadWatchdog: number | null = null;
   private infoLoadWatchdog: number | null = null;
@@ -378,15 +387,21 @@ export class DashboardComponent implements OnInit {
   }
 
   logout() {
-    this.auth.logout().subscribe({
-      next: () => {
-        this.router.navigate(['/login']);
-      },
-      error: () => {
-        this.auth.clearAuthState();
-        this.router.navigate(['/login']);
-      },
-    });
+    if (this.signingOut) return;
+
+    this.signingOut = true;
+    this.auth
+      .logout()
+      .pipe(finalize(() => (this.signingOut = false)))
+      .subscribe({
+        next: () => {
+          this.router.navigate(['/login']);
+        },
+        error: () => {
+          this.auth.clearAuthState();
+          this.router.navigate(['/login']);
+        },
+      });
   }
 
   private loadGoals(): void {
