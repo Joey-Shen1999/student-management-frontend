@@ -17,6 +17,7 @@ import {
   StudentInviteService,
 } from '../../services/student-invite.service';
 import {
+  EDUCATION_BOARD_LIBRARY_OPTIONS,
   StudentProfilePayload,
   StudentProfileResponse,
   StudentProfileService,
@@ -44,6 +45,8 @@ interface StudentListMetadata {
   currentSchoolCountry: string;
   currentSchoolProvince: string;
   currentSchoolCity: string;
+  currentSchoolBoard: string;
+  currentSchoolExpectedGraduation: string;
 }
 
 const COUNTRY_FILTER_ALL_OPTION = 'All';
@@ -389,8 +392,8 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   template: `
-    <div style="max-width:980px;margin:40px auto;font-family:Arial">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
+      <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">学生账号管理</h2>
         <button type="button" routerLink="/teacher/dashboard" class="student-back-btn" style="margin-left:auto;">
           返回
@@ -426,10 +429,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
         *ngIf="inviteLink"
         style="margin:0 0 12px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">学生邀请链接已生成</div>
-        <div style="margin-top:6px;color:#555;">一个链接只能注册一个新学生账号。</div>
-
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input
             [value]="inviteLink"
             readonly
@@ -464,7 +464,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
 
           <input
             type="search"
-            placeholder="按 ID、姓名、邮箱、电话搜索"
+            placeholder="按 ID、姓名、邮箱、电话、毕业季搜索"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
@@ -525,10 +525,42 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
             </datalist>
           </label>
 
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            &#25152;&#23646;&#25945;&#32946;&#23616;
+            <input
+              [(ngModel)]="schoolBoardFilterInput"
+              (ngModelChange)="onSchoolBoardFilterInputChange($event)"
+              name="schoolBoardFilter"
+              list="schoolBoardFilterOptions"
+              placeholder="All"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:200px;"
+            />
+            <datalist id="schoolBoardFilterOptions">
+              <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            毕业季
+            <input
+              [(ngModel)]="graduationSeasonFilterInput"
+              (ngModelChange)="onGraduationSeasonFilterInputChange($event)"
+              name="graduationSeasonFilter"
+              list="graduationSeasonFilterOptions"
+              placeholder="All"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:170px;"
+            />
+            <datalist id="graduationSeasonFilterOptions">
+              <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL' && !provinceFilterInput.trim() && !cityFilterInput.trim())"
+            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL' && !provinceFilterInput.trim() && !cityFilterInput.trim() && !schoolBoardFilterInput.trim() && !graduationSeasonFilterInput.trim())"
           >
             清空
           </button>
@@ -575,23 +607,38 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
       </div>
 
       <div style="margin-top:12px;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">姓名</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">电话</th>
-              <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">档案</th>
-              <th style="text-align:center;padding:10px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">重置密码</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">归档</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">姓名</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">邮箱</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">电话</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;">毕业时间</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:220px;">教师备注（学生不可见）</th>
+              <th style="text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">档案</th>
+              <th style="text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;">重置密码</th>
+              <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">归档</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let student of visibleStudents; trackBy: trackStudent">
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentEmail(student) }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentPhone(student) }}</td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentEmail(student) }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentPhone(student) }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentGraduation(student) }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;">
+                <textarea
+                  class="teacher-note-inline-textarea"
+                  [ngModel]="resolveTeacherNoteCellValue(student)"
+                  (focus)="prepareTeacherNoteCell(student)"
+                  (ngModelChange)="onTeacherNoteCellChange(student, $event)"
+                  (blur)="onTeacherNoteCellBlur(student)"
+                  rows="1"
+                  [disabled]="!resolveStudentId(student) || (isTeacherNoteRowSelected(student) && (teacherNoteLoading || teacherNoteSaving))"
+                  placeholder="输入教师内部备注"
+                ></textarea>
+              </td>
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
                 <button
                   type="button"
                   [routerLink]="profileRoute(student)"
@@ -601,7 +648,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
                   编辑档案
                 </button>
               </td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;">
                 <button
                   type="button"
                   (click)="resetPassword(student)"
@@ -619,7 +666,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
                   }}
                 </button>
               </td>
-              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
+              <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">
                 <label
                   style="display:inline-flex;align-items:center;cursor:pointer;user-select:none;"
                   [style.opacity]="statusUpdatingStudentId === resolveStudentId(student) ? '0.7' : '1'"
@@ -654,7 +701,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleStudents.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
+              <td colspan="8" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
             </tr>
           </tbody>
         </table>
@@ -680,13 +727,31 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
   `,
   styles: [
     `
+      .teacher-note-inline-textarea {
+        width: 100%;
+        min-height: 24px;
+        max-height: 56px;
+        overflow-y: auto;
+        resize: vertical;
+        border: 1px solid #c8d2e0;
+        border-radius: 8px;
+        padding: 2px 4px;
+        font-size: 13px;
+        line-height: 1.2;
+        box-sizing: border-box;
+      }
+
+      .student-page-header {
+        padding-right: 128px;
+      }
+
       .student-back-btn {
         border: 1px solid #c8d2e0;
         border-radius: 999px;
         background: #ffffff;
         color: #1f2f47;
-        padding: 8px 14px;
-        font-size: 13px;
+        padding: 11px 20px;
+        font-size: 14px;
         font-weight: 600;
         line-height: 1;
         cursor: pointer;
@@ -707,12 +772,20 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
         outline: 2px solid #8aa8d3;
         outline-offset: 2px;
       }
+
+      @media (max-width: 960px) {
+        .student-page-header {
+          padding-right: 0;
+        }
+      }
+
     `,
   ],
 })
 export class StudentManagementComponent implements OnInit {
   readonly limitOptions: number[] = [20, 50, 100];
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
+  readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
   filteredCount = 0;
@@ -727,11 +800,22 @@ export class StudentManagementComponent implements OnInit {
   provinceFilter: StudentProvinceFilter = '';
   cityFilterInput = '';
   cityFilter: string = '';
+  schoolBoardFilterInput = '';
+  schoolBoardFilter: string = '';
+  graduationSeasonFilterInput = '';
+  graduationSeasonFilter: string = '';
   creatingInvite = false;
   inviteError = '';
   inviteLink = '';
   inviteExpiresAt = '';
   inviteCopied = false;
+  selectedNoteStudentId: number | null = null;
+  selectedNoteStudentName = '';
+  teacherNoteDraft = '';
+  teacherNoteLoading = false;
+  teacherNoteSaving = false;
+  teacherNoteError = '';
+  teacherNoteSuccess = '';
 
   resettingStudentId: number | null = null;
   statusUpdatingStudentId: number | null = null;
@@ -741,6 +825,13 @@ export class StudentManagementComponent implements OnInit {
   statusResult: StatusUpdateResult | null = null;
   private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
+  private readonly teacherNoteCache = new Map<number, string>();
+  private readonly teacherNoteLoadInFlight = new Set<number>();
+  private readonly teacherNoteProfileCache = new Map<
+    number,
+    StudentProfilePayload | StudentProfileResponse
+  >();
+  private teacherNoteAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private studentApi: StudentManagementService,
@@ -779,6 +870,10 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveStudentPhoneValue(student) || '-';
   }
 
+  resolveStudentGraduation(student: StudentAccount): string {
+    return this.formatGraduationYearMonth(this.resolveCurrentSchoolExpectedGraduationValue(student));
+  }
+
   get provinceFilterCountry(): ProvinceFilterCountry | '' {
     if (this.countryFilter === 'Canada') return 'Canada';
     if (this.countryFilter === 'China (mainland)') return 'China (mainland)';
@@ -806,17 +901,31 @@ export class StudentManagementComponent implements OnInit {
     return country && province ? this.collectCityFilterOptions(country, province) : [];
   }
 
+  get schoolBoardFilterOptions(): readonly string[] {
+    return this.mergeFilterOptions(
+      this.schoolBoardFilterBaseOptions,
+      this.collectSchoolBoardFilterOptions()
+    );
+  }
+
+  get graduationSeasonFilterOptions(): readonly string[] {
+    return this.collectGraduationSeasonFilterOptions();
+  }
+
   onCountryFilterInputChange(value: string): void {
-    const previousCountryFilter = this.countryFilter;
     const input = String(value ?? '').trim();
     this.countryFilterInput = input;
+    const previousCountryFilter = this.countryFilter;
     this.countryFilter = input ? this.resolveCountryFilterSelection(input) : 'ALL';
-    if (!this.provinceFilterCountry || this.countryFilter !== previousCountryFilter) {
+    const countryChanged = this.countryFilter !== previousCountryFilter;
+    if (!this.provinceFilterCountry || countryChanged) {
       this.provinceFilterInput = '';
       this.provinceFilter = '';
       this.cityFilterInput = '';
       this.cityFilter = '';
     }
+    this.syncSchoolBoardFilterSelection();
+    this.syncGraduationSeasonFilterSelection();
     this.applyListView();
   }
 
@@ -831,6 +940,8 @@ export class StudentManagementComponent implements OnInit {
       this.cityFilterInput = '';
       this.cityFilter = '';
     }
+    this.syncSchoolBoardFilterSelection();
+    this.syncGraduationSeasonFilterSelection();
     this.applyListView();
   }
 
@@ -841,6 +952,23 @@ export class StudentManagementComponent implements OnInit {
     const province = this.provinceFilter;
     this.cityFilter =
       country && province && input ? this.resolveCityFilterSelection(input, country) : '';
+    this.syncSchoolBoardFilterSelection();
+    this.syncGraduationSeasonFilterSelection();
+    this.applyListView();
+  }
+
+  onSchoolBoardFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.schoolBoardFilterInput = input;
+    this.schoolBoardFilter = input ? this.resolveSchoolBoardFilterSelection(input) : '';
+    this.syncGraduationSeasonFilterSelection();
+    this.applyListView();
+  }
+
+  onGraduationSeasonFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.graduationSeasonFilterInput = input;
+    this.graduationSeasonFilter = input ? this.resolveGraduationSeasonFilterSelection(input) : '';
     this.applyListView();
   }
 
@@ -882,6 +1010,17 @@ export class StudentManagementComponent implements OnInit {
     return normalized || '';
   }
 
+  private resolveCurrentSchoolBoardForFilter(student: StudentAccount): string {
+    return String(this.resolveCurrentSchoolBoardValue(student) ?? '').trim();
+  }
+
+  private resolveCurrentSchoolGraduationSeasonForFilter(student: StudentAccount): string {
+    const yearMonth = this.resolveGraduationYearMonth(
+      this.resolveCurrentSchoolExpectedGraduationValue(student)
+    );
+    return this.toGraduationSeasonTag(yearMonth);
+  }
+
   private collectCityFilterOptions(country: ProvinceFilterCountry, province: StudentProvinceFilter): string[] {
     const options: string[] = [];
     const provinceKey = this.normalizeCountryKey(province);
@@ -899,6 +1038,78 @@ export class StudentManagementComponent implements OnInit {
       }
     }
     return this.mergeFilterOptions([], options);
+  }
+
+  private collectSchoolBoardFilterOptions(): string[] {
+    const options: string[] = [];
+    for (const student of this.students) {
+      if (!this.matchesListFilters(student, true, false)) {
+        continue;
+      }
+
+      const schoolBoard = this.resolveCurrentSchoolBoardForFilter(student);
+      if (schoolBoard) {
+        options.push(schoolBoard);
+      }
+    }
+
+    return this.mergeFilterOptions([], options);
+  }
+
+  private collectGraduationSeasonFilterOptions(): string[] {
+    const options: string[] = [];
+    for (let year = 2025; year <= 2030; year += 1) {
+      options.push(`${year} Fall`);
+      options.push(`${year} Winter`);
+    }
+
+    return this.mergeFilterOptions([], options);
+  }
+
+  private syncSchoolBoardFilterSelection(): void {
+    const input = String(this.schoolBoardFilterInput ?? '').trim();
+    if (!input) {
+      this.schoolBoardFilter = '';
+      return;
+    }
+
+    const resolved = this.resolveSchoolBoardFilterSelection(input);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.schoolBoardFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+
+    if (!resolved || !optionExists) {
+      this.schoolBoardFilterInput = '';
+      this.schoolBoardFilter = '';
+      return;
+    }
+
+    this.schoolBoardFilterInput = resolved;
+    this.schoolBoardFilter = resolved;
+  }
+
+  private syncGraduationSeasonFilterSelection(): void {
+    const input = String(this.graduationSeasonFilterInput ?? '').trim();
+    if (!input) {
+      this.graduationSeasonFilter = '';
+      return;
+    }
+
+    const resolved = this.resolveGraduationSeasonFilterSelection(input);
+    const resolvedKey = this.normalizeGraduationSeasonFilterValue(resolved);
+    const optionExists = this.graduationSeasonFilterOptions.some(
+      (option) => this.normalizeGraduationSeasonFilterValue(option) === resolvedKey
+    );
+
+    if (!resolved || !resolvedKey || !optionExists) {
+      this.graduationSeasonFilterInput = '';
+      this.graduationSeasonFilter = '';
+      return;
+    }
+
+    this.graduationSeasonFilterInput = resolved;
+    this.graduationSeasonFilter = resolved;
   }
 
   private mergeFilterOptions(primary: readonly string[], extra: readonly string[]): string[] {
@@ -944,9 +1155,17 @@ export class StudentManagementComponent implements OnInit {
       currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
         ? (currentSchoolCandidate as Record<string, unknown>)
         : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
     const schoolAddress =
       currentSchool['address'] && typeof currentSchool['address'] === 'object'
         ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
         : ({} as Record<string, unknown>);
 
     return this.pickFirstText([
@@ -956,7 +1175,9 @@ export class StudentManagementComponent implements OnInit {
       profileNode['currentSchoolCountry'],
       profileNode['schoolCountry'],
       currentSchool['country'],
+      schoolNode['country'],
       schoolAddress['country'],
+      schoolNodeAddress['country'],
     ]);
   }
 
@@ -986,9 +1207,17 @@ export class StudentManagementComponent implements OnInit {
       currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
         ? (currentSchoolCandidate as Record<string, unknown>)
         : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
     const schoolAddress =
       currentSchool['address'] && typeof currentSchool['address'] === 'object'
         ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
         : ({} as Record<string, unknown>);
 
     return this.pickFirstText([
@@ -1005,10 +1234,17 @@ export class StudentManagementComponent implements OnInit {
       currentSchool['province'],
       currentSchool['state'],
       currentSchool['region'],
+      schoolNode['province'],
+      schoolNode['state'],
+      schoolNode['region'],
       schoolAddress['province'],
       schoolAddress['state'],
       schoolAddress['region'],
       schoolAddress['administrativeArea'],
+      schoolNodeAddress['province'],
+      schoolNodeAddress['state'],
+      schoolNodeAddress['region'],
+      schoolNodeAddress['administrativeArea'],
     ]);
   }
 
@@ -1038,9 +1274,17 @@ export class StudentManagementComponent implements OnInit {
       currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
         ? (currentSchoolCandidate as Record<string, unknown>)
         : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
     const schoolAddress =
       currentSchool['address'] && typeof currentSchool['address'] === 'object'
         ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
         : ({} as Record<string, unknown>);
 
     return this.pickFirstText([
@@ -1057,10 +1301,184 @@ export class StudentManagementComponent implements OnInit {
       currentSchool['city'],
       currentSchool['town'],
       currentSchool['municipality'],
+      schoolNode['city'],
+      schoolNode['town'],
+      schoolNode['municipality'],
       schoolAddress['city'],
       schoolAddress['town'],
       schoolAddress['municipality'],
       schoolAddress['locality'],
+      schoolNodeAddress['city'],
+      schoolNodeAddress['town'],
+      schoolNodeAddress['municipality'],
+      schoolNodeAddress['locality'],
+    ]);
+  }
+
+  private resolveCurrentSchoolBoardValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return this.pickFirstText([
+      student?.['currentSchoolBoard'],
+      student?.['schoolBoard'],
+      student?.['boardName'],
+      student?.['educationBureau'],
+      student?.['bureau'],
+      student?.['schoolBoardName'],
+      student?.['board'],
+      student?.['district'],
+      student?.['districtName'],
+      profileNode['currentSchoolBoard'],
+      profileNode['schoolBoard'],
+      profileNode['boardName'],
+      profileNode['educationBureau'],
+      profileNode['bureau'],
+      profileNode['schoolBoardName'],
+      profileNode['board'],
+      profileNode['district'],
+      profileNode['districtName'],
+      currentSchool['schoolBoard'],
+      currentSchool['boardName'],
+      currentSchool['educationBureau'],
+      currentSchool['bureau'],
+      currentSchool['schoolBoardName'],
+      currentSchool['board'],
+      currentSchool['district'],
+      currentSchool['districtName'],
+      schoolNode['schoolBoard'],
+      schoolNode['boardName'],
+      schoolNode['educationBureau'],
+      schoolNode['bureau'],
+      schoolNode['schoolBoardName'],
+      schoolNode['board'],
+      schoolNode['district'],
+      schoolNode['districtName'],
+      schoolAddress['schoolBoard'],
+      schoolAddress['boardName'],
+      schoolAddress['educationBureau'],
+      schoolAddress['bureau'],
+      schoolAddress['schoolBoardName'],
+      schoolAddress['board'],
+      schoolAddress['district'],
+      schoolAddress['districtName'],
+      schoolNodeAddress['schoolBoard'],
+      schoolNodeAddress['boardName'],
+      schoolNodeAddress['educationBureau'],
+      schoolNodeAddress['bureau'],
+      schoolNodeAddress['schoolBoardName'],
+      schoolNodeAddress['board'],
+      schoolNodeAddress['district'],
+      schoolNodeAddress['districtName'],
+    ]);
+  }
+
+  private resolveCurrentSchoolExpectedGraduationValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return this.pickFirstText([
+      student?.['currentSchoolExpectedGraduation'],
+      student?.['expectedGraduationTime'],
+      student?.['expectedGraduationDate'],
+      student?.['expectedGraduateDate'],
+      student?.['expectedGraduateTime'],
+      student?.['expectedGraduationAt'],
+      student?.['graduationDate'],
+      student?.['graduationTime'],
+      student?.['graduationAt'],
+      student?.['endTime'],
+      profileNode['currentSchoolExpectedGraduation'],
+      profileNode['expectedGraduationTime'],
+      profileNode['expectedGraduationDate'],
+      profileNode['expectedGraduateDate'],
+      profileNode['expectedGraduateTime'],
+      profileNode['expectedGraduationAt'],
+      profileNode['graduationDate'],
+      profileNode['graduationTime'],
+      profileNode['graduationAt'],
+      currentSchool['currentSchoolExpectedGraduation'],
+      currentSchool['expectedGraduationTime'],
+      currentSchool['expectedGraduationDate'],
+      currentSchool['expectedGraduateDate'],
+      currentSchool['expectedGraduateTime'],
+      currentSchool['expectedGraduationAt'],
+      currentSchool['graduationDate'],
+      currentSchool['graduationTime'],
+      currentSchool['graduationAt'],
+      currentSchool['endTime'],
+      schoolNode['currentSchoolExpectedGraduation'],
+      schoolNode['expectedGraduationTime'],
+      schoolNode['expectedGraduationDate'],
+      schoolNode['expectedGraduateDate'],
+      schoolNode['expectedGraduateTime'],
+      schoolNode['expectedGraduationAt'],
+      schoolNode['graduationDate'],
+      schoolNode['graduationTime'],
+      schoolNode['graduationAt'],
+      schoolNode['endTime'],
     ]);
   }
 
@@ -1159,6 +1577,223 @@ export class StudentManagementComponent implements OnInit {
 
     this.inviteCopied = false;
     this.cdr.detectChanges();
+  }
+
+  isTeacherNoteRowSelected(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && studentId === this.selectedNoteStudentId;
+  }
+
+  resolveTeacherNoteCellValue(student: StudentAccount): string {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return '';
+    }
+
+    if (this.selectedNoteStudentId === studentId) {
+      return this.teacherNoteDraft;
+    }
+
+    return this.teacherNoteCache.get(studentId) ?? '';
+  }
+
+  prepareTeacherNoteCell(student: StudentAccount): void {
+    if (this.isTeacherNoteRowSelected(student)) {
+      return;
+    }
+
+    this.openTeacherNote(student);
+  }
+
+  onTeacherNoteCellChange(student: StudentAccount, value: unknown): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return;
+    }
+
+    if (this.selectedNoteStudentId !== studentId) {
+      const resolvedDisplayName = this.displayName(student);
+      this.selectedNoteStudentId = studentId;
+      this.selectedNoteStudentName =
+        resolvedDisplayName !== '-' ? resolvedDisplayName : student.username || `#${studentId}`;
+      this.teacherNoteError = '';
+      this.teacherNoteSuccess = '';
+    }
+
+    this.teacherNoteDraft = String(value ?? '');
+    this.teacherNoteCache.set(studentId, this.teacherNoteDraft);
+    this.teacherNoteSuccess = '';
+    this.scheduleTeacherNoteAutoSave(studentId);
+    this.cdr.detectChanges();
+  }
+
+  onTeacherNoteCellBlur(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return;
+    }
+
+    if (this.selectedNoteStudentId !== studentId) {
+      this.openTeacherNote(student);
+      return;
+    }
+
+    this.flushTeacherNoteAutoSave(studentId);
+  }
+
+  openTeacherNote(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      this.teacherNoteError = '缺少学生 ID，无法编辑备注。';
+      this.teacherNoteSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.clearTeacherNoteAutoSaveTimer();
+
+    const resolvedDisplayName = this.displayName(student);
+    this.selectedNoteStudentId = studentId;
+    this.selectedNoteStudentName =
+      resolvedDisplayName !== '-' ? resolvedDisplayName : student.username || `#${studentId}`;
+    this.teacherNoteError = '';
+    this.teacherNoteSuccess = '';
+    this.teacherNoteDraft = this.teacherNoteCache.get(studentId) ?? '';
+
+    const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+    if (cachedProfile) {
+      if (!this.teacherNoteDraft) {
+        const cachedNote = this.extractTeacherNoteFromProfile(cachedProfile);
+        this.teacherNoteDraft = cachedNote;
+        this.teacherNoteCache.set(studentId, cachedNote);
+      }
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.teacherNoteLoading = true;
+    this.cdr.detectChanges();
+    this.studentProfileApi
+      .getStudentProfileForTeacher(studentId)
+      .pipe(
+        finalize(() => {
+          this.teacherNoteLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          this.teacherNoteProfileCache.set(studentId, payload);
+          const note = this.extractTeacherNoteFromProfile(payload);
+          this.teacherNoteDraft = note;
+          this.teacherNoteCache.set(studentId, note);
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.teacherNoteError = this.extractErrorMessage(err) || '加载备注失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  saveTeacherNote(): void {
+    const studentId = this.selectedNoteStudentId;
+    if (!studentId || this.teacherNoteSaving) {
+      return;
+    }
+
+    this.clearTeacherNoteAutoSaveTimer();
+
+    const noteText = String(this.teacherNoteDraft ?? '').trim();
+    this.teacherNoteSaving = true;
+    this.teacherNoteError = '';
+    this.teacherNoteSuccess = '';
+    this.cdr.detectChanges();
+
+    const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+    if (cachedProfile) {
+      this.saveTeacherNoteWithProfile(studentId, cachedProfile, noteText);
+      return;
+    }
+
+    this.studentProfileApi.getStudentProfileForTeacher(studentId).subscribe({
+      next: (payload) => {
+        this.teacherNoteProfileCache.set(studentId, payload);
+        this.saveTeacherNoteWithProfile(studentId, payload, noteText);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.teacherNoteSaving = false;
+        this.teacherNoteError = this.extractErrorMessage(err) || '保存备注失败。';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private scheduleTeacherNoteAutoSave(studentId: number): void {
+    if (this.selectedNoteStudentId !== studentId) {
+      return;
+    }
+
+    this.clearTeacherNoteAutoSaveTimer();
+    this.teacherNoteAutoSaveTimer = setTimeout(() => {
+      this.teacherNoteAutoSaveTimer = null;
+      if (
+        this.selectedNoteStudentId !== studentId ||
+        this.teacherNoteLoading ||
+        this.teacherNoteSaving
+      ) {
+        return;
+      }
+      this.saveTeacherNote();
+    }, 700);
+  }
+
+  private flushTeacherNoteAutoSave(studentId: number): void {
+    this.clearTeacherNoteAutoSaveTimer();
+    if (
+      this.selectedNoteStudentId !== studentId ||
+      this.teacherNoteLoading ||
+      this.teacherNoteSaving
+    ) {
+      return;
+    }
+    this.saveTeacherNote();
+  }
+
+  private clearTeacherNoteAutoSaveTimer(): void {
+    if (this.teacherNoteAutoSaveTimer) {
+      clearTimeout(this.teacherNoteAutoSaveTimer);
+      this.teacherNoteAutoSaveTimer = null;
+    }
+  }
+
+  private saveTeacherNoteWithProfile(
+    studentId: number,
+    profilePayload: StudentProfilePayload | StudentProfileResponse | null | undefined,
+    noteText: string
+  ): void {
+    const requestPayload = this.buildTeacherProfilePayloadWithNote(profilePayload, noteText);
+    this.studentProfileApi
+      .saveStudentProfileForTeacher(studentId, requestPayload)
+      .pipe(
+        finalize(() => {
+          this.teacherNoteSaving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (savedPayload) => {
+          this.teacherNoteProfileCache.set(studentId, savedPayload);
+          this.teacherNoteCache.set(studentId, noteText);
+          this.teacherNoteDraft = noteText;
+          this.teacherNoteSuccess = '备注已保存。';
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.teacherNoteError = this.extractErrorMessage(err) || '保存备注失败。';
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   resetPassword(student: StudentAccount): void {
@@ -1263,6 +1898,10 @@ export class StudentManagementComponent implements OnInit {
     this.provinceFilter = '';
     this.cityFilterInput = '';
     this.cityFilter = '';
+    this.schoolBoardFilterInput = '';
+    this.schoolBoardFilter = '';
+    this.graduationSeasonFilterInput = '';
+    this.graduationSeasonFilter = '';
     this.applyListView();
   }
 
@@ -1272,67 +1911,102 @@ export class StudentManagementComponent implements OnInit {
   }
 
   applyListView(): void {
-    const keyword = this.searchKeyword.trim().toLowerCase();
-    const provinceCountry = this.provinceFilterCountry;
-    const provinceFilterKey = this.normalizeCountryKey(this.provinceFilter);
-    const cityCountry = this.cityFilterCountry;
-    const cityFilterKey = this.normalizeCountryKey(this.cityFilter);
-    const filtered = this.students.filter((student) => {
-      if (!this.showInactive && this.resolveStatus(student) !== 'ACTIVE') {
-        return false;
-      }
-
-      if (this.countryFilter !== 'ALL') {
-        const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
-        let countryMatched = false;
-        if (this.countryFilter === 'N/A') {
-          countryMatched = studentCountry === 'N/A';
-        } else if (this.countryFilter === 'Canada') {
-          countryMatched = studentCountry === 'Canada' || studentCountry === 'N/A';
-        } else {
-          countryMatched = studentCountry === this.countryFilter;
-        }
-        if (!countryMatched) {
-          return false;
-        }
-      }
-
-      if (provinceCountry && provinceFilterKey) {
-        const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, provinceCountry);
-        if (!studentProvince) {
-          return false;
-        }
-        if (this.normalizeCountryKey(studentProvince) !== provinceFilterKey) {
-          return false;
-        }
-      }
-
-      if (cityCountry && cityFilterKey) {
-        const studentCity = this.resolveCurrentSchoolCityForFilter(student, cityCountry);
-        if (!studentCity) {
-          return false;
-        }
-        if (this.normalizeCountryKey(studentCity) !== cityFilterKey) {
-          return false;
-        }
-      }
-
-      if (!keyword) {
-        return true;
-      }
-
-      const searchFields = [
-        String(this.resolveStudentId(student) ?? ''),
-        this.displayName(student),
-        this.resolveStudentEmailValue(student),
-        this.resolveStudentPhoneValue(student),
-      ];
-
-      return searchFields.some((field) => field.toLowerCase().includes(keyword));
-    });
+    const filtered = this.students.filter((student) => this.matchesListFilters(student));
 
     this.filteredCount = filtered.length;
     this.visibleStudents = filtered.slice(0, this.listLimit);
+    this.prefetchVisibleTeacherNotes();
+  }
+
+  private matchesListFilters(
+    student: StudentAccount,
+    ignoreSchoolBoardFilter = false,
+    ignoreGraduationSeasonFilter = false
+  ): boolean {
+    if (!this.showInactive && this.resolveStatus(student) !== 'ACTIVE') {
+      return false;
+    }
+
+    if (this.countryFilter !== 'ALL') {
+      const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
+      let countryMatched = false;
+      if (this.countryFilter === 'N/A') {
+        countryMatched = studentCountry === 'N/A';
+      } else if (this.countryFilter === 'Canada') {
+        countryMatched = studentCountry === 'Canada' || studentCountry === 'N/A';
+      } else {
+        countryMatched = studentCountry === this.countryFilter;
+      }
+      if (!countryMatched) {
+        return false;
+      }
+    }
+
+    const provinceCountry = this.provinceFilterCountry;
+    const provinceFilterKey = this.normalizeCountryKey(this.provinceFilter);
+    if (provinceCountry && provinceFilterKey) {
+      const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, provinceCountry);
+      if (!studentProvince) {
+        return false;
+      }
+      if (this.normalizeCountryKey(studentProvince) !== provinceFilterKey) {
+        return false;
+      }
+    }
+
+    const cityCountry = this.cityFilterCountry;
+    const cityFilterKey = this.normalizeCountryKey(this.cityFilter);
+    if (cityCountry && cityFilterKey) {
+      const studentCity = this.resolveCurrentSchoolCityForFilter(student, cityCountry);
+      if (!studentCity) {
+        return false;
+      }
+      if (this.normalizeCountryKey(studentCity) !== cityFilterKey) {
+        return false;
+      }
+    }
+
+    if (!ignoreSchoolBoardFilter) {
+      const schoolBoardFilterKey = this.normalizeCountryKey(this.schoolBoardFilter);
+      if (schoolBoardFilterKey) {
+        const studentSchoolBoard = this.resolveCurrentSchoolBoardForFilter(student);
+        if (!studentSchoolBoard) {
+          return false;
+        }
+        if (this.normalizeCountryKey(studentSchoolBoard) !== schoolBoardFilterKey) {
+          return false;
+        }
+      }
+    }
+
+    if (!ignoreGraduationSeasonFilter) {
+      const seasonFilter = this.normalizeGraduationSeasonFilterValue(this.graduationSeasonFilter);
+      if (seasonFilter) {
+        const studentSeason = this.resolveCurrentSchoolGraduationSeasonForFilter(student);
+        if (!studentSeason) {
+          return false;
+        }
+        if (this.normalizeGraduationSeasonFilterValue(studentSeason) !== seasonFilter) {
+          return false;
+        }
+      }
+    }
+
+    const keyword = this.searchKeyword.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+
+    const searchFields = [
+      String(this.resolveStudentId(student) ?? ''),
+      this.displayName(student),
+      this.resolveStudentEmailValue(student),
+      this.resolveStudentPhoneValue(student),
+      this.resolveStudentGraduation(student),
+      this.resolveCurrentSchoolGraduationSeasonForFilter(student),
+    ];
+
+    return searchFields.some((field) => field.toLowerCase().includes(keyword));
   }
 
   isArchived(student: StudentAccount): boolean {
@@ -1360,6 +2034,8 @@ export class StudentManagementComponent implements OnInit {
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
+      const currentSchoolBoard = this.resolveCurrentSchoolBoardValue(student);
+      const currentSchoolExpectedGraduation = this.resolveCurrentSchoolExpectedGraduationValue(student);
 
       return {
         ...student,
@@ -1368,6 +2044,8 @@ export class StudentManagementComponent implements OnInit {
         currentSchoolCountry: currentSchoolCountry || undefined,
         currentSchoolProvince: currentSchoolProvince || undefined,
         currentSchoolCity: currentSchoolCity || undefined,
+        currentSchoolBoard: currentSchoolBoard || undefined,
+        currentSchoolExpectedGraduation: currentSchoolExpectedGraduation || undefined,
         status: this.resolveStatus(student),
       };
     });
@@ -1390,13 +2068,25 @@ export class StudentManagementComponent implements OnInit {
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
-      if (email && phone && currentSchoolCountry && currentSchoolProvince && currentSchoolCity) {
+      const currentSchoolBoard = this.resolveCurrentSchoolBoardValue(student);
+      const currentSchoolExpectedGraduation = this.resolveCurrentSchoolExpectedGraduationValue(student);
+      if (
+        email &&
+        phone &&
+        currentSchoolCountry &&
+        currentSchoolProvince &&
+        currentSchoolCity &&
+        currentSchoolBoard &&
+        currentSchoolExpectedGraduation
+      ) {
         this.studentContactCache.set(studentId, {
           email,
           phone,
           currentSchoolCountry,
           currentSchoolProvince,
           currentSchoolCity,
+          currentSchoolBoard,
+          currentSchoolExpectedGraduation,
         });
         continue;
       }
@@ -1416,12 +2106,16 @@ export class StudentManagementComponent implements OnInit {
         .subscribe({
           next: (payload) => {
             const metadata = this.extractStudentMetadataFromProfile(payload);
+            this.teacherNoteProfileCache.set(studentId, payload);
+            this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(payload));
             if (
               !metadata.email &&
               !metadata.phone &&
               !metadata.currentSchoolCountry &&
               !metadata.currentSchoolProvince &&
-              !metadata.currentSchoolCity
+              !metadata.currentSchoolCity &&
+              !metadata.currentSchoolBoard &&
+              !metadata.currentSchoolExpectedGraduation
             ) {
               return;
             }
@@ -1429,6 +2123,42 @@ export class StudentManagementComponent implements OnInit {
             this.studentContactCache.set(studentId, metadata);
             this.applyStudentMetadata(student, metadata);
             this.applyListView();
+            this.cdr.detectChanges();
+          },
+          error: () => {},
+        });
+    }
+  }
+
+  private prefetchVisibleTeacherNotes(): void {
+    for (const student of this.visibleStudents) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId || this.teacherNoteCache.has(studentId)) {
+        continue;
+      }
+
+      const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+      if (cachedProfile) {
+        this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(cachedProfile));
+        continue;
+      }
+
+      if (this.teacherNoteLoadInFlight.has(studentId)) {
+        continue;
+      }
+
+      this.teacherNoteLoadInFlight.add(studentId);
+      this.studentProfileApi
+        .getStudentProfileForTeacher(studentId)
+        .pipe(
+          finalize(() => {
+            this.teacherNoteLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (payload) => {
+            this.teacherNoteProfileCache.set(studentId, payload);
+            this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(payload));
             this.cdr.detectChanges();
           },
           error: () => {},
@@ -1465,9 +2195,17 @@ export class StudentManagementComponent implements OnInit {
       currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
         ? (currentSchoolCandidate as Record<string, unknown>)
         : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
     const schoolAddress =
       currentSchool['address'] && typeof currentSchool['address'] === 'object'
         ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
         : ({} as Record<string, unknown>);
 
     return {
@@ -1495,7 +2233,9 @@ export class StudentManagementComponent implements OnInit {
         root['currentSchoolCountry'],
         root['schoolCountry'],
         currentSchool['country'],
+        schoolNode['country'],
         schoolAddress['country'],
+        schoolNodeAddress['country'],
       ]),
       currentSchoolProvince: this.pickFirstText([
         profileNode['currentSchoolProvince'],
@@ -1511,10 +2251,17 @@ export class StudentManagementComponent implements OnInit {
         currentSchool['province'],
         currentSchool['state'],
         currentSchool['region'],
+        schoolNode['province'],
+        schoolNode['state'],
+        schoolNode['region'],
         schoolAddress['province'],
         schoolAddress['state'],
         schoolAddress['region'],
         schoolAddress['administrativeArea'],
+        schoolNodeAddress['province'],
+        schoolNodeAddress['state'],
+        schoolNodeAddress['region'],
+        schoolNodeAddress['administrativeArea'],
       ]),
       currentSchoolCity: this.pickFirstText([
         profileNode['currentSchoolCity'],
@@ -1530,11 +2277,154 @@ export class StudentManagementComponent implements OnInit {
         currentSchool['city'],
         currentSchool['town'],
         currentSchool['municipality'],
+        schoolNode['city'],
+        schoolNode['town'],
+        schoolNode['municipality'],
         schoolAddress['city'],
         schoolAddress['town'],
         schoolAddress['municipality'],
         schoolAddress['locality'],
+        schoolNodeAddress['city'],
+        schoolNodeAddress['town'],
+        schoolNodeAddress['municipality'],
+        schoolNodeAddress['locality'],
       ]),
+      currentSchoolBoard: this.pickFirstText([
+        profileNode['currentSchoolBoard'],
+        profileNode['schoolBoard'],
+        profileNode['boardName'],
+        profileNode['educationBureau'],
+        profileNode['bureau'],
+        profileNode['schoolBoardName'],
+        profileNode['board'],
+        profileNode['district'],
+        profileNode['districtName'],
+        root['currentSchoolBoard'],
+        root['schoolBoard'],
+        root['boardName'],
+        root['educationBureau'],
+        root['bureau'],
+        root['schoolBoardName'],
+        root['board'],
+        root['district'],
+        root['districtName'],
+        currentSchool['schoolBoard'],
+        currentSchool['boardName'],
+        currentSchool['educationBureau'],
+        currentSchool['bureau'],
+        currentSchool['schoolBoardName'],
+        currentSchool['board'],
+        currentSchool['district'],
+        currentSchool['districtName'],
+        schoolNode['schoolBoard'],
+        schoolNode['boardName'],
+        schoolNode['educationBureau'],
+        schoolNode['bureau'],
+        schoolNode['schoolBoardName'],
+        schoolNode['board'],
+        schoolNode['district'],
+        schoolNode['districtName'],
+        schoolAddress['schoolBoard'],
+        schoolAddress['boardName'],
+        schoolAddress['educationBureau'],
+        schoolAddress['bureau'],
+        schoolAddress['schoolBoardName'],
+        schoolAddress['board'],
+        schoolAddress['district'],
+        schoolAddress['districtName'],
+        schoolNodeAddress['schoolBoard'],
+        schoolNodeAddress['boardName'],
+        schoolNodeAddress['educationBureau'],
+        schoolNodeAddress['bureau'],
+        schoolNodeAddress['schoolBoardName'],
+        schoolNodeAddress['board'],
+        schoolNodeAddress['district'],
+        schoolNodeAddress['districtName'],
+      ]),
+      currentSchoolExpectedGraduation: this.pickFirstText([
+        profileNode['currentSchoolExpectedGraduation'],
+        profileNode['expectedGraduationTime'],
+        profileNode['expectedGraduationDate'],
+        profileNode['expectedGraduateDate'],
+        profileNode['expectedGraduateTime'],
+        profileNode['expectedGraduationAt'],
+        profileNode['graduationDate'],
+        profileNode['graduationTime'],
+        profileNode['graduationAt'],
+        root['currentSchoolExpectedGraduation'],
+        root['expectedGraduationTime'],
+        root['expectedGraduationDate'],
+        root['expectedGraduateDate'],
+        root['expectedGraduateTime'],
+        root['expectedGraduationAt'],
+        root['graduationDate'],
+        root['graduationTime'],
+        root['graduationAt'],
+        currentSchool['currentSchoolExpectedGraduation'],
+        currentSchool['expectedGraduationTime'],
+        currentSchool['expectedGraduationDate'],
+        currentSchool['expectedGraduateDate'],
+        currentSchool['expectedGraduateTime'],
+        currentSchool['expectedGraduationAt'],
+        currentSchool['graduationDate'],
+        currentSchool['graduationTime'],
+        currentSchool['graduationAt'],
+        currentSchool['endTime'],
+        schoolNode['currentSchoolExpectedGraduation'],
+        schoolNode['expectedGraduationTime'],
+        schoolNode['expectedGraduationDate'],
+        schoolNode['expectedGraduateDate'],
+        schoolNode['expectedGraduateTime'],
+        schoolNode['expectedGraduationAt'],
+        schoolNode['graduationDate'],
+        schoolNode['graduationTime'],
+        schoolNode['graduationAt'],
+        schoolNode['endTime'],
+      ]),
+    };
+  }
+
+  private extractTeacherNoteFromProfile(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): string {
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const profileNode =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : root;
+
+    return this.pickFirstText([
+      profileNode['teacherNote'],
+      profileNode['teacherNotes'],
+      profileNode['note'],
+      profileNode['remark'],
+      profileNode['remarks'],
+      profileNode['internalNote'],
+      root['teacherNote'],
+      root['teacherNotes'],
+      root['note'],
+      root['remark'],
+      root['remarks'],
+      root['internalNote'],
+    ]);
+  }
+
+  private buildTeacherProfilePayloadWithNote(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined,
+    noteText: string
+  ): StudentProfilePayload {
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const profileNode =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : root;
+    const normalizedNote = String(noteText ?? '').trim();
+
+    return {
+      ...(profileNode as StudentProfilePayload),
+      teacherNote: normalizedNote,
     };
   }
 
@@ -1556,6 +2446,15 @@ export class StudentManagementComponent implements OnInit {
     }
     if (!this.resolveCurrentSchoolCityValue(student) && metadata.currentSchoolCity) {
       student['currentSchoolCity'] = metadata.currentSchoolCity;
+    }
+    if (!this.resolveCurrentSchoolBoardValue(student) && metadata.currentSchoolBoard) {
+      student['currentSchoolBoard'] = metadata.currentSchoolBoard;
+    }
+    if (
+      !this.resolveCurrentSchoolExpectedGraduationValue(student) &&
+      metadata.currentSchoolExpectedGraduation
+    ) {
+      student['currentSchoolExpectedGraduation'] = metadata.currentSchoolExpectedGraduation;
     }
   }
 
@@ -1601,6 +2500,164 @@ export class StudentManagementComponent implements OnInit {
     }
 
     return '';
+  }
+
+  private formatGraduationYearMonth(value: unknown): string {
+    const yearMonth = this.resolveGraduationYearMonth(value);
+    if (!yearMonth) {
+      return '-';
+    }
+
+    return `${yearMonth.year}年${yearMonth.month}月`;
+  }
+
+  private resolveGraduationYearMonth(
+    value: unknown
+  ): {
+    year: number;
+    month: number;
+  } | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (value instanceof Date) {
+      return this.toValidYearMonth(value.getUTCFullYear(), value.getUTCMonth() + 1);
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const epochMs = value > 1_000_000_000_000 ? value : value > 1_000_000_000 ? value * 1000 : NaN;
+      if (Number.isFinite(epochMs)) {
+        const parsedDate = new Date(epochMs);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          return this.toValidYearMonth(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth() + 1);
+        }
+      }
+    }
+
+    if (value && typeof value === 'object') {
+      const node = value as Record<string, unknown>;
+      const byParts = this.toValidYearMonth(
+        Number(node['year'] ?? node['graduationYear'] ?? node['expectedGraduationYear']),
+        Number(node['month'] ?? node['graduationMonth'] ?? node['expectedGraduationMonth'])
+      );
+      if (byParts) {
+        return byParts;
+      }
+
+      const nestedDateText = this.pickFirstText([
+        node['value'],
+        node['date'],
+        node['endTime'],
+        node['graduationDate'],
+        node['expectedGraduationDate'],
+      ]);
+      if (nestedDateText) {
+        return this.resolveGraduationYearMonth(nestedDateText);
+      }
+    }
+
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return null;
+    }
+
+    const normalizedText = rawText
+      .replace(/年/g, '-')
+      .replace(/[月日]/g, '')
+      .replace(/[，,]/g, ' ')
+      .trim();
+
+    const yearFirstMatch = normalizedText.match(
+      /^(\d{4})[-/. ]+(\d{1,2}|[一二三四五六七八九十]{1,3})(?:[-/. ]+\d{1,2})?.*$/
+    );
+    if (yearFirstMatch) {
+      const year = Number(yearFirstMatch[1]);
+      const month = this.parseMonthNumber(yearFirstMatch[2]);
+      return this.toValidYearMonth(year, month);
+    }
+
+    const monthFirstMatch = normalizedText.match(/^(\d{1,2})[-/. ]+(\d{4})$/);
+    if (monthFirstMatch) {
+      const month = Number(monthFirstMatch[1]);
+      const year = Number(monthFirstMatch[2]);
+      return this.toValidYearMonth(year, month);
+    }
+
+    const parsedEpoch = Date.parse(rawText);
+    if (!Number.isNaN(parsedEpoch)) {
+      const parsedDate = new Date(parsedEpoch);
+      return this.toValidYearMonth(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth() + 1);
+    }
+
+    return null;
+  }
+
+  private parseMonthNumber(value: unknown): number {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return NaN;
+    }
+
+    if (/^\d{1,2}$/.test(rawText)) {
+      return Number(rawText);
+    }
+
+    const normalized = rawText.replace(/\s+/g, '').replace(/月份?$/g, '').replace(/月$/g, '');
+    const chineseMonthMap: Record<string, number> = {
+      一: 1,
+      二: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+      十: 10,
+      十一: 11,
+      十二: 12,
+    };
+    return chineseMonthMap[normalized] ?? NaN;
+  }
+
+  private toValidYearMonth(
+    year: number,
+    month: number
+  ): {
+    year: number;
+    month: number;
+  } | null {
+    const normalizedYear = Number.isFinite(year) ? Math.trunc(year) : NaN;
+    const normalizedMonth = Number.isFinite(month) ? Math.trunc(month) : NaN;
+
+    if (!Number.isFinite(normalizedYear) || !Number.isFinite(normalizedMonth)) {
+      return null;
+    }
+    if (normalizedYear < 1900 || normalizedYear > 2999) {
+      return null;
+    }
+    if (normalizedMonth < 1 || normalizedMonth > 12) {
+      return null;
+    }
+
+    return { year: normalizedYear, month: normalizedMonth };
+  }
+
+  private toGraduationSeasonTag(
+    yearMonth:
+      | {
+          year: number;
+          month: number;
+        }
+      | null
+  ): string {
+    if (!yearMonth) {
+      return '';
+    }
+
+    const season = yearMonth.month >= 7 ? 'Fall' : 'Winter';
+    return `${yearMonth.year} ${season}`;
   }
 
   private resolveCountryFilterSelection(value: unknown): StudentCountryFilter {
@@ -1728,6 +2785,101 @@ export class StudentManagementComponent implements OnInit {
     return matched || rawText;
   }
 
+  private resolveSchoolBoardFilterSelection(value: unknown): string {
+    const normalized = this.normalizeSchoolBoardFilterValue(value);
+    return normalized || '';
+  }
+
+  private normalizeSchoolBoardFilterValue(value: unknown): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    const matched = this.schoolBoardFilterOptions.find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private resolveGraduationSeasonFilterSelection(value: unknown): string {
+    const normalized = this.normalizeGraduationSeasonFilterValue(value);
+    if (!normalized) {
+      return '';
+    }
+
+    const matched = this.graduationSeasonFilterOptions.find(
+      (option) => this.normalizeGraduationSeasonFilterValue(option) === normalized
+    );
+    return matched || normalized;
+  }
+
+  private normalizeGraduationSeasonFilterValue(value: unknown): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    const yearFirst = normalizedKey.match(/^(\d{4})\s+([a-z\u4e00-\u9fff]+)$/);
+    if (yearFirst) {
+      const year = Number(yearFirst[1]);
+      const season = this.resolveGraduationSeasonName(yearFirst[2]);
+      if (season) {
+        return `${year} ${season}`;
+      }
+    }
+
+    const seasonFirst = normalizedKey.match(/^([a-z\u4e00-\u9fff]+)\s+(\d{4})$/);
+    if (seasonFirst) {
+      const season = this.resolveGraduationSeasonName(seasonFirst[1]);
+      const year = Number(seasonFirst[2]);
+      if (season) {
+        return `${year} ${season}`;
+      }
+    }
+
+    const compactText = rawText
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '')
+      .trim();
+    const compactMatch = compactText.match(/^(\d{4})(fall|autumn|winter|f|w|秋|秋季|冬|冬季)$/);
+    if (compactMatch) {
+      const year = Number(compactMatch[1]);
+      const season = this.resolveGraduationSeasonName(compactMatch[2]);
+      if (season) {
+        return `${year} ${season}`;
+      }
+    }
+
+    return '';
+  }
+
+  private resolveGraduationSeasonName(value: unknown): 'Fall' | 'Winter' | '' {
+    const token = String(value ?? '').trim().toLowerCase();
+    if (!token) {
+      return '';
+    }
+
+    if (token === 'fall' || token === 'autumn' || token === 'f' || token === '秋' || token === '秋季') {
+      return 'Fall';
+    }
+    if (token === 'winter' || token === 'w' || token === '冬' || token === '冬季') {
+      return 'Winter';
+    }
+
+    return '';
+  }
+
   private normalizeCountryKey(value: unknown): string {
     return String(value ?? '')
       .toLowerCase()
@@ -1755,6 +2907,10 @@ export class StudentManagementComponent implements OnInit {
     COUNTRY_FILTER_FALLBACK_OPTIONS.forEach(append);
 
     return options;
+  }
+
+  private buildSchoolBoardFilterBaseOptions(): string[] {
+    return this.mergeFilterOptions([], EDUCATION_BOARD_LIBRARY_OPTIONS);
   }
 
   private buildRegionCountryFilterOptions(): string[] {

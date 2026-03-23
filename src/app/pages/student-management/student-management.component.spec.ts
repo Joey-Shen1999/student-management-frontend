@@ -14,7 +14,7 @@ describe('StudentManagementComponent', () => {
     'listStudents' | 'resetStudentPassword' | 'updateStudentStatus'
   >;
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
-  let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher'>;
+  let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher'>;
 
   beforeEach(() => {
     api = {
@@ -27,6 +27,7 @@ describe('StudentManagementComponent', () => {
     };
     profileApi = {
       getStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
+      saveStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
     };
 
     component = new StudentManagementComponent(
@@ -94,7 +95,7 @@ describe('StudentManagementComponent', () => {
     expect(component.filteredCount).toBe(1);
   });
 
-  it('loadStudents should hydrate email and phone from profile API when list payload misses both', () => {
+  it('loadStudents should hydrate email, phone and graduation from profile API when list payload misses both', () => {
     (api.listStudents as any).mockReturnValue(
       of([
         {
@@ -108,6 +109,7 @@ describe('StudentManagementComponent', () => {
         profile: {
           email: 'student31@example.com',
           phone: '6470000000',
+          schools: [{ schoolType: 'MAIN', endTime: '2026-06-30' }],
         },
       })
     );
@@ -121,8 +123,86 @@ describe('StudentManagementComponent', () => {
         username: 'student31',
         email: 'student31@example.com',
         phone: '6470000000',
+        currentSchoolExpectedGraduation: '2026-06-30',
       }),
     ]);
+    expect(component.resolveStudentGraduation(component.students[0])).toBe('2026年6月');
+  });
+
+  it('resolveStudentGraduation should format chinese month text', () => {
+    const student = {
+      studentId: 77,
+      username: 'student77',
+      currentSchoolExpectedGraduation: '2027年六月',
+    } as any;
+
+    expect(component.resolveStudentGraduation(student)).toBe('2027年6月');
+  });
+
+  it('openTeacherNote should load teacher-only note from teacher profile', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          teacherNote: '内部备注 A',
+        },
+      })
+    );
+
+    component.openTeacherNote({ studentId: 52, username: 'student52' });
+
+    expect(profileApi.getStudentProfileForTeacher).toHaveBeenCalledWith(52);
+    expect(component.selectedNoteStudentId).toBe(52);
+    expect(component.teacherNoteDraft).toBe('内部备注 A');
+  });
+
+  it('applyListView should prefetch visible teacher notes without requiring focus', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockImplementation((studentId: number) =>
+      of({
+        profile: {
+          teacherNote: `note-${studentId}`,
+        },
+      })
+    );
+    component.students = [
+      { studentId: 201, username: 'student201', status: 'ACTIVE' } as any,
+      { studentId: 202, username: 'student202', status: 'ACTIVE' } as any,
+    ];
+
+    component.applyListView();
+
+    expect(profileApi.getStudentProfileForTeacher).toHaveBeenCalledWith(201);
+    expect(profileApi.getStudentProfileForTeacher).toHaveBeenCalledWith(202);
+    expect(component.resolveTeacherNoteCellValue(component.students[0] as any)).toBe('note-201');
+    expect(component.resolveTeacherNoteCellValue(component.students[1] as any)).toBe('note-202');
+  });
+
+  it('saveTeacherNote should persist note via teacher profile API', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          legalFirstName: 'Demo',
+        },
+      })
+    );
+    (profileApi.saveStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          teacherNote: 'Follow up in April',
+        },
+      })
+    );
+
+    component.openTeacherNote({ studentId: 53, username: 'student53' });
+    component.teacherNoteDraft = 'Follow up in April';
+    component.saveTeacherNote();
+
+    expect(profileApi.saveStudentProfileForTeacher).toHaveBeenCalledWith(
+      53,
+      expect.objectContaining({
+        teacherNote: 'Follow up in April',
+      })
+    );
+    expect(component.teacherNoteSuccess).toBe('备注已保存。');
   });
 
   it('loadStudents should show backend error message on failure', () => {
@@ -248,6 +328,10 @@ describe('StudentManagementComponent', () => {
     component.provinceFilter = 'California';
     component.cityFilterInput = 'Los Angeles';
     component.cityFilter = 'Los Angeles';
+    component.schoolBoardFilterInput = 'Toronto District School Board';
+    component.schoolBoardFilter = 'Toronto District School Board';
+    component.graduationSeasonFilterInput = '2026 Fall';
+    component.graduationSeasonFilter = '2026 Fall';
 
     component.clearListControls();
 
@@ -260,6 +344,10 @@ describe('StudentManagementComponent', () => {
     expect(component.provinceFilter).toBe('');
     expect(component.cityFilterInput).toBe('');
     expect(component.cityFilter).toBe('');
+    expect(component.schoolBoardFilterInput).toBe('');
+    expect(component.schoolBoardFilter).toBe('');
+    expect(component.graduationSeasonFilterInput).toBe('');
+    expect(component.graduationSeasonFilter).toBe('');
   });
 
   it('country filter input should stay empty when cleared instead of restoring All text', () => {
@@ -530,6 +618,229 @@ describe('StudentManagementComponent', () => {
     component.onProvinceFilterInputChange('New York');
     component.onCityFilterInputChange('New York');
     expect(component.visibleStudents.map((student) => student.studentId)).toEqual([13]);
+  });
+
+  it('applyListView should filter by graduation season', () => {
+    component.students = [
+      {
+        studentId: 31,
+        username: 'fall_student',
+        displayName: 'Fall Student',
+        status: 'ACTIVE',
+        currentSchoolExpectedGraduation: '2026-09-15',
+      },
+      {
+        studentId: 32,
+        username: 'winter_student',
+        displayName: 'Winter Student',
+        status: 'ACTIVE',
+        currentSchoolExpectedGraduation: '2026-02-10',
+      },
+    ];
+
+    component.onGraduationSeasonFilterInputChange('2026 Fall');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([31]);
+
+    component.onGraduationSeasonFilterInputChange('2026 Winter');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([32]);
+  });
+
+  it('graduation season filter should support chinese aliases and provide range options', () => {
+    component.students = [
+      {
+        studentId: 41,
+        username: 'alias_student',
+        displayName: 'Alias Student',
+        status: 'ACTIVE',
+        currentSchoolExpectedGraduation: '2026-10-01',
+      },
+    ];
+
+    component.onGraduationSeasonFilterInputChange('2026 秋季');
+    expect(component.graduationSeasonFilter).toBe('2026 Fall');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([41]);
+
+    expect(component.graduationSeasonFilterOptions).toContain('2030 Winter');
+    expect(component.graduationSeasonFilterOptions).toContain('2025 Fall');
+    expect(component.graduationSeasonFilterOptions).not.toContain('2024 Fall');
+  });
+
+  it('school board filter options should include all currently filterable students boards', () => {
+    component.students = [
+      {
+        studentId: 51,
+        username: 'ca_tdsb',
+        displayName: 'CA TDSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'Toronto District School Board',
+      },
+      {
+        studentId: 52,
+        username: 'ca_yrdsb',
+        displayName: 'CA YRDSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'York Region District School Board',
+      },
+      {
+        studentId: 53,
+        username: 'us_lausd',
+        displayName: 'US LAUSD',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'California',
+        currentSchoolCity: 'Los Angeles',
+        currentSchoolBoard: 'Los Angeles Unified School District',
+      },
+    ];
+
+    expect(component.schoolBoardFilterOptions).toContain('Toronto District School Board');
+    expect(component.schoolBoardFilterOptions).toContain('York Region District School Board');
+    expect(component.schoolBoardFilterOptions).toContain('Los Angeles Unified School District');
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    component.onCityFilterInputChange('Toronto');
+    expect(component.schoolBoardFilterOptions).toContain('Toronto District School Board');
+    expect(component.schoolBoardFilterOptions).toContain('York Region District School Board');
+  });
+
+  it('applyListView should filter by school board', () => {
+    component.students = [
+      {
+        studentId: 61,
+        username: 'ca_tdsb',
+        displayName: 'CA TDSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'Toronto District School Board',
+      },
+      {
+        studentId: 62,
+        username: 'ca_yrdsb',
+        displayName: 'CA YRDSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'York Region District School Board',
+      },
+    ];
+
+    component.onSchoolBoardFilterInputChange('Toronto District School Board');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([61]);
+  });
+
+  it('province change should clear school board filter when selected board is out of scope', () => {
+    component.students = [
+      {
+        studentId: 71,
+        username: 'ca_tdsb',
+        displayName: 'CA TDSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'Toronto District School Board',
+      },
+      {
+        studentId: 72,
+        username: 'ca_vsb',
+        displayName: 'CA VSB',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'British Columbia',
+        currentSchoolCity: 'Vancouver',
+        currentSchoolBoard: 'Vancouver School Board',
+      },
+    ];
+
+    component.onCountryFilterInputChange('Canada');
+    component.onProvinceFilterInputChange('Ontario');
+    component.onCityFilterInputChange('Toronto');
+    component.onSchoolBoardFilterInputChange('Toronto District School Board');
+    expect(component.schoolBoardFilterInput).toBe('Toronto District School Board');
+    expect(component.schoolBoardFilter).toBe('Toronto District School Board');
+
+    component.onProvinceFilterInputChange('British Columbia');
+    expect(component.schoolBoardFilterInput).toBe('');
+    expect(component.schoolBoardFilter).toBe('');
+    expect(component.schoolBoardFilterOptions).toContain('Vancouver School Board');
+  });
+
+  it('country change should keep school board filter when board is still in current scope', () => {
+    component.students = [
+      {
+        studentId: 81,
+        username: 'ca_global',
+        displayName: 'CA Global',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'Canada',
+        currentSchoolProvince: 'Ontario',
+        currentSchoolCity: 'Toronto',
+        currentSchoolBoard: 'Global School Board',
+      },
+      {
+        studentId: 82,
+        username: 'us_global',
+        displayName: 'US Global',
+        status: 'ACTIVE',
+        currentSchoolCountry: 'United States',
+        currentSchoolProvince: 'California',
+        currentSchoolCity: 'Los Angeles',
+        currentSchoolBoard: 'Global School Board',
+      },
+    ];
+
+    component.onSchoolBoardFilterInputChange('Global School Board');
+    expect(component.schoolBoardFilter).toBe('Global School Board');
+
+    component.onCountryFilterInputChange('United States');
+    expect(component.schoolBoardFilterInput).toBe('Global School Board');
+    expect(component.schoolBoardFilter).toBe('Global School Board');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([82]);
+  });
+
+  it('school board options should resolve from nested school object in school records', () => {
+    component.students = [
+      {
+        studentId: 91,
+        username: 'nested_board_student',
+        displayName: 'Nested Board Student',
+        status: 'ACTIVE',
+        schoolRecords: [
+          {
+            schoolType: 'MAIN',
+            school: {
+              boardName: 'Toronto District School Board',
+              address: {
+                country: 'Canada',
+                province: 'Ontario',
+                city: 'Toronto',
+              },
+            },
+          },
+        ],
+      } as any,
+    ];
+
+    expect(component.schoolBoardFilterOptions).toContain('Toronto District School Board');
+
+    component.onSchoolBoardFilterInputChange('Toronto District School Board');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([91]);
+  });
+
+  it('school board filter options should include preset options even when student list is empty', () => {
+    component.students = [];
+    expect(component.schoolBoardFilterOptions.length).toBeGreaterThan(0);
+    expect(component.schoolBoardFilterOptions).toContain('私校');
   });
 
   it('createInviteLink should build register url from invite token', () => {
