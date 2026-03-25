@@ -202,6 +202,17 @@ describe('AccountProfileComponent', () => {
     expect(component.error).toBe('New name is the same as current name.');
   });
 
+  it('submit should reject numeric-only names before request', () => {
+    const component = createComponent();
+    component.ngOnInit();
+
+    component.newFirstName = '44';
+    component.submit();
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+    expect(component.error).toBe('First name cannot be numbers only.');
+  });
+
   it('submit should send merged payload and keep existing profile fields', () => {
     const component = createComponent();
     component.ngOnInit();
@@ -213,8 +224,6 @@ describe('AccountProfileComponent', () => {
     expect(profileApi.saveMyProfile).toHaveBeenCalledWith({
       legalFirstName: 'NewFirst',
       legalLastName: 'NewLast',
-      preferredName: 'Ali',
-      phone: '1234567890',
     });
     expect(component.currentFirstName).toBe('NewFirst');
     expect(component.currentLastName).toBe('NewLast');
@@ -234,8 +243,19 @@ describe('AccountProfileComponent', () => {
     expect(profileApi.saveMyProfile).toHaveBeenCalledWith({
       legalFirstName: 'Alice',
       legalLastName: 'Zhang',
-      preferredName: 'Ali',
-      phone: '1234567890',
+    });
+  });
+
+  it('submit should only send name fields payload', () => {
+    const component = createComponent();
+    component.ngOnInit();
+
+    component.newLastName = 'Li';
+    component.submit();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith({
+      legalFirstName: 'Alice',
+      legalLastName: 'Li',
     });
   });
 
@@ -260,5 +280,27 @@ describe('AccountProfileComponent', () => {
 
     expect(component.error).toContain('Validation failed.');
     expect(component.error).toContain('legalFirstName is required');
+  });
+
+  it('submit should show actionable message for duplicate school unique constraint', () => {
+    (profileApi.saveMyProfile as any).mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 500,
+            error: {
+              message:
+                'ERROR: duplicate key value violates unique constraint "uk_student_school_record_unique_school_per_student"',
+            },
+          })
+      )
+    );
+    const component = createComponent();
+    component.ngOnInit();
+
+    component.newFirstName = 'Amy';
+    component.submit();
+
+    expect(component.error).toContain('duplicate school records');
   });
 });

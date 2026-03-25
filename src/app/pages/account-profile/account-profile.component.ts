@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { finalize, timeout } from 'rxjs/operators';
@@ -91,7 +91,8 @@ export class AccountProfileComponent implements OnInit {
 
   constructor(
     private auth: AuthService,
-    private profileApi: StudentProfileService
+    private profileApi: StudentProfileService,
+    private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   get currentDisplayName(): string {
@@ -108,6 +109,7 @@ export class AccountProfileComponent implements OnInit {
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
       this.error = 'Login session expired. Please sign in again.';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -117,6 +119,7 @@ export class AccountProfileComponent implements OnInit {
       !!this.toText(this.currentFirstName) && !!this.toText(this.currentLastName);
     if (hasFullLegalName) {
       this.profileSnapshot = this.buildNameSnapshot();
+      this.cdr.detectChanges();
       return;
     }
 
@@ -135,6 +138,7 @@ export class AccountProfileComponent implements OnInit {
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
       this.error = 'Login session expired. Please sign in again.';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -147,6 +151,19 @@ export class AccountProfileComponent implements OnInit {
 
     if (!nextFirstNameInput && !nextLastNameInput) {
       this.error = 'Please enter a new first name or last name.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (nextFirstNameInput && !this.hasReadableNameText(nextFirstNameInput)) {
+      this.error = 'First name cannot be numbers only.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (nextLastNameInput && !this.hasReadableNameText(nextLastNameInput)) {
+      this.error = 'Last name cannot be numbers only.';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -155,46 +172,32 @@ export class AccountProfileComponent implements OnInit {
 
     if (nextFirstName === currentFirstName && nextLastName === currentLastName) {
       this.error = 'New name is the same as current name.';
+      this.cdr.detectChanges();
       return;
     }
 
-    const payload: StudentProfilePayload = { ...this.profileSnapshot };
-    if (nextFirstName) payload.legalFirstName = nextFirstName;
-    if (nextLastName) payload.legalLastName = nextLastName;
-
-    const safePreferredName = this.toText(this.currentPreferredName);
-    if (safePreferredName) payload.preferredName = safePreferredName;
-
     this.saving = true;
-    this.profileApi
-      .saveMyProfile(payload)
-      .pipe(finalize(() => (this.saving = false)))
-      .subscribe({
-        next: (resp) => {
-          const profile = this.normalizeProfilePayload(resp);
-          this.profileSnapshot = { ...payload, ...profile };
-          this.applyNamesFromProfile(this.profileSnapshot);
-          this.newFirstName = '';
-          this.newLastName = '';
-
-          this.successMsg = this.extractSuccessMessage(resp) || 'Name updated.';
-        },
-        error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Name update failed.';
-        },
-      });
+    this.cdr.detectChanges();
+    this.saveProfile({
+      legalFirstName: nextFirstName,
+      legalLastName: nextLastName,
+    });
   }
 
   private loadProfile(): void {
     this.loadingProfile = true;
     this.error = '';
     this.successMsg = '';
+    this.cdr.detectChanges();
 
     this.profileApi
       .getMyProfile()
       .pipe(
         timeout(this.loadProfileTimeoutMs),
-        finalize(() => (this.loadingProfile = false))
+        finalize(() => {
+          this.loadingProfile = false;
+          this.cdr.detectChanges();
+        })
       )
       .subscribe({
         next: (resp) => {
@@ -203,9 +206,11 @@ export class AccountProfileComponent implements OnInit {
           if (!this.currentPreferredName && !this.currentLegalName) {
             this.seedNamesFromSession();
           }
+          this.cdr.detectChanges();
         },
         error: (err: unknown) => {
           this.error = this.extractErrorMessage(err) || 'Failed to load current name.';
+          this.cdr.detectChanges();
         },
       });
   }
@@ -215,6 +220,33 @@ export class AccountProfileComponent implements OnInit {
     if (nameParts.firstName) this.currentFirstName = nameParts.firstName;
     if (nameParts.lastName) this.currentLastName = nameParts.lastName;
     if (nameParts.directName) this.currentPreferredName = nameParts.directName;
+  }
+
+  private saveProfile(payload: StudentProfilePayload): void {
+    this.profileApi
+      .saveMyProfile(payload)
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          const profile = this.normalizeProfilePayload(resp);
+          this.profileSnapshot = { ...payload, ...profile };
+          this.applyNamesFromProfile(this.profileSnapshot);
+          this.newFirstName = '';
+          this.newLastName = '';
+
+          this.successMsg = this.extractSuccessMessage(resp) || 'Name updated.';
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.error = this.extractErrorMessage(err) || 'Name update failed.';
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private seedNamesFromSession(): void {
@@ -266,6 +298,10 @@ export class AccountProfileComponent implements OnInit {
     return snapshot;
   }
 
+  private hasReadableNameText(value: string): boolean {
+    return /[A-Za-z\u4e00-\u9fff]/.test(this.toText(value));
+  }
+
   private normalizeProfilePayload(payload: unknown): StudentProfilePayload {
     if (!payload || typeof payload !== 'object') return {};
 
@@ -306,6 +342,17 @@ export class AccountProfileComponent implements OnInit {
     }
 
     const payload = err?.error;
+    const normalizedErrorText = this.collectErrorText(err);
+    if (this.isDuplicateSchoolConflictError(normalizedErrorText)) {
+      return 'Name update is blocked by duplicate school records in your profile. Please contact support/teacher to fix duplicate schools, then retry.';
+    }
+    if (
+      err.status >= 500 &&
+      this.toText(err.url).includes('/api/student/profile') &&
+      normalizedErrorText.includes('server error')
+    ) {
+      return 'Profile save failed on server. This is likely caused by duplicate school records. Please contact support/teacher to fix duplicate schools, then retry.';
+    }
 
     if (payload && typeof payload === 'object') {
       const details = this.extractValidationDetails(payload as Record<string, unknown>);
@@ -329,6 +376,46 @@ export class AccountProfileComponent implements OnInit {
     }
 
     return this.toText(err.message);
+  }
+
+  private collectErrorText(err: HttpErrorResponse): string {
+    const parts: string[] = [
+      this.toText(err.message),
+      this.toText(err.statusText),
+      this.toText(err.url),
+    ];
+
+    const payload = err.error;
+    if (typeof payload === 'string') {
+      parts.push(this.toText(payload));
+    } else if (payload && typeof payload === 'object') {
+      const node = payload as Record<string, unknown>;
+      parts.push(this.toText(node['message']));
+      parts.push(this.toText(node['error']));
+      parts.push(this.toText(node['details']));
+      try {
+        parts.push(JSON.stringify(payload));
+      } catch {
+        // ignore non-serializable payload
+      }
+    }
+
+    return parts
+      .map((item) => this.toText(item).toLowerCase())
+      .filter(Boolean)
+      .join(' | ');
+  }
+
+  private isDuplicateSchoolConflictError(normalizedText: string): boolean {
+    if (!normalizedText) return false;
+
+    return (
+      normalizedText.includes('uk_student_school_record_unique_school_per_student') ||
+      normalizedText.includes('duplicate key value violates unique constraint') ||
+      normalizedText.includes('duplicate schools detected in profile payload') ||
+      normalizedText.includes('sqlstate: 23505') ||
+      (normalizedText.includes('student_school_record') && normalizedText.includes('duplicate'))
+    );
   }
 
   private extractValidationDetails(payload: Record<string, unknown>): string {
