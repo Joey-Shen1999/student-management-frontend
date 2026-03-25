@@ -93,10 +93,18 @@ export const routes: Routes = [
       },
 
       {
+        path: 'goals',
+        loadComponent: () =>
+          import('./pages/goal-management/goal-management.component').then(
+            (m) => m.GoalManagementComponent
+          ),
+      },
+
+      {
         path: 'tasks',
         loadComponent: () =>
-          import('./pages/task-management/task-management.component').then(
-            (m) => m.TaskManagementComponent
+          import('./pages/info-management/info-management.component').then(
+            (m) => m.InfoManagementComponent
           ),
       },
 

@@ -1,0 +1,342 @@
+<div class="page">
+  <div class="header">
+    <h2>Goal 发布与管理</h2>
+    <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
+  </div>
+
+  <section class="card">
+    <button
+      type="button"
+      class="toggle-btn"
+      (click)="toggleCreatePanel()"
+      [attr.aria-expanded]="createPanelExpanded"
+    >
+      <span>编写新 Goal</span>
+      <span class="toggle-symbol">toggle</span>
+    </button>
+
+    <div *ngIf="createPanelExpanded" class="create-body">
+      <div class="student-toggle-row">
+        <button
+          type="button"
+          class="toggle-btn sub"
+          (click)="toggleStudentPanel()"
+          [attr.aria-expanded]="studentPanelExpanded"
+        >
+          <span>选择学生（已选 {{ selectedCreateStudentCount }} 人）</span>
+          <span class="toggle-symbol">toggle</span>
+        </button>
+      </div>
+
+      <div *ngIf="studentPanelExpanded" class="student-panel">
+        <div class="tools">
+          <button
+            type="button"
+            (click)="refreshAssignableStudents()"
+            [disabled]="studentsLoading || creating"
+          >
+            {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
+          </button>
+
+          <label>
+            国家
+            <input
+              [(ngModel)]="createCountryFilterInput"
+              (ngModelChange)="onCountryFilterInputChange($event)"
+              name="createCountryFilter"
+              list="createCountryFilterOptions"
+              placeholder="All"
+              [disabled]="studentsLoading || creating"
+            />
+            <datalist id="createCountryFilterOptions">
+              <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label>
+            所属教育局
+            <input
+              [(ngModel)]="createSchoolBoardFilterInput"
+              (ngModelChange)="onSchoolBoardFilterInputChange($event)"
+              name="createSchoolBoardFilter"
+              list="createSchoolBoardFilterOptions"
+              placeholder="All"
+              [disabled]="studentsLoading || creating"
+            />
+            <datalist id="createSchoolBoardFilterOptions">
+              <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label>
+            毕业季
+            <input
+              [(ngModel)]="createGraduationSeasonFilterInput"
+              (ngModelChange)="onGraduationSeasonFilterInputChange($event)"
+              name="createGraduationSeasonFilter"
+              list="createGraduationSeasonFilterOptions"
+              placeholder="All"
+              [disabled]="studentsLoading || creating"
+            />
+            <datalist id="createGraduationSeasonFilterOptions">
+              <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <input
+            type="search"
+            [(ngModel)]="createStudentKeyword"
+            (ngModelChange)="onStudentKeywordChange()"
+            [disabled]="studentsLoading || creating"
+            placeholder="搜索学生"
+          />
+
+          <button
+            type="button"
+            (click)="resetStudentMetaFilters()"
+            [disabled]="studentsLoading || creating"
+          >
+            重置筛选
+          </button>
+
+          <label class="select-all-label">
+            <input
+              type="checkbox"
+              [checked]="areAllVisibleStudentsSelected()"
+              [indeterminate]="isVisibleStudentSelectionPartial()"
+              [disabled]="studentsLoading || creating || filteredCreateStudentOptions.length === 0"
+              (change)="onToggleSelectAll($event)"
+            />
+            全选
+          </label>
+
+          <span class="selected-count">已选 {{ selectedCreateStudentCount }} 人</span>
+        </div>
+
+        <section
+          *ngIf="selectedCreateStudentOptions.length > 0"
+          class="selected-students-panel"
+        >
+          <div class="selected-students-head">
+            <strong>已选学生（{{ selectedCreateStudentCount }}）</strong>
+            <button
+              type="button"
+              (click)="clearSelectedStudents()"
+              [disabled]="creating"
+            >
+              清空已选
+            </button>
+          </div>
+
+          <div class="selected-table-wrap">
+            <table class="student-table selected-student-table">
+              <thead>
+                <tr>
+                  <th class="select-col">选择</th>
+                  <th>学生姓名</th>
+                  <th>城市</th>
+                  <th>所属教育局</th>
+                  <th>毕业时间</th>
+                  <th>教师备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  *ngFor="let student of selectedCreateStudentOptions; trackBy: trackStudent"
+                  [class.row-selected]="isCreateStudentSelected(student.studentId)"
+                >
+                  <td class="select-col">
+                    <input
+                      type="checkbox"
+                      [checked]="isCreateStudentSelected(student.studentId)"
+                      [disabled]="creating"
+                      (change)="onCreateStudentCheckboxChange(student.studentId, $event)"
+                    />
+                  </td>
+                  <td>
+                    <div class="selected-name-cell">
+                      <span>{{ student.studentName }}</span>
+                      <span
+                        *ngIf="isSelectedStudentOutOfCurrentFilter(student)"
+                        class="filter-badge"
+                      >
+                        未命中当前筛选
+                      </span>
+                    </div>
+                  </td>
+                  <td>{{ detailCity(student.studentId) }}</td>
+                  <td>{{ detailSchoolBoard(student.studentId) }}</td>
+                  <td>{{ detailGraduation(student.studentId) }}</td>
+                  <td class="teacher-note-cell">
+                    <textarea
+                      class="teacher-note-inline-textarea"
+                      [ngModel]="detailTeacherNote(student.studentId)"
+                      (focus)="onTeacherNoteCellFocus(student.studentId)"
+                      (ngModelChange)="onTeacherNoteCellChange(student.studentId, $event)"
+                      (blur)="onTeacherNoteCellBlur(student.studentId)"
+                      rows="1"
+                      [disabled]="creating || isTeacherNoteSaving(student.studentId)"
+                      placeholder="输入教师内部备注"
+                    ></textarea>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div *ngIf="studentsError" class="error-text">{{ studentsError }}</div>
+        <div *ngIf="studentsLoading" class="state-text">正在加载可选学生...</div>
+        <div class="list-section-title">筛选结果（{{ filteredCreateStudentOptions.length }}）</div>
+        <div
+          *ngIf="!studentsLoading && !studentsError && filteredCreateStudentOptions.length === 0"
+          class="state-text"
+        >
+          没有符合筛选条件的学生。
+        </div>
+
+        <div
+          *ngIf="!studentsLoading && !studentsError && filteredCreateStudentOptions.length > 0"
+          class="table-wrap"
+        >
+          <table class="student-table">
+            <thead>
+              <tr>
+                <th class="select-col">选择</th>
+                <th>学生姓名</th>
+                <th>城市</th>
+                <th>所属教育局</th>
+                <th>毕业时间</th>
+                <th>教师备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let student of filteredCreateStudentOptions; trackBy: trackStudent"
+                [class.row-selected]="isCreateStudentSelected(student.studentId)"
+              >
+                <td class="select-col">
+                  <input
+                    type="checkbox"
+                    [checked]="isCreateStudentSelected(student.studentId)"
+                    [disabled]="creating"
+                    (change)="onCreateStudentCheckboxChange(student.studentId, $event)"
+                  />
+                </td>
+                <td>{{ student.studentName }}</td>
+                <td>{{ detailCity(student.studentId) }}</td>
+                <td>{{ detailSchoolBoard(student.studentId) }}</td>
+                <td>{{ detailGraduation(student.studentId) }}</td>
+                <td class="teacher-note-cell">
+                  <textarea
+                    class="teacher-note-inline-textarea"
+                    [ngModel]="detailTeacherNote(student.studentId)"
+                    (focus)="onTeacherNoteCellFocus(student.studentId)"
+                    (ngModelChange)="onTeacherNoteCellChange(student.studentId, $event)"
+                    (blur)="onTeacherNoteCellBlur(student.studentId)"
+                    rows="1"
+                    [disabled]="creating || isTeacherNoteSaving(student.studentId)"
+                    placeholder="输入教师内部备注"
+                  ></textarea>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="form">
+        <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="Goal 标题" />
+        <textarea
+          [(ngModel)]="createDescription"
+          [disabled]="creating"
+          rows="3"
+          placeholder="Goal 描述"
+        ></textarea>
+        <input type="date" [(ngModel)]="createDueAt" [disabled]="creating" />
+      </div>
+
+      <div class="actions">
+        <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
+          {{ creating ? '发布中...' : '发布 Goal' }}
+        </button>
+        <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
+      </div>
+
+      <div *ngIf="createError" class="error-text">{{ createError }}</div>
+      <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="tools">
+      <h3>已发布 Goal 管理</h3>
+      <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
+        <option [ngValue]="null">全部学生</option>
+        <option
+          *ngFor="let student of studentOptions; trackBy: trackStudent"
+          [ngValue]="student.studentId"
+        >
+          {{ student.studentId }} - {{ student.studentName }}
+        </option>
+      </select>
+      <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
+        <option value="ALL">全部状态</option>
+        <option value="NOT_STARTED">未开始</option>
+        <option value="IN_PROGRESS">进行中</option>
+        <option value="COMPLETED">已完成</option>
+      </select>
+      <input type="search" [(ngModel)]="filterKeyword" [disabled]="goalsLoading" placeholder="关键字" />
+      <button type="button" (click)="applyFilters()" [disabled]="goalsLoading">查询</button>
+      <button type="button" (click)="clearFilters()" [disabled]="goalsLoading">重置</button>
+      <button type="button" (click)="refreshGoals()" [disabled]="goalsLoading">刷新</button>
+    </div>
+
+    <div *ngIf="goalsLoading" class="state-text">正在加载 Goal...</div>
+    <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
+    <div *ngIf="!goalsLoading && !goalsError && goals.length === 0" class="state-text">暂无 Goal。</div>
+
+    <article
+      class="goal-item"
+      *ngFor="let goal of goals; trackBy: trackGoal"
+      (click)="selectGoal(goal)"
+      [class.goal-selected]="selectedGoalId === goal.id"
+    >
+      <div class="goal-head">
+        <strong>{{ goal.title }}</strong>
+        <span>{{ goalStatusLabel(goal.status) }}</span>
+      </div>
+      <p>{{ goal.description }}</p>
+      <small>
+        学生：{{ goal.assignedStudentName }} | 截止：{{ displayDueAt(goal) }} | 更新：{{
+          displayUpdatedAt(goal.updatedAt)
+        }}
+      </small>
+      <div class="actions">
+        <button
+          type="button"
+          (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
+          [disabled]="updatingGoalId === goal.id || goal.status === 'NOT_STARTED'"
+        >
+          未开始
+        </button>
+        <button
+          type="button"
+          (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')"
+          [disabled]="updatingGoalId === goal.id || goal.status === 'IN_PROGRESS'"
+        >
+          进行中
+        </button>
+        <button
+          type="button"
+          (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')"
+          [disabled]="updatingGoalId === goal.id || goal.status === 'COMPLETED'"
+        >
+          完成
+        </button>
+      </div>
+    </article>
+
+    <div *ngIf="updateError" class="error-text">{{ updateError }}</div>
+  </section>
+</div>
