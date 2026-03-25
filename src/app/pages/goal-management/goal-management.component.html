@@ -4,18 +4,34 @@
     <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
   </div>
 
-  <section class="card">
+  <section class="card create-entry-card">
     <button
       type="button"
-      class="toggle-btn"
-      (click)="toggleCreatePanel()"
-      [attr.aria-expanded]="createPanelExpanded"
+      class="create-launch-btn"
+      (click)="openCreatePanel()"
+      [disabled]="creating"
     >
       <span>编写新 Goal</span>
-      <span class="toggle-symbol">toggle</span>
     </button>
 
-    <div *ngIf="createPanelExpanded" class="create-body">
+    <div
+      *ngIf="createPanelExpanded"
+      class="create-modal-backdrop"
+      (click)="onCreatePanelBackdropClick($event)"
+    >
+      <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <div class="create-modal-head">
+          <strong class="create-modal-title">Create Goal</strong>
+          <button
+            type="button"
+            class="modal-close-btn"
+            (click)="closeCreatePanel()"
+            [disabled]="creating"
+          >
+            Close
+          </button>
+        </div>
+        <div class="create-body">
       <div class="student-toggle-row">
         <button
           type="button"
@@ -29,7 +45,18 @@
       </div>
 
       <div *ngIf="studentPanelExpanded" class="student-panel">
-        <div class="tools">
+        <div class="tools" [class.student-filters-collapsed]="!studentFilterExpanded">
+          <button
+            type="button"
+            class="toggle-btn sub student-filter-toggle"
+            (click)="toggleStudentFilterPanel()"
+            [attr.aria-expanded]="studentFilterExpanded"
+            [disabled]="studentsLoading || creating"
+          >
+            <span>{{ studentFilterExpanded ? '收起筛选' : '展开筛选' }}</span>
+            <span class="toggle-symbol">toggle</span>
+          </button>
+
           <button
             type="button"
             (click)="refreshAssignableStudents()"
@@ -38,7 +65,7 @@
             {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
           </button>
 
-          <label>
+          <label class="student-filter-item">
             国家
             <input
               [(ngModel)]="createCountryFilterInput"
@@ -53,7 +80,37 @@
             </datalist>
           </label>
 
-          <label>
+          <label class="student-filter-item">
+            省份
+            <input
+              [(ngModel)]="createProvinceFilterInput"
+              (ngModelChange)="onProvinceFilterInputChange($event)"
+              name="createProvinceFilter"
+              list="createProvinceFilterOptions"
+              placeholder="All"
+              [disabled]="studentsLoading || creating"
+            />
+            <datalist id="createProvinceFilterOptions">
+              <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label class="student-filter-item">
+            城市
+            <input
+              [(ngModel)]="createCityFilterInput"
+              (ngModelChange)="onCityFilterInputChange($event)"
+              name="createCityFilter"
+              list="createCityFilterOptions"
+              placeholder="All"
+              [disabled]="studentsLoading || creating"
+            />
+            <datalist id="createCityFilterOptions">
+              <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
+            </datalist>
+          </label>
+
+          <label class="student-filter-item">
             所属教育局
             <input
               [(ngModel)]="createSchoolBoardFilterInput"
@@ -68,7 +125,7 @@
             </datalist>
           </label>
 
-          <label>
+          <label class="student-filter-item">
             毕业季
             <input
               [(ngModel)]="createGraduationSeasonFilterInput"
@@ -84,14 +141,16 @@
           </label>
 
           <input
+            class="student-filter-item"
             type="search"
             [(ngModel)]="createStudentKeyword"
             (ngModelChange)="onStudentKeywordChange()"
             [disabled]="studentsLoading || creating"
-            placeholder="搜索学生"
+            placeholder="按 ID、姓名、邮箱、电话、毕业季搜索"
           />
 
           <button
+            class="student-filter-item"
             type="button"
             (click)="resetStudentMetaFilters()"
             [disabled]="studentsLoading || creating"
@@ -263,8 +322,10 @@
         <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
       </div>
 
-      <div *ngIf="createError" class="error-text">{{ createError }}</div>
-      <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
+          <div *ngIf="createError" class="error-text">{{ createError }}</div>
+          <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
+        </div>
+      </div>
     </div>
   </section>
 

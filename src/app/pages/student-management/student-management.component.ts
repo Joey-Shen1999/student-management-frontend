@@ -52,6 +52,11 @@ interface StudentListMetadata {
 const COUNTRY_FILTER_ALL_OPTION = 'All';
 const COUNTRY_FILTER_NA_OPTION = 'N/A';
 const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', 'China (mainland)', 'United States'] as const;
+const PROVINCE_FILTER_COUNTRIES: readonly ProvinceFilterCountry[] = [
+  'Canada',
+  'China (mainland)',
+  'United States',
+];
 const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'United Kingdom',
   'Australia',
@@ -457,7 +462,22 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
           background:#fafbfe;
         "
       >
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;">
+          <button
+            type="button"
+            (click)="toggleFilterPanel()"
+            [disabled]="loadingList"
+            [attr.aria-expanded]="isFilterPanelExpanded"
+            style="min-width:108px;"
+          >
+            {{ isFilterPanelExpanded ? '收起筛选' : '展开筛选' }}
+          </button>
+        </div>
+
+        <div
+          *ngIf="isFilterPanelExpanded"
+          style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;"
+        >
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
             {{ showInactive ? '隐藏已归档' : '显示已归档' }}
           </button>
@@ -487,10 +507,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
             </datalist>
           </label>
 
-          <label
-            *ngIf="provinceFilterCountry"
-            style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
-          >
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
             省份
             <input
               [(ngModel)]="provinceFilterInput"
@@ -506,10 +523,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
             </datalist>
           </label>
 
-          <label
-            *ngIf="cityFilterCountry && provinceFilterInput.trim()"
-            style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
-          >
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
             城市
             <input
               [(ngModel)]="cityFilterInput"
@@ -560,7 +574,7 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
           <button
             type="button"
             (click)="clearListControls()"
-            [disabled]="loadingList || (listLimit === 20 && !showInactive && !searchKeyword.trim() && countryFilter === 'ALL' && !provinceFilterInput.trim() && !cityFilterInput.trim() && !schoolBoardFilterInput.trim() && !graduationSeasonFilterInput.trim())"
+            [disabled]="loadingList || isListControlsAtDefault()"
           >
             清空
           </button>
@@ -792,6 +806,7 @@ export class StudentManagementComponent implements OnInit {
   loadingList = false;
   listError = '';
   listLimit = 20;
+  isFilterPanelExpanded = false;
   showInactive = false;
   searchKeyword = '';
   countryFilterInput = '';
@@ -882,13 +897,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get provinceFilterOptions(): readonly string[] {
-    const country = this.provinceFilterCountry;
-    return country
-      ? this.mergeFilterOptions(
-          PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country],
-          this.collectProvinceFilterOptions(country)
-        )
-      : [];
+    return this.collectProvinceFilterOptions(this.provinceFilterCountry);
   }
 
   get cityFilterCountry(): ProvinceFilterCountry | '' {
@@ -896,9 +905,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get cityFilterOptions(): readonly string[] {
-    const country = this.cityFilterCountry;
-    const province = this.provinceFilter;
-    return country && province ? this.collectCityFilterOptions(country, province) : [];
+    return this.collectCityFilterOptions(this.cityFilterCountry);
   }
 
   get schoolBoardFilterOptions(): readonly string[] {
@@ -915,31 +922,17 @@ export class StudentManagementComponent implements OnInit {
   onCountryFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.countryFilterInput = input;
-    const previousCountryFilter = this.countryFilter;
     this.countryFilter = input ? this.resolveCountryFilterSelection(input) : 'ALL';
-    const countryChanged = this.countryFilter !== previousCountryFilter;
-    if (!this.provinceFilterCountry || countryChanged) {
-      this.provinceFilterInput = '';
-      this.provinceFilter = '';
-      this.cityFilterInput = '';
-      this.cityFilter = '';
-    }
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
     this.applyListView();
   }
 
   onProvinceFilterInputChange(value: string): void {
-    const previousProvinceFilter = this.provinceFilter;
     const input = String(value ?? '').trim();
     this.provinceFilterInput = input;
     const country = this.provinceFilterCountry;
-    this.provinceFilter =
-      country && input ? this.resolveProvinceFilterSelection(input, country) : '';
-    if (!this.provinceFilter || this.provinceFilter !== previousProvinceFilter) {
-      this.cityFilterInput = '';
-      this.cityFilter = '';
-    }
+    this.provinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
     this.applyListView();
@@ -949,9 +942,7 @@ export class StudentManagementComponent implements OnInit {
     const input = String(value ?? '').trim();
     this.cityFilterInput = input;
     const country = this.cityFilterCountry;
-    const province = this.provinceFilter;
-    this.cityFilter =
-      country && province && input ? this.resolveCityFilterSelection(input, country) : '';
+    this.cityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
     this.applyListView();
@@ -979,34 +970,49 @@ export class StudentManagementComponent implements OnInit {
 
   private resolveCurrentSchoolProvinceForFilter(
     student: StudentAccount,
-    country: ProvinceFilterCountry | ''
+    country: ProvinceFilterCountry | '' = ''
   ): StudentProvinceFilter {
+    const countryForNormalization =
+      country || this.resolveProvinceFilterCountry(this.resolveCurrentSchoolCountryForFilter(student));
     const normalized = this.normalizeProvinceFilterValue(
       this.resolveCurrentSchoolProvinceValue(student),
-      country
+      countryForNormalization
     );
     return normalized || '';
   }
 
-  private collectProvinceFilterOptions(country: ProvinceFilterCountry): string[] {
-    const options: string[] = [];
+  private collectProvinceFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const dynamicOptions: string[] = [];
     for (const student of this.students) {
-      if (this.resolveCurrentSchoolCountryForFilter(student) !== country) {
+      const studentCountry = this.resolveProvinceFilterCountry(
+        this.resolveCurrentSchoolCountryForFilter(student)
+      );
+      if (country && studentCountry !== country) {
         continue;
       }
-      const province = this.resolveCurrentSchoolProvinceForFilter(student, country);
+      const province = this.resolveCurrentSchoolProvinceForFilter(student, country || studentCountry);
       if (province) {
-        options.push(province);
+        dynamicOptions.push(province);
       }
     }
-    return options;
+    return this.mergeFilterOptions(baseOptions, dynamicOptions);
   }
 
   private resolveCurrentSchoolCityForFilter(
     student: StudentAccount,
-    country: ProvinceFilterCountry | ''
+    country: ProvinceFilterCountry | '' = ''
   ): string {
-    const normalized = this.normalizeCityFilterValue(this.resolveCurrentSchoolCityValue(student), country);
+    const countryForNormalization =
+      country || this.resolveProvinceFilterCountry(this.resolveCurrentSchoolCountryForFilter(student));
+    const normalized = this.normalizeCityFilterValue(
+      this.resolveCurrentSchoolCityValue(student),
+      countryForNormalization
+    );
     return normalized || '';
   }
 
@@ -1021,23 +1027,26 @@ export class StudentManagementComponent implements OnInit {
     return this.toGraduationSeasonTag(yearMonth);
   }
 
-  private collectCityFilterOptions(country: ProvinceFilterCountry, province: StudentProvinceFilter): string[] {
-    const options: string[] = [];
-    const provinceKey = this.normalizeCountryKey(province);
+  private collectCityFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? CITY_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const dynamicOptions: string[] = [];
     for (const student of this.students) {
-      if (this.resolveCurrentSchoolCountryForFilter(student) !== country) {
+      const studentCountry = this.resolveProvinceFilterCountry(
+        this.resolveCurrentSchoolCountryForFilter(student)
+      );
+      if (country && studentCountry !== country) {
         continue;
       }
-      const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, country);
-      if (!studentProvince || this.normalizeCountryKey(studentProvince) !== provinceKey) {
-        continue;
-      }
-      const city = this.resolveCurrentSchoolCityForFilter(student, country);
+      const city = this.resolveCurrentSchoolCityForFilter(student, country || studentCountry);
       if (city) {
-        options.push(city);
+        dynamicOptions.push(city);
       }
     }
-    return this.mergeFilterOptions([], options);
+    return this.mergeFilterOptions(baseOptions, dynamicOptions);
   }
 
   private collectSchoolBoardFilterOptions(): string[] {
@@ -1888,6 +1897,23 @@ export class StudentManagementComponent implements OnInit {
       });
   }
 
+  toggleFilterPanel(): void {
+    this.isFilterPanelExpanded = !this.isFilterPanelExpanded;
+  }
+
+  isListControlsAtDefault(): boolean {
+    return (
+      this.listLimit === 20 &&
+      !this.showInactive &&
+      !this.searchKeyword.trim() &&
+      this.countryFilter === 'ALL' &&
+      !this.provinceFilterInput.trim() &&
+      !this.cityFilterInput.trim() &&
+      !this.schoolBoardFilterInput.trim() &&
+      !this.graduationSeasonFilterInput.trim()
+    );
+  }
+
   clearListControls(): void {
     this.listLimit = 20;
     this.showInactive = false;
@@ -1927,8 +1953,9 @@ export class StudentManagementComponent implements OnInit {
       return false;
     }
 
+    const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
+
     if (this.countryFilter !== 'ALL') {
-      const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
       let countryMatched = false;
       if (this.countryFilter === 'N/A') {
         countryMatched = studentCountry === 'N/A';
@@ -1942,9 +1969,9 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
-    const provinceCountry = this.provinceFilterCountry;
     const provinceFilterKey = this.normalizeCountryKey(this.provinceFilter);
-    if (provinceCountry && provinceFilterKey) {
+    if (provinceFilterKey) {
+      const provinceCountry = this.resolveProvinceFilterCountry(studentCountry);
       const studentProvince = this.resolveCurrentSchoolProvinceForFilter(student, provinceCountry);
       if (!studentProvince) {
         return false;
@@ -1954,9 +1981,9 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
-    const cityCountry = this.cityFilterCountry;
     const cityFilterKey = this.normalizeCountryKey(this.cityFilter);
-    if (cityCountry && cityFilterKey) {
+    if (cityFilterKey) {
+      const cityCountry = this.resolveProvinceFilterCountry(studentCountry);
       const studentCity = this.resolveCurrentSchoolCityForFilter(student, cityCountry);
       if (!studentCity) {
         return false;
@@ -2730,9 +2757,21 @@ export class StudentManagementComponent implements OnInit {
     return matched || rawText;
   }
 
+  private resolveProvinceFilterCountry(value: unknown): ProvinceFilterCountry | '' {
+    const normalized = this.normalizeCountryFilterValue(value);
+    if (
+      normalized === 'Canada' ||
+      normalized === 'China (mainland)' ||
+      normalized === 'United States'
+    ) {
+      return normalized;
+    }
+    return '';
+  }
+
   private resolveProvinceFilterSelection(
     value: unknown,
-    country: ProvinceFilterCountry
+    country: ProvinceFilterCountry | '' = ''
   ): StudentProvinceFilter {
     const normalized = this.normalizeProvinceFilterValue(value, country);
     return normalized || '';
@@ -2743,7 +2782,7 @@ export class StudentManagementComponent implements OnInit {
     country: ProvinceFilterCountry | ''
   ): StudentProvinceFilter | '' {
     const rawText = String(value ?? '').trim();
-    if (!rawText || !country) {
+    if (!rawText) {
       return '';
     }
 
@@ -2752,25 +2791,45 @@ export class StudentManagementComponent implements OnInit {
       return '';
     }
 
-    const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[country]?.[normalizedKey];
-    if (alias) {
-      return alias;
+    if (country) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[country]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
     }
 
-    const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country].find(
-      (option) => this.normalizeCountryKey(option) === normalizedKey
-    );
-    return matched || rawText;
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[supportedCountry]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
   }
 
-  private resolveCityFilterSelection(value: unknown, country: ProvinceFilterCountry): string {
+  private resolveCityFilterSelection(value: unknown, country: ProvinceFilterCountry | '' = ''): string {
     const normalized = this.normalizeCityFilterValue(value, country);
     return normalized || '';
   }
 
   private normalizeCityFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
     const rawText = String(value ?? '').trim();
-    if (!rawText || !country) {
+    if (!rawText) {
       return '';
     }
 
@@ -2779,10 +2838,23 @@ export class StudentManagementComponent implements OnInit {
       return '';
     }
 
-    const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[country].find(
-      (option) => this.normalizeCountryKey(option) === normalizedKey
-    );
-    return matched || rawText;
+    if (country) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
   }
 
   private resolveSchoolBoardFilterSelection(value: unknown): string {

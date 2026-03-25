@@ -26,6 +26,78 @@
   gap: 10px;
 }
 
+.create-entry-card {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.create-launch-btn {
+  border: 1px solid #2b63c6;
+  border-radius: 8px;
+  background: #2f6ed8;
+  color: #fff;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.create-launch-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.create-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 18px 12px;
+  overflow: auto;
+}
+
+.create-modal {
+  width: min(1220px, 100%);
+  margin: 0;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.create-modal-head {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -10px -10px 0;
+  padding: 10px;
+  border-bottom: 1px solid #e3ebf8;
+}
+
+.create-modal-title {
+  color: #1f2a44;
+  font-size: 15px;
+}
+
+.modal-close-btn {
+  border: 1px solid #c8d2e0;
+  background: #f8faff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.modal-close-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .toggle-btn {
   display: flex;
   justify-content: space-between;
@@ -40,6 +112,11 @@
 .toggle-btn.sub {
   margin-top: 2px;
   min-width: 260px;
+}
+
+.student-filter-toggle {
+  margin-top: 0;
+  min-width: 140px;
 }
 
 .create-body {
@@ -75,6 +152,10 @@
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.tools.student-filters-collapsed .student-filter-item {
+  display: none;
 }
 
 .tools input,

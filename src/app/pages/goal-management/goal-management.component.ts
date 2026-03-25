@@ -23,6 +23,7 @@ import {
 interface StudentDetailVm {
   email: string;
   phone: string;
+  province: string;
   city: string;
   graduation: string;
   teacherNote: string;
@@ -31,9 +32,16 @@ interface StudentDetailVm {
   graduationSeason: string;
 }
 
+type ProvinceFilterCountry = 'Canada' | 'China (mainland)' | 'United States';
+
 const COUNTRY_FILTER_ALL_OPTION = 'All';
 const COUNTRY_FILTER_NA_OPTION = 'N/A';
 const COUNTRY_FILTER_PRIORITY_OPTIONS = ['Canada', 'China (mainland)', 'United States'] as const;
+const PROVINCE_FILTER_COUNTRIES: readonly ProvinceFilterCountry[] = [
+  'Canada',
+  'China (mainland)',
+  'United States',
+];
 const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'United Kingdom',
   'Australia',
@@ -45,6 +53,306 @@ const COUNTRY_FILTER_FALLBACK_OPTIONS = [
   'France',
   'Germany',
 ] as const;
+
+const PROVINCE_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly string[]> = {
+  Canada: [
+    'Ontario',
+    'British Columbia',
+    'Alberta',
+    'Quebec',
+    'Manitoba',
+    'Saskatchewan',
+    'New Brunswick',
+    'Nova Scotia',
+    'Newfoundland and Labrador',
+    'Prince Edward Island',
+    'Northwest Territories',
+    'Nunavut',
+    'Yukon',
+  ],
+  'China (mainland)': [
+    'Anhui',
+    'Beijing',
+    'Chongqing',
+    'Fujian',
+    'Gansu',
+    'Guangdong',
+    'Guangxi',
+    'Guizhou',
+    'Hainan',
+    'Hebei',
+    'Heilongjiang',
+    'Henan',
+    'Hong Kong',
+    'Hubei',
+    'Hunan',
+    'Inner Mongolia',
+    'Jiangsu',
+    'Jiangxi',
+    'Jilin',
+    'Liaoning',
+    'Macao',
+    'Ningxia',
+    'Qinghai',
+    'Shaanxi',
+    'Shandong',
+    'Shanghai',
+    'Shanxi',
+    'Sichuan',
+    'Taiwan',
+    'Tianjin',
+    'Tibet',
+    'Xinjiang',
+    'Yunnan',
+    'Zhejiang',
+  ],
+  'United States': [
+    'Alabama',
+    'Alaska',
+    'Arizona',
+    'Arkansas',
+    'California',
+    'Colorado',
+    'Connecticut',
+    'Delaware',
+    'District of Columbia',
+    'Florida',
+    'Georgia',
+    'Hawaii',
+    'Idaho',
+    'Illinois',
+    'Indiana',
+    'Iowa',
+    'Kansas',
+    'Kentucky',
+    'Louisiana',
+    'Maine',
+    'Maryland',
+    'Massachusetts',
+    'Michigan',
+    'Minnesota',
+    'Mississippi',
+    'Missouri',
+    'Montana',
+    'Nebraska',
+    'Nevada',
+    'New Hampshire',
+    'New Jersey',
+    'New Mexico',
+    'New York',
+    'North Carolina',
+    'North Dakota',
+    'Ohio',
+    'Oklahoma',
+    'Oregon',
+    'Pennsylvania',
+    'Rhode Island',
+    'South Carolina',
+    'South Dakota',
+    'Tennessee',
+    'Texas',
+    'Utah',
+    'Vermont',
+    'Virginia',
+    'Washington',
+    'West Virginia',
+    'Wisconsin',
+    'Wyoming',
+  ],
+};
+
+const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
+  Record<ProvinceFilterCountry, Record<string, string>>
+> = {
+  Canada: {
+    on: 'Ontario',
+    'o n': 'Ontario',
+    ontario: 'Ontario',
+    bc: 'British Columbia',
+    'b c': 'British Columbia',
+    'british columbia': 'British Columbia',
+    ab: 'Alberta',
+    'a b': 'Alberta',
+    alberta: 'Alberta',
+    qc: 'Quebec',
+    'q c': 'Quebec',
+    quebec: 'Quebec',
+  },
+};
+
+const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly string[]> = {
+  Canada: [
+    'Toronto',
+    'Montreal',
+    'Vancouver',
+    'Calgary',
+    'Ottawa',
+    'Edmonton',
+    'Winnipeg',
+    'Quebec City',
+    'Halifax',
+    'Mississauga',
+    'Hamilton',
+    'Kitchener',
+    'London',
+    'Victoria',
+    'Oshawa',
+    'Windsor',
+    'Saskatoon',
+    'Regina',
+    "St. John's",
+    'Barrie',
+    'Kelowna',
+    'Sherbrooke',
+    'Guelph',
+    'Thunder Bay',
+    'Moncton',
+    'Brantford',
+    'Saint John',
+    'Red Deer',
+    'Kamloops',
+    'Lethbridge',
+    'Nanaimo',
+    'Peterborough',
+    'Kingston',
+    'Chilliwack',
+    'Sarnia',
+    'Sudbury',
+    'Prince George',
+    'Trois-Rivieres',
+    'Medicine Hat',
+    'Fredericton',
+    'Whitehorse',
+    'Yellowknife',
+    'Iqaluit',
+    'Brampton',
+    'Surrey',
+    'Laval',
+    'Burnaby',
+    'Richmond',
+    'Markham',
+    'Vaughan',
+  ],
+  'China (mainland)': [
+    'Beijing',
+    'Shanghai',
+    'Guangzhou',
+    'Shenzhen',
+    'Chengdu',
+    'Hangzhou',
+    'Wuhan',
+    'Chongqing',
+    'Nanjing',
+    'Tianjin',
+    "Xi'an",
+    'Suzhou',
+    'Qingdao',
+    'Ningbo',
+    'Zhengzhou',
+    'Changsha',
+    'Dongguan',
+    'Foshan',
+    'Shenyang',
+    'Dalian',
+    'Harbin',
+    'Jinan',
+    'Xiamen',
+    'Fuzhou',
+    'Kunming',
+    'Hefei',
+    'Nanchang',
+    'Taiyuan',
+    'Urumqi',
+    'Lanzhou',
+    'Guiyang',
+    'Nanning',
+    'Hohhot',
+    'Haikou',
+    'Shijiazhuang',
+    'Wuxi',
+    'Nantong',
+    'Changzhou',
+    'Wenzhou',
+    'Yantai',
+    'Zhuhai',
+    'Huizhou',
+    'Quanzhou',
+    'Yinchuan',
+    'Xining',
+    'Lhasa',
+    'Jilin',
+    'Luoyang',
+    'Weifang',
+    'Baoding',
+  ],
+  'United States': [
+    'New York',
+    'Los Angeles',
+    'Chicago',
+    'Houston',
+    'Phoenix',
+    'Philadelphia',
+    'San Antonio',
+    'San Diego',
+    'Dallas',
+    'San Jose',
+    'Seattle',
+    'Boston',
+    'Washington',
+    'Austin',
+    'Jacksonville',
+    'Fort Worth',
+    'Columbus',
+    'Charlotte',
+    'San Francisco',
+    'Indianapolis',
+    'Denver',
+    'El Paso',
+    'Nashville',
+    'Detroit',
+    'Oklahoma City',
+    'Portland',
+    'Las Vegas',
+    'Memphis',
+    'Louisville',
+    'Baltimore',
+    'Milwaukee',
+    'Albuquerque',
+    'Tucson',
+    'Fresno',
+    'Sacramento',
+    'Mesa',
+    'Kansas City',
+    'Atlanta',
+    'Omaha',
+    'Colorado Springs',
+    'Raleigh',
+    'Miami',
+    'Virginia Beach',
+    'Oakland',
+    'Minneapolis',
+    'Tulsa',
+    'Tampa',
+    'Arlington',
+    'New Orleans',
+    'Wichita',
+    'Cleveland',
+    'Bakersfield',
+    'Aurora',
+    'Anaheim',
+    'Honolulu',
+    'Santa Ana',
+    'Corpus Christi',
+    'Riverside',
+    'Lexington',
+    'Stockton',
+    'Henderson',
+    'Saint Paul',
+    'St. Louis',
+    'Cincinnati',
+    'Pittsburgh',
+  ],
+};
 
 @Component({
   selector: 'app-goal-management',
@@ -71,6 +379,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   graduationSeasonFilterOptions: string[] = [COUNTRY_FILTER_ALL_OPTION];
   createCountryFilterInput = '';
   createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
+  createProvinceFilterInput = '';
+  createProvinceFilter = '';
+  createCityFilterInput = '';
+  createCityFilter = '';
   createSchoolBoardFilterInput = '';
   createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
   createGraduationSeasonFilterInput = '';
@@ -85,6 +397,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   createPanelExpanded = false;
   studentPanelExpanded = false;
+  studentFilterExpanded = false;
   createStudentKeyword = '';
   selectedCreateStudentIds = new Set<number>();
   createTitle = '';
@@ -138,9 +451,43 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.selectedCreateStudentIds.size;
   }
 
+  get provinceFilterCountry(): ProvinceFilterCountry | '' {
+    return this.resolveProvinceFilterCountry(this.createCountryFilter);
+  }
+
+  get provinceFilterOptions(): string[] {
+    return this.collectProvinceFilterOptions(this.provinceFilterCountry);
+  }
+
+  get cityFilterCountry(): ProvinceFilterCountry | '' {
+    return this.provinceFilterCountry;
+  }
+
+  get cityFilterOptions(): string[] {
+    return this.collectCityFilterOptions(this.cityFilterCountry);
+  }
+
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
-  toggleCreatePanel(): void { this.createPanelExpanded = !this.createPanelExpanded; if (!this.createPanelExpanded) this.studentPanelExpanded = false; }
-  toggleStudentPanel(): void { this.studentPanelExpanded = !this.studentPanelExpanded; if (this.studentPanelExpanded) this.loadMissingProfilesForVisibleRows(); }
+  openCreatePanel(): void { this.createPanelExpanded = true; }
+  closeCreatePanel(): void {
+    if (this.creating) return;
+    this.createPanelExpanded = false;
+    this.studentPanelExpanded = false;
+    this.studentFilterExpanded = false;
+  }
+  onCreatePanelBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeCreatePanel();
+  }
+  toggleCreatePanel(): void {
+    if (this.createPanelExpanded) this.closeCreatePanel();
+    else this.openCreatePanel();
+  }
+  toggleStudentPanel(): void {
+    this.studentPanelExpanded = !this.studentPanelExpanded;
+    if (this.studentPanelExpanded) this.loadMissingProfilesForVisibleRows();
+    else this.studentFilterExpanded = false;
+  }
+  toggleStudentFilterPanel(): void { this.studentFilterExpanded = !this.studentFilterExpanded; }
   onStudentKeywordChange(): void { this.loadMissingProfilesForVisibleRows(); }
   onCountryFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
@@ -148,8 +495,24 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createCountryFilter = input
       ? this.resolveCountryFilterInputSelection(input)
       : COUNTRY_FILTER_ALL_OPTION;
+    this.syncProvinceFilterSelection();
+    this.syncCityFilterSelection();
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onProvinceFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createProvinceFilterInput = input;
+    const country = this.provinceFilterCountry;
+    this.createProvinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onCityFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createCityFilterInput = input;
+    const country = this.cityFilterCountry;
+    this.createCityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
     this.loadMissingProfilesForVisibleRows();
   }
   onSchoolBoardFilterInputChange(value: string): void {
@@ -177,6 +540,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   resetStudentMetaFilters(): void {
     this.createCountryFilterInput = '';
     this.createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
+    this.createProvinceFilterInput = '';
+    this.createProvinceFilter = '';
+    this.createCityFilterInput = '';
+    this.createCityFilter = '';
     this.createSchoolBoardFilterInput = '';
     this.createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createGraduationSeasonFilterInput = '';
@@ -187,6 +554,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   resetCreateForm(): void {
     this.studentPanelExpanded = false;
+    this.studentFilterExpanded = false;
     this.resetStudentMetaFilters();
     this.clearAllTeacherNoteAutoSaveTimers();
     this.selectedCreateStudentIds.clear();
@@ -350,8 +718,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
     const ids = Array.from(candidateIds).filter((studentId) => {
       const d = this.studentDetails.get(studentId);
-      const hasCore = !!(d && d.country && d.city && d.schoolBoard && d.graduation);
-      return !this.profileLoadInFlight.has(studentId) && !hasCore;
+      const hasCore = !!(d && d.country && d.province && d.city && d.schoolBoard && d.graduation);
+      const hasProfileLoaded = this.teacherNoteProfileCache.has(studentId);
+      return !this.profileLoadInFlight.has(studentId) && !hasCore && !hasProfileLoaded;
     });
     if (ids.length === 0) return;
 
@@ -420,12 +789,23 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   private upsertDetail(studentId: number, patch: Partial<StudentDetailVm>): void {
-    const current = this.studentDetails.get(studentId) || { email: '', phone: '', city: '', graduation: '', teacherNote: '', country: '', schoolBoard: '', graduationSeason: '' };
+    const current = this.studentDetails.get(studentId) || {
+      email: '',
+      phone: '',
+      province: '',
+      city: '',
+      graduation: '',
+      teacherNote: '',
+      country: '',
+      schoolBoard: '',
+      graduationSeason: '',
+    };
     const graduation = patch.graduation?.trim() || current.graduation;
     const graduationSeason = patch.graduationSeason?.trim() || this.resolveGraduationSeason(graduation);
     this.studentDetails.set(studentId, {
       email: patch.email?.trim() || current.email,
       phone: patch.phone?.trim() || current.phone,
+      province: patch.province?.trim() || current.province,
       city: patch.city?.trim() || current.city,
       graduation,
       teacherNote: patch.teacherNote?.trim() || current.teacherNote,
@@ -439,6 +819,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     const current = this.studentDetails.get(studentId) || {
       email: '',
       phone: '',
+      province: '',
       city: '',
       graduation: '',
       teacherNote: '',
@@ -461,6 +842,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return {
       email: this.pick([student.email, student['emailAddress'], student['contactEmail'], profile['email']]),
       phone: this.pick([student.phone, student['phoneNumber'], student['mobile'], profile['phone']]),
+      province: this.pick([
+        student['currentSchoolProvince'],
+        student['schoolProvince'],
+        student['province'],
+        profile['currentSchoolProvince'],
+        profile['province'],
+      ]),
       city: this.pick([student['currentSchoolCity'], student['schoolCity'], student['city'], profile['currentSchoolCity'], profile['city']]),
       graduation,
       teacherNote: this.pick([student['teacherNote'], student['teacherNotes'], profile['teacherNote']]),
@@ -482,6 +870,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return {
       email: this.pick([profile['email'], root['email']]),
       phone: this.pick([profile['phone'], root['phone']]),
+      province: this.pick([
+        profile['currentSchoolProvince'],
+        profile['province'],
+        school['province'],
+        root['currentSchoolProvince'],
+      ]),
       city: this.pick([profile['currentSchoolCity'], profile['city'], school['city'], root['currentSchoolCity']]),
       graduation,
       teacherNote: this.pick([profile['teacherNote'], profile['teacherNotes'], root['teacherNote']]),
@@ -517,8 +911,61 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     );
 
     this.syncCountryFilterSelection();
+    this.syncProvinceFilterSelection();
+    this.syncCityFilterSelection();
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
+  }
+
+  private collectProvinceFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    const options: string[] = [];
+    for (const [studentId, detail] of this.studentDetails.entries()) {
+      if (!validIds.has(studentId)) continue;
+      const detailCountry = this.resolveProvinceFilterCountry(detail.country);
+      if (country && detailCountry !== country) continue;
+      const province = this.normalizeProvinceValueForDetail(detail.province, country || detailCountry);
+      if (province) {
+        options.push(province);
+      }
+    }
+    return this.mergeFilterOptions(baseOptions, options);
+  }
+
+  private collectCityFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? CITY_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    const options: string[] = [];
+    for (const [studentId, detail] of this.studentDetails.entries()) {
+      if (!validIds.has(studentId)) continue;
+      const detailCountry = this.resolveProvinceFilterCountry(detail.country);
+      if (country && detailCountry !== country) continue;
+      const city = this.normalizeCityValueForDetail(detail.city, country || detailCountry);
+      if (city) {
+        options.push(city);
+      }
+    }
+    return this.mergeFilterOptions(baseOptions, options);
+  }
+
+  private normalizeProvinceValueForDetail(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    return this.normalizeProvinceFilterValue(value, country);
+  }
+
+  private normalizeCityValueForDetail(value: unknown, country: ProvinceFilterCountry | '' = ''): string {
+    return this.normalizeCityFilterValue(value, country);
   }
 
   private pick(candidates: unknown[]): string {
@@ -578,6 +1025,30 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return studentCountry === selected;
   }
 
+  private matchesProvinceFilter(detail: StudentDetailVm | undefined): boolean {
+    const selectedKey = this.normalizeCountryKey(this.createProvinceFilter);
+    if (!selectedKey) {
+      return true;
+    }
+
+    const detailCountry = this.resolveProvinceFilterCountry(detail?.country);
+    const studentProvince = this.normalizeProvinceValueForDetail(detail?.province, detailCountry);
+    const studentKey = this.normalizeCountryKey(studentProvince);
+    return !!studentKey && studentKey === selectedKey;
+  }
+
+  private matchesCityFilter(detail: StudentDetailVm | undefined): boolean {
+    const selectedKey = this.normalizeCountryKey(this.createCityFilter);
+    if (!selectedKey) {
+      return true;
+    }
+
+    const detailCountry = this.resolveProvinceFilterCountry(detail?.country);
+    const studentCity = this.normalizeCityValueForDetail(detail?.city, detailCountry);
+    const studentKey = this.normalizeCountryKey(studentCity);
+    return !!studentKey && studentKey === selectedKey;
+  }
+
   private matchesSchoolBoardFilter(detail: StudentDetailVm | undefined): boolean {
     if (this.createSchoolBoardFilter === COUNTRY_FILTER_ALL_OPTION) {
       return true;
@@ -604,6 +1075,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   ): boolean {
     const detail = this.studentDetails.get(student.studentId);
     if (!this.matchesCountryFilter(detail)) return false;
+    if (!this.matchesProvinceFilter(detail)) return false;
+    if (!this.matchesCityFilter(detail)) return false;
     if (!this.matchesSchoolBoardFilter(detail)) return false;
     if (!this.matchesGraduationSeasonFilter(detail)) return false;
     if (!keyword) return true;
@@ -616,10 +1089,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     detail: StudentDetailVm | undefined
   ): string {
     return [
+      String(student.studentId),
       student.studentName,
       student.username || '',
       detail?.email || '',
       detail?.phone || '',
+      detail?.province || '',
       detail?.city || '',
       detail?.graduation || '',
       detail?.teacherNote || '',
@@ -745,6 +1220,52 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createCountryFilter = resolved;
   }
 
+  private syncProvinceFilterSelection(): void {
+    const input = String(this.createProvinceFilterInput ?? '').trim();
+    if (!input) {
+      this.createProvinceFilter = '';
+      return;
+    }
+
+    const country = this.provinceFilterCountry;
+    const resolved = this.resolveProvinceFilterSelection(input, country);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.provinceFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !resolvedKey || !optionExists) {
+      this.createProvinceFilterInput = '';
+      this.createProvinceFilter = '';
+      return;
+    }
+
+    this.createProvinceFilterInput = resolved;
+    this.createProvinceFilter = resolved;
+  }
+
+  private syncCityFilterSelection(): void {
+    const input = String(this.createCityFilterInput ?? '').trim();
+    if (!input) {
+      this.createCityFilter = '';
+      return;
+    }
+
+    const country = this.cityFilterCountry;
+    const resolved = this.resolveCityFilterSelection(input, country);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.cityFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !resolvedKey || !optionExists) {
+      this.createCityFilterInput = '';
+      this.createCityFilter = '';
+      return;
+    }
+
+    this.createCityFilterInput = resolved;
+    this.createCityFilter = resolved;
+  }
+
   private syncSchoolBoardFilterSelection(): void {
     const input = String(this.createSchoolBoardFilterInput ?? '').trim();
     if (!input) {
@@ -863,6 +1384,106 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (resolved === 'ALL') return COUNTRY_FILTER_ALL_OPTION;
     if (resolved === 'N/A') return COUNTRY_FILTER_NA_OPTION;
     return resolved;
+  }
+
+  private resolveProvinceFilterCountry(value: unknown): ProvinceFilterCountry | '' {
+    const normalized = this.normalizeCountryFilterValue(value);
+    if (
+      normalized === 'Canada' ||
+      normalized === 'China (mainland)' ||
+      normalized === 'United States'
+    ) {
+      return normalized;
+    }
+    return '';
+  }
+
+  private resolveProvinceFilterSelection(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    const normalized = this.normalizeProvinceFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeProvinceFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (country) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[country]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[supportedCountry]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
+  }
+
+  private resolveCityFilterSelection(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    const normalized = this.normalizeCityFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeCityFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (country) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
   }
 
   private buildTeacherProfilePayloadWithNote(
