@@ -6,6 +6,8 @@ import { StudentManagementComponent } from './student-management.component';
 import { StudentManagementService } from '../../services/student-management.service';
 import { StudentInviteService } from '../../services/student-invite.service';
 import { StudentProfileService } from '../../services/student-profile.service';
+import { AuthService } from '../../services/auth.service';
+import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -15,6 +17,8 @@ describe('StudentManagementComponent', () => {
   >;
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
   let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher'>;
+  let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId' | 'getAuthorizationHeaderValue'>;
+  let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
     api = {
@@ -29,11 +33,22 @@ describe('StudentManagementComponent', () => {
       getStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
       saveStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
     };
+    auth = {
+      getSession: vi.fn().mockReturnValue({ userId: 1, teacherId: 1 }),
+      getCurrentUserId: vi.fn().mockReturnValue(1),
+      getAuthorizationHeaderValue: vi.fn().mockReturnValue('Bearer token-1'),
+    };
+    preferenceApi = {
+      getPagePreference: vi.fn().mockReturnValue(of({})),
+      upsertPagePreference: vi.fn().mockReturnValue(of({})),
+    };
 
     component = new StudentManagementComponent(
       api as StudentManagementService,
       profileApi as StudentProfileService,
-      inviteApi as StudentInviteService
+      inviteApi as StudentInviteService,
+      auth as AuthService,
+      preferenceApi as TeacherPreferenceService
     );
   });
 
@@ -941,5 +956,24 @@ describe('StudentManagementComponent', () => {
   it('profileRoute should fallback to /teacher/students when student id is missing', () => {
     const route = component.profileRoute({ username: 'no-id-student' } as any);
     expect(route).toEqual(['/teacher/students']);
+  });
+
+  it('column preference localStorage key should be scoped by teacher id', () => {
+    const storageKey = (component as any).resolveVisibleColumnsStorageKey();
+    expect(storageKey).toContain('teacher-1');
+    expect(storageKey).toContain('student-management.student-list.visible-columns');
+  });
+
+  it('column visibility change should sync preference to backend endpoint', () => {
+    component.onColumnVisibilityChange('city', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
+      'student-management.list-columns',
+      expect.objectContaining({
+        version: 'v1',
+      })
+    );
   });
 });

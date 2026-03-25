@@ -22,6 +22,8 @@ import {
   StudentProfileResponse,
   StudentProfileService,
 } from '../../services/student-profile.service';
+import { AuthService } from '../../services/auth.service';
+import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 
 interface PasswordResetResult {
   studentId: number;
@@ -35,6 +37,35 @@ interface StatusUpdateResult {
   status: StudentAccountStatus;
 }
 
+type StudentListColumnKey =
+  | 'name'
+  | 'email'
+  | 'phone'
+  | 'graduation'
+  | 'schoolName'
+  | 'canadaIdentity'
+  | 'gender'
+  | 'nationality'
+  | 'firstLanguage'
+  | 'schoolBoard'
+  | 'country'
+  | 'province'
+  | 'city'
+  | 'teacherNote'
+  | 'profile'
+  | 'resetPassword'
+  | 'archive';
+
+interface StudentListColumnConfig {
+  key: StudentListColumnKey;
+  label: string;
+  defaultVisible: boolean;
+  hideable: boolean;
+  backendDependent: boolean;
+  headerStyle: string;
+  cellStyle: string;
+}
+
 type StudentCountryFilter = 'ALL' | 'N/A' | string;
 type StudentProvinceFilter = string;
 type ProvinceFilterCountry = 'Canada' | 'China (mainland)' | 'United States';
@@ -42,12 +73,197 @@ type ProvinceFilterCountry = 'Canada' | 'China (mainland)' | 'United States';
 interface StudentListMetadata {
   email: string;
   phone: string;
+  schoolName: string;
+  canadaIdentity: string;
+  gender: string;
+  nationality: string;
+  firstLanguage: string;
   currentSchoolCountry: string;
   currentSchoolProvince: string;
   currentSchoolCity: string;
   currentSchoolBoard: string;
   currentSchoolExpectedGraduation: string;
 }
+
+interface StudentSchoolContext {
+  profileNode: Record<string, unknown>;
+  currentSchool: Record<string, unknown>;
+  schoolNode: Record<string, unknown>;
+  schoolAddress: Record<string, unknown>;
+  schoolNodeAddress: Record<string, unknown>;
+}
+
+const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
+  'student-management.student-list.visible-columns';
+const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY = 'student-management.list-columns';
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v1';
+
+const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
+  {
+    key: 'name',
+    label: '姓名',
+    defaultVisible: true,
+    hideable: false,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'email',
+    label: '邮箱',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'phone',
+    label: '电话',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'graduation',
+    label: '毕业时间',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'schoolName',
+    label: '学校名',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'canadaIdentity',
+    label: '在加拿大的身份',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'gender',
+    label: '性别',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'nationality',
+    label: '国籍',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'firstLanguage',
+    label: '第一语言',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'schoolBoard',
+    label: '所属教育局（在读学校）',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:160px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'country',
+    label: '国家',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'province',
+    label: '省份',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'city',
+    label: '城市（在读学校）',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'teacherNote',
+    label: '教师备注（学生不可见）',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: true,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:220px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;',
+  },
+  {
+    key: 'profile',
+    label: '档案',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'resetPassword',
+    label: '重置密码',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'archive',
+    label: '归档',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+];
 
 const COUNTRY_FILTER_ALL_OPTION = 'All';
 const COUNTRY_FILTER_NA_OPTION = 'N/A';
@@ -585,6 +801,23 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
             显示：{{ visibleStudents.length }} / 筛选后：{{ filteredCount }}
           </span>
 
+          <button
+            type="button"
+            (click)="toggleColumnPanel()"
+            [disabled]="loadingList"
+            [attr.aria-expanded]="isColumnPanelExpanded"
+          >
+            {{ isColumnPanelExpanded ? '收起字段' : '字段显示' }}
+          </button>
+
+          <button
+            type="button"
+            (click)="resetVisibleColumns()"
+            [disabled]="loadingList || isColumnSelectionAtDefault()"
+          >
+            恢复默认字段
+          </button>
+
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
             数量
             <select
@@ -595,6 +828,25 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
             >
               <option *ngFor="let size of limitOptions" [ngValue]="size">{{ size }}</option>
             </select>
+          </label>
+        </div>
+        <div
+          *ngIf="isColumnPanelExpanded"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;padding-top:4px;border-top:1px dashed #d9dfea;"
+        >
+          <label
+            *ngFor="let column of columnToggleOptions; trackBy: trackColumn"
+            style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#3d4b61;padding:2px 8px;border:1px solid #dbe4f2;border-radius:999px;background:#fff;"
+            [title]="column.backendDependent ? '可能依赖详情接口数据' : ''"
+          >
+            <input
+              type="checkbox"
+              [checked]="isColumnVisible(column.key)"
+              (change)="onColumnVisibilityChange(column.key, $event)"
+              [disabled]="loadingList || !column.hideable"
+            />
+            <span>{{ column.label }}</span>
+            <small *ngIf="!column.hideable" style="color:#7f8a9e;">必选</small>
           </label>
         </div>
       </div>
@@ -623,7 +875,15 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
       <div style="margin-top:12px;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead style="background:#f6f7fb;">
-            <tr>
+            <tr *ngIf="visibleColumns.length > 0">
+              <th
+                *ngFor="let column of visibleColumns; trackBy: trackColumn"
+                [attr.style]="column.headerStyle"
+              >
+                {{ column.label }}
+              </th>
+            </tr>
+            <tr *ngIf="false">
               <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">姓名</th>
               <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">邮箱</th>
               <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;">电话</th>
@@ -636,6 +896,95 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
           </thead>
           <tbody>
             <tr *ngFor="let student of visibleStudents; trackBy: trackStudent">
+              <td
+                *ngFor="let column of visibleColumns; trackBy: trackColumn"
+                [attr.style]="column.cellStyle"
+              >
+                <ng-container [ngSwitch]="column.key">
+                  <ng-container *ngSwitchCase="'teacherNote'">
+                    <textarea
+                      class="teacher-note-inline-textarea"
+                      [ngModel]="resolveTeacherNoteCellValue(student)"
+                      (focus)="prepareTeacherNoteCell(student)"
+                      (ngModelChange)="onTeacherNoteCellChange(student, $event)"
+                      (blur)="onTeacherNoteCellBlur(student)"
+                      rows="1"
+                      [disabled]="!resolveStudentId(student) || (isTeacherNoteRowSelected(student) && (teacherNoteLoading || teacherNoteSaving))"
+                      placeholder="输入教师内部备注"
+                    ></textarea>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'profile'">
+                    <button
+                      type="button"
+                      [routerLink]="profileRoute(student)"
+                      style="min-width:86px;white-space:nowrap;"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      编辑档案
+                    </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'resetPassword'">
+                    <button
+                      type="button"
+                      (click)="resetPassword(student)"
+                      style="min-width:86px;white-space:nowrap;"
+                      [disabled]="
+                        !resolveStudentId(student) ||
+                        resettingStudentId === resolveStudentId(student) ||
+                        statusUpdatingStudentId === resolveStudentId(student)
+                      "
+                    >
+                      {{
+                        resettingStudentId === resolveStudentId(student)
+                          ? '重置中...'
+                          : '重置密码'
+                      }}
+                    </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'archive'">
+                    <label
+                      style="display:inline-flex;align-items:center;cursor:pointer;user-select:none;"
+                      [style.opacity]="statusUpdatingStudentId === resolveStudentId(student) ? '0.7' : '1'"
+                      title="归档"
+                    >
+                      <input
+                        type="checkbox"
+                        [checked]="isActive(student)"
+                        (change)="toggleActiveStatus(student)"
+                        [disabled]="
+                          !resolveStudentId(student) || statusUpdatingStudentId === resolveStudentId(student)
+                        "
+                        style="display:none;"
+                      />
+
+                      <span
+                        style="position:relative;width:44px;height:24px;border-radius:999px;transition:all 0.2s ease;display:inline-block;"
+                        [style.background]="
+                          statusUpdatingStudentId === resolveStudentId(student)
+                            ? '#bdbdbd'
+                            : isArchived(student)
+                              ? '#c62828'
+                              : '#19a34a'
+                        "
+                      >
+                        <span
+                          style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.25);"
+                          [style.transform]="isActive(student) ? 'translateX(20px)' : 'translateX(0)'"
+                        ></span>
+                      </span>
+                    </label>
+                  </ng-container>
+
+                  <ng-container *ngSwitchDefault>
+                    {{ resolveStudentColumnValue(student, column.key) }}
+                  </ng-container>
+                </ng-container>
+              </td>
+            </tr>
+            <tr *ngFor="let student of visibleStudents | slice:0:0; trackBy: trackStudent">
               <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ displayName(student) }}</td>
               <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentEmail(student) }}</td>
               <td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">{{ resolveStudentPhone(student) }}</td>
@@ -715,6 +1064,11 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleStudents.length === 0">
+              <td [attr.colspan]="visibleColumns.length || 1" style="padding:14px;color:#666;text-align:center;">
+                未找到学生账号。
+              </td>
+            </tr>
+            <tr *ngIf="false && !loadingList && visibleStudents.length === 0">
               <td colspan="8" style="padding:14px;color:#666;text-align:center;">未找到学生账号。</td>
             </tr>
           </tbody>
@@ -800,13 +1154,20 @@ export class StudentManagementComponent implements OnInit {
   readonly limitOptions: number[] = [20, 50, 100];
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
+  readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
+  visibleColumnKeys = new Set<StudentListColumnKey>(
+    this.studentListColumns
+      .filter((column) => column.defaultVisible || !column.hideable)
+      .map((column) => column.key)
+  );
   filteredCount = 0;
   loadingList = false;
   listError = '';
   listLimit = 20;
   isFilterPanelExpanded = false;
+  isColumnPanelExpanded = false;
   showInactive = false;
   searchKeyword = '';
   countryFilterInput = '';
@@ -852,15 +1213,23 @@ export class StudentManagementComponent implements OnInit {
     private studentApi: StudentManagementService,
     private studentProfileApi: StudentProfileService,
     private inviteApi: StudentInviteService,
+    private auth: AuthService,
+    private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.initializeVisibleColumns();
+    this.loadVisibleColumnsPreferenceFromServer();
     this.loadStudents();
   }
 
   trackStudent = (_index: number, student: StudentAccount): string | number => {
     return this.resolveStudentId(student) ?? student.username;
+  };
+
+  trackColumn = (_index: number, column: StudentListColumnConfig): StudentListColumnKey => {
+    return column.key;
   };
 
   displayName(student: StudentAccount): string {
@@ -887,6 +1256,87 @@ export class StudentManagementComponent implements OnInit {
 
   resolveStudentGraduation(student: StudentAccount): string {
     return this.formatGraduationYearMonth(this.resolveCurrentSchoolExpectedGraduationValue(student));
+  }
+
+  resolveStudentSchoolName(student: StudentAccount): string {
+    return this.resolveCurrentSchoolNameValue(student) || '-';
+  }
+
+  resolveStudentCanadaIdentity(student: StudentAccount): string {
+    return this.resolveIdentityInCanadaValue(student) || '-';
+  }
+
+  resolveStudentGender(student: StudentAccount): string {
+    return this.resolveGenderValue(student) || '-';
+  }
+
+  resolveStudentNationality(student: StudentAccount): string {
+    return this.resolveNationalityValue(student) || '-';
+  }
+
+  resolveStudentFirstLanguage(student: StudentAccount): string {
+    return this.resolveFirstLanguageValue(student) || '-';
+  }
+
+  resolveStudentSchoolBoard(student: StudentAccount): string {
+    return this.resolveCurrentSchoolBoardForFilter(student) || '-';
+  }
+
+  resolveStudentCountry(student: StudentAccount): string {
+    return this.resolveCurrentSchoolCountryValue(student) || '-';
+  }
+
+  resolveStudentProvince(student: StudentAccount): string {
+    return this.resolveCurrentSchoolProvinceValue(student) || '-';
+  }
+
+  resolveStudentCity(student: StudentAccount): string {
+    return this.resolveCurrentSchoolCityValue(student) || '-';
+  }
+
+  resolveStudentColumnValue(student: StudentAccount, columnKey: StudentListColumnKey): string {
+    switch (columnKey) {
+      case 'name':
+        return this.displayName(student);
+      case 'email':
+        return this.resolveStudentEmail(student);
+      case 'phone':
+        return this.resolveStudentPhone(student);
+      case 'graduation':
+        return this.resolveStudentGraduation(student);
+      case 'schoolName':
+        return this.resolveStudentSchoolName(student);
+      case 'canadaIdentity':
+        return this.resolveStudentCanadaIdentity(student);
+      case 'gender':
+        return this.resolveStudentGender(student);
+      case 'nationality':
+        return this.resolveStudentNationality(student);
+      case 'firstLanguage':
+        return this.resolveStudentFirstLanguage(student);
+      case 'schoolBoard':
+        return this.resolveStudentSchoolBoard(student);
+      case 'country':
+        return this.resolveStudentCountry(student);
+      case 'province':
+        return this.resolveStudentProvince(student);
+      case 'city':
+        return this.resolveStudentCity(student);
+      default:
+        return '-';
+    }
+  }
+
+  get visibleColumns(): readonly StudentListColumnConfig[] {
+    return this.studentListColumns.filter((column) => this.visibleColumnKeys.has(column.key));
+  }
+
+  get columnToggleOptions(): readonly StudentListColumnConfig[] {
+    return this.studentListColumns;
+  }
+
+  isColumnVisible(columnKey: StudentListColumnKey): boolean {
+    return this.visibleColumnKeys.has(columnKey);
   }
 
   get provinceFilterCountry(): ProvinceFilterCountry | '' {
@@ -1901,6 +2351,193 @@ export class StudentManagementComponent implements OnInit {
     this.isFilterPanelExpanded = !this.isFilterPanelExpanded;
   }
 
+  toggleColumnPanel(): void {
+    this.isColumnPanelExpanded = !this.isColumnPanelExpanded;
+  }
+
+  onColumnVisibilityChange(columnKey: StudentListColumnKey, event: Event): void {
+    const config = this.studentListColumns.find((column) => column.key === columnKey);
+    if (!config || !config.hideable) return;
+
+    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    const next = new Set(this.visibleColumnKeys);
+    if (checked) next.add(columnKey);
+    else next.delete(columnKey);
+
+    for (const requiredColumn of this.studentListColumns) {
+      if (!requiredColumn.hideable) {
+        next.add(requiredColumn.key);
+      }
+    }
+
+    this.visibleColumnKeys = next;
+    this.persistVisibleColumnsPreference();
+    this.syncVisibleColumnsPreferenceToServer();
+
+    if (checked && config.backendDependent) {
+      this.hydrateStudentMetadata(this.students);
+    }
+
+    if (columnKey === 'teacherNote' && checked) {
+      this.prefetchVisibleTeacherNotes();
+      this.cdr.detectChanges();
+    }
+  }
+
+  resetVisibleColumns(): void {
+    this.visibleColumnKeys = this.buildDefaultVisibleColumnKeys();
+    this.persistVisibleColumnsPreference();
+    this.syncVisibleColumnsPreferenceToServer();
+    this.hydrateStudentMetadata(this.students);
+    if (this.visibleColumnKeys.has('teacherNote')) {
+      this.prefetchVisibleTeacherNotes();
+      this.cdr.detectChanges();
+    }
+  }
+
+  isColumnSelectionAtDefault(): boolean {
+    const defaultSet = this.buildDefaultVisibleColumnKeys();
+    if (defaultSet.size !== this.visibleColumnKeys.size) {
+      return false;
+    }
+    for (const key of defaultSet.values()) {
+      if (!this.visibleColumnKeys.has(key)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private initializeVisibleColumns(): void {
+    const defaults = this.buildDefaultVisibleColumnKeys();
+    const persisted = this.readVisibleColumnsPreference();
+    if (!persisted) {
+      this.visibleColumnKeys = defaults;
+      return;
+    }
+
+    const restored = this.normalizeVisibleColumnKeys(persisted);
+    this.visibleColumnKeys = restored.size > 0 ? restored : defaults;
+  }
+
+  private buildDefaultVisibleColumnKeys(): Set<StudentListColumnKey> {
+    return new Set<StudentListColumnKey>(
+      this.studentListColumns
+        .filter((column) => column.defaultVisible || !column.hideable)
+        .map((column) => column.key)
+    );
+  }
+
+  private persistVisibleColumnsPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const storageKey = this.resolveVisibleColumnsStorageKey();
+      storage.setItem(
+        storageKey,
+        JSON.stringify(Array.from(this.visibleColumnKeys.values()))
+      );
+    } catch {}
+  }
+
+  private readVisibleColumnsPreference(): StudentListColumnKey[] | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const storageKey = this.resolveVisibleColumnsStorageKey();
+      const raw = storage.getItem(storageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      const keys = parsed
+        .map((value) => String(value ?? '').trim())
+        .filter((value): value is StudentListColumnKey => {
+          return this.studentListColumns.some((column) => column.key === value);
+        });
+      return keys.length > 0 ? keys : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveVisibleColumnsStorageKey(): string {
+    const session = this.auth.getSession();
+    const teacherId = Number(session?.teacherId);
+    if (Number.isFinite(teacherId) && teacherId > 0) {
+      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.teacher-${Math.trunc(teacherId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+    }
+
+    const userId = this.auth.getCurrentUserId();
+    if (userId && userId > 0) {
+      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.user-${Math.trunc(userId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+    }
+
+    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.anonymous.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+  }
+
+  private normalizeVisibleColumnKeys(keys: readonly string[]): Set<StudentListColumnKey> {
+    const normalized = new Set<StudentListColumnKey>();
+    for (const key of keys) {
+      if (this.studentListColumns.some((column) => column.key === key)) {
+        normalized.add(key as StudentListColumnKey);
+      }
+    }
+
+    for (const column of this.studentListColumns) {
+      if (!column.hideable) {
+        normalized.add(column.key);
+      }
+    }
+
+    return normalized;
+  }
+
+  private loadVisibleColumnsPreferenceFromServer(): void {
+    const authorization = this.auth.getAuthorizationHeaderValue();
+    if (!authorization) return;
+
+    this.teacherPreferenceApi.getPagePreference(STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY).subscribe({
+      next: (payload) => {
+        const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
+          ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
+          : [];
+        if (remoteKeys.length === 0) {
+          return;
+        }
+
+        const normalized = this.normalizeVisibleColumnKeys(remoteKeys);
+        if (normalized.size === 0) {
+          return;
+        }
+
+        this.visibleColumnKeys = normalized;
+        this.persistVisibleColumnsPreference();
+        this.hydrateStudentMetadata(this.students);
+        if (this.visibleColumnKeys.has('teacherNote')) {
+          this.prefetchVisibleTeacherNotes();
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  private syncVisibleColumnsPreferenceToServer(): void {
+    const authorization = this.auth.getAuthorizationHeaderValue();
+    if (!authorization) return;
+
+    const payload = {
+      version: STUDENT_LIST_COLUMN_PREFERENCE_VERSION,
+      visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
+    };
+    this.teacherPreferenceApi
+      .upsertPagePreference(STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY, payload)
+      .subscribe({
+        next: () => {},
+        error: () => {},
+      });
+  }
+
   isListControlsAtDefault(): boolean {
     return (
       this.listLimit === 20 &&
@@ -1941,7 +2578,9 @@ export class StudentManagementComponent implements OnInit {
 
     this.filteredCount = filtered.length;
     this.visibleStudents = filtered.slice(0, this.listLimit);
-    this.prefetchVisibleTeacherNotes();
+    if (this.visibleColumnKeys.has('teacherNote')) {
+      this.prefetchVisibleTeacherNotes();
+    }
   }
 
   private matchesListFilters(
@@ -2031,6 +2670,15 @@ export class StudentManagementComponent implements OnInit {
       this.resolveStudentPhoneValue(student),
       this.resolveStudentGraduation(student),
       this.resolveCurrentSchoolGraduationSeasonForFilter(student),
+      this.resolveCurrentSchoolNameValue(student),
+      this.resolveIdentityInCanadaValue(student),
+      this.resolveGenderValue(student),
+      this.resolveNationalityValue(student),
+      this.resolveFirstLanguageValue(student),
+      this.resolveCurrentSchoolBoardValue(student),
+      this.resolveCurrentSchoolCountryValue(student),
+      this.resolveCurrentSchoolProvinceValue(student),
+      this.resolveCurrentSchoolCityValue(student),
     ];
 
     return searchFields.some((field) => field.toLowerCase().includes(keyword));
@@ -2058,6 +2706,11 @@ export class StudentManagementComponent implements OnInit {
     return list.map((student) => {
       const email = this.resolveStudentEmailValue(student);
       const phone = this.resolveStudentPhoneValue(student);
+      const schoolName = this.resolveCurrentSchoolNameValue(student);
+      const canadaIdentity = this.resolveIdentityInCanadaValue(student);
+      const gender = this.resolveGenderValue(student);
+      const nationality = this.resolveNationalityValue(student);
+      const firstLanguage = this.resolveFirstLanguageValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
@@ -2068,6 +2721,11 @@ export class StudentManagementComponent implements OnInit {
         ...student,
         email: email || undefined,
         phone: phone || undefined,
+        currentSchoolName: schoolName || undefined,
+        canadaIdentity: canadaIdentity || undefined,
+        gender: gender || undefined,
+        nationality: nationality || undefined,
+        firstLanguage: firstLanguage || undefined,
         currentSchoolCountry: currentSchoolCountry || undefined,
         currentSchoolProvince: currentSchoolProvince || undefined,
         currentSchoolCity: currentSchoolCity || undefined,
@@ -2079,6 +2737,13 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private hydrateStudentMetadata(students: StudentAccount[]): void {
+    const requiresExtendedMetadata =
+      this.visibleColumnKeys.has('schoolName') ||
+      this.visibleColumnKeys.has('canadaIdentity') ||
+      this.visibleColumnKeys.has('gender') ||
+      this.visibleColumnKeys.has('nationality') ||
+      this.visibleColumnKeys.has('firstLanguage');
+
     for (const student of students) {
       const studentId = this.resolveStudentId(student);
       if (!studentId) {
@@ -2088,27 +2753,69 @@ export class StudentManagementComponent implements OnInit {
       const cached = this.studentContactCache.get(studentId);
       if (cached) {
         this.applyStudentMetadata(student, cached);
+        const cachedHasCore =
+          !!(
+            cached.email &&
+            cached.phone &&
+            cached.currentSchoolCountry &&
+            cached.currentSchoolProvince &&
+            cached.currentSchoolCity &&
+            cached.currentSchoolBoard &&
+            cached.currentSchoolExpectedGraduation
+          );
+        const cachedHasExtended =
+          !!(
+            cached.schoolName &&
+            cached.canadaIdentity &&
+            cached.gender &&
+            cached.nationality &&
+            cached.firstLanguage
+          );
+        if (cachedHasCore && (!requiresExtendedMetadata || cachedHasExtended)) {
+          continue;
+        }
       }
 
       const email = this.resolveStudentEmailValue(student);
       const phone = this.resolveStudentPhoneValue(student);
+      const schoolName = this.resolveCurrentSchoolNameValue(student);
+      const canadaIdentity = this.resolveIdentityInCanadaValue(student);
+      const gender = this.resolveGenderValue(student);
+      const nationality = this.resolveNationalityValue(student);
+      const firstLanguage = this.resolveFirstLanguageValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
       const currentSchoolBoard = this.resolveCurrentSchoolBoardValue(student);
       const currentSchoolExpectedGraduation = this.resolveCurrentSchoolExpectedGraduationValue(student);
-      if (
-        email &&
-        phone &&
-        currentSchoolCountry &&
-        currentSchoolProvince &&
-        currentSchoolCity &&
-        currentSchoolBoard &&
-        currentSchoolExpectedGraduation
-      ) {
+      const hasCoreMetadata =
+        !!(
+          email &&
+          phone &&
+          currentSchoolCountry &&
+          currentSchoolProvince &&
+          currentSchoolCity &&
+          currentSchoolBoard &&
+          currentSchoolExpectedGraduation
+        );
+      const hasExtendedMetadata =
+        !!(
+          schoolName &&
+          canadaIdentity &&
+          gender &&
+          nationality &&
+          firstLanguage
+        );
+
+      if (hasCoreMetadata && (!requiresExtendedMetadata || hasExtendedMetadata)) {
         this.studentContactCache.set(studentId, {
           email,
           phone,
+          schoolName,
+          canadaIdentity,
+          gender,
+          nationality,
+          firstLanguage,
           currentSchoolCountry,
           currentSchoolProvince,
           currentSchoolCity,
@@ -2138,6 +2845,11 @@ export class StudentManagementComponent implements OnInit {
             if (
               !metadata.email &&
               !metadata.phone &&
+              !metadata.schoolName &&
+              !metadata.canadaIdentity &&
+              !metadata.gender &&
+              !metadata.nationality &&
+              !metadata.firstLanguage &&
               !metadata.currentSchoolCountry &&
               !metadata.currentSchoolProvince &&
               !metadata.currentSchoolCity &&
@@ -2253,6 +2965,58 @@ export class StudentManagementComponent implements OnInit {
         root['telephone'],
         root['tel'],
         root['contactPhone'],
+      ]),
+      schoolName: this.pickFirstText([
+        profileNode['currentSchoolName'],
+        profileNode['schoolName'],
+        profileNode['school'],
+        root['currentSchoolName'],
+        root['schoolName'],
+        root['school'],
+        currentSchool['schoolName'],
+        currentSchool['name'],
+        schoolNode['schoolName'],
+        schoolNode['name'],
+      ]),
+      canadaIdentity: this.pickFirstText([
+        profileNode['identityInCanada'],
+        profileNode['statusInCanada'],
+        profileNode['canadaIdentity'],
+        profileNode['canadianStatus'],
+        profileNode['immigrationStatus'],
+        profileNode['visaStatus'],
+        profileNode['studyPermitStatus'],
+        root['identityInCanada'],
+        root['statusInCanada'],
+        root['canadaIdentity'],
+        root['canadianStatus'],
+        root['immigrationStatus'],
+        root['visaStatus'],
+        root['studyPermitStatus'],
+      ]),
+      gender: this.pickFirstText([
+        profileNode['gender'],
+        profileNode['sex'],
+        root['gender'],
+        root['sex'],
+      ]),
+      nationality: this.pickFirstText([
+        profileNode['nationality'],
+        profileNode['citizenship'],
+        profileNode['countryOfNationality'],
+        root['nationality'],
+        root['citizenship'],
+        root['countryOfNationality'],
+      ]),
+      firstLanguage: this.pickFirstText([
+        profileNode['firstLanguage'],
+        profileNode['primaryLanguage'],
+        profileNode['nativeLanguage'],
+        profileNode['motherTongue'],
+        root['firstLanguage'],
+        root['primaryLanguage'],
+        root['nativeLanguage'],
+        root['motherTongue'],
       ]),
       currentSchoolCountry: this.pickFirstText([
         profileNode['currentSchoolCountry'],
@@ -2465,6 +3229,21 @@ export class StudentManagementComponent implements OnInit {
     if (!this.resolveStudentPhoneValue(student) && metadata.phone) {
       student.phone = metadata.phone;
     }
+    if (!this.resolveCurrentSchoolNameValue(student) && metadata.schoolName) {
+      student['currentSchoolName'] = metadata.schoolName;
+    }
+    if (!this.resolveIdentityInCanadaValue(student) && metadata.canadaIdentity) {
+      student['canadaIdentity'] = metadata.canadaIdentity;
+    }
+    if (!this.resolveGenderValue(student) && metadata.gender) {
+      student['gender'] = metadata.gender;
+    }
+    if (!this.resolveNationalityValue(student) && metadata.nationality) {
+      student['nationality'] = metadata.nationality;
+    }
+    if (!this.resolveFirstLanguageValue(student) && metadata.firstLanguage) {
+      student['firstLanguage'] = metadata.firstLanguage;
+    }
     if (!this.resolveCurrentSchoolCountryValue(student) && metadata.currentSchoolCountry) {
       student['currentSchoolCountry'] = metadata.currentSchoolCountry;
     }
@@ -2483,6 +3262,126 @@ export class StudentManagementComponent implements OnInit {
     ) {
       student['currentSchoolExpectedGraduation'] = metadata.currentSchoolExpectedGraduation;
     }
+  }
+
+  private resolveStudentSchoolContext(student: StudentAccount): StudentSchoolContext {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const profileNode =
+      profile && typeof profile === 'object' ? profile : ({} as Record<string, unknown>);
+    const schoolRows =
+      (Array.isArray(student?.['schools']) ? student['schools'] : null) ||
+      (Array.isArray(student?.['schoolRecords']) ? student['schoolRecords'] : null) ||
+      (Array.isArray(student?.['highSchools']) ? student['highSchools'] : null) ||
+      (Array.isArray(profileNode['schools']) ? profileNode['schools'] : null) ||
+      (Array.isArray(profileNode['schoolRecords']) ? profileNode['schoolRecords'] : null) ||
+      (Array.isArray(profileNode['highSchools']) ? profileNode['highSchools'] : null) ||
+      [];
+
+    const currentSchoolCandidate =
+      schoolRows.find((value) => {
+        if (!value || typeof value !== 'object') return false;
+        const schoolType = String((value as Record<string, unknown>)['schoolType'] || '')
+          .trim()
+          .toUpperCase();
+        return schoolType === 'MAIN';
+      }) || schoolRows[0];
+
+    const currentSchool =
+      currentSchoolCandidate && typeof currentSchoolCandidate === 'object'
+        ? (currentSchoolCandidate as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNode =
+      currentSchool['school'] && typeof currentSchool['school'] === 'object'
+        ? (currentSchool['school'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolAddress =
+      currentSchool['address'] && typeof currentSchool['address'] === 'object'
+        ? (currentSchool['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const schoolNodeAddress =
+      schoolNode['address'] && typeof schoolNode['address'] === 'object'
+        ? (schoolNode['address'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    return {
+      profileNode,
+      currentSchool,
+      schoolNode,
+      schoolAddress,
+      schoolNodeAddress,
+    };
+  }
+
+  private resolveCurrentSchoolNameValue(student: StudentAccount): string {
+    const { profileNode, currentSchool, schoolNode } = this.resolveStudentSchoolContext(student);
+    return this.pickFirstText([
+      student?.['currentSchoolName'],
+      student?.['schoolName'],
+      student?.['school'],
+      profileNode['currentSchoolName'],
+      profileNode['schoolName'],
+      profileNode['school'],
+      currentSchool['schoolName'],
+      currentSchool['name'],
+      schoolNode['schoolName'],
+      schoolNode['name'],
+    ]);
+  }
+
+  private resolveIdentityInCanadaValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    return this.pickFirstText([
+      student?.['identityInCanada'],
+      student?.['statusInCanada'],
+      student?.['canadaIdentity'],
+      student?.['canadianStatus'],
+      student?.['immigrationStatus'],
+      student?.['visaStatus'],
+      student?.['studyPermitStatus'],
+      profile?.['identityInCanada'],
+      profile?.['statusInCanada'],
+      profile?.['canadaIdentity'],
+      profile?.['canadianStatus'],
+      profile?.['immigrationStatus'],
+      profile?.['visaStatus'],
+      profile?.['studyPermitStatus'],
+    ]);
+  }
+
+  private resolveGenderValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    return this.pickFirstText([
+      student?.['gender'],
+      student?.['sex'],
+      profile?.['gender'],
+      profile?.['sex'],
+    ]);
+  }
+
+  private resolveNationalityValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    return this.pickFirstText([
+      student?.['nationality'],
+      student?.['citizenship'],
+      student?.['countryOfNationality'],
+      profile?.['nationality'],
+      profile?.['citizenship'],
+      profile?.['countryOfNationality'],
+    ]);
+  }
+
+  private resolveFirstLanguageValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    return this.pickFirstText([
+      student?.['firstLanguage'],
+      student?.['primaryLanguage'],
+      student?.['nativeLanguage'],
+      student?.['motherTongue'],
+      profile?.['firstLanguage'],
+      profile?.['primaryLanguage'],
+      profile?.['nativeLanguage'],
+      profile?.['motherTongue'],
+    ]);
   }
 
   private resolveStudentEmailValue(student: StudentAccount): string {
