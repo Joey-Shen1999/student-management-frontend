@@ -33,325 +33,59 @@
         </div>
 
         <div class="create-body">
-          <div class="student-toggle-row">
-            <button
-              type="button"
-              class="toggle-btn sub"
-              (click)="toggleStudentPanel()"
-              [attr.aria-expanded]="studentPanelExpanded"
-            >
-              <span>选择学生（已选 {{ selectedCreateStudentCount }} 人）</span>
-              <span class="toggle-symbol">toggle</span>
-            </button>
-          </div>
-
-          <div *ngIf="studentPanelExpanded" class="student-panel">
-            <div class="tools" [class.student-filters-collapsed]="!studentFilterExpanded">
-              <button
-                type="button"
-                class="toggle-btn sub student-filter-toggle"
-                (click)="toggleStudentFilterPanel()"
-                [attr.aria-expanded]="studentFilterExpanded"
-                [disabled]="studentsLoading || creating"
-              >
-                <span>{{ studentFilterExpanded ? '收起筛选' : '展开筛选' }}</span>
-                <span class="toggle-symbol">toggle</span>
-              </button>
-
-              <button
-                type="button"
-                (click)="refreshAssignableStudents()"
-                [disabled]="studentsLoading || creating"
-              >
-                {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
-              </button>
-
-              <label class="student-filter-item">
-                国家
-                <input
-                  [(ngModel)]="createCountryFilterInput"
-                  (ngModelChange)="onCountryFilterInputChange($event)"
-                  name="createCountryFilter"
-                  list="createCountryFilterOptions"
-                  placeholder="All"
-                  [disabled]="studentsLoading || creating"
-                />
-                <datalist id="createCountryFilterOptions">
-                  <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
-                </datalist>
-              </label>
-
-              <label class="student-filter-item">
-                省份
-                <input
-                  [(ngModel)]="createProvinceFilterInput"
-                  (ngModelChange)="onProvinceFilterInputChange($event)"
-                  name="createProvinceFilter"
-                  list="createProvinceFilterOptions"
-                  placeholder="All"
-                  [disabled]="studentsLoading || creating"
-                />
-                <datalist id="createProvinceFilterOptions">
-                  <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
-                </datalist>
-              </label>
-
-              <label class="student-filter-item">
-                城市
-                <input
-                  [(ngModel)]="createCityFilterInput"
-                  (ngModelChange)="onCityFilterInputChange($event)"
-                  name="createCityFilter"
-                  list="createCityFilterOptions"
-                  placeholder="All"
-                  [disabled]="studentsLoading || creating"
-                />
-                <datalist id="createCityFilterOptions">
-                  <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
-                </datalist>
-              </label>
-
-              <label class="student-filter-item">
-                所属教育局
-                <input
-                  [(ngModel)]="createSchoolBoardFilterInput"
-                  (ngModelChange)="onSchoolBoardFilterInputChange($event)"
-                  name="createSchoolBoardFilter"
-                  list="createSchoolBoardFilterOptions"
-                  placeholder="All"
-                  [disabled]="studentsLoading || creating"
-                />
-                <datalist id="createSchoolBoardFilterOptions">
-                  <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
-                </datalist>
-              </label>
-
-              <label class="student-filter-item">
-                毕业季
-                <input
-                  [(ngModel)]="createGraduationSeasonFilterInput"
-                  (ngModelChange)="onGraduationSeasonFilterInputChange($event)"
-                  name="createGraduationSeasonFilter"
-                  list="createGraduationSeasonFilterOptions"
-                  placeholder="All"
-                  [disabled]="studentsLoading || creating"
-                />
-                <datalist id="createGraduationSeasonFilterOptions">
-                  <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
-                </datalist>
-              </label>
-
-              <input
-                class="student-filter-item"
-                type="search"
-                [(ngModel)]="createStudentKeyword"
-                (ngModelChange)="onStudentKeywordChange()"
-                [disabled]="studentsLoading || creating"
-                placeholder="按 ID、姓名、邮箱、电话、学校等搜索"
-              />
-
-              <button
-                class="student-filter-item"
-                type="button"
-                (click)="resetStudentMetaFilters()"
-                [disabled]="studentsLoading || creating"
-              >
-                重置筛选
-              </button>
-
-              <label class="select-all-label">
-                <input
-                  type="checkbox"
-                  [checked]="areAllVisibleStudentsSelected()"
-                  [indeterminate]="isVisibleStudentSelectionPartial()"
-                  [disabled]="studentsLoading || creating || filteredCreateStudentOptions.length === 0"
-                  (change)="onToggleSelectAll($event)"
-                />
-                全选
-              </label>
-
-              <button
-                type="button"
-                (click)="toggleCreateStudentColumnPanel()"
-                [disabled]="studentsLoading || creating"
-              >
-                {{ createStudentColumnPanelExpanded ? '收起字段' : '字段显示' }}
-              </button>
-
-              <button
-                type="button"
-                (click)="resetCreateStudentVisibleColumns()"
-                [disabled]="studentsLoading || creating || isCreateStudentColumnSelectionAtDefault()"
-              >
-                恢复默认字段
-              </button>
-
-              <span class="selected-count">已选 {{ selectedCreateStudentCount }} 人</span>
-            </div>
-
-            <div *ngIf="createStudentColumnPanelExpanded" class="student-column-panel">
-              <label
-                *ngFor="let column of createStudentColumnToggleOptions; trackBy: trackCreateStudentColumn"
-                class="student-column-chip"
-                [title]="column.backendDependent ? '可能依赖学生详情接口字段' : ''"
-              >
-                <input
-                  type="checkbox"
-                  [checked]="isCreateStudentColumnVisible(column.key)"
-                  (change)="onCreateStudentColumnVisibilityChange(column.key, $event)"
-                  [disabled]="studentsLoading || creating || !column.hideable"
-                />
-                <span>{{ column.label }}</span>
-                <small *ngIf="!column.hideable">必选</small>
-              </label>
-            </div>
-
-            <section
-              *ngIf="selectedCreateStudentOptions.length > 0"
-              class="selected-students-panel"
-            >
-              <div class="selected-students-head">
-                <strong>已选学生（{{ selectedCreateStudentCount }}）</strong>
-                <button
-                  type="button"
-                  (click)="clearSelectedStudents()"
-                  [disabled]="creating"
-                >
-                  清空已选
-                </button>
-              </div>
-
-              <div class="selected-table-wrap">
-                <table class="student-table selected-student-table">
-                  <thead>
-                    <tr>
-                      <th class="select-col">选择</th>
-                      <th *ngFor="let column of visibleCreateStudentColumns; trackBy: trackCreateStudentColumn">
-                        {{ column.label }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      *ngFor="let student of selectedCreateStudentOptions; trackBy: trackStudent"
-                      [class.row-selected]="isCreateStudentSelected(student.studentId)"
-                      [class.row-disabled]="!isCreateStudentSelectableRow(student)"
-                    >
-                      <td class="select-col">
-                        <input
-                          type="checkbox"
-                          [checked]="isCreateStudentSelected(student.studentId)"
-                          [disabled]="creating || !isCreateStudentSelectableRow(student)"
-                          (change)="onCreateStudentCheckboxChange(student.studentId, $event)"
-                        />
-                      </td>
-
-                      <td *ngFor="let column of visibleCreateStudentColumns; trackBy: trackCreateStudentColumn">
-                        <ng-container [ngSwitch]="column.key">
-                          <ng-container *ngSwitchCase="'name'">
-                            <div class="selected-name-cell">
-                              <span>{{ resolveCreateStudentColumnValue(student, column.key) }}</span>
-                              <span
-                                *ngIf="isSelectedStudentOutOfCurrentFilter(student)"
-                                class="filter-badge"
-                              >
-                                未命中当前筛选
-                              </span>
-                            </div>
-                          </ng-container>
-
-                          <ng-container *ngSwitchCase="'teacherNote'">
-                            <div class="teacher-note-cell">
-                              <textarea
-                                class="teacher-note-inline-textarea"
-                                [ngModel]="detailTeacherNote(student.studentId)"
-                                (focus)="onTeacherNoteCellFocus(student.studentId)"
-                                (ngModelChange)="onTeacherNoteCellChange(student.studentId, $event)"
-                                (blur)="onTeacherNoteCellBlur(student.studentId)"
-                                rows="1"
-                                [disabled]="creating || isTeacherNoteSaving(student.studentId)"
-                                placeholder="输入教师内部备注"
-                              ></textarea>
-                            </div>
-                          </ng-container>
-
-                          <ng-container *ngSwitchDefault>
-                            {{ resolveCreateStudentColumnValue(student, column.key) }}
-                          </ng-container>
-                        </ng-container>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <div *ngIf="studentsError" class="error-text">{{ studentsError }}</div>
-            <div *ngIf="studentsLoading" class="state-text">正在加载可选学生...</div>
-            <div class="list-section-title">筛选结果（{{ filteredCreateStudentOptions.length }}）</div>
-
-            <div
-              *ngIf="!studentsLoading && !studentsError && filteredCreateStudentOptions.length === 0"
-              class="state-text"
-            >
-              没有符合筛选条件的学生。
-            </div>
-
-            <div
-              *ngIf="!studentsLoading && !studentsError && filteredCreateStudentOptions.length > 0"
-              class="table-wrap"
-            >
-              <table class="student-table">
-                <thead>
-                  <tr>
-                    <th class="select-col">选择</th>
-                    <th *ngFor="let column of visibleCreateStudentColumns; trackBy: trackCreateStudentColumn">
-                      {{ column.label }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    *ngFor="let student of filteredCreateStudentOptions; trackBy: trackStudent"
-                    [class.row-selected]="isCreateStudentSelected(student.studentId)"
-                    [class.row-disabled]="!isCreateStudentSelectableRow(student)"
-                  >
-                    <td class="select-col">
-                      <input
-                        type="checkbox"
-                        [checked]="isCreateStudentSelected(student.studentId)"
-                        [disabled]="creating || !isCreateStudentSelectableRow(student)"
-                        (change)="onCreateStudentCheckboxChange(student.studentId, $event)"
-                      />
-                    </td>
-
-                    <td *ngFor="let column of visibleCreateStudentColumns; trackBy: trackCreateStudentColumn">
-                      <ng-container [ngSwitch]="column.key">
-                        <ng-container *ngSwitchCase="'teacherNote'">
-                          <div class="teacher-note-cell">
-                            <textarea
-                              class="teacher-note-inline-textarea"
-                              [ngModel]="detailTeacherNote(student.studentId)"
-                              (focus)="onTeacherNoteCellFocus(student.studentId)"
-                              (ngModelChange)="onTeacherNoteCellChange(student.studentId, $event)"
-                              (blur)="onTeacherNoteCellBlur(student.studentId)"
-                              rows="1"
-                              [disabled]="creating || isTeacherNoteSaving(student.studentId)"
-                              placeholder="输入教师内部备注"
-                            ></textarea>
-                          </div>
-                        </ng-container>
-
-                        <ng-container *ngSwitchDefault>
-                          {{ resolveCreateStudentColumnValue(student, column.key) }}
-                        </ng-container>
-                      </ng-container>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <app-student-selector-panel
+            [disabled]="creating"
+            [panelExpanded]="studentPanelExpanded"
+            [filterExpanded]="studentFilterExpanded"
+            [columnPanelExpanded]="createStudentColumnPanelExpanded"
+            [studentsLoading]="studentsLoading"
+            [studentsError]="studentsError"
+            [selectedCount]="selectedCreateStudentCount"
+            [filteredStudents]="filteredCreateStudentOptions"
+            [selectedStudents]="selectedCreateStudentOptions"
+            [countryFilterOptions]="countryFilterOptions"
+            [provinceFilterOptions]="provinceFilterOptions"
+            [cityFilterOptions]="cityFilterOptions"
+            [schoolBoardFilterOptions]="schoolBoardFilterOptions"
+            [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
+            [countryFilterInput]="createCountryFilterInput"
+            [provinceFilterInput]="createProvinceFilterInput"
+            [cityFilterInput]="createCityFilterInput"
+            [schoolBoardFilterInput]="createSchoolBoardFilterInput"
+            [graduationSeasonFilterInput]="createGraduationSeasonFilterInput"
+            [studentKeyword]="createStudentKeyword"
+            [visibleColumns]="visibleCreateStudentColumns"
+            [columnToggleOptions]="createStudentColumnToggleOptions"
+            [isAllVisibleSelected]="areAllVisibleStudentsSelected()"
+            [isVisibleSelectionPartial]="isVisibleStudentSelectionPartial()"
+            [isColumnSelectionAtDefault]="isCreateStudentColumnSelectionAtDefault()"
+            [isStudentSelected]="isCreateStudentSelectedRef"
+            [isStudentOutOfCurrentFilter]="isSelectedStudentOutOfCurrentFilterRef"
+            [isStudentSelectable]="isCreateStudentSelectableRowRef"
+            [isColumnVisible]="isCreateStudentColumnVisibleRef"
+            [resolveColumnValue]="resolveCreateStudentColumnValueRef"
+            [detailTeacherNote]="detailTeacherNoteRef"
+            [isTeacherNoteSaving]="isTeacherNoteSavingRef"
+            (panelToggle)="toggleStudentPanel()"
+            (filterPanelToggle)="toggleStudentFilterPanel()"
+            (columnPanelToggle)="toggleCreateStudentColumnPanel()"
+            (refreshStudents)="refreshAssignableStudents()"
+            (resetFilters)="resetStudentMetaFilters()"
+            (resetColumns)="resetCreateStudentVisibleColumns()"
+            (clearSelected)="clearSelectedStudents()"
+            (countryFilterInputChange)="onCountryFilterInputChange($event)"
+            (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
+            (cityFilterInputChange)="onCityFilterInputChange($event)"
+            (schoolBoardFilterInputChange)="onSchoolBoardFilterInputChange($event)"
+            (graduationSeasonFilterInputChange)="onGraduationSeasonFilterInputChange($event)"
+            (studentKeywordChange)="onStudentKeywordChange($event)"
+            (selectAllToggle)="onToggleSelectAll($event)"
+            (studentSelectionChange)="onCreateStudentCheckboxChange($event.studentId, $event.checked)"
+            (columnVisibilityChange)="onCreateStudentColumnVisibilityChange($event.key, $event.checked)"
+            (teacherNoteFocus)="onTeacherNoteCellFocus($event)"
+            (teacherNoteChange)="onTeacherNoteCellChange($event.studentId, $event.value)"
+            (teacherNoteBlur)="onTeacherNoteCellBlur($event)"
+          ></app-student-selector-panel>
 
           <div class="form">
             <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="Goal 标题" />

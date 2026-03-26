@@ -1,4 +1,4 @@
-import type { ColumnVisibilityConfig } from './student-column-visibility.util';
+import type { StudentSelectorColumnConfig } from '../student-selector/student-selector.types';
 
 export type GoalStudentSelectorColumnKey =
   | 'name'
@@ -18,11 +18,8 @@ export type GoalStudentSelectorColumnKey =
   | 'status'
   | 'selectable';
 
-export interface GoalStudentSelectorColumnConfig
-  extends ColumnVisibilityConfig<GoalStudentSelectorColumnKey> {
-  label: string;
-  backendDependent: boolean;
-}
+export type GoalStudentSelectorColumnConfig =
+  StudentSelectorColumnConfig<GoalStudentSelectorColumnKey>;
 
 export const GOAL_STUDENT_SELECTOR_COLUMNS: readonly GoalStudentSelectorColumnConfig[] = [
   {

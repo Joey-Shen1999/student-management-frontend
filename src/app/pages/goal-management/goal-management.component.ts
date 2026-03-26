@@ -30,6 +30,7 @@ import {
   buildDefaultVisibleColumnKeys,
   normalizeVisibleColumnKeys,
 } from '../../shared/student-columns/student-column-visibility.util';
+import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
 
 interface StudentDetailVm {
   email: string;
@@ -380,7 +381,7 @@ const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v1';
 @Component({
   selector: 'app-goal-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, StudentSelectorPanelComponent],
   templateUrl: './goal-management.component.html',
   styleUrl: './goal-management.component.scss',
 })
@@ -514,6 +515,29 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     _index: number,
     column: GoalStudentSelectorColumnConfig
   ): GoalStudentSelectorColumnKey => column.key;
+  readonly isCreateStudentSelectedRef = (studentId: number): boolean =>
+    this.isCreateStudentSelected(studentId);
+  readonly isSelectedStudentOutOfCurrentFilterRef = (
+    student: AssignableStudentOptionVm
+  ): boolean => this.isSelectedStudentOutOfCurrentFilter(student);
+  readonly isCreateStudentSelectableRowRef = (student: AssignableStudentOptionVm): boolean =>
+    this.isCreateStudentSelectableRow(student);
+  readonly isCreateStudentColumnVisibleRef = (
+    columnKey: string
+  ): boolean => {
+    const normalizedKey = this.asCreateStudentColumnKey(columnKey);
+    return normalizedKey ? this.isCreateStudentColumnVisible(normalizedKey) : false;
+  };
+  readonly resolveCreateStudentColumnValueRef = (
+    student: AssignableStudentOptionVm,
+    columnKey: string
+  ): string => {
+    const normalizedKey = this.asCreateStudentColumnKey(columnKey);
+    return normalizedKey ? this.resolveCreateStudentColumnValue(student, normalizedKey) : '-';
+  };
+  readonly detailTeacherNoteRef = (studentId: number): string => this.detailTeacherNote(studentId);
+  readonly isTeacherNoteSavingRef = (studentId: number): boolean =>
+    this.isTeacherNoteSaving(studentId);
 
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
   openCreatePanel(): void { this.createPanelExpanded = true; }
@@ -543,20 +567,29 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   toggleCreateStudentColumnPanel(): void {
     this.createStudentColumnPanelExpanded = !this.createStudentColumnPanelExpanded;
   }
+  private findCreateStudentColumnConfig(columnKey: string): GoalStudentSelectorColumnConfig | null {
+    return this.createStudentColumns.find((column) => column.key === columnKey) ?? null;
+  }
+  private asCreateStudentColumnKey(columnKey: string): GoalStudentSelectorColumnKey | null {
+    return this.findCreateStudentColumnConfig(columnKey)?.key ?? null;
+  }
   isCreateStudentColumnVisible(columnKey: GoalStudentSelectorColumnKey): boolean {
     return this.visibleCreateStudentColumnKeys.has(columnKey);
   }
   onCreateStudentColumnVisibilityChange(
-    columnKey: GoalStudentSelectorColumnKey,
-    event: Event
+    columnKey: string,
+    event: Event | boolean
   ): void {
-    const config = this.createStudentColumns.find((column) => column.key === columnKey);
+    const config = this.findCreateStudentColumnConfig(columnKey);
     if (!config || !config.hideable) return;
 
-    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
     const next = new Set(this.visibleCreateStudentColumnKeys);
-    if (checked) next.add(columnKey);
-    else next.delete(columnKey);
+    if (checked) next.add(config.key);
+    else next.delete(config.key);
 
     for (const requiredColumn of this.createStudentColumns) {
       if (!requiredColumn.hideable) {
@@ -589,7 +622,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
     return true;
   }
-  onStudentKeywordChange(): void { this.loadMissingProfilesForVisibleRows(); }
+  onStudentKeywordChange(value?: string): void {
+    if (typeof value === 'string') {
+      this.createStudentKeyword = value;
+    }
+    this.loadMissingProfilesForVisibleRows();
+  }
   onCountryFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.createCountryFilterInput = input;
@@ -667,10 +705,15 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createSuccess = '';
   }
 
-  onCreateStudentCheckboxChange(studentId: number, event: Event): void {
-    event.stopPropagation();
+  onCreateStudentCheckboxChange(studentId: number, event: Event | boolean): void {
+    if (typeof event !== 'boolean') {
+      event.stopPropagation();
+    }
     if (this.creating) return;
-    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
     if (checked && !this.isCreateStudentSelectable(studentId)) {
       return;
     }
@@ -686,9 +729,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.selectedCreateStudentIds.clear();
   }
 
-  onToggleSelectAll(event: Event): void {
+  onToggleSelectAll(event: Event | boolean): void {
     if (this.creating) return;
-    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
     for (const row of this.filteredCreateStudentOptions) {
       if (!this.isCreateStudentSelectable(row.studentId)) {
         this.selectedCreateStudentIds.delete(row.studentId);

@@ -1,0 +1,319 @@
+<div class="student-toggle-row">
+  <button
+    type="button"
+    class="toggle-btn sub"
+    (click)="panelToggle.emit()"
+    [attr.aria-expanded]="panelExpanded"
+  >
+    <span>选择学生（已选 {{ selectedCount }} 人）</span>
+    <span class="toggle-symbol">toggle</span>
+  </button>
+</div>
+
+<div *ngIf="panelExpanded" class="student-panel">
+  <div class="tools" [class.student-filters-collapsed]="!filterExpanded">
+    <button
+      type="button"
+      class="toggle-btn sub student-filter-toggle"
+      (click)="filterPanelToggle.emit()"
+      [attr.aria-expanded]="filterExpanded"
+      [disabled]="studentsLoading || disabled"
+    >
+      <span>{{ filterExpanded ? '收起筛选' : '展开筛选' }}</span>
+      <span class="toggle-symbol">toggle</span>
+    </button>
+
+    <button
+      type="button"
+      (click)="refreshStudents.emit()"
+      [disabled]="studentsLoading || disabled"
+    >
+      {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
+    </button>
+
+    <label class="student-filter-item">
+      国家
+      <input
+        [ngModel]="countryFilterInput"
+        (ngModelChange)="countryFilterInputChange.emit($event)"
+        [name]="idPrefix + '-country-filter'"
+        [attr.list]="idPrefix + '-country-options'"
+        placeholder="All"
+        [disabled]="studentsLoading || disabled"
+      />
+      <datalist [attr.id]="idPrefix + '-country-options'">
+        <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
+      </datalist>
+    </label>
+
+    <label class="student-filter-item">
+      省份
+      <input
+        [ngModel]="provinceFilterInput"
+        (ngModelChange)="provinceFilterInputChange.emit($event)"
+        [name]="idPrefix + '-province-filter'"
+        [attr.list]="idPrefix + '-province-options'"
+        placeholder="All"
+        [disabled]="studentsLoading || disabled"
+      />
+      <datalist [attr.id]="idPrefix + '-province-options'">
+        <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
+      </datalist>
+    </label>
+
+    <label class="student-filter-item">
+      城市
+      <input
+        [ngModel]="cityFilterInput"
+        (ngModelChange)="cityFilterInputChange.emit($event)"
+        [name]="idPrefix + '-city-filter'"
+        [attr.list]="idPrefix + '-city-options'"
+        placeholder="All"
+        [disabled]="studentsLoading || disabled"
+      />
+      <datalist [attr.id]="idPrefix + '-city-options'">
+        <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
+      </datalist>
+    </label>
+
+    <label class="student-filter-item">
+      所属教育局
+      <input
+        [ngModel]="schoolBoardFilterInput"
+        (ngModelChange)="schoolBoardFilterInputChange.emit($event)"
+        [name]="idPrefix + '-school-board-filter'"
+        [attr.list]="idPrefix + '-school-board-options'"
+        placeholder="All"
+        [disabled]="studentsLoading || disabled"
+      />
+      <datalist [attr.id]="idPrefix + '-school-board-options'">
+        <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
+      </datalist>
+    </label>
+
+    <label class="student-filter-item">
+      毕业季
+      <input
+        [ngModel]="graduationSeasonFilterInput"
+        (ngModelChange)="graduationSeasonFilterInputChange.emit($event)"
+        [name]="idPrefix + '-graduation-season-filter'"
+        [attr.list]="idPrefix + '-graduation-season-options'"
+        placeholder="All"
+        [disabled]="studentsLoading || disabled"
+      />
+      <datalist [attr.id]="idPrefix + '-graduation-season-options'">
+        <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
+      </datalist>
+    </label>
+
+    <input
+      class="student-filter-item"
+      type="search"
+      [ngModel]="studentKeyword"
+      (ngModelChange)="studentKeywordChange.emit($event)"
+      [disabled]="studentsLoading || disabled"
+      placeholder="按 ID、姓名、邮箱、电话、学校等搜索"
+    />
+
+    <button
+      class="student-filter-item"
+      type="button"
+      (click)="resetFilters.emit()"
+      [disabled]="studentsLoading || disabled"
+    >
+      重置筛选
+    </button>
+
+    <label class="select-all-label">
+      <input
+        type="checkbox"
+        [checked]="isAllVisibleSelected"
+        [indeterminate]="isVisibleSelectionPartial"
+        [disabled]="studentsLoading || disabled || filteredStudents.length === 0"
+        (change)="onSelectAllChange($event)"
+      />
+      全选
+    </label>
+
+    <button
+      type="button"
+      (click)="columnPanelToggle.emit()"
+      [disabled]="studentsLoading || disabled"
+    >
+      {{ columnPanelExpanded ? '收起字段' : '字段显示' }}
+    </button>
+
+    <button
+      type="button"
+      (click)="resetColumns.emit()"
+      [disabled]="studentsLoading || disabled || isColumnSelectionAtDefault"
+    >
+      恢复默认字段
+    </button>
+
+    <span class="selected-count">已选 {{ selectedCount }} 人</span>
+  </div>
+
+  <div *ngIf="columnPanelExpanded" class="student-column-panel">
+    <label
+      *ngFor="let column of columnToggleOptions; trackBy: trackColumn"
+      class="student-column-chip"
+      [title]="column.backendDependent ? '可能依赖学生详情接口字段' : ''"
+    >
+      <input
+        type="checkbox"
+        [checked]="isColumnVisible(column.key)"
+        (change)="onColumnVisibilityChange(column.key, $event)"
+        [disabled]="studentsLoading || disabled || !column.hideable"
+      />
+      <span>{{ column.label }}</span>
+      <small *ngIf="!column.hideable">必选</small>
+    </label>
+  </div>
+
+  <section
+    *ngIf="selectedStudents.length > 0"
+    class="selected-students-panel"
+  >
+    <div class="selected-students-head">
+      <strong>已选学生（{{ selectedCount }}）</strong>
+      <button
+        type="button"
+        (click)="clearSelected.emit()"
+        [disabled]="disabled"
+      >
+        清空已选
+      </button>
+    </div>
+
+    <div class="selected-table-wrap">
+      <table class="student-table selected-student-table">
+        <thead>
+          <tr>
+            <th class="select-col">选择</th>
+            <th *ngFor="let column of visibleColumns; trackBy: trackColumn">
+              {{ column.label }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            *ngFor="let student of selectedStudents; trackBy: trackStudent"
+            [class.row-selected]="isStudentSelected(student.studentId)"
+            [class.row-disabled]="!isStudentSelectable(student)"
+          >
+            <td class="select-col">
+              <input
+                type="checkbox"
+                [checked]="isStudentSelected(student.studentId)"
+                [disabled]="disabled || !isStudentSelectable(student)"
+                (change)="onStudentSelectionChange(student.studentId, $event)"
+              />
+            </td>
+
+            <td *ngFor="let column of visibleColumns; trackBy: trackColumn">
+              <ng-container [ngSwitch]="column.key">
+                <ng-container *ngSwitchCase="'name'">
+                  <div class="selected-name-cell">
+                    <span>{{ resolveColumnValue(student, column.key) }}</span>
+                    <span
+                      *ngIf="isStudentOutOfCurrentFilter(student)"
+                      class="filter-badge"
+                    >
+                      未命中当前筛选
+                    </span>
+                  </div>
+                </ng-container>
+
+                <ng-container *ngSwitchCase="'teacherNote'">
+                  <div class="teacher-note-cell">
+                    <textarea
+                      class="teacher-note-inline-textarea"
+                      [ngModel]="detailTeacherNote(student.studentId)"
+                      (focus)="teacherNoteFocus.emit(student.studentId)"
+                      (ngModelChange)="teacherNoteChange.emit({ studentId: student.studentId, value: $event })"
+                      (blur)="teacherNoteBlur.emit(student.studentId)"
+                      rows="1"
+                      [disabled]="disabled || isTeacherNoteSaving(student.studentId)"
+                      placeholder="输入教师内部备注"
+                    ></textarea>
+                  </div>
+                </ng-container>
+
+                <ng-container *ngSwitchDefault>
+                  {{ resolveColumnValue(student, column.key) }}
+                </ng-container>
+              </ng-container>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div *ngIf="studentsError" class="error-text">{{ studentsError }}</div>
+  <div *ngIf="studentsLoading" class="state-text">正在加载可选学生...</div>
+  <div class="list-section-title">筛选结果（{{ filteredStudents.length }}）</div>
+
+  <div
+    *ngIf="!studentsLoading && !studentsError && filteredStudents.length === 0"
+    class="state-text"
+  >
+    没有符合筛选条件的学生。
+  </div>
+
+  <div
+    *ngIf="!studentsLoading && !studentsError && filteredStudents.length > 0"
+    class="table-wrap"
+  >
+    <table class="student-table">
+      <thead>
+        <tr>
+          <th class="select-col">选择</th>
+          <th *ngFor="let column of visibleColumns; trackBy: trackColumn">
+            {{ column.label }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          *ngFor="let student of filteredStudents; trackBy: trackStudent"
+          [class.row-selected]="isStudentSelected(student.studentId)"
+          [class.row-disabled]="!isStudentSelectable(student)"
+        >
+          <td class="select-col">
+            <input
+              type="checkbox"
+              [checked]="isStudentSelected(student.studentId)"
+              [disabled]="disabled || !isStudentSelectable(student)"
+              (change)="onStudentSelectionChange(student.studentId, $event)"
+            />
+          </td>
+
+          <td *ngFor="let column of visibleColumns; trackBy: trackColumn">
+            <ng-container [ngSwitch]="column.key">
+              <ng-container *ngSwitchCase="'teacherNote'">
+                <div class="teacher-note-cell">
+                  <textarea
+                    class="teacher-note-inline-textarea"
+                    [ngModel]="detailTeacherNote(student.studentId)"
+                    (focus)="teacherNoteFocus.emit(student.studentId)"
+                    (ngModelChange)="teacherNoteChange.emit({ studentId: student.studentId, value: $event })"
+                    (blur)="teacherNoteBlur.emit(student.studentId)"
+                    rows="1"
+                    [disabled]="disabled || isTeacherNoteSaving(student.studentId)"
+                    placeholder="输入教师内部备注"
+                  ></textarea>
+                </div>
+              </ng-container>
+
+              <ng-container *ngSwitchDefault>
+                {{ resolveColumnValue(student, column.key) }}
+              </ng-container>
+            </ng-container>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
