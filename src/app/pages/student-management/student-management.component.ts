@@ -24,6 +24,10 @@ import {
 } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import {
+  buildDefaultVisibleColumnKeys as buildVisibleColumnDefaults,
+  normalizeVisibleColumnKeys as normalizeVisibleKeys,
+} from '../../shared/student-columns/student-column-visibility.util';
 
 interface PasswordResetResult {
   studentId: number;
@@ -2421,11 +2425,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private buildDefaultVisibleColumnKeys(): Set<StudentListColumnKey> {
-    return new Set<StudentListColumnKey>(
-      this.studentListColumns
-        .filter((column) => column.defaultVisible || !column.hideable)
-        .map((column) => column.key)
-    );
+    return buildVisibleColumnDefaults(this.studentListColumns);
   }
 
   private persistVisibleColumnsPreference(): void {
@@ -2476,20 +2476,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private normalizeVisibleColumnKeys(keys: readonly string[]): Set<StudentListColumnKey> {
-    const normalized = new Set<StudentListColumnKey>();
-    for (const key of keys) {
-      if (this.studentListColumns.some((column) => column.key === key)) {
-        normalized.add(key as StudentListColumnKey);
-      }
-    }
-
-    for (const column of this.studentListColumns) {
-      if (!column.hideable) {
-        normalized.add(column.key);
-      }
-    }
-
-    return normalized;
+    return normalizeVisibleKeys(this.studentListColumns, keys);
   }
 
   private loadVisibleColumnsPreferenceFromServer(): void {

@@ -12,6 +12,7 @@ import {
   type GoalTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
+import { AuthService } from '../../services/auth.service';
 import { type StudentAccount, StudentManagementService } from '../../services/student-management.service';
 import {
   EDUCATION_BOARD_LIBRARY_OPTIONS,
@@ -19,6 +20,16 @@ import {
   type StudentProfileResponse,
   StudentProfileService,
 } from '../../services/student-profile.service';
+import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import {
+  GOAL_STUDENT_SELECTOR_COLUMNS,
+  type GoalStudentSelectorColumnConfig,
+  type GoalStudentSelectorColumnKey,
+} from '../../shared/student-columns/goal-student-selector-columns';
+import {
+  buildDefaultVisibleColumnKeys,
+  normalizeVisibleColumnKeys,
+} from '../../shared/student-columns/student-column-visibility.util';
 
 interface StudentDetailVm {
   email: string;
@@ -26,10 +37,16 @@ interface StudentDetailVm {
   province: string;
   city: string;
   graduation: string;
+  schoolName: string;
+  canadaIdentity: string;
+  gender: string;
+  nationality: string;
+  firstLanguage: string;
   teacherNote: string;
   country: string;
   schoolBoard: string;
   graduationSeason: string;
+  status: 'ACTIVE' | 'ARCHIVED' | '';
 }
 
 type ProvinceFilterCountry = 'Canada' | 'China (mainland)' | 'United States';
@@ -354,6 +371,12 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
   ],
 };
 
+const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
+  'goal-management.create-goal.student-selector.visible-columns';
+const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY =
+  'goal-management.create-goal.student-selector-columns';
+const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v1';
+
 @Component({
   selector: 'app-goal-management',
   standalone: true,
@@ -362,6 +385,8 @@ const CITY_FILTER_OPTIONS_BY_COUNTRY: Record<ProvinceFilterCountry, readonly str
   styleUrl: './goal-management.component.scss',
 })
 export class GoalManagementComponent implements OnInit, OnDestroy {
+  readonly createStudentColumns: readonly GoalStudentSelectorColumnConfig[] =
+    GOAL_STUDENT_SELECTOR_COLUMNS;
   studentOptions: AssignableStudentOptionVm[] = [];
   studentsLoading = false;
   studentsError = '';
@@ -398,8 +423,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createPanelExpanded = false;
   studentPanelExpanded = false;
   studentFilterExpanded = false;
+  createStudentColumnPanelExpanded = false;
   createStudentKeyword = '';
   selectedCreateStudentIds = new Set<number>();
+  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> = buildDefaultVisibleColumnKeys(
+    this.createStudentColumns
+  );
   createTitle = '';
   createDescription = '';
   createDueAt = '';
@@ -415,11 +444,15 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     private taskCenter: TaskCenterService,
     private studentManagement: StudentManagementService,
     private studentProfile: StudentProfileService,
+    private auth: AuthService,
+    private teacherPreferenceApi: TeacherPreferenceService,
     private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.initializeCreateStudentVisibleColumns();
+    this.loadCreateStudentVisibleColumnsPreferenceFromServer();
     this.loadAssignableStudents();
     this.loadGoals();
   }
@@ -451,6 +484,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.selectedCreateStudentIds.size;
   }
 
+  get visibleCreateStudentColumns(): readonly GoalStudentSelectorColumnConfig[] {
+    return this.createStudentColumns.filter((column) =>
+      this.visibleCreateStudentColumnKeys.has(column.key)
+    );
+  }
+
+  get createStudentColumnToggleOptions(): readonly GoalStudentSelectorColumnConfig[] {
+    return this.createStudentColumns;
+  }
+
   get provinceFilterCountry(): ProvinceFilterCountry | '' {
     return this.resolveProvinceFilterCountry(this.createCountryFilter);
   }
@@ -467,6 +510,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.collectCityFilterOptions(this.cityFilterCountry);
   }
 
+  trackCreateStudentColumn = (
+    _index: number,
+    column: GoalStudentSelectorColumnConfig
+  ): GoalStudentSelectorColumnKey => column.key;
+
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
   openCreatePanel(): void { this.createPanelExpanded = true; }
   closeCreatePanel(): void {
@@ -474,6 +522,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createPanelExpanded = false;
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
   }
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
@@ -485,9 +534,61 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   toggleStudentPanel(): void {
     this.studentPanelExpanded = !this.studentPanelExpanded;
     if (this.studentPanelExpanded) this.loadMissingProfilesForVisibleRows();
-    else this.studentFilterExpanded = false;
+    else {
+      this.studentFilterExpanded = false;
+      this.createStudentColumnPanelExpanded = false;
+    }
   }
   toggleStudentFilterPanel(): void { this.studentFilterExpanded = !this.studentFilterExpanded; }
+  toggleCreateStudentColumnPanel(): void {
+    this.createStudentColumnPanelExpanded = !this.createStudentColumnPanelExpanded;
+  }
+  isCreateStudentColumnVisible(columnKey: GoalStudentSelectorColumnKey): boolean {
+    return this.visibleCreateStudentColumnKeys.has(columnKey);
+  }
+  onCreateStudentColumnVisibilityChange(
+    columnKey: GoalStudentSelectorColumnKey,
+    event: Event
+  ): void {
+    const config = this.createStudentColumns.find((column) => column.key === columnKey);
+    if (!config || !config.hideable) return;
+
+    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    const next = new Set(this.visibleCreateStudentColumnKeys);
+    if (checked) next.add(columnKey);
+    else next.delete(columnKey);
+
+    for (const requiredColumn of this.createStudentColumns) {
+      if (!requiredColumn.hideable) {
+        next.add(requiredColumn.key);
+      }
+    }
+
+    this.visibleCreateStudentColumnKeys = next;
+    this.persistCreateStudentVisibleColumnsPreference();
+    this.syncCreateStudentVisibleColumnsPreferenceToServer();
+    if (checked && config.backendDependent) {
+      this.loadMissingProfilesForVisibleRows();
+    }
+  }
+  resetCreateStudentVisibleColumns(): void {
+    this.visibleCreateStudentColumnKeys = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    this.persistCreateStudentVisibleColumnsPreference();
+    this.syncCreateStudentVisibleColumnsPreferenceToServer();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  isCreateStudentColumnSelectionAtDefault(): boolean {
+    const defaultSet = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    if (defaultSet.size !== this.visibleCreateStudentColumnKeys.size) {
+      return false;
+    }
+    for (const key of defaultSet.values()) {
+      if (!this.visibleCreateStudentColumnKeys.has(key)) {
+        return false;
+      }
+    }
+    return true;
+  }
   onStudentKeywordChange(): void { this.loadMissingProfilesForVisibleRows(); }
   onCountryFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
@@ -555,6 +656,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   resetCreateForm(): void {
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
     this.resetStudentMetaFilters();
     this.clearAllTeacherNoteAutoSaveTimers();
     this.selectedCreateStudentIds.clear();
@@ -569,8 +671,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     if (this.creating) return;
     const checked = (event.target as HTMLInputElement | null)?.checked === true;
-    if (checked) this.selectedCreateStudentIds.add(studentId);
-    else this.selectedCreateStudentIds.delete(studentId);
+    if (checked && !this.isCreateStudentSelectable(studentId)) {
+      return;
+    }
+    if (checked) {
+      this.selectedCreateStudentIds.add(studentId);
+    } else {
+      this.selectedCreateStudentIds.delete(studentId);
+    }
   }
 
   clearSelectedStudents(): void {
@@ -582,18 +690,29 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (this.creating) return;
     const checked = (event.target as HTMLInputElement | null)?.checked === true;
     for (const row of this.filteredCreateStudentOptions) {
-      if (checked) this.selectedCreateStudentIds.add(row.studentId);
-      else this.selectedCreateStudentIds.delete(row.studentId);
+      if (!this.isCreateStudentSelectable(row.studentId)) {
+        this.selectedCreateStudentIds.delete(row.studentId);
+        continue;
+      }
+      if (checked) {
+        this.selectedCreateStudentIds.add(row.studentId);
+      } else {
+        this.selectedCreateStudentIds.delete(row.studentId);
+      }
     }
   }
 
   isCreateStudentSelected(studentId: number): boolean { return this.selectedCreateStudentIds.has(studentId); }
   areAllVisibleStudentsSelected(): boolean {
-    const rows = this.filteredCreateStudentOptions;
+    const rows = this.filteredCreateStudentOptions.filter((row) =>
+      this.isCreateStudentSelectable(row.studentId)
+    );
     return rows.length > 0 && rows.every((row) => this.selectedCreateStudentIds.has(row.studentId));
   }
   isVisibleStudentSelectionPartial(): boolean {
-    const rows = this.filteredCreateStudentOptions;
+    const rows = this.filteredCreateStudentOptions.filter((row) =>
+      this.isCreateStudentSelectable(row.studentId)
+    );
     if (rows.length === 0) return false;
     const selectedCount = rows.filter((row) => this.selectedCreateStudentIds.has(row.studentId)).length;
     return selectedCount > 0 && selectedCount < rows.length;
@@ -602,10 +721,76 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return !this.matchesCreateStudentFilters(student, this.createStudentKeyword.trim().toLowerCase());
   }
 
-  detailCity(studentId: number): string { return this.studentDetails.get(studentId)?.city || '-'; }
-  detailSchoolBoard(studentId: number): string { return this.studentDetails.get(studentId)?.schoolBoard || '-'; }
+  detailEmail(studentId: number): string { return this.studentDetails.get(studentId)?.email || '-'; }
+  detailPhone(studentId: number): string { return this.studentDetails.get(studentId)?.phone || '-'; }
   detailGraduation(studentId: number): string { return this.studentDetails.get(studentId)?.graduation || '-'; }
+  detailSchoolName(studentId: number): string { return this.studentDetails.get(studentId)?.schoolName || '-'; }
+  detailCanadaIdentity(studentId: number): string {
+    return this.studentDetails.get(studentId)?.canadaIdentity || '-';
+  }
+  detailGender(studentId: number): string { return this.studentDetails.get(studentId)?.gender || '-'; }
+  detailNationality(studentId: number): string { return this.studentDetails.get(studentId)?.nationality || '-'; }
+  detailFirstLanguage(studentId: number): string {
+    return this.studentDetails.get(studentId)?.firstLanguage || '-';
+  }
+  detailSchoolBoard(studentId: number): string { return this.studentDetails.get(studentId)?.schoolBoard || '-'; }
+  detailCountry(studentId: number): string { return this.studentDetails.get(studentId)?.country || '-'; }
+  detailProvince(studentId: number): string { return this.studentDetails.get(studentId)?.province || '-'; }
+  detailCity(studentId: number): string { return this.studentDetails.get(studentId)?.city || '-'; }
+  detailStatus(studentId: number): string {
+    return this.resolveArchiveStatusLabel(this.studentDetails.get(studentId)?.status || '');
+  }
+  detailSelectable(studentId: number): string {
+    return this.isCreateStudentSelectable(studentId) ? 'Selectable' : 'Locked';
+  }
   detailTeacherNote(studentId: number): string { return this.studentDetails.get(studentId)?.teacherNote || ''; }
+  resolveCreateStudentColumnValue(
+    student: AssignableStudentOptionVm,
+    columnKey: GoalStudentSelectorColumnKey
+  ): string {
+    switch (columnKey) {
+      case 'name':
+        return student.studentName || '-';
+      case 'email':
+        return this.detailEmail(student.studentId);
+      case 'phone':
+        return this.detailPhone(student.studentId);
+      case 'graduation':
+        return this.detailGraduation(student.studentId);
+      case 'schoolName':
+        return this.detailSchoolName(student.studentId);
+      case 'canadaIdentity':
+        return this.detailCanadaIdentity(student.studentId);
+      case 'gender':
+        return this.detailGender(student.studentId);
+      case 'nationality':
+        return this.detailNationality(student.studentId);
+      case 'firstLanguage':
+        return this.detailFirstLanguage(student.studentId);
+      case 'schoolBoard':
+        return this.detailSchoolBoard(student.studentId);
+      case 'country':
+        return this.detailCountry(student.studentId);
+      case 'province':
+        return this.detailProvince(student.studentId);
+      case 'city':
+        return this.detailCity(student.studentId);
+      case 'status':
+        return this.detailStatus(student.studentId);
+      case 'selectable':
+        return this.detailSelectable(student.studentId);
+      default:
+        return '-';
+    }
+  }
+  isCreateStudentSelectable(studentId: number): boolean {
+    const detail = this.studentDetails.get(studentId);
+    if (!detail) return true;
+    return detail.status !== 'ARCHIVED';
+  }
+  isCreateStudentSelectableRow(student: AssignableStudentOptionVm): boolean {
+    return this.isCreateStudentSelectable(student.studentId);
+  }
   isTeacherNoteSaving(studentId: number): boolean { return this.teacherNoteSaveInFlight.has(studentId); }
 
   onTeacherNoteCellFocus(studentId: number): void {
@@ -625,7 +810,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   createGoal(): void {
     if (this.creating) return;
-    const selectedIds = Array.from(this.selectedCreateStudentIds.values()).sort((a, b) => a - b);
+    const selectedIds = Array.from(this.selectedCreateStudentIds.values())
+      .filter((studentId) => this.isCreateStudentSelectable(studentId))
+      .sort((a, b) => a - b);
     if (selectedIds.length === 0) {
       this.studentPanelExpanded = true;
       this.createError = '请至少选择 1 位学生。';
@@ -705,6 +892,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         if (studentId === null || !validIds.has(studentId)) continue;
         this.upsertDetail(studentId, this.buildFromAccount(account));
       }
+      this.pruneUnselectableSelectedStudents();
       this.rebuildMetaFilterOptions();
       this.cdr.detectChanges();
     });
@@ -718,9 +906,37 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
     const ids = Array.from(candidateIds).filter((studentId) => {
       const d = this.studentDetails.get(studentId);
-      const hasCore = !!(d && d.country && d.province && d.city && d.schoolBoard && d.graduation);
+      const hasCore = !!(
+        d &&
+        d.email &&
+        d.phone &&
+        d.country &&
+        d.province &&
+        d.city &&
+        d.schoolBoard &&
+        d.graduation
+      );
+      const hasExtended = !!(
+        d &&
+        d.schoolName &&
+        d.canadaIdentity &&
+        d.gender &&
+        d.nationality &&
+        d.firstLanguage
+      );
+      const needsExtended =
+        this.visibleCreateStudentColumnKeys.has('schoolName') ||
+        this.visibleCreateStudentColumnKeys.has('canadaIdentity') ||
+        this.visibleCreateStudentColumnKeys.has('gender') ||
+        this.visibleCreateStudentColumnKeys.has('nationality') ||
+        this.visibleCreateStudentColumnKeys.has('firstLanguage');
+      const needsTeacherNote = this.visibleCreateStudentColumnKeys.has('teacherNote');
       const hasProfileLoaded = this.teacherNoteProfileCache.has(studentId);
-      return !this.profileLoadInFlight.has(studentId) && !hasCore && !hasProfileLoaded;
+      return (
+        !this.profileLoadInFlight.has(studentId) &&
+        (!hasCore || (needsExtended && !hasExtended) || (needsTeacherNote && !hasProfileLoaded)) &&
+        !hasProfileLoaded
+      );
     });
     if (ids.length === 0) return;
 
@@ -740,6 +956,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.teacherNoteProfileCache.set(row.studentId, row.payload);
         this.upsertDetail(row.studentId, this.buildFromProfile(row.payload));
       }
+      this.pruneUnselectableSelectedStudents();
       this.rebuildMetaFilterOptions();
       this.cdr.detectChanges();
     });
@@ -788,6 +1005,27 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     for (const studentId of Array.from(this.studentDetails.keys())) if (!validIds.has(studentId)) this.studentDetails.delete(studentId);
   }
 
+  private pruneUnselectableSelectedStudents(): void {
+    this.selectedCreateStudentIds = new Set(
+      Array.from(this.selectedCreateStudentIds.values()).filter((studentId) =>
+        this.isCreateStudentSelectable(studentId)
+      )
+    );
+  }
+
+  private normalizeAccountStatus(value: unknown): 'ACTIVE' | 'ARCHIVED' | '' {
+    const status = String(value ?? '').trim().toUpperCase();
+    if (status === 'ACTIVE') return 'ACTIVE';
+    if (status === 'ARCHIVED') return 'ARCHIVED';
+    return '';
+  }
+
+  private resolveArchiveStatusLabel(status: 'ACTIVE' | 'ARCHIVED' | ''): string {
+    if (status === 'ACTIVE') return 'Active';
+    if (status === 'ARCHIVED') return 'Archived';
+    return 'Unknown';
+  }
+
   private upsertDetail(studentId: number, patch: Partial<StudentDetailVm>): void {
     const current = this.studentDetails.get(studentId) || {
       email: '',
@@ -795,10 +1033,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       province: '',
       city: '',
       graduation: '',
+      schoolName: '',
+      canadaIdentity: '',
+      gender: '',
+      nationality: '',
+      firstLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      status: '',
     };
     const graduation = patch.graduation?.trim() || current.graduation;
     const graduationSeason = patch.graduationSeason?.trim() || this.resolveGraduationSeason(graduation);
@@ -808,10 +1052,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       province: patch.province?.trim() || current.province,
       city: patch.city?.trim() || current.city,
       graduation,
+      schoolName: patch.schoolName?.trim() || current.schoolName,
+      canadaIdentity: patch.canadaIdentity?.trim() || current.canadaIdentity,
+      gender: patch.gender?.trim() || current.gender,
+      nationality: patch.nationality?.trim() || current.nationality,
+      firstLanguage: patch.firstLanguage?.trim() || current.firstLanguage,
       teacherNote: patch.teacherNote?.trim() || current.teacherNote,
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
       graduationSeason,
+      status: patch.status || current.status,
     });
   }
 
@@ -822,10 +1072,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       province: '',
       city: '',
       graduation: '',
+      schoolName: '',
+      canadaIdentity: '',
+      gender: '',
+      nationality: '',
+      firstLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      status: '',
     };
     this.studentDetails.set(studentId, {
       ...current,
@@ -851,10 +1107,52 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       ]),
       city: this.pick([student['currentSchoolCity'], student['schoolCity'], student['city'], profile['currentSchoolCity'], profile['city']]),
       graduation,
+      schoolName: this.pick([
+        student['currentSchoolName'],
+        student['schoolName'],
+        student['school'],
+        profile['currentSchoolName'],
+        profile['schoolName'],
+        profile['school'],
+      ]),
+      canadaIdentity: this.pick([
+        student['identityInCanada'],
+        student['statusInCanada'],
+        student['canadaIdentity'],
+        student['canadianStatus'],
+        student['immigrationStatus'],
+        student['visaStatus'],
+        student['studyPermitStatus'],
+        profile['identityInCanada'],
+        profile['statusInCanada'],
+        profile['canadaIdentity'],
+        profile['canadianStatus'],
+        profile['immigrationStatus'],
+        profile['visaStatus'],
+        profile['studyPermitStatus'],
+      ]),
+      gender: this.pick([student['gender'], student['sex'], profile['gender'], profile['sex']]),
+      nationality: this.pick([
+        student['nationality'],
+        student['citizenship'],
+        profile['nationality'],
+        profile['citizenship'],
+      ]),
+      firstLanguage: this.pick([
+        student['firstLanguage'],
+        student['primaryLanguage'],
+        student['nativeLanguage'],
+        student['motherTongue'],
+        profile['firstLanguage'],
+        profile['primaryLanguage'],
+        profile['nativeLanguage'],
+        profile['motherTongue'],
+      ]),
       teacherNote: this.pick([student['teacherNote'], student['teacherNotes'], profile['teacherNote']]),
       country: this.pick([student['currentSchoolCountry'], student['schoolCountry'], student['country'], profile['currentSchoolCountry'], profile['country']]),
       schoolBoard: this.pick([student['currentSchoolBoard'], student['schoolBoard'], student['educationBoard'], profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      status: this.normalizeAccountStatus(student.status),
     };
   }
 
@@ -878,10 +1176,53 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       ]),
       city: this.pick([profile['currentSchoolCity'], profile['city'], school['city'], root['currentSchoolCity']]),
       graduation,
+      schoolName: this.pick([
+        profile['currentSchoolName'],
+        profile['schoolName'],
+        profile['school'],
+        school['schoolName'],
+        school['name'],
+        root['currentSchoolName'],
+        root['schoolName'],
+      ]),
+      canadaIdentity: this.pick([
+        profile['identityInCanada'],
+        profile['statusInCanada'],
+        profile['canadaIdentity'],
+        profile['canadianStatus'],
+        profile['immigrationStatus'],
+        profile['visaStatus'],
+        profile['studyPermitStatus'],
+        root['identityInCanada'],
+        root['statusInCanada'],
+        root['canadaIdentity'],
+        root['canadianStatus'],
+        root['immigrationStatus'],
+        root['visaStatus'],
+        root['studyPermitStatus'],
+      ]),
+      gender: this.pick([profile['gender'], profile['sex'], root['gender'], root['sex']]),
+      nationality: this.pick([
+        profile['nationality'],
+        profile['citizenship'],
+        root['nationality'],
+        root['citizenship'],
+      ]),
+      firstLanguage: this.pick([
+        profile['firstLanguage'],
+        profile['primaryLanguage'],
+        profile['nativeLanguage'],
+        profile['motherTongue'],
+        root['firstLanguage'],
+        root['primaryLanguage'],
+        root['nativeLanguage'],
+        root['motherTongue'],
+      ]),
       teacherNote: this.pick([profile['teacherNote'], profile['teacherNotes'], root['teacherNote']]),
       country: this.pick([profile['currentSchoolCountry'], profile['country'], school['country'], root['currentSchoolCountry']]),
       schoolBoard: this.pick([profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard'], school['schoolBoard'], school['educationBoard'], root['currentSchoolBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      status: this.normalizeAccountStatus(root['status']),
     };
   }
 
@@ -1094,6 +1435,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       student.username || '',
       detail?.email || '',
       detail?.phone || '',
+      detail?.schoolName || '',
+      detail?.canadaIdentity || '',
+      detail?.gender || '',
+      detail?.nationality || '',
+      detail?.firstLanguage || '',
       detail?.province || '',
       detail?.city || '',
       detail?.graduation || '',
@@ -1101,6 +1447,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       detail?.country || '',
       detail?.schoolBoard || '',
       detail?.graduationSeason || '',
+      this.resolveArchiveStatusLabel(detail?.status || ''),
+      detail?.status || '',
+      this.isCreateStudentSelectable(student.studentId) ? 'selectable' : 'not selectable',
     ]
       .join(' ')
       .toLowerCase();
@@ -1194,6 +1543,98 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           this.setTeacherNote(studentId, noteText);
           this.cdr.detectChanges();
         },
+        error: () => {},
+      });
+  }
+
+  private initializeCreateStudentVisibleColumns(): void {
+    const defaults = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    const persisted = this.readCreateStudentVisibleColumnsPreference();
+    if (!persisted) {
+      this.visibleCreateStudentColumnKeys = defaults;
+      return;
+    }
+
+    const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, persisted);
+    this.visibleCreateStudentColumnKeys = normalized.size > 0 ? normalized : defaults;
+  }
+
+  private persistCreateStudentVisibleColumnsPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.setItem(
+        this.resolveCreateStudentVisibleColumnsStorageKey(),
+        JSON.stringify(Array.from(this.visibleCreateStudentColumnKeys.values()))
+      );
+    } catch {}
+  }
+
+  private readCreateStudentVisibleColumnsPreference(): string[] | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCreateStudentVisibleColumnsStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      return parsed.map((value) => String(value ?? '').trim()).filter(Boolean);
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCreateStudentVisibleColumnsStorageKey(): string {
+    const session = this.auth.getSession();
+    const teacherId = Number(session?.teacherId);
+    if (Number.isFinite(teacherId) && teacherId > 0) {
+      return `${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.teacher-${Math.trunc(teacherId)}.${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION}`;
+    }
+
+    const userId = this.auth.getCurrentUserId();
+    if (userId && userId > 0) {
+      return `${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.user-${Math.trunc(userId)}.${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION}`;
+    }
+
+    return `${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.anonymous.${GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION}`;
+  }
+
+  private loadCreateStudentVisibleColumnsPreferenceFromServer(): void {
+    const authorization = this.auth.getAuthorizationHeaderValue();
+    if (!authorization) return;
+
+    this.teacherPreferenceApi
+      .getPagePreference(GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY)
+      .subscribe({
+        next: (payload) => {
+          const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
+            ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
+            : [];
+          if (remoteKeys.length === 0) return;
+
+          const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, remoteKeys);
+          if (normalized.size === 0) return;
+
+          this.visibleCreateStudentColumnKeys = normalized;
+          this.persistCreateStudentVisibleColumnsPreference();
+          this.loadMissingProfilesForVisibleRows();
+          this.cdr.detectChanges();
+        },
+        error: () => {},
+      });
+  }
+
+  private syncCreateStudentVisibleColumnsPreferenceToServer(): void {
+    const authorization = this.auth.getAuthorizationHeaderValue();
+    if (!authorization) return;
+
+    this.teacherPreferenceApi
+      .upsertPagePreference(GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY, {
+        version: GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION,
+        visibleColumnKeys: Array.from(this.visibleCreateStudentColumnKeys.values()),
+      })
+      .subscribe({
+        next: () => {},
         error: () => {},
       });
   }

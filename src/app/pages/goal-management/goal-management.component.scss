@@ -163,6 +163,31 @@
   padding: 6px;
 }
 
+.student-column-panel {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 0 2px;
+  border-top: 1px dashed #d5deed;
+}
+
+.student-column-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid #d7e1f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #3d4b61;
+  font-size: 12px;
+}
+
+.student-column-chip small {
+  color: #7f8a9e;
+}
+
 .selected-count {
   margin-left: auto;
   color: #526176;
@@ -231,7 +256,7 @@
 
 .student-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 1200px;
   border-collapse: collapse;
 }
 
@@ -253,6 +278,11 @@
 
 .student-table tbody tr.row-selected {
   background: #edf4ff;
+}
+
+.student-table tbody tr.row-disabled {
+  background: #f7f8fb;
+  color: #8b95a7;
 }
 
 .select-col {
