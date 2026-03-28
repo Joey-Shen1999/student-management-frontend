@@ -13,26 +13,62 @@ import {
   TaskCenterService,
 } from '../../services/task-center.service';
 
+interface GoalTaskCardVm extends GoalTaskVm {
+  statusLabel: string;
+  statusClass: string;
+  dueAtLabel: string;
+  updatedAtLabel: string;
+  overdue: boolean;
+  canStart: boolean;
+  canComplete: boolean;
+  canReopen: boolean;
+}
+
+interface InfoTaskCardVm extends InfoTaskVm {
+  categoryLabel: string;
+  createdAtLabel: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="dashboard-page">
+    <div class="dashboard-page" (click)="closePersonalMenu()">
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
             <h2>Student Dashboard</h2>
             <p>Welcome {{ welcomeDisplayName }}</p>
           </div>
-          <button
-            type="button"
-            class="action-btn ghost signout-btn"
-            [disabled]="signingOut"
-            (click)="logout()"
-          >
-            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
-          </button>
+          <div class="header-actions">
+            <div class="profile-menu" (click)="$event.stopPropagation()">
+              <button
+                type="button"
+                class="action-btn ghost personal-btn"
+                (click)="togglePersonalMenu()"
+              >
+                {{ personalMenuLabel }}
+              </button>
+
+              <div class="profile-menu-panel" *ngIf="personalMenuOpen">
+                <button type="button" class="profile-menu-item" (click)="goAccountProfileFromMenu()">
+                  Name Settings
+                </button>
+                <button type="button" class="profile-menu-item" (click)="goAccountFromMenu()">
+                  Password change
+                </button>
+                <button
+                  type="button"
+                  class="profile-menu-item danger"
+                  [disabled]="signingOut"
+                  (click)="logoutFromMenu()"
+                >
+                  {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <section class="dashboard-card">
@@ -63,22 +99,22 @@ import {
             <article class="goal-item" *ngFor="let goal of goalItems; trackBy: trackGoal">
               <div class="goal-row">
                 <h4 class="goal-title">{{ goal.title }}</h4>
-                <span [class]="goalStatusClass(goal.status)">{{ goalStatusLabel(goal.status) }}</span>
+                <span [class]="goal.statusClass">{{ goal.statusLabel }}</span>
               </div>
 
               <p class="goal-desc">{{ goal.description }}</p>
 
               <div class="goal-meta">
-                <span>截止：{{ displayDueAt(goal) }}</span>
-                <span *ngIf="isOverdue(goal)" class="goal-overdue">已逾期</span>
-                <span>更新：{{ displayUpdatedAt(goal.updatedAt) }}</span>
+                <span>截止：{{ goal.dueAtLabel }}</span>
+                <span *ngIf="goal.overdue" class="goal-overdue">已逾期</span>
+                <span>更新：{{ goal.updatedAtLabel }}</span>
               </div>
 
               <div class="goal-actions">
                 <button
                   type="button"
                   class="action-btn secondary compact"
-                  *ngIf="canStart(goal)"
+                  *ngIf="goal.canStart"
                   (click)="startGoal(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
@@ -88,7 +124,7 @@ import {
                 <button
                   type="button"
                   class="action-btn primary compact"
-                  *ngIf="canComplete(goal)"
+                  *ngIf="goal.canComplete"
                   (click)="markGoalCompleted(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
@@ -98,7 +134,7 @@ import {
                 <button
                   type="button"
                   class="action-btn ghost compact"
-                  *ngIf="canReopen(goal)"
+                  *ngIf="goal.canReopen"
                   (click)="reopenGoal(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
@@ -167,7 +203,7 @@ import {
               <div class="info-head">
                 <h4>{{ info.title }}</h4>
                 <span [class]="'info-badge ' + info.category.toLowerCase()">
-                  {{ infoCategoryLabel(info.category) }}
+                  {{ info.categoryLabel }}
                 </span>
               </div>
 
@@ -178,7 +214,7 @@ import {
               </div>
 
               <div class="info-meta">
-                <span>发布时间：{{ displayUpdatedAt(info.createdAt) }}</span>
+                <span>发布时间：{{ info.createdAtLabel }}</span>
                 <span>发布老师：{{ info.publishedByTeacherName }}</span>
                 <span>覆盖学生：{{ info.targetStudentCount }}</span>
               </div>
@@ -201,12 +237,6 @@ import {
           <h3>Quick Actions</h3>
           <div class="quick-actions">
             <button type="button" class="action-btn primary" (click)="goProfile()">Student Profile</button>
-            <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
-              Name Settings
-            </button>
-            <button type="button" class="action-btn secondary" (click)="goAccount()">
-              Account Settings
-            </button>
           </div>
         </section>
       </div>
@@ -219,21 +249,27 @@ export class DashboardComponent implements OnInit {
 
   goalLoading = false;
   goalError = '';
-  goalItems: GoalTaskVm[] = [];
+  goalItems: GoalTaskCardVm[] = [];
   updatingGoalId: number | null = null;
 
   infoLoading = false;
   infoError = '';
-  infoItems: InfoTaskVm[] = [];
+  infoItems: InfoTaskCardVm[] = [];
   infoUpdatingId: number | null = null;
   infoCategoryFilter: InfoTaskCategory | 'ALL' = 'ALL';
   infoTagFilter = '';
   infoUnreadOnly = false;
   signingOut = false;
+  personalMenuOpen = false;
   welcomeNameOverride = '';
 
   private goalLoadWatchdog: number | null = null;
   private infoLoadWatchdog: number | null = null;
+  private infoTagDebounceTimer: number | null = null;
+  private goalRequestSeq = 0;
+  private infoRequestSeq = 0;
+  private rawGoalItems: GoalTaskVm[] = [];
+  private rawInfoItems: InfoTaskVm[] = [];
   private readonly welcomeNameTimeoutMs = 8000;
 
   constructor(
@@ -256,10 +292,20 @@ export class DashboardComponent implements OnInit {
     return 'Student';
   }
 
+  get personalMenuLabel(): string {
+    return 'Account';
+  }
+
   ngOnInit(): void {
     this.loadWelcomeNameIfNeeded();
     this.loadGoals();
     this.loadInfos();
+  }
+
+  ngOnDestroy(): void {
+    this.clearGoalLoadWatchdog();
+    this.clearInfoLoadWatchdog();
+    this.clearInfoTagDebounce();
   }
 
   goProfile() {
@@ -302,11 +348,22 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/account']);
   }
 
+  goAccountFromMenu(): void {
+    this.personalMenuOpen = false;
+    this.goAccount();
+  }
+
+  goAccountProfileFromMenu(): void {
+    this.personalMenuOpen = false;
+    this.goAccountProfile();
+  }
+
   refreshGoals(): void {
     this.loadGoals();
   }
 
   refreshInfos(): void {
+    this.clearInfoTagDebounce();
     this.loadInfos();
   }
 
@@ -316,16 +373,18 @@ export class DashboardComponent implements OnInit {
       normalized === 'ACTIVITY' || normalized === 'VOLUNTEER'
         ? (normalized as InfoTaskCategory)
         : 'ALL';
+    this.clearInfoTagDebounce();
     this.loadInfos();
   }
 
   onInfoTagInput(value: string): void {
     this.infoTagFilter = String(value || '');
-    this.loadInfos();
+    this.scheduleInfoReload();
   }
 
   toggleUnreadOnly(): void {
     this.infoUnreadOnly = !this.infoUnreadOnly;
+    this.clearInfoTagDebounce();
     this.loadInfos();
   }
 
@@ -358,7 +417,10 @@ export class DashboardComponent implements OnInit {
       )
       .subscribe({
         next: (updatedInfo) => {
-          this.infoItems = this.infoItems.map((row) => (row.id === updatedInfo.id ? updatedInfo : row));
+          this.rawInfoItems = this.rawInfoItems.map((row) =>
+            row.id === updatedInfo.id ? updatedInfo : row
+          );
+          this.infoItems = this.toInfoCards(this.rawInfoItems);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -368,26 +430,26 @@ export class DashboardComponent implements OnInit {
       });
   }
 
-  trackGoal = (_index: number, goal: GoalTaskVm): number => goal.id;
-  trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
+  trackGoal = (_index: number, goal: GoalTaskCardVm): number => goal.id;
+  trackInfo = (_index: number, info: InfoTaskCardVm): number => info.id;
 
-  goalStatusLabel(status: GoalTaskStatus): string {
+  private goalStatusLabel(status: GoalTaskStatus): string {
     if (status === 'NOT_STARTED') return '未开始';
     if (status === 'IN_PROGRESS') return '进行中';
     return '已完成';
   }
 
-  goalStatusClass(status: GoalTaskStatus): string {
+  private goalStatusClass(status: GoalTaskStatus): string {
     if (status === 'NOT_STARTED') return 'goal-status not-started';
     if (status === 'IN_PROGRESS') return 'goal-status in-progress';
     return 'goal-status completed';
   }
 
-  infoCategoryLabel(category: InfoTaskCategory): string {
+  private infoCategoryLabel(category: InfoTaskCategory): string {
     return category === 'VOLUNTEER' ? '义工' : '活动';
   }
 
-  displayDueAt(goal: GoalTaskVm): string {
+  private displayDueAt(goal: GoalTaskVm): string {
     if (!goal.dueAt) return '无截止日期';
 
     const timestamp = Date.parse(goal.dueAt);
@@ -398,7 +460,7 @@ export class DashboardComponent implements OnInit {
     return new Date(timestamp).toLocaleDateString();
   }
 
-  displayUpdatedAt(value: string): string {
+  private displayUpdatedAt(value: string): string {
     const timestamp = Date.parse(value);
     if (!Number.isFinite(timestamp)) {
       return value || '-';
@@ -407,7 +469,7 @@ export class DashboardComponent implements OnInit {
     return new Date(timestamp).toLocaleString();
   }
 
-  isOverdue(goal: GoalTaskVm): boolean {
+  private isOverdue(goal: GoalTaskVm): boolean {
     if (goal.status === 'COMPLETED' || !goal.dueAt) return false;
 
     const date = new Date(goal.dueAt);
@@ -417,16 +479,38 @@ export class DashboardComponent implements OnInit {
     return date.getTime() < Date.now();
   }
 
-  canStart(goal: GoalTaskVm): boolean {
+  private canStart(goal: GoalTaskVm): boolean {
     return goal.status === 'NOT_STARTED';
   }
 
-  canComplete(goal: GoalTaskVm): boolean {
+  private canComplete(goal: GoalTaskVm): boolean {
     return goal.status === 'IN_PROGRESS';
   }
 
-  canReopen(goal: GoalTaskVm): boolean {
+  private canReopen(goal: GoalTaskVm): boolean {
     return goal.status === 'COMPLETED';
+  }
+
+  private toGoalCards(items: GoalTaskVm[]): GoalTaskCardVm[] {
+    return items.map((goal) => ({
+      ...goal,
+      statusLabel: this.goalStatusLabel(goal.status),
+      statusClass: this.goalStatusClass(goal.status),
+      dueAtLabel: this.displayDueAt(goal),
+      updatedAtLabel: this.displayUpdatedAt(goal.updatedAt),
+      overdue: this.isOverdue(goal),
+      canStart: this.canStart(goal),
+      canComplete: this.canComplete(goal),
+      canReopen: this.canReopen(goal),
+    }));
+  }
+
+  private toInfoCards(items: InfoTaskVm[]): InfoTaskCardVm[] {
+    return items.map((info) => ({
+      ...info,
+      categoryLabel: this.infoCategoryLabel(info.category),
+      createdAtLabel: this.displayUpdatedAt(info.createdAt),
+    }));
   }
 
   logout() {
@@ -447,7 +531,21 @@ export class DashboardComponent implements OnInit {
       });
   }
 
+  logoutFromMenu(): void {
+    this.personalMenuOpen = false;
+    this.logout();
+  }
+
+  togglePersonalMenu(): void {
+    this.personalMenuOpen = !this.personalMenuOpen;
+  }
+
+  closePersonalMenu(): void {
+    this.personalMenuOpen = false;
+  }
+
   private loadGoals(): void {
+    const requestSeq = ++this.goalRequestSeq;
     this.goalLoading = true;
     this.goalError = '';
     this.startGoalLoadWatchdog();
@@ -457,6 +555,7 @@ export class DashboardComponent implements OnInit {
       .listMyGoals({ status: 'ALL', page: 1, size: 8 })
       .pipe(
         finalize(() => {
+          if (requestSeq !== this.goalRequestSeq) return;
           this.goalLoading = false;
           this.clearGoalLoadWatchdog();
           this.cdr.detectChanges();
@@ -464,11 +563,15 @@ export class DashboardComponent implements OnInit {
       )
       .subscribe({
         next: (resp) => {
-          this.goalItems = this.sortGoals(resp.items || []);
+          if (requestSeq !== this.goalRequestSeq) return;
+          this.rawGoalItems = this.sortGoals(resp.items || []);
+          this.goalItems = this.toGoalCards(this.rawGoalItems);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
+          if (requestSeq !== this.goalRequestSeq) return;
           this.goalError = this.extractErrorMessage(error) || '加载目标任务失败。';
+          this.rawGoalItems = [];
           this.goalItems = [];
           this.cdr.detectChanges();
         },
@@ -476,6 +579,7 @@ export class DashboardComponent implements OnInit {
   }
 
   private loadInfos(): void {
+    const requestSeq = ++this.infoRequestSeq;
     this.infoLoading = true;
     this.infoError = '';
     this.startInfoLoadWatchdog();
@@ -491,6 +595,7 @@ export class DashboardComponent implements OnInit {
       })
       .pipe(
         finalize(() => {
+          if (requestSeq !== this.infoRequestSeq) return;
           this.infoLoading = false;
           this.clearInfoLoadWatchdog();
           this.cdr.detectChanges();
@@ -498,15 +603,27 @@ export class DashboardComponent implements OnInit {
       )
       .subscribe({
         next: (resp) => {
-          this.infoItems = [...(resp.items || [])];
+          if (requestSeq !== this.infoRequestSeq) return;
+          this.rawInfoItems = [...(resp.items || [])];
+          this.infoItems = this.toInfoCards(this.rawInfoItems);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
+          if (requestSeq !== this.infoRequestSeq) return;
           this.infoError = this.extractErrorMessage(error) || '加载信息列表失败。';
+          this.rawInfoItems = [];
           this.infoItems = [];
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private scheduleInfoReload(): void {
+    this.clearInfoTagDebounce();
+    this.infoTagDebounceTimer = window.setTimeout(() => {
+      this.infoTagDebounceTimer = null;
+      this.loadInfos();
+    }, 280);
   }
 
   private startGoalLoadWatchdog(): void {
@@ -545,6 +662,12 @@ export class DashboardComponent implements OnInit {
     this.infoLoadWatchdog = null;
   }
 
+  private clearInfoTagDebounce(): void {
+    if (this.infoTagDebounceTimer === null) return;
+    window.clearTimeout(this.infoTagDebounceTimer);
+    this.infoTagDebounceTimer = null;
+  }
+
   private updateGoalStatus(goal: GoalTaskVm, status: GoalTaskStatus): void {
     if (this.updatingGoalId !== null) return;
 
@@ -565,10 +688,11 @@ export class DashboardComponent implements OnInit {
       )
       .subscribe({
         next: (updatedGoal) => {
-          const nextItems = this.goalItems.map((item) =>
+          const nextItems = this.rawGoalItems.map((item) =>
             item.id === updatedGoal.id ? updatedGoal : item
           );
-          this.goalItems = this.sortGoals(nextItems);
+          this.rawGoalItems = this.sortGoals(nextItems);
+          this.goalItems = this.toGoalCards(this.rawGoalItems);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {

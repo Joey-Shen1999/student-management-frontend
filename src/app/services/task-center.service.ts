@@ -1,6 +1,6 @@
 ﻿import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, delay, of, throwError, timeout } from 'rxjs';
+import { BehaviorSubject, Observable, delay, finalize, of, shareReplay, tap, throwError, timeout } from 'rxjs';
 
 import { AuthService } from './auth.service';
 
@@ -208,8 +208,14 @@ export class TaskCenterService {
   private readonly studentBaseUrl = '/api/student/tasks';
   private readonly teacherBaseUrl = '/api/teacher/tasks';
   private readonly requestTimeoutMs = 12000;
+  private readonly listCacheTtlMs = 8000;
+  private readonly maxListCacheEntries = 64;
   private readonly mockGoals$ = new BehaviorSubject<GoalTaskVm[]>(MOCK_GOALS);
   private readonly mockInfos$ = new BehaviorSubject<InfoTaskVm[]>(MOCK_INFOS);
+  private readonly listResponseCache = new Map<string, { expiresAt: number; value: unknown }>();
+  private readonly listRequestInFlight = new Map<string, Observable<unknown>>();
+  private goalsCacheVersion = 1;
+  private infosCacheVersion = 1;
 
   constructor(
     private http: HttpClient,
@@ -235,11 +241,14 @@ export class TaskCenterService {
       params = params.set('size', String(Math.max(1, Math.trunc(query.size))));
     }
 
-    return this.withRequestTimeout(
-      this.http.get<GoalListResponseVm>(this.studentBaseUrl, {
-        params,
-        ...this.withAuthHeaderIfAvailable(),
-      })
+    const cacheKey = this.buildGoalListCacheKey('student', params);
+    return this.listWithCache(cacheKey, () =>
+      this.withRequestTimeout(
+        this.http.get<GoalListResponseVm>(this.studentBaseUrl, {
+          params,
+          ...this.withAuthHeaderIfAvailable(),
+        })
+      )
     );
   }
 
@@ -254,7 +263,7 @@ export class TaskCenterService {
         request,
         this.withAuthHeaderIfAvailable()
       )
-    );
+    ).pipe(tap(() => this.bumpGoalsCacheVersion()));
   }
 
   listTeacherGoals(query: TeacherGoalListQueryVm = {}): Observable<GoalListResponseVm> {
@@ -279,11 +288,14 @@ export class TaskCenterService {
       params = params.set('size', String(Math.max(1, Math.trunc(query.size))));
     }
 
-    return this.withRequestTimeout(
-      this.http.get<GoalListResponseVm>(this.teacherBaseUrl, {
-        params,
-        ...this.withAuthHeaderIfAvailable(),
-      })
+    const cacheKey = this.buildGoalListCacheKey('teacher', params);
+    return this.listWithCache(cacheKey, () =>
+      this.withRequestTimeout(
+        this.http.get<GoalListResponseVm>(this.teacherBaseUrl, {
+          params,
+          ...this.withAuthHeaderIfAvailable(),
+        })
+      )
     );
   }
 
@@ -298,7 +310,7 @@ export class TaskCenterService {
         request,
         this.withAuthHeaderIfAvailable()
       )
-    );
+    ).pipe(tap(() => this.bumpGoalsCacheVersion()));
   }
 
   updateTeacherGoalStatus(
@@ -315,7 +327,7 @@ export class TaskCenterService {
         request,
         this.withAuthHeaderIfAvailable()
       )
-    );
+    ).pipe(tap(() => this.bumpGoalsCacheVersion()));
   }
 
   listAssignableStudents(): Observable<AssignableStudentOptionVm[]> {
@@ -356,11 +368,14 @@ export class TaskCenterService {
       params = params.set('size', String(Math.max(1, Math.trunc(query.size))));
     }
 
-    return this.withRequestTimeout(
-      this.http.get<InfoListResponseVm>(this.studentBaseUrl, {
-        params,
-        ...this.withAuthHeaderIfAvailable(),
-      })
+    const cacheKey = this.buildInfoListCacheKey('student', params);
+    return this.listWithCache(cacheKey, () =>
+      this.withRequestTimeout(
+        this.http.get<InfoListResponseVm>(this.studentBaseUrl, {
+          params,
+          ...this.withAuthHeaderIfAvailable(),
+        })
+      )
     );
   }
 
@@ -386,11 +401,14 @@ export class TaskCenterService {
       params = params.set('size', String(Math.max(1, Math.trunc(query.size))));
     }
 
-    return this.withRequestTimeout(
-      this.http.get<InfoListResponseVm>(this.teacherBaseUrl, {
-        params,
-        ...this.withAuthHeaderIfAvailable(),
-      })
+    const cacheKey = this.buildInfoListCacheKey('teacher', params);
+    return this.listWithCache(cacheKey, () =>
+      this.withRequestTimeout(
+        this.http.get<InfoListResponseVm>(this.teacherBaseUrl, {
+          params,
+          ...this.withAuthHeaderIfAvailable(),
+        })
+      )
     );
   }
 
@@ -405,7 +423,7 @@ export class TaskCenterService {
         request,
         this.withAuthHeaderIfAvailable()
       )
-    );
+    ).pipe(tap(() => this.bumpInfosCacheVersion()));
   }
 
   markMyInfoAsRead(infoId: number): Observable<InfoTaskVm> {
@@ -419,7 +437,7 @@ export class TaskCenterService {
         {},
         this.withAuthHeaderIfAvailable()
       )
-    );
+    ).pipe(tap(() => this.bumpInfosCacheVersion()));
   }
 
   private listMyGoalsFromMock(query: GoalListQueryVm): Observable<GoalListResponseVm> {
@@ -826,6 +844,115 @@ export class TaskCenterService {
   private nextInfoId(): number {
     const maxId = this.mockInfos$.value.reduce((max, info) => (info.id > max ? info.id : max), 5000);
     return maxId + 1;
+  }
+
+  private listWithCache<T>(cacheKey: string, requestFactory: () => Observable<T>): Observable<T> {
+    const cached = this.getListCacheValue<T>(cacheKey);
+    if (cached !== undefined) {
+      return of(cached);
+    }
+
+    const inFlight = this.listRequestInFlight.get(cacheKey);
+    if (inFlight) {
+      return inFlight as Observable<T>;
+    }
+
+    const request$ = requestFactory().pipe(
+      tap((value) => this.setListCacheValue(cacheKey, value)),
+      finalize(() => {
+        this.listRequestInFlight.delete(cacheKey);
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+
+    this.listRequestInFlight.set(cacheKey, request$ as Observable<unknown>);
+    return request$;
+  }
+
+  private getListCacheValue<T>(cacheKey: string): T | undefined {
+    const cached = this.listResponseCache.get(cacheKey);
+    if (!cached) {
+      return undefined;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      this.listResponseCache.delete(cacheKey);
+      return undefined;
+    }
+
+    return this.cloneCacheValue(cached.value as T);
+  }
+
+  private setListCacheValue<T>(cacheKey: string, value: T): void {
+    this.cleanupExpiredListCacheEntries();
+    this.listResponseCache.delete(cacheKey);
+    this.listResponseCache.set(cacheKey, {
+      expiresAt: Date.now() + this.listCacheTtlMs,
+      value: this.cloneCacheValue(value),
+    });
+
+    while (this.listResponseCache.size > this.maxListCacheEntries) {
+      const oldestKey = this.listResponseCache.keys().next().value;
+      if (!oldestKey) break;
+      this.listResponseCache.delete(oldestKey);
+    }
+  }
+
+  private cleanupExpiredListCacheEntries(): void {
+    const now = Date.now();
+    for (const [cacheKey, cacheEntry] of this.listResponseCache.entries()) {
+      if (cacheEntry.expiresAt <= now) {
+        this.listResponseCache.delete(cacheKey);
+      }
+    }
+  }
+
+  private bumpGoalsCacheVersion(): void {
+    this.goalsCacheVersion += 1;
+    this.clearListCacheByPrefix('goals:');
+  }
+
+  private bumpInfosCacheVersion(): void {
+    this.infosCacheVersion += 1;
+    this.clearListCacheByPrefix('infos:');
+  }
+
+  private clearListCacheByPrefix(prefix: string): void {
+    for (const cacheKey of this.listResponseCache.keys()) {
+      if (cacheKey.startsWith(prefix)) {
+        this.listResponseCache.delete(cacheKey);
+      }
+    }
+
+    for (const cacheKey of this.listRequestInFlight.keys()) {
+      if (cacheKey.startsWith(prefix)) {
+        this.listRequestInFlight.delete(cacheKey);
+      }
+    }
+  }
+
+  private buildGoalListCacheKey(scope: 'student' | 'teacher', params: HttpParams): string {
+    return `goals:v${this.goalsCacheVersion}:${scope}:${params.toString()}`;
+  }
+
+  private buildInfoListCacheKey(scope: 'student' | 'teacher', params: HttpParams): string {
+    return `infos:v${this.infosCacheVersion}:${scope}:${params.toString()}`;
+  }
+
+  private cloneCacheValue<T>(value: T): T {
+    if (value === null || value === undefined || typeof value !== 'object') {
+      return value;
+    }
+
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch {
+        // Fall back to JSON serialization for plain response payloads.
+      }
+    }
+
+    return JSON.parse(JSON.stringify(value)) as T;
   }
 
   private withRequestTimeout<T>(source$: Observable<T>): Observable<T> {
