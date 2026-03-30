@@ -10,38 +10,21 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="dashboard-page" (click)="closePersonalMenu()">
+    <div class="dashboard-page">
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
             <h2>Teacher Dashboard</h2>
             <p>Current workspace and quick navigation</p>
           </div>
-          <div class="header-actions">
-            <div class="profile-menu" (click)="$event.stopPropagation()">
-              <button
-                type="button"
-                class="action-btn ghost personal-btn"
-                (click)="togglePersonalMenu()"
-              >
-                {{ personalMenuLabel }}
-              </button>
-
-              <div class="profile-menu-panel" *ngIf="personalMenuOpen">
-                <button type="button" class="profile-menu-item" (click)="goAccountFromMenu()">
-                  Password change
-                </button>
-                <button
-                  type="button"
-                  class="profile-menu-item danger"
-                  [disabled]="signingOut"
-                  (click)="logoutFromMenu()"
-                >
-                  {{ signingOut ? 'Signing out...' : 'Sign Out' }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            type="button"
+            class="action-btn ghost signout-btn"
+            [disabled]="signingOut"
+            (click)="logout()"
+          >
+            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+          </button>
         </div>
 
         <section class="dashboard-card">
@@ -59,6 +42,9 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <button type="button" class="action-btn primary" (click)="goStudents()">
               Student Management
             </button>
+            <button type="button" class="action-btn secondary" (click)="goAccount()">
+              Account Settings
+            </button>
           </div>
         </section>
       </div>
@@ -70,15 +56,10 @@ export class TeacherDashboardComponent {
   session: LoginResponse | null;
   isAdmin = false;
   signingOut = false;
-  personalMenuOpen = false;
 
   constructor(private auth: AuthService, private router: Router) {
     this.session = this.auth.getSession();
     this.isAdmin = (this.session?.role || '').toUpperCase() === 'ADMIN';
-  }
-
-  get personalMenuLabel(): string {
-    return 'Account';
   }
 
   goTeachers() {
@@ -101,11 +82,6 @@ export class TeacherDashboardComponent {
     this.router.navigate(['/teacher/account']);
   }
 
-  goAccountFromMenu(): void {
-    this.personalMenuOpen = false;
-    this.goAccount();
-  }
-
   logout() {
     if (this.signingOut) return;
 
@@ -122,18 +98,5 @@ export class TeacherDashboardComponent {
           this.router.navigate(['/login']);
         },
       });
-  }
-
-  logoutFromMenu(): void {
-    this.personalMenuOpen = false;
-    this.logout();
-  }
-
-  togglePersonalMenu(): void {
-    this.personalMenuOpen = !this.personalMenuOpen;
-  }
-
-  closePersonalMenu(): void {
-    this.personalMenuOpen = false;
   }
 }

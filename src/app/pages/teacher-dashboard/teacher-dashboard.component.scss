@@ -105,72 +105,13 @@
   color: #21324a;
 }
 
-.header-actions {
-  margin-left: auto;
-}
-
-.profile-menu {
-  position: relative;
-}
-
-.personal-btn {
+.signout-btn {
   min-width: 120px;
-}
-
-.profile-menu-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 180px;
-  border: 1px solid #d2dceb;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 14px 30px rgba(17, 40, 74, 0.16);
-  padding: 8px;
-  display: grid;
-  gap: 4px;
-  z-index: 10;
-}
-
-.profile-menu-item {
-  border: 0;
-  background: #ffffff;
-  color: #1e2c43;
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 8px;
-  text-align: left;
-  padding: 9px 10px;
-  cursor: pointer;
-
-  &:hover {
-    background: #f2f6fd;
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
-}
-
-.profile-menu-item.danger {
-  color: #9c1f1f;
 }
 
 @media (max-width: 640px) {
   .dashboard-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .header-actions {
-    margin-left: 0;
-  }
-
-  .profile-menu-panel {
-    width: 100%;
-    min-width: 100%;
-    position: static;
-    margin-top: 8px;
   }
 }

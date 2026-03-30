@@ -22,7 +22,7 @@ type PasswordMode = 'set' | 'change';
   template: `
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">{{ isSetMode ? 'Set New Password' : 'Password change' }}</h2>
+        <h2 style="margin:0;">{{ isSetMode ? 'Set New Password' : 'Account Settings' }}</h2>
         <button
           *ngIf="!isSetMode"
           type="button"

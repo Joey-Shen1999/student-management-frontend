@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
@@ -7,11 +7,7 @@ import { mustChangePasswordInterceptor } from './interceptors/must-change-passwo
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({
-      eventCoalescing: true,
-      runCoalescing: true,
-    }),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([mustChangePasswordInterceptor])),
-  ],
+    provideHttpClient(withInterceptors([mustChangePasswordInterceptor]))
+  ]
 };

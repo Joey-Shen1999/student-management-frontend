@@ -2,14 +2,14 @@ import { Routes } from '@angular/router';
 
 import { teacherRouteGuard } from './guards/teacher-route.guard';
 import { adminOnlyGuard } from './guards/admin-only.guard';
+import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { Login } from './pages/login/login';
+import { TeacherDashboardComponent } from './pages/teacher-dashboard/teacher-dashboard.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
-  {
-    path: 'login',
-    loadComponent: () => import('./pages/login/login').then((m) => m.Login),
-  },
+  { path: 'login', component: Login },
   {
     path: 'register',
     loadComponent: () =>
@@ -46,11 +46,7 @@ export const routes: Routes = [
       ),
   },
 
-  {
-    path: 'dashboard',
-    loadComponent: () =>
-      import('./pages/dashboard/dashboard.component').then((m) => m.DashboardComponent),
-  },
+  { path: 'dashboard', component: DashboardComponent },
 
   {
     path: 'student/profile',
@@ -62,13 +58,7 @@ export const routes: Routes = [
     path: 'teacher',
     canActivateChild: [teacherRouteGuard],
     children: [
-      {
-        path: 'dashboard',
-        loadComponent: () =>
-          import('./pages/teacher-dashboard/teacher-dashboard.component').then(
-            (m) => m.TeacherDashboardComponent
-          ),
-      },
+      { path: 'dashboard', component: TeacherDashboardComponent },
 
       {
         path: 'invites',

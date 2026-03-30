@@ -87,9 +87,6 @@ export interface ApiResponse {
 export class AuthService {
   private readonly baseUrl = '/api/auth';
   private readonly sessionKey = 'sm_session';
-  private cachedSession: LoginResponse | null = null;
-  private cachedSessionRaw: string | null = null;
-  private sessionHydrated = false;
 
   constructor(private http: HttpClient) {}
 
@@ -148,24 +145,21 @@ export class AuthService {
   }
 
   private saveSession(session: LoginResponse) {
-    const normalizedSession = { ...session } as LoginResponse;
-    const raw = JSON.stringify(normalizedSession);
-    localStorage.setItem(this.sessionKey, raw);
-    this.cachedSession = normalizedSession;
-    this.cachedSessionRaw = raw;
-    this.sessionHydrated = true;
+    localStorage.setItem(this.sessionKey, JSON.stringify(session));
   }
 
   getSession(): LoginResponse | null {
-    const session = this.readSessionFromStorage();
-    return session ? ({ ...session } as LoginResponse) : null;
+    const raw = localStorage.getItem(this.sessionKey);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as LoginResponse;
+    } catch {
+      return null;
+    }
   }
 
   clearAuthState() {
     localStorage.removeItem(this.sessionKey);
-    this.cachedSession = null;
-    this.cachedSessionRaw = null;
-    this.sessionHydrated = true;
   }
 
   getCurrentUserId(): number | null {
@@ -184,25 +178,5 @@ export class AuthService {
 
   mustChangePassword(): boolean {
     return !!this.getSession()?.mustChangePassword;
-  }
-
-  private readSessionFromStorage(): LoginResponse | null {
-    const raw = localStorage.getItem(this.sessionKey);
-    if (!this.sessionHydrated || raw !== this.cachedSessionRaw) {
-      this.cachedSessionRaw = raw;
-      this.cachedSession = this.parseSessionRaw(raw);
-      this.sessionHydrated = true;
-    }
-
-    return this.cachedSession;
-  }
-
-  private parseSessionRaw(raw: string | null): LoginResponse | null {
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as LoginResponse;
-    } catch {
-      return null;
-    }
   }
 }
