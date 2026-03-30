@@ -7,6 +7,7 @@ import { catchError, concatMap, finalize, map, mergeMap, toArray } from 'rxjs/op
 
 import {
   type AssignableStudentOptionVm,
+  type CreateInfoRequestVm,
   type CreateGoalRequestVm,
   type GoalTaskStatus,
   type GoalTaskVm,
@@ -144,6 +145,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   creating = false;
   createError = '';
   createSuccess = '';
+  editingGoalId: number | null = null;
 
   selectedGoalId: number | null = null;
   updatingGoalId: number | null = null;
@@ -219,6 +221,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.collectCityFilterOptions(this.cityFilterCountry);
   }
 
+  get isEditMode(): boolean {
+    return this.editingGoalId !== null;
+  }
+
   trackCreateStudentColumn = (
     _index: number,
     column: GoalStudentSelectorColumnConfig
@@ -248,13 +254,35 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.isTeacherNoteSaving(studentId);
 
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
-  openCreatePanel(): void { this.createPanelExpanded = true; }
-  closeCreatePanel(): void {
+  openCreatePanel(): void {
     if (this.creating) return;
+    this.editingGoalId = null;
+    this.resetCreateForm();
+    this.createPanelExpanded = true;
+  }
+  openEditPanel(goal: GoalTaskVm): void {
+    if (this.creating) return;
+    this.editingGoalId = goal.id;
+    this.selectedGoalId = goal.id;
+    this.createPanelExpanded = true;
+    this.studentPanelExpanded = true;
+    this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
+    this.createError = '';
+    this.createSuccess = '';
+    this.createTitle = goal.title;
+    this.createDescription = goal.description;
+    this.createDueAt = goal.dueAt || '';
+    this.selectedCreateStudentIds = new Set<number>([goal.assignedStudentId]);
+    this.loadMissingProfilesForVisibleRows();
+  }
+  closeCreatePanel(force = false): void {
+    if (this.creating && !force) return;
     this.createPanelExpanded = false;
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
+    this.editingGoalId = null;
   }
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
@@ -574,26 +602,47 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       this.createSuccess = '';
       return;
     }
+
     const title = this.createTitle.trim();
     if (!title) { this.createError = '请填写任务标题。'; this.createSuccess = ''; return; }
     const description = this.createDescription.trim();
     if (!description) { this.createError = '请填写任务描述。'; this.createSuccess = ''; return; }
 
+    const dueAt = this.createDueAt.trim() || null;
+    if (this.isEditMode) {
+      this.saveEditedGoal(selectedIds, title, description, dueAt);
+      return;
+    }
+
+    this.createNewGoals(selectedIds, title, description, dueAt);
+  }
+
+  private createNewGoals(
+    selectedIds: number[],
+    title: string,
+    description: string,
+    dueAt: string | null
+  ): void {
     this.creating = true;
     this.createError = '';
     this.createSuccess = '';
     this.cdr.detectChanges();
-    const baseRequest = { title, description, dueAt: this.createDueAt.trim() || null };
 
+    const baseRequest = { title, description, dueAt };
     from(selectedIds).pipe(
-      concatMap((studentId) => this.taskCenter.createGoal({ ...(baseRequest as Omit<CreateGoalRequestVm, 'studentId'>), studentId })),
+      concatMap((studentId) =>
+        this.taskCenter.createGoal({ ...(baseRequest as Omit<CreateGoalRequestVm, 'studentId'>), studentId })
+      ),
       toArray(),
       finalize(() => { this.creating = false; this.cdr.detectChanges(); })
     ).subscribe({
       next: (rows) => {
         const first = rows[0];
         if (first) this.selectedGoalId = first.id;
-        this.createSuccess = rows.length === 1 ? `任务已创建：#${first?.id || ''} ${first?.title || ''}`.trim() : `任务已为 ${rows.length} 位学生发布。`;
+        this.createSuccess =
+          rows.length === 1
+            ? `任务已创建：#${first?.id || ''} ${first?.title || ''}`.trim()
+            : `任务已为 ${rows.length} 位学生发布。`;
         this.createTitle = '';
         this.createDescription = '';
         this.createDueAt = '';
@@ -601,8 +650,101 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.selectedCreateStudentIds.clear();
         this.loadGoals();
       },
-      error: (error: unknown) => { this.createError = this.extractErrorMessage(error) || '发布任务失败。'; this.cdr.detectChanges(); },
+      error: (error: unknown) => {
+        this.createError = this.extractErrorMessage(error) || '发布任务失败。';
+        this.cdr.detectChanges();
+      },
     });
+  }
+
+  private saveEditedGoal(
+    selectedIds: number[],
+    title: string,
+    description: string,
+    dueAt: string | null
+  ): void {
+    const editingGoalId = this.editingGoalId;
+    if (!editingGoalId) return;
+
+    const currentGoal = this.goals.find((goal) => goal.id === editingGoalId) || null;
+    const primaryStudentId =
+      currentGoal && selectedIds.includes(currentGoal.assignedStudentId)
+        ? currentGoal.assignedStudentId
+        : selectedIds[0];
+    const extraStudentIds = selectedIds.filter((studentId) => studentId !== primaryStudentId);
+    const baseRequest = { title, description, dueAt };
+    const infoRequest: CreateInfoRequestVm = {
+      category: 'ACTIVITY',
+      title: `任务更新：${title}`,
+      content: this.buildGoalUpdateInfoContent(title, description, dueAt),
+      tags: ['任务系统', '任务更新'],
+      studentIds: selectedIds,
+      goalId: editingGoalId,
+    };
+
+    this.creating = true;
+    this.createError = '';
+    this.createSuccess = '';
+    this.cdr.detectChanges();
+
+    this.taskCenter
+      .updateTeacherGoal(editingGoalId, {
+        studentId: primaryStudentId,
+        ...baseRequest,
+      })
+      .pipe(
+        concatMap((updatedGoal) =>
+          from(extraStudentIds).pipe(
+            concatMap((studentId) =>
+              this.taskCenter.createGoal({
+                ...(baseRequest as Omit<CreateGoalRequestVm, 'studentId'>),
+                studentId,
+              })
+            ),
+            toArray(),
+            map((createdGoals) => ({ updatedGoal, createdGoals }))
+          )
+        ),
+        concatMap((payload) =>
+          this.taskCenter.createInfo(infoRequest).pipe(
+            map((info) => ({ ...payload, info, notifyError: '' })),
+            catchError((error: unknown) =>
+              of({
+                ...payload,
+                info: null,
+                notifyError: this.extractErrorMessage(error) || '覆盖通知失败。',
+              })
+            )
+          )
+        ),
+        finalize(() => {
+          this.creating = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: ({ updatedGoal, createdGoals, info, notifyError }) => {
+          this.selectedGoalId = updatedGoal.id;
+          this.createSuccess = info
+            ? `任务已更新，并已覆盖通知：#${info.id}（覆盖 ${selectedIds.length} 人）`
+            : `任务已更新（共 ${1 + createdGoals.length} 条），但通知覆盖失败。`;
+          this.createError = notifyError || '';
+          this.loadGoals();
+        },
+        error: (error: unknown) => {
+          this.createError = this.extractErrorMessage(error) || '更新任务失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private buildGoalUpdateInfoContent(
+    title: string,
+    description: string,
+    dueAt: string | null
+  ): string {
+    const dueText = dueAt || '无截止日期';
+    return `任务《${title}》已更新。\n任务描述：${description}\n截止日期：${dueText}`;
   }
 
   selectGoal(goal: GoalTaskVm): void { this.selectedGoalId = goal.id; this.updateError = ''; }

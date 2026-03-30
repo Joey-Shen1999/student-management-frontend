@@ -54,6 +54,13 @@ export interface CreateGoalRequestVm {
   dueAt: string | null;
 }
 
+export interface UpdateTeacherGoalRequestVm {
+  studentId: number;
+  title: string;
+  description: string;
+  dueAt: string | null;
+}
+
 export interface AssignableStudentOptionVm {
   studentId: number;
   studentName: string;
@@ -67,6 +74,7 @@ export interface InfoTaskVm {
   content: string;
   category: InfoTaskCategory;
   tags: string[];
+  goalId?: number | null;
   targetStudentCount: number;
   publishedByTeacherId: number;
   publishedByTeacherName: string;
@@ -98,6 +106,7 @@ export interface CreateInfoRequestVm {
   category: InfoTaskCategory;
   tags: string[];
   studentIds?: number[];
+  goalId?: number | null;
 }
 
 const MOCK_GOALS: GoalTaskVm[] = [
@@ -296,6 +305,20 @@ export class TaskCenterService {
     return this.withRequestTimeout(
       this.http.post<GoalTaskVm>(
         `${this.teacherBaseUrl}/goals`,
+        request,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  updateTeacherGoal(goalId: number, request: UpdateTeacherGoalRequestVm): Observable<GoalTaskVm> {
+    if (this.useMock) {
+      return this.updateTeacherGoalFromMock(goalId, request);
+    }
+
+    return this.withRequestTimeout(
+      this.http.patch<GoalTaskVm>(
+        `${this.teacherBaseUrl}/goals/${Math.trunc(Number(goalId))}`,
         request,
         this.withAuthHeaderIfAvailable()
       )
@@ -573,6 +596,60 @@ export class TaskCenterService {
     return of({ ...nextGoal }).pipe(delay(120));
   }
 
+  private updateTeacherGoalFromMock(
+    goalId: number,
+    request: UpdateTeacherGoalRequestVm
+  ): Observable<GoalTaskVm> {
+    const normalizedGoalId = Math.trunc(Number(goalId));
+    if (!Number.isFinite(normalizedGoalId) || normalizedGoalId <= 0) {
+      return throwError(() => new Error('goalId is invalid.'));
+    }
+
+    const studentId = Math.trunc(Number(request.studentId));
+    const title = String(request.title || '').trim();
+    const description = String(request.description || '').trim();
+    const dueAtText = String(request.dueAt || '').trim();
+
+    if (!Number.isFinite(studentId) || studentId <= 0) {
+      return throwError(() => new Error('studentId is required.'));
+    }
+    if (!title) {
+      return throwError(() => new Error('title is required.'));
+    }
+    if (!description) {
+      return throwError(() => new Error('description is required.'));
+    }
+
+    const rows = this.mockGoals$.value;
+    const index = rows.findIndex((goal) => goal.id === normalizedGoalId);
+    if (index < 0) {
+      return throwError(() => new Error('Goal task not found.'));
+    }
+
+    const scopedTeacherId = this.resolveTeacherScopeTeacherId(true);
+    if (scopedTeacherId !== null && rows[index].assignedByTeacherId !== scopedTeacherId) {
+      return throwError(() => new Error('Permission denied for this goal task.'));
+    }
+
+    const student = this.resolveStudentOption(studentId);
+    const timestamp = new Date().toISOString();
+    const updatedGoal: GoalTaskVm = {
+      ...rows[index],
+      title,
+      description,
+      dueAt: dueAtText || null,
+      assignedStudentId: studentId,
+      assignedStudentName: student?.studentName || `学生 #${studentId}`,
+      updatedAt: timestamp,
+    };
+
+    const nextRows = [...rows];
+    nextRows[index] = updatedGoal;
+    this.mockGoals$.next(nextRows);
+
+    return of({ ...updatedGoal }).pipe(delay(120));
+  }
+
   private listAssignableStudentsFromMock(): Observable<AssignableStudentOptionVm[]> {
     const options = new Map<number, AssignableStudentOptionVm>();
 
@@ -665,6 +742,10 @@ export class TaskCenterService {
     const title = String(request.title || '').trim();
     const content = String(request.content || '').trim();
     const category = request.category;
+    const goalIdRaw = Number(request.goalId);
+    const hasGoalId = request.goalId !== undefined && request.goalId !== null;
+    const goalId =
+      hasGoalId && Number.isFinite(goalIdRaw) && goalIdRaw > 0 ? Math.trunc(goalIdRaw) : null;
     const tags = Array.from(
       new Set(
         (request.tags || [])
@@ -689,8 +770,40 @@ export class TaskCenterService {
     if (category !== 'ACTIVITY' && category !== 'VOLUNTEER') {
       return throwError(() => new Error('category is invalid.'));
     }
+    if (hasGoalId && goalId === null) {
+      return throwError(() => new Error('goalId is invalid.'));
+    }
 
     const timestamp = new Date().toISOString();
+    const targetStudentCount =
+      studentIds.length > 0 ? studentIds.length : Math.max(1, Math.min(999, tags.length * 12 || 18));
+    const publisherTeacherId = this.resolveSessionTeacherId() || 0;
+    const publisherTeacherName = this.resolveSessionTeacherName();
+    const rows = this.mockInfos$.value;
+
+    if (goalId !== null) {
+      const existingIndex = rows.findIndex(
+        (info) => info.goalId === goalId && info.publishedByTeacherId === publisherTeacherId
+      );
+      if (existingIndex >= 0) {
+        const existing = rows[existingIndex];
+        const updatedInfo: InfoTaskVm = {
+          ...existing,
+          title,
+          content,
+          category,
+          tags,
+          goalId,
+          targetStudentCount,
+          updatedAt: timestamp,
+        };
+        const nextRows = [...rows];
+        nextRows[existingIndex] = updatedInfo;
+        this.mockInfos$.next(nextRows);
+        return of({ ...updatedInfo, tags: [...updatedInfo.tags] }).pipe(delay(120));
+      }
+    }
+
     const nextInfo: InfoTaskVm = {
       id: this.nextInfoId(),
       type: 'INFO',
@@ -698,17 +811,17 @@ export class TaskCenterService {
       content,
       category,
       tags,
-      targetStudentCount:
-        studentIds.length > 0 ? studentIds.length : Math.max(1, Math.min(999, tags.length * 12 || 18)),
-      publishedByTeacherId: this.resolveSessionTeacherId() || 0,
-      publishedByTeacherName: this.resolveSessionTeacherName(),
+      goalId,
+      targetStudentCount,
+      publishedByTeacherId: publisherTeacherId,
+      publishedByTeacherName: publisherTeacherName,
       createdAt: timestamp,
       updatedAt: timestamp,
       read: false,
       readAt: null,
     };
 
-    const nextRows = [nextInfo, ...this.mockInfos$.value];
+    const nextRows = [nextInfo, ...rows];
     this.mockInfos$.next(nextRows);
 
     return of({ ...nextInfo, tags: [...nextInfo.tags] }).pipe(delay(120));

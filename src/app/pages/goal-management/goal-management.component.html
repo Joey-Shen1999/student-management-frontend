@@ -21,7 +21,7 @@
     >
       <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <div class="create-modal-head">
-          <strong class="create-modal-title">新建任务</strong>
+          <strong class="create-modal-title">{{ isEditMode ? '编辑任务' : '新建任务' }}</strong>
           <button
             type="button"
             class="modal-close-btn"
@@ -100,7 +100,11 @@
 
           <div class="actions">
             <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
-              {{ creating ? '发布中...' : '发布任务' }}
+              {{
+                creating
+                  ? (isEditMode ? '保存中...' : '发布中...')
+                  : (isEditMode ? '保存并覆盖通知' : '发布任务')
+              }}
             </button>
             <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
           </div>
@@ -157,6 +161,13 @@
         }}
       </small>
       <div class="actions">
+        <button
+          type="button"
+          (click)="$event.stopPropagation(); openEditPanel(goal)"
+          [disabled]="creating || updatingGoalId === goal.id"
+        >
+          编辑
+        </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
