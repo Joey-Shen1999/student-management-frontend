@@ -2,276 +2,97 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { finalize } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
 
 import {
+  type AssignableStudentOptionVm,
   type CreateInfoRequestVm,
   type InfoTaskCategory,
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
+import {
+  type StudentAccount,
+  StudentManagementService,
+} from '../../services/student-management.service';
+import {
+  GOAL_STUDENT_SELECTOR_COLUMNS,
+  type GoalStudentSelectorColumnConfig,
+  type GoalStudentSelectorColumnKey,
+} from '../../shared/student-columns/goal-student-selector-columns';
+import { buildDefaultVisibleColumnKeys } from '../../shared/student-columns/student-column-visibility.util';
+import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
+
+interface StudentDetailVm {
+  email: string;
+  phone: string;
+  province: string;
+  city: string;
+  graduation: string;
+  schoolName: string;
+  canadaIdentity: string;
+  gender: string;
+  nationality: string;
+  firstLanguage: string;
+  teacherNote: string;
+  country: string;
+  schoolBoard: string;
+  graduationSeason: string;
+  status: 'ACTIVE' | 'ARCHIVED' | '';
+}
+
+const ALL_FILTER_OPTION = '全部';
 
 @Component({
   selector: 'app-info-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
-  template: `
-    <div class="info-page">
-      <div class="info-shell">
-        <div class="info-header">
-          <h2>通知发布与管理</h2>
-          <button type="button" class="info-back-btn" (click)="goDashboard()">返回</button>
-        </div>
-
-        <section class="info-card">
-          <h3>发布通知</h3>
-          <div class="create-grid">
-            <select [(ngModel)]="createInfoCategory" [disabled]="creatingInfo">
-              <option value="ACTIVITY">活动</option>
-              <option value="VOLUNTEER">义工</option>
-            </select>
-            <input [(ngModel)]="createInfoTags" [disabled]="creatingInfo" placeholder="Tags: A,B,C" />
-            <input
-              [(ngModel)]="createInfoTitle"
-              [disabled]="creatingInfo"
-              placeholder="通知标题"
-              class="full-width"
-            />
-            <textarea
-              [(ngModel)]="createInfoContent"
-              [disabled]="creatingInfo"
-              rows="4"
-              placeholder="通知内容"
-              class="full-width"
-            ></textarea>
-          </div>
-
-          <div class="create-actions">
-            <button type="button" (click)="createInfo()" [disabled]="creatingInfo">
-              {{ creatingInfo ? '发布中...' : '发布通知' }}
-            </button>
-            <button type="button" (click)="resetCreateInfoForm()" [disabled]="creatingInfo">清空</button>
-          </div>
-
-          <div *ngIf="createInfoError" class="error-text">{{ createInfoError }}</div>
-          <div *ngIf="createInfoSuccess" class="success-text">{{ createInfoSuccess }}</div>
-        </section>
-
-        <section class="info-card">
-          <div class="info-toolbar">
-            <h3>已发布通知</h3>
-            <select [(ngModel)]="infoFilterCategory" [disabled]="infosLoading">
-              <option value="ALL">全部分类</option>
-              <option value="ACTIVITY">活动</option>
-              <option value="VOLUNTEER">义工</option>
-            </select>
-            <input
-              type="search"
-              [(ngModel)]="infoFilterTag"
-              [disabled]="infosLoading"
-              placeholder="tag"
-            />
-            <input
-              type="search"
-              [(ngModel)]="infoFilterKeyword"
-              [disabled]="infosLoading"
-              placeholder="关键字"
-            />
-            <button type="button" (click)="applyInfoFilters()" [disabled]="infosLoading">查询</button>
-            <button type="button" (click)="clearInfoFilters()" [disabled]="infosLoading">重置</button>
-            <button type="button" (click)="refreshInfos()" [disabled]="infosLoading">刷新</button>
-            <span class="count-text">{{ infos.length }} 条</span>
-          </div>
-
-          <div *ngIf="infosLoading" class="state-text">正在加载通知...</div>
-          <div *ngIf="!infosLoading && infosError" class="error-text">{{ infosError }}</div>
-          <div *ngIf="!infosLoading && !infosError && infos.length === 0" class="state-text">
-            暂无通知。
-          </div>
-
-          <article *ngFor="let info of infos; trackBy: trackInfo" class="info-item">
-            <div class="info-item-header">
-              <strong>{{ info.title }}</strong>
-              <span class="info-category">{{ infoCategoryLabel(info.category) }}</span>
-            </div>
-            <div class="info-content">{{ info.content }}</div>
-            <div class="info-tags">
-              <span *ngFor="let tag of info.tags">#{{ tag }}</span>
-            </div>
-          </article>
-        </section>
-      </div>
-    </div>
-  `,
-  styles: [
-    `
-      .info-page {
-        min-height: 100vh;
-        padding: 20px 12px 30px;
-        background: linear-gradient(180deg, #f6f8fc 0%, #edf2fb 100%);
-      }
-
-      .info-shell {
-        max-width: 980px;
-        margin: 0 auto;
-        display: grid;
-        gap: 12px;
-        font-family:
-          'Segoe UI',
-          -apple-system,
-          BlinkMacSystemFont,
-          'Helvetica Neue',
-          sans-serif;
-      }
-
-      .info-header {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .info-header h2 {
-        margin: 0;
-        color: #1f2f47;
-      }
-
-      .info-back-btn {
-        margin-left: auto;
-        border: 1px solid #c8d2e0;
-        border-radius: 999px;
-        background: #ffffff;
-        color: #1f2f47;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 600;
-        line-height: 1;
-        cursor: pointer;
-        box-shadow: 0 8px 18px rgba(21, 40, 68, 0.12);
-      }
-
-      .info-card {
-        border: 1px solid #dfe6f4;
-        border-radius: 12px;
-        padding: 12px;
-        background: #fff;
-        display: grid;
-        gap: 10px;
-      }
-
-      .info-card h3 {
-        margin: 0;
-      }
-
-      .create-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 8px;
-      }
-
-      .create-grid input,
-      .create-grid select,
-      .create-grid textarea {
-        padding: 8px;
-      }
-
-      .create-grid .full-width {
-        grid-column: 1 / -1;
-      }
-
-      .create-actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      .info-toolbar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .info-toolbar h3 {
-        margin: 0;
-      }
-
-      .info-toolbar input,
-      .info-toolbar select {
-        padding: 6px 8px;
-      }
-
-      .count-text {
-        margin-left: auto;
-        color: #5a6476;
-        font-size: 13px;
-      }
-
-      .info-item {
-        border: 1px solid #dfe6f4;
-        border-radius: 10px;
-        padding: 10px;
-        background: #fff;
-        display: grid;
-        gap: 6px;
-      }
-
-      .info-item-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .info-category {
-        font-size: 12px;
-        color: #3f5f86;
-        background: #ebf3ff;
-        border: 1px solid #bfd5f4;
-        border-radius: 999px;
-        padding: 2px 8px;
-      }
-
-      .info-content {
-        color: #465163;
-        line-height: 1.6;
-      }
-
-      .info-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        font-size: 12px;
-        color: #48607f;
-      }
-
-      .state-text {
-        color: #5f6878;
-      }
-
-      .error-text {
-        color: #b00020;
-      }
-
-      .success-text {
-        color: #1b5e20;
-      }
-
-      @media (max-width: 720px) {
-        .count-text {
-          margin-left: 0;
-        }
-      }
-    `,
-  ],
+  imports: [CommonModule, FormsModule, RouterModule, StudentSelectorPanelComponent],
+  templateUrl: './info-management.component.html',
+  styleUrl: './info-management.component.scss',
 })
 export class InfoManagementComponent implements OnInit {
+  readonly createStudentColumns: readonly GoalStudentSelectorColumnConfig[] =
+    GOAL_STUDENT_SELECTOR_COLUMNS;
+  studentOptions: AssignableStudentOptionVm[] = [];
+  studentsLoading = false;
+  studentsError = '';
+  private readonly studentDetails = new Map<number, StudentDetailVm>();
+  private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
+
+  countryFilterOptions: string[] = [ALL_FILTER_OPTION];
+  provinceFilterOptions: string[] = [];
+  cityFilterOptions: string[] = [];
+  schoolBoardFilterOptions: string[] = [ALL_FILTER_OPTION];
+  graduationSeasonFilterOptions: string[] = [ALL_FILTER_OPTION];
+  createCountryFilterInput = '';
+  createCountryFilter = ALL_FILTER_OPTION;
+  createProvinceFilterInput = '';
+  createProvinceFilter = '';
+  createCityFilterInput = '';
+  createCityFilter = '';
+  createSchoolBoardFilterInput = '';
+  createSchoolBoardFilter = ALL_FILTER_OPTION;
+  createGraduationSeasonFilterInput = '';
+  createGraduationSeasonFilter = ALL_FILTER_OPTION;
+
+  studentPanelExpanded = false;
+  studentFilterExpanded = false;
+  createStudentColumnPanelExpanded = false;
+  createStudentKeyword = '';
+  selectedCreateStudentIds = new Set<number>();
+  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> = buildDefaultVisibleColumnKeys(
+    this.createStudentColumns
+  );
+
   infos: InfoTaskVm[] = [];
   infosLoading = false;
   infosError = '';
-
   infoFilterCategory: InfoTaskCategory | 'ALL' = 'ALL';
   infoFilterTag = '';
   infoFilterKeyword = '';
 
+  createPanelExpanded = false;
   createInfoCategory: InfoTaskCategory = 'ACTIVITY';
   createInfoTitle = '';
   createInfoContent = '';
@@ -282,22 +103,114 @@ export class InfoManagementComponent implements OnInit {
 
   private infosLoadWatchdog: number | null = null;
 
+  readonly isCreateStudentSelectedRef = (studentId: number): boolean =>
+    this.isCreateStudentSelected(studentId);
+  readonly isSelectedStudentOutOfCurrentFilterRef = (
+    student: AssignableStudentOptionVm
+  ): boolean => this.isSelectedStudentOutOfCurrentFilter(student);
+  readonly isCreateStudentSelectableRowRef = (student: AssignableStudentOptionVm): boolean =>
+    this.isCreateStudentSelectableRow(student);
+  readonly isCreateStudentColumnVisibleRef = (columnKey: string): boolean => {
+    const normalizedKey = this.asCreateStudentColumnKey(columnKey);
+    return normalizedKey ? this.isCreateStudentColumnVisible(normalizedKey) : false;
+  };
+  readonly resolveCreateStudentColumnValueRef = (
+    student: AssignableStudentOptionVm,
+    columnKey: string
+  ): string => {
+    const normalizedKey = this.asCreateStudentColumnKey(columnKey);
+    return normalizedKey ? this.resolveCreateStudentColumnValue(student, normalizedKey) : '-';
+  };
+  readonly detailTeacherNoteRef = (studentId: number): string => this.detailTeacherNote(studentId);
+  readonly isTeacherNoteSavingRef = (_studentId: number): boolean => false;
+
   constructor(
     private taskCenter: TaskCenterService,
+    private studentManagement: StudentManagementService,
     private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.loadAssignableStudents();
     this.loadInfos();
+  }
+
+  get filteredCreateStudentOptions(): AssignableStudentOptionVm[] {
+    const keyword = this.createStudentKeyword.trim().toLowerCase();
+    return this.studentOptions.filter((student) =>
+      this.matchesCreateStudentFilters(student, keyword)
+    );
+  }
+
+  get selectedCreateStudentOptions(): AssignableStudentOptionVm[] {
+    const byId = new Map<number, AssignableStudentOptionVm>(
+      this.studentOptions.map((student) => [student.studentId, student])
+    );
+    const selected: AssignableStudentOptionVm[] = [];
+    for (const studentId of this.selectedCreateStudentIds.values()) {
+      const row = byId.get(studentId);
+      if (row) selected.push(row);
+    }
+    return selected;
+  }
+
+  get selectedCreateStudentCount(): number {
+    return this.selectedCreateStudentIds.size;
+  }
+
+  get visibleCreateStudentColumns(): readonly GoalStudentSelectorColumnConfig[] {
+    return this.createStudentColumns.filter((column) =>
+      this.visibleCreateStudentColumnKeys.has(column.key)
+    );
+  }
+
+  get createStudentColumnToggleOptions(): readonly GoalStudentSelectorColumnConfig[] {
+    return this.createStudentColumns;
   }
 
   goDashboard(): void {
     this.router.navigate(['/teacher/dashboard']);
   }
 
+  openCreatePanel(): void {
+    this.createPanelExpanded = true;
+  }
+
+  closeCreatePanel(): void {
+    if (this.creatingInfo) return;
+    this.createPanelExpanded = false;
+    this.studentPanelExpanded = false;
+    this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
+  }
+
+  onCreatePanelBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeCreatePanel();
+  }
+
+  toggleStudentPanel(): void {
+    this.studentPanelExpanded = !this.studentPanelExpanded;
+    if (!this.studentPanelExpanded) {
+      this.studentFilterExpanded = false;
+      this.createStudentColumnPanelExpanded = false;
+    }
+  }
+
+  toggleStudentFilterPanel(): void {
+    this.studentFilterExpanded = !this.studentFilterExpanded;
+  }
+
+  toggleCreateStudentColumnPanel(): void {
+    this.createStudentColumnPanelExpanded = !this.createStudentColumnPanelExpanded;
+  }
+
   refreshInfos(): void {
     this.loadInfos();
+  }
+
+  refreshAssignableStudents(): void {
+    this.loadAssignableStudents();
   }
 
   applyInfoFilters(): void {
@@ -311,17 +224,334 @@ export class InfoManagementComponent implements OnInit {
     this.loadInfos();
   }
 
+  onStudentKeywordChange(value?: string): void {
+    if (typeof value === 'string') {
+      this.createStudentKeyword = value;
+    }
+  }
+
+  onCountryFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createCountryFilterInput = input;
+    this.createCountryFilter = input
+      ? this.resolveFilterSelection(input, this.countryFilterOptions, ALL_FILTER_OPTION)
+      : ALL_FILTER_OPTION;
+  }
+
+  onProvinceFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createProvinceFilterInput = input;
+    this.createProvinceFilter = input
+      ? this.resolveFilterSelection(input, this.provinceFilterOptions, '')
+      : '';
+  }
+
+  onCityFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createCityFilterInput = input;
+    this.createCityFilter = input ? this.resolveFilterSelection(input, this.cityFilterOptions, '') : '';
+  }
+
+  onSchoolBoardFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createSchoolBoardFilterInput = input;
+    this.createSchoolBoardFilter = input
+      ? this.resolveFilterSelection(input, this.schoolBoardFilterOptions, ALL_FILTER_OPTION)
+      : ALL_FILTER_OPTION;
+  }
+
+  onGraduationSeasonFilterInputChange(value: string): void {
+    const input = String(value ?? '').trim();
+    this.createGraduationSeasonFilterInput = input;
+    this.createGraduationSeasonFilter = input
+      ? this.resolveFilterSelection(input, this.graduationSeasonFilterOptions, ALL_FILTER_OPTION)
+      : ALL_FILTER_OPTION;
+  }
+
+  resetStudentMetaFilters(): void {
+    this.createCountryFilterInput = '';
+    this.createCountryFilter = ALL_FILTER_OPTION;
+    this.createProvinceFilterInput = '';
+    this.createProvinceFilter = '';
+    this.createCityFilterInput = '';
+    this.createCityFilter = '';
+    this.createSchoolBoardFilterInput = '';
+    this.createSchoolBoardFilter = ALL_FILTER_OPTION;
+    this.createGraduationSeasonFilterInput = '';
+    this.createGraduationSeasonFilter = ALL_FILTER_OPTION;
+    this.createStudentKeyword = '';
+  }
+
   resetCreateInfoForm(): void {
     this.createInfoCategory = 'ACTIVITY';
     this.createInfoTitle = '';
     this.createInfoContent = '';
     this.createInfoTags = '';
+    this.resetStudentMetaFilters();
+    this.selectedCreateStudentIds.clear();
     this.createInfoError = '';
     this.createInfoSuccess = '';
   }
 
+  private findCreateStudentColumnConfig(columnKey: string): GoalStudentSelectorColumnConfig | null {
+    return this.createStudentColumns.find((column) => column.key === columnKey) ?? null;
+  }
+
+  private asCreateStudentColumnKey(columnKey: string): GoalStudentSelectorColumnKey | null {
+    return this.findCreateStudentColumnConfig(columnKey)?.key ?? null;
+  }
+
+  isCreateStudentColumnVisible(columnKey: GoalStudentSelectorColumnKey): boolean {
+    return this.visibleCreateStudentColumnKeys.has(columnKey);
+  }
+
+  onCreateStudentColumnVisibilityChange(columnKey: string, event: Event | boolean): void {
+    const config = this.findCreateStudentColumnConfig(columnKey);
+    if (!config || !config.hideable) return;
+
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
+    const next = new Set(this.visibleCreateStudentColumnKeys);
+    if (checked) next.add(config.key);
+    else next.delete(config.key);
+
+    for (const requiredColumn of this.createStudentColumns) {
+      if (!requiredColumn.hideable) {
+        next.add(requiredColumn.key);
+      }
+    }
+
+    this.visibleCreateStudentColumnKeys = next;
+  }
+
+  resetCreateStudentVisibleColumns(): void {
+    this.visibleCreateStudentColumnKeys = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+  }
+
+  isCreateStudentColumnSelectionAtDefault(): boolean {
+    const defaultSet = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    if (defaultSet.size !== this.visibleCreateStudentColumnKeys.size) {
+      return false;
+    }
+    for (const key of defaultSet.values()) {
+      if (!this.visibleCreateStudentColumnKeys.has(key)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  onCreateStudentCheckboxChange(studentId: number, event: Event | boolean): void {
+    if (typeof event !== 'boolean') {
+      event.stopPropagation();
+    }
+    if (this.creatingInfo) return;
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
+    if (checked && !this.isCreateStudentSelectable(studentId)) {
+      return;
+    }
+    if (checked) {
+      this.selectedCreateStudentIds.add(studentId);
+    } else {
+      this.selectedCreateStudentIds.delete(studentId);
+    }
+  }
+
+  onCreateStudentToggle(studentId: number, event: Event | boolean): void {
+    this.onCreateStudentCheckboxChange(studentId, event);
+  }
+
+  clearSelectedStudents(): void {
+    if (this.creatingInfo) return;
+    this.selectedCreateStudentIds.clear();
+  }
+
+  onToggleSelectAll(event: Event | boolean): void {
+    if (this.creatingInfo) return;
+    const checked =
+      typeof event === 'boolean'
+        ? event
+        : (event.target as HTMLInputElement | null)?.checked === true;
+    for (const row of this.filteredCreateStudentOptions) {
+      if (!this.isCreateStudentSelectable(row.studentId)) {
+        this.selectedCreateStudentIds.delete(row.studentId);
+        continue;
+      }
+      if (checked) {
+        this.selectedCreateStudentIds.add(row.studentId);
+      } else {
+        this.selectedCreateStudentIds.delete(row.studentId);
+      }
+    }
+  }
+
+  isCreateStudentSelected(studentId: number): boolean {
+    return this.selectedCreateStudentIds.has(studentId);
+  }
+
+  areAllVisibleStudentsSelected(): boolean {
+    const rows = this.filteredCreateStudentOptions.filter((row) =>
+      this.isCreateStudentSelectable(row.studentId)
+    );
+    return rows.length > 0 && rows.every((row) => this.selectedCreateStudentIds.has(row.studentId));
+  }
+
+  isVisibleStudentSelectionPartial(): boolean {
+    const rows = this.filteredCreateStudentOptions.filter((row) =>
+      this.isCreateStudentSelectable(row.studentId)
+    );
+    if (rows.length === 0) return false;
+    const selectedCount = rows.filter((row) => this.selectedCreateStudentIds.has(row.studentId)).length;
+    return selectedCount > 0 && selectedCount < rows.length;
+  }
+
+  isSelectedStudentOutOfCurrentFilter(student: AssignableStudentOptionVm): boolean {
+    return !this.matchesCreateStudentFilters(student, this.createStudentKeyword.trim().toLowerCase());
+  }
+
+  detailEmail(studentId: number): string {
+    return this.studentDetails.get(studentId)?.email || '-';
+  }
+
+  detailPhone(studentId: number): string {
+    return this.studentDetails.get(studentId)?.phone || '-';
+  }
+
+  detailGraduation(studentId: number): string {
+    return this.studentDetails.get(studentId)?.graduation || '-';
+  }
+
+  detailSchoolName(studentId: number): string {
+    return this.studentDetails.get(studentId)?.schoolName || '-';
+  }
+
+  detailCanadaIdentity(studentId: number): string {
+    return this.studentDetails.get(studentId)?.canadaIdentity || '-';
+  }
+
+  detailGender(studentId: number): string {
+    return this.studentDetails.get(studentId)?.gender || '-';
+  }
+
+  detailNationality(studentId: number): string {
+    return this.studentDetails.get(studentId)?.nationality || '-';
+  }
+
+  detailFirstLanguage(studentId: number): string {
+    return this.studentDetails.get(studentId)?.firstLanguage || '-';
+  }
+
+  detailSchoolBoard(studentId: number): string {
+    return this.studentDetails.get(studentId)?.schoolBoard || '-';
+  }
+
+  detailCountry(studentId: number): string {
+    return this.studentDetails.get(studentId)?.country || '-';
+  }
+
+  detailProvince(studentId: number): string {
+    return this.studentDetails.get(studentId)?.province || '-';
+  }
+
+  detailCity(studentId: number): string {
+    return this.studentDetails.get(studentId)?.city || '-';
+  }
+
+  detailStatus(studentId: number): string {
+    return this.resolveArchiveStatusLabel(this.studentDetails.get(studentId)?.status || '');
+  }
+
+  detailSelectable(studentId: number): string {
+    return this.isCreateStudentSelectable(studentId) ? '可选' : '已锁定';
+  }
+
+  detailTeacherNote(studentId: number): string {
+    return this.studentDetails.get(studentId)?.teacherNote || '';
+  }
+
+  resolveCreateStudentColumnValue(
+    student: AssignableStudentOptionVm,
+    columnKey: GoalStudentSelectorColumnKey
+  ): string {
+    switch (columnKey) {
+      case 'name':
+        return student.studentName || '-';
+      case 'email':
+        return this.detailEmail(student.studentId);
+      case 'phone':
+        return this.detailPhone(student.studentId);
+      case 'graduation':
+        return this.detailGraduation(student.studentId);
+      case 'schoolName':
+        return this.detailSchoolName(student.studentId);
+      case 'canadaIdentity':
+        return this.detailCanadaIdentity(student.studentId);
+      case 'gender':
+        return this.detailGender(student.studentId);
+      case 'nationality':
+        return this.detailNationality(student.studentId);
+      case 'firstLanguage':
+        return this.detailFirstLanguage(student.studentId);
+      case 'schoolBoard':
+        return this.detailSchoolBoard(student.studentId);
+      case 'country':
+        return this.detailCountry(student.studentId);
+      case 'province':
+        return this.detailProvince(student.studentId);
+      case 'city':
+        return this.detailCity(student.studentId);
+      case 'teacherNote':
+        return this.detailTeacherNote(student.studentId) || '-';
+      case 'status':
+        return this.detailStatus(student.studentId);
+      case 'selectable':
+        return this.detailSelectable(student.studentId);
+      default:
+        return '-';
+    }
+  }
+
+  isCreateStudentSelectable(studentId: number): boolean {
+    const detailStatus = this.studentDetails.get(studentId)?.status || '';
+    if (detailStatus === 'ARCHIVED') return false;
+    return this.studentOptionStatus.get(studentId) !== 'ARCHIVED';
+  }
+
+  isCreateStudentSelectableById(studentId: number): boolean {
+    return this.isCreateStudentSelectable(studentId);
+  }
+
+  isCreateStudentSelectableRow(student: AssignableStudentOptionVm): boolean {
+    const detail = this.studentDetails.get(student.studentId);
+    return this.resolveCreateStudentStatus(student, detail) !== 'ARCHIVED';
+  }
+
+  onTeacherNoteCellFocus(_studentId: number): void {}
+
+  onTeacherNoteCellChange(studentId: number, value: unknown): void {
+    this.setTeacherNote(studentId, String(value ?? ''));
+    this.cdr.detectChanges();
+  }
+
+  onTeacherNoteCellBlur(_studentId: number): void {}
+
   createInfo(): void {
     if (this.creatingInfo) return;
+
+    const selectedStudentIds = Array.from(this.selectedCreateStudentIds.values())
+      .filter((studentId) => this.isCreateStudentSelectable(studentId))
+      .sort((a, b) => a - b);
+    if (selectedStudentIds.length === 0) {
+      this.studentPanelExpanded = true;
+      this.createInfoError = '请至少选择 1 位学生。';
+      this.createInfoSuccess = '';
+      return;
+    }
 
     const title = this.createInfoTitle.trim();
     if (!title) {
@@ -342,6 +572,7 @@ export class InfoManagementComponent implements OnInit {
       title,
       content,
       tags: this.parseTags(this.createInfoTags),
+      studentIds: selectedStudentIds,
     };
 
     this.creatingInfo = true;
@@ -359,10 +590,12 @@ export class InfoManagementComponent implements OnInit {
       )
       .subscribe({
         next: (info) => {
-          this.createInfoSuccess = `通知已发布：#${info.id} ${info.title}`;
+          this.createInfoSuccess = `通知已发布（${selectedStudentIds.length} 人）：#${info.id} ${info.title}`;
           this.createInfoTitle = '';
           this.createInfoContent = '';
           this.createInfoTags = '';
+          this.resetStudentMetaFilters();
+          this.selectedCreateStudentIds.clear();
           this.loadInfos();
           this.cdr.detectChanges();
         },
@@ -374,9 +607,60 @@ export class InfoManagementComponent implements OnInit {
   }
 
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
+  trackStudent = (_index: number, student: AssignableStudentOptionVm): number => student.studentId;
 
   infoCategoryLabel(category: InfoTaskCategory): string {
     return category === 'VOLUNTEER' ? '义工' : '活动';
+  }
+
+  private loadAssignableStudents(): void {
+    this.studentsLoading = true;
+    this.studentsError = '';
+    this.taskCenter
+      .listAssignableStudents()
+      .pipe(
+        finalize(() => {
+          this.studentsLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (rows) => {
+          this.studentOptions = [...rows].sort((a, b) => a.studentId - b.studentId);
+          this.rebuildStudentOptionStatusMap();
+          this.syncSelectedStudents();
+          this.pruneStudentDetails();
+          this.hydrateStudentDetailsFromAccounts();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.studentsError = this.extractErrorMessage(error) || '加载学生列表失败。';
+          this.studentOptions = [];
+          this.studentOptionStatus.clear();
+          this.selectedCreateStudentIds.clear();
+          this.studentDetails.clear();
+          this.rebuildMetaFilterOptions();
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private hydrateStudentDetailsFromAccounts(): void {
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    this.studentManagement
+      .listStudents()
+      .pipe(catchError(() => of([] as StudentAccount[])))
+      .subscribe((resp) => {
+        const accounts = this.normalizeAccounts(resp);
+        for (const account of accounts) {
+          const studentId = this.resolveStudentId(account);
+          if (studentId === null || !validIds.has(studentId)) continue;
+          this.upsertDetail(studentId, this.buildFromAccount(account));
+        }
+        this.pruneUnselectableSelectedStudents();
+        this.rebuildMetaFilterOptions();
+        this.cdr.detectChanges();
+      });
   }
 
   private loadInfos(): void {
@@ -411,6 +695,450 @@ export class InfoManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private matchesCreateStudentFilters(student: AssignableStudentOptionVm, keyword: string): boolean {
+    const detail = this.studentDetails.get(student.studentId);
+    if (this.resolveCreateStudentStatus(student, detail) === 'ARCHIVED') return false;
+    if (!this.matchesCountryFilter(detail)) return false;
+    if (!this.matchesProvinceFilter(detail)) return false;
+    if (!this.matchesCityFilter(detail)) return false;
+    if (!this.matchesSchoolBoardFilter(detail)) return false;
+    if (!this.matchesGraduationSeasonFilter(detail)) return false;
+    if (!keyword) return true;
+
+    return this.buildCreateStudentSearchText(student, detail).includes(keyword);
+  }
+
+  private buildCreateStudentSearchText(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): string {
+    const status = this.resolveCreateStudentStatus(student, detail);
+    return [
+      String(student.studentId),
+      student.studentName,
+      student.username || '',
+      detail?.email || '',
+      detail?.phone || '',
+      detail?.schoolName || '',
+      detail?.canadaIdentity || '',
+      detail?.gender || '',
+      detail?.nationality || '',
+      detail?.firstLanguage || '',
+      detail?.province || '',
+      detail?.city || '',
+      detail?.graduation || '',
+      detail?.teacherNote || '',
+      detail?.country || '',
+      detail?.schoolBoard || '',
+      detail?.graduationSeason || '',
+      this.resolveArchiveStatusLabel(status),
+      status,
+      this.isCreateStudentSelectable(student.studentId) ? '可选 selectable' : '不可选 not selectable',
+    ]
+      .join(' ')
+      .toLowerCase();
+  }
+
+  private matchesCountryFilter(detail: StudentDetailVm | undefined): boolean {
+    if (this.createCountryFilter === ALL_FILTER_OPTION) return true;
+    return this.normalizeKey(detail?.country) === this.normalizeKey(this.createCountryFilter);
+  }
+
+  private matchesProvinceFilter(detail: StudentDetailVm | undefined): boolean {
+    if (!this.createProvinceFilter) return true;
+    return this.normalizeKey(detail?.province) === this.normalizeKey(this.createProvinceFilter);
+  }
+
+  private matchesCityFilter(detail: StudentDetailVm | undefined): boolean {
+    if (!this.createCityFilter) return true;
+    return this.normalizeKey(detail?.city) === this.normalizeKey(this.createCityFilter);
+  }
+
+  private matchesSchoolBoardFilter(detail: StudentDetailVm | undefined): boolean {
+    if (this.createSchoolBoardFilter === ALL_FILTER_OPTION) return true;
+    return this.normalizeKey(detail?.schoolBoard) === this.normalizeKey(this.createSchoolBoardFilter);
+  }
+
+  private matchesGraduationSeasonFilter(detail: StudentDetailVm | undefined): boolean {
+    if (this.createGraduationSeasonFilter === ALL_FILTER_OPTION) return true;
+    return this.normalizeKey(detail?.graduationSeason) === this.normalizeKey(this.createGraduationSeasonFilter);
+  }
+
+  private syncSelectedStudents(): void {
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    this.selectedCreateStudentIds = new Set(
+      Array.from(this.selectedCreateStudentIds.values()).filter((id) => validIds.has(id))
+    );
+  }
+
+  private pruneStudentDetails(): void {
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    for (const studentId of Array.from(this.studentDetails.keys())) {
+      if (!validIds.has(studentId)) this.studentDetails.delete(studentId);
+    }
+  }
+
+  private pruneUnselectableSelectedStudents(): void {
+    this.selectedCreateStudentIds = new Set(
+      Array.from(this.selectedCreateStudentIds.values()).filter((studentId) =>
+        this.isCreateStudentSelectable(studentId)
+      )
+    );
+  }
+
+  private normalizeAccountStatus(value: unknown): 'ACTIVE' | 'ARCHIVED' | '' {
+    const status = String(value ?? '').trim().toUpperCase();
+    if (status === 'ACTIVE') return 'ACTIVE';
+    if (status === 'ARCHIVED') return 'ARCHIVED';
+    return '';
+  }
+
+  private resolveAssignableStudentStatus(
+    student: AssignableStudentOptionVm | undefined
+  ): 'ACTIVE' | 'ARCHIVED' | '' {
+    if (!student || typeof student !== 'object') return '';
+    const raw = student as unknown as Record<string, unknown>;
+    const normalizedStatus = this.normalizeAccountStatus(raw['status']);
+    if (normalizedStatus) return normalizedStatus;
+
+    const archived = raw['archived'];
+    if (typeof archived === 'boolean') {
+      return archived ? 'ARCHIVED' : 'ACTIVE';
+    }
+
+    const active = raw['active'];
+    if (typeof active === 'boolean') {
+      return active ? 'ACTIVE' : 'ARCHIVED';
+    }
+
+    const enabled = raw['enabled'];
+    if (typeof enabled === 'boolean') {
+      return enabled ? 'ACTIVE' : 'ARCHIVED';
+    }
+
+    return '';
+  }
+
+  private resolveCreateStudentStatus(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): 'ACTIVE' | 'ARCHIVED' | '' {
+    if (detail?.status) {
+      return detail.status;
+    }
+    return this.resolveAssignableStudentStatus(student);
+  }
+
+  private rebuildStudentOptionStatusMap(): void {
+    this.studentOptionStatus.clear();
+    for (const student of this.studentOptions) {
+      this.studentOptionStatus.set(student.studentId, this.resolveAssignableStudentStatus(student));
+    }
+  }
+
+  private resolveArchiveStatusLabel(status: 'ACTIVE' | 'ARCHIVED' | ''): string {
+    if (status === 'ACTIVE') return '在读';
+    if (status === 'ARCHIVED') return '已归档';
+    return '未知';
+  }
+
+  private upsertDetail(studentId: number, patch: Partial<StudentDetailVm>): void {
+    const current = this.studentDetails.get(studentId) || {
+      email: '',
+      phone: '',
+      province: '',
+      city: '',
+      graduation: '',
+      schoolName: '',
+      canadaIdentity: '',
+      gender: '',
+      nationality: '',
+      firstLanguage: '',
+      teacherNote: '',
+      country: '',
+      schoolBoard: '',
+      graduationSeason: '',
+      status: '',
+    };
+    const graduation = patch.graduation?.trim() || current.graduation;
+    const graduationSeason = patch.graduationSeason?.trim() || this.resolveGraduationSeason(graduation);
+    this.studentDetails.set(studentId, {
+      email: patch.email?.trim() || current.email,
+      phone: patch.phone?.trim() || current.phone,
+      province: patch.province?.trim() || current.province,
+      city: patch.city?.trim() || current.city,
+      graduation,
+      schoolName: patch.schoolName?.trim() || current.schoolName,
+      canadaIdentity: patch.canadaIdentity?.trim() || current.canadaIdentity,
+      gender: patch.gender?.trim() || current.gender,
+      nationality: patch.nationality?.trim() || current.nationality,
+      firstLanguage: patch.firstLanguage?.trim() || current.firstLanguage,
+      teacherNote: patch.teacherNote?.trim() || current.teacherNote,
+      country: patch.country?.trim() || current.country,
+      schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
+      graduationSeason,
+      status: patch.status || current.status,
+    });
+  }
+
+  private setTeacherNote(studentId: number, noteText: string): void {
+    const current = this.studentDetails.get(studentId) || {
+      email: '',
+      phone: '',
+      province: '',
+      city: '',
+      graduation: '',
+      schoolName: '',
+      canadaIdentity: '',
+      gender: '',
+      nationality: '',
+      firstLanguage: '',
+      teacherNote: '',
+      country: '',
+      schoolBoard: '',
+      graduationSeason: '',
+      status: '',
+    };
+    this.studentDetails.set(studentId, {
+      ...current,
+      teacherNote: String(noteText ?? ''),
+    });
+  }
+
+  private buildFromAccount(student: StudentAccount): Partial<StudentDetailVm> {
+    const profile =
+      student?.['profile'] && typeof student['profile'] === 'object'
+        ? (student['profile'] as Record<string, unknown>)
+        : {};
+    const graduation = this.formatGraduation(
+      this.pick([
+        student['currentSchoolExpectedGraduation'],
+        student['expectedGraduationTime'],
+        student['expectedGraduationDate'],
+        profile['currentSchoolExpectedGraduation'],
+        profile['expectedGraduationTime'],
+        profile['expectedGraduationDate'],
+      ])
+    );
+    return {
+      email: this.pick([student.email, student['emailAddress'], student['contactEmail'], profile['email']]),
+      phone: this.pick([student.phone, student['phoneNumber'], student['mobile'], profile['phone']]),
+      province: this.pick([
+        student['currentSchoolProvince'],
+        student['schoolProvince'],
+        student['province'],
+        profile['currentSchoolProvince'],
+        profile['province'],
+      ]),
+      city: this.pick([
+        student['currentSchoolCity'],
+        student['schoolCity'],
+        student['city'],
+        profile['currentSchoolCity'],
+        profile['city'],
+      ]),
+      graduation,
+      schoolName: this.pick([
+        student['currentSchoolName'],
+        student['schoolName'],
+        student['school'],
+        profile['currentSchoolName'],
+        profile['schoolName'],
+      ]),
+      canadaIdentity: this.pick([
+        student['identityInCanada'],
+        student['statusInCanada'],
+        student['canadaIdentity'],
+        profile['identityInCanada'],
+        profile['statusInCanada'],
+      ]),
+      gender: this.pick([student['gender'], student['sex'], profile['gender'], profile['sex']]),
+      nationality: this.pick([student['nationality'], student['citizenship'], profile['nationality']]),
+      firstLanguage: this.pick([
+        student['firstLanguage'],
+        student['primaryLanguage'],
+        student['nativeLanguage'],
+        profile['firstLanguage'],
+      ]),
+      teacherNote: this.pick([student['teacherNote'], student['teacherNotes'], profile['teacherNote']]),
+      country: this.pick([
+        student['currentSchoolCountry'],
+        student['schoolCountry'],
+        student['country'],
+        profile['currentSchoolCountry'],
+      ]),
+      schoolBoard: this.pick([
+        student['currentSchoolBoard'],
+        student['schoolBoard'],
+        student['educationBoard'],
+        profile['currentSchoolBoard'],
+      ]),
+      graduationSeason: this.resolveGraduationSeason(graduation),
+      status: this.normalizeAccountStatus(student.status),
+    };
+  }
+
+  private rebuildMetaFilterOptions(): void {
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    const countries = new Set<string>();
+    const provinces = new Set<string>();
+    const cities = new Set<string>();
+    const boards = new Set<string>();
+    const seasons = new Set<string>();
+    for (const [studentId, detail] of this.studentDetails.entries()) {
+      if (!validIds.has(studentId)) continue;
+      if (detail.country) countries.add(detail.country);
+      if (detail.province) provinces.add(detail.province);
+      if (detail.city) cities.add(detail.city);
+      if (detail.schoolBoard) boards.add(detail.schoolBoard);
+      if (detail.graduationSeason) seasons.add(detail.graduationSeason);
+    }
+
+    this.countryFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(countries));
+    this.provinceFilterOptions = this.mergeFilterOptions([], Array.from(provinces));
+    this.cityFilterOptions = this.mergeFilterOptions([], Array.from(cities));
+    this.schoolBoardFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(boards));
+    this.graduationSeasonFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(seasons));
+    this.syncFilterSelection();
+  }
+
+  private syncFilterSelection(): void {
+    if (
+      !this.countryFilterOptions.some(
+        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createCountryFilter)
+      )
+    ) {
+      this.createCountryFilter = ALL_FILTER_OPTION;
+      this.createCountryFilterInput = '';
+    }
+    if (
+      this.createProvinceFilter &&
+      !this.provinceFilterOptions.some(
+        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createProvinceFilter)
+      )
+    ) {
+      this.createProvinceFilter = '';
+      this.createProvinceFilterInput = '';
+    }
+    if (
+      this.createCityFilter &&
+      !this.cityFilterOptions.some((opt) => this.normalizeKey(opt) === this.normalizeKey(this.createCityFilter))
+    ) {
+      this.createCityFilter = '';
+      this.createCityFilterInput = '';
+    }
+    if (
+      !this.schoolBoardFilterOptions.some(
+        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createSchoolBoardFilter)
+      )
+    ) {
+      this.createSchoolBoardFilter = ALL_FILTER_OPTION;
+      this.createSchoolBoardFilterInput = '';
+    }
+    if (
+      !this.graduationSeasonFilterOptions.some(
+        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createGraduationSeasonFilter)
+      )
+    ) {
+      this.createGraduationSeasonFilter = ALL_FILTER_OPTION;
+      this.createGraduationSeasonFilterInput = '';
+    }
+  }
+
+  private resolveFilterSelection(value: string, options: string[], fallback: string): string {
+    const normalizedInput = this.normalizeKey(value);
+    const matched = options.find((option) => this.normalizeKey(option) === normalizedInput);
+    return matched || fallback;
+  }
+
+  private normalizeKey(value: unknown): string {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase();
+  }
+
+  private mergeFilterOptions(base: string[], rawOptions: string[]): string[] {
+    const normalized = new Map<string, string>();
+    for (const option of base) {
+      const text = String(option || '').trim();
+      if (!text) continue;
+      normalized.set(this.normalizeKey(text), text);
+    }
+    for (const option of rawOptions) {
+      const text = String(option || '').trim();
+      if (!text) continue;
+      const key = this.normalizeKey(text);
+      if (!normalized.has(key)) {
+        normalized.set(key, text);
+      }
+    }
+    return Array.from(normalized.values());
+  }
+
+  private pick(candidates: unknown[]): string {
+    for (const candidate of candidates) {
+      const text = String(candidate ?? '').trim();
+      if (text) return text;
+    }
+    return '';
+  }
+
+  private formatGraduation(value: unknown): string {
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+    const ym = text.match(/^(\d{4})[-/. ](\d{1,2})$/);
+    if (ym) return `${ym[1]}-${String(Number(ym[2])).padStart(2, '0')}`;
+    const ts = Date.parse(text);
+    if (Number.isFinite(ts)) {
+      const d = new Date(ts);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return text;
+  }
+
+  private resolveGraduationSeason(graduation: string): string {
+    const text = String(graduation || '').trim();
+    if (!text) return '';
+    const ym = text.match(/^(\d{4})-(\d{2})$/);
+    if (ym) {
+      const year = Number(ym[1]);
+      const month = Number(ym[2]);
+      return `${year} ${month >= 7 ? 'Fall' : 'Winter'}`;
+    }
+    const ts = Date.parse(text);
+    if (Number.isFinite(ts)) {
+      const d = new Date(ts);
+      return `${d.getFullYear()} ${d.getMonth() + 1 >= 7 ? 'Fall' : 'Winter'}`;
+    }
+    return '';
+  }
+
+  private resolveStudentId(account: StudentAccount): number | null {
+    const candidates: unknown[] = [
+      account.studentId,
+      account['student_id'],
+      account['studentAccountId'],
+      account['id'],
+    ];
+    for (const candidate of candidates) {
+      const n = Number(candidate);
+      if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+    }
+    return null;
+  }
+
+  private normalizeAccounts(
+    raw: StudentAccount[] | { items?: StudentAccount[]; data?: StudentAccount[] } | unknown
+  ): StudentAccount[] {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') {
+      const node = raw as { items?: unknown; data?: unknown };
+      if (Array.isArray(node.items)) return node.items as StudentAccount[];
+      if (Array.isArray(node.data)) return node.data as StudentAccount[];
+    }
+    return [];
   }
 
   private startInfosLoadWatchdog(): void {

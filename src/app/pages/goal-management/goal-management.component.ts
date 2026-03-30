@@ -99,6 +99,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   studentsLoading = false;
   studentsError = '';
   private readonly studentDetails = new Map<number, StudentDetailVm>();
+  private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
   private readonly profileLoadInFlight = new Set<number>();
   private readonly teacherNoteProfileCache = new Map<
     number,
@@ -494,7 +495,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.resolveArchiveStatusLabel(this.studentDetails.get(studentId)?.status || '');
   }
   detailSelectable(studentId: number): string {
-    return this.isCreateStudentSelectable(studentId) ? 'Selectable' : 'Locked';
+    return this.isCreateStudentSelectable(studentId) ? '可选' : '已锁定';
   }
   detailTeacherNote(studentId: number): string { return this.studentDetails.get(studentId)?.teacherNote || ''; }
   resolveCreateStudentColumnValue(
@@ -537,12 +538,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
   }
   isCreateStudentSelectable(studentId: number): boolean {
-    const detail = this.studentDetails.get(studentId);
-    if (!detail) return true;
-    return detail.status !== 'ARCHIVED';
+    const detailStatus = this.studentDetails.get(studentId)?.status || '';
+    if (detailStatus === 'ARCHIVED') return false;
+    return this.studentOptionStatus.get(studentId) !== 'ARCHIVED';
   }
   isCreateStudentSelectableRow(student: AssignableStudentOptionVm): boolean {
-    return this.isCreateStudentSelectable(student.studentId);
+    const detail = this.studentDetails.get(student.studentId);
+    return this.resolveCreateStudentStatus(student, detail) !== 'ARCHIVED';
   }
   isTeacherNoteSaving(studentId: number): boolean { return this.teacherNoteSaveInFlight.has(studentId); }
 
@@ -573,9 +575,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       return;
     }
     const title = this.createTitle.trim();
-    if (!title) { this.createError = '请填写 Goal 标题。'; this.createSuccess = ''; return; }
+    if (!title) { this.createError = '请填写任务标题。'; this.createSuccess = ''; return; }
     const description = this.createDescription.trim();
-    if (!description) { this.createError = '请填写 Goal 描述。'; this.createSuccess = ''; return; }
+    if (!description) { this.createError = '请填写任务描述。'; this.createSuccess = ''; return; }
 
     this.creating = true;
     this.createError = '';
@@ -591,7 +593,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       next: (rows) => {
         const first = rows[0];
         if (first) this.selectedGoalId = first.id;
-        this.createSuccess = rows.length === 1 ? `Goal 已创建：#${first?.id || ''} ${first?.title || ''}`.trim() : `Goal 已为 ${rows.length} 位学生发布。`;
+        this.createSuccess = rows.length === 1 ? `任务已创建：#${first?.id || ''} ${first?.title || ''}`.trim() : `任务已为 ${rows.length} 位学生发布。`;
         this.createTitle = '';
         this.createDescription = '';
         this.createDueAt = '';
@@ -599,7 +601,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.selectedCreateStudentIds.clear();
         this.loadGoals();
       },
-      error: (error: unknown) => { this.createError = this.extractErrorMessage(error) || '发布 Goal 失败。'; this.cdr.detectChanges(); },
+      error: (error: unknown) => { this.createError = this.extractErrorMessage(error) || '发布任务失败。'; this.cdr.detectChanges(); },
     });
   }
 
@@ -612,11 +614,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
     this.taskCenter.updateTeacherGoalStatus(goal.id, {
       status,
-      progressNote: status === 'COMPLETED' ? '老师已在 Goal 管理页标记完成。' : goal.progressNote,
+      progressNote: status === 'COMPLETED' ? '老师已在任务系统页标记完成。' : goal.progressNote,
     }).pipe(finalize(() => { this.updatingGoalId = null; this.cdr.detectChanges(); }))
       .subscribe({
         next: (updated) => { this.goals = this.sortGoals(this.goals.map((row) => (row.id === updated.id ? updated : row))); this.selectedGoalId = updated.id; this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.updateError = this.extractErrorMessage(error) || '更新 Goal 状态失败。'; this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.updateError = this.extractErrorMessage(error) || '更新任务状态失败。'; this.cdr.detectChanges(); },
       });
   }
 
@@ -631,8 +633,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.studentsError = '';
     this.taskCenter.listAssignableStudents().pipe(finalize(() => { this.studentsLoading = false; this.cdr.detectChanges(); }))
       .subscribe({
-        next: (rows) => { this.studentOptions = [...rows].sort((a, b) => a.studentId - b.studentId); this.syncSelectedStudents(); this.pruneStudentDetails(); this.hydrateStudentDetailsFromAccounts(); this.loadMissingProfilesForVisibleRows(); this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.studentsError = this.extractErrorMessage(error) || '加载学生列表失败。'; this.studentOptions = []; this.selectedCreateStudentIds.clear(); this.studentDetails.clear(); this.rebuildMetaFilterOptions(); this.cdr.detectChanges(); },
+        next: (rows) => { this.studentOptions = [...rows].sort((a, b) => a.studentId - b.studentId); this.rebuildStudentOptionStatusMap(); this.syncSelectedStudents(); this.pruneStudentDetails(); this.hydrateStudentDetailsFromAccounts(); this.loadMissingProfilesForVisibleRows(); this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.studentsError = this.extractErrorMessage(error) || '加载学生列表失败。'; this.studentOptions = []; this.studentOptionStatus.clear(); this.selectedCreateStudentIds.clear(); this.studentDetails.clear(); this.rebuildMetaFilterOptions(); this.cdr.detectChanges(); },
       });
   }
 
@@ -727,7 +729,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }).pipe(finalize(() => { this.goalsLoading = false; this.cdr.detectChanges(); }))
       .subscribe({
         next: (resp) => { this.goals = this.sortGoals(resp.items || []); if (this.selectedGoalId && !this.goals.some((row) => row.id === this.selectedGoalId)) this.selectedGoalId = this.goals.length > 0 ? this.goals[0].id : null; if (!this.selectedGoalId && this.goals.length > 0) this.selectedGoalId = this.goals[0].id; this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || '加载 Goal 列表失败。'; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || '加载任务列表失败。'; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
       });
   }
 
@@ -773,10 +775,56 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  private resolveAssignableStudentStatus(
+    student: AssignableStudentOptionVm | undefined
+  ): 'ACTIVE' | 'ARCHIVED' | '' {
+    if (!student || typeof student !== 'object') return '';
+    const raw = student as unknown as Record<string, unknown>;
+    const normalizedStatus = this.normalizeAccountStatus(raw['status']);
+    if (normalizedStatus) return normalizedStatus;
+
+    const archived = raw['archived'];
+    if (typeof archived === 'boolean') {
+      return archived ? 'ARCHIVED' : 'ACTIVE';
+    }
+
+    const active = raw['active'];
+    if (typeof active === 'boolean') {
+      return active ? 'ACTIVE' : 'ARCHIVED';
+    }
+
+    const enabled = raw['enabled'];
+    if (typeof enabled === 'boolean') {
+      return enabled ? 'ACTIVE' : 'ARCHIVED';
+    }
+
+    return '';
+  }
+
+  private resolveCreateStudentStatus(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): 'ACTIVE' | 'ARCHIVED' | '' {
+    if (detail?.status) {
+      return detail.status;
+    }
+    return this.resolveAssignableStudentStatus(student);
+  }
+
+  private rebuildStudentOptionStatusMap(): void {
+    this.studentOptionStatus.clear();
+    for (const student of this.studentOptions) {
+      this.studentOptionStatus.set(
+        student.studentId,
+        this.resolveAssignableStudentStatus(student)
+      );
+    }
+  }
+
   private resolveArchiveStatusLabel(status: 'ACTIVE' | 'ARCHIVED' | ''): string {
-    if (status === 'ACTIVE') return 'Active';
-    if (status === 'ARCHIVED') return 'Archived';
-    return 'Unknown';
+    if (status === 'ACTIVE') return '在读';
+    if (status === 'ARCHIVED') return '已归档';
+    return '未知';
   }
 
   private upsertDetail(studentId: number, patch: Partial<StudentDetailVm>): void {
@@ -1168,6 +1216,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     keyword: string
   ): boolean {
     const detail = this.studentDetails.get(student.studentId);
+    if (this.resolveCreateStudentStatus(student, detail) === 'ARCHIVED') return false;
     if (!this.matchesCountryFilter(detail)) return false;
     if (!this.matchesProvinceFilter(detail)) return false;
     if (!this.matchesCityFilter(detail)) return false;
@@ -1182,6 +1231,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     student: AssignableStudentOptionVm,
     detail: StudentDetailVm | undefined
   ): string {
+    const status = this.resolveCreateStudentStatus(student, detail);
     return [
       String(student.studentId),
       student.studentName,
@@ -1200,9 +1250,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       detail?.country || '',
       detail?.schoolBoard || '',
       detail?.graduationSeason || '',
-      this.resolveArchiveStatusLabel(detail?.status || ''),
-      detail?.status || '',
-      this.isCreateStudentSelectable(student.studentId) ? 'selectable' : 'not selectable',
+      this.resolveArchiveStatusLabel(status),
+      status,
+      this.isCreateStudentSelectable(student.studentId) ? '可选 selectable' : '不可选 not selectable',
     ]
       .join(' ')
       .toLowerCase();

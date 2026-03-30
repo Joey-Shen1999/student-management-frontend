@@ -22,8 +22,8 @@ import {
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
-            <h2>Student Dashboard</h2>
-            <p>Welcome {{ welcomeDisplayName }}</p>
+            <h2>学生工作台</h2>
+            <p>欢迎，{{ welcomeDisplayName }}</p>
           </div>
           <button
             type="button"
@@ -31,13 +31,13 @@ import {
             [disabled]="signingOut"
             (click)="logout()"
           >
-            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+            {{ signingOut ? '退出中...' : '退出登录' }}
           </button>
         </div>
 
         <section class="dashboard-card">
           <div class="section-head">
-            <h3>近期目标 Goals</h3>
+            <h3>近期任务</h3>
             <button
               type="button"
               class="action-btn ghost compact"
@@ -56,7 +56,7 @@ import {
           </div>
 
           <div *ngIf="!goalLoading && !goalError && goalItems.length === 0" class="state-text">
-            当前没有 Goal 任务。
+            当前没有任务。
           </div>
 
           <div *ngIf="!goalLoading && !goalError && goalItems.length > 0" class="goal-list">
@@ -111,7 +111,7 @@ import {
 
         <section class="dashboard-card">
           <div class="section-head">
-            <h3>信息 Info</h3>
+            <h3>通知信息</h3>
             <button
               type="button"
               class="action-btn ghost compact"
@@ -137,7 +137,7 @@ import {
               type="search"
               [disabled]="infoLoading"
               [value]="infoTagFilter"
-              placeholder="按 tag 过滤（例如 Volunteer）"
+              placeholder="按标签过滤（例如 志愿）"
               (input)="onInfoTagInput($any($event.target).value)"
             />
 
@@ -198,14 +198,14 @@ import {
         </section>
 
         <section class="dashboard-card">
-          <h3>Quick Actions</h3>
+          <h3>快捷操作</h3>
           <div class="quick-actions">
-            <button type="button" class="action-btn primary" (click)="goProfile()">Student Profile</button>
+            <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
-              Name Settings
+              姓名设置
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
-              Account Settings
+              账号设置
             </button>
           </div>
         </section>
@@ -253,7 +253,7 @@ export class DashboardComponent implements OnInit {
     const fromSession = this.resolveNameFromPayload(source);
     if (fromSession) return fromSession;
 
-    return 'Student';
+    return '学生';
   }
 
   ngOnInit(): void {
@@ -286,7 +286,7 @@ export class DashboardComponent implements OnInit {
       }
     }
 
-    if (resolvedName && resolvedName.toLowerCase() !== 'student') {
+    if (resolvedName && !this.isPlaceholderStudentName(resolvedName)) {
       navState.currentDisplayName = resolvedName;
     }
 
@@ -600,7 +600,7 @@ export class DashboardComponent implements OnInit {
   }
 
   private loadWelcomeNameIfNeeded(): void {
-    if (this.welcomeDisplayName !== 'Student') return;
+    if (!this.isPlaceholderStudentName(this.welcomeDisplayName)) return;
 
     this.profileApi
       .getMyProfile()
@@ -614,7 +614,7 @@ export class DashboardComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: () => {
-          // Keep Student fallback silently for dashboard header.
+          // Keep placeholder fallback silently for dashboard header.
         },
       });
   }

@@ -180,8 +180,8 @@ describe('DashboardComponent', () => {
     expect(nextComponent.welcomeDisplayName).toBe('Li Lei');
   });
 
-  it('welcomeDisplayName should fallback to Student when name is missing', () => {
-    expect(component.welcomeDisplayName).toBe('Student');
+  it('welcomeDisplayName should fallback to 学生 when name is missing', () => {
+    expect(component.welcomeDisplayName).toBe('学生');
   });
 
   it('welcomeDisplayName should use profile name when session has no name', () => {

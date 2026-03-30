@@ -97,6 +97,7 @@ export interface CreateInfoRequestVm {
   content: string;
   category: InfoTaskCategory;
   tags: string[];
+  studentIds?: number[];
 }
 
 const MOCK_GOALS: GoalTaskVm[] = [
@@ -671,6 +672,13 @@ export class TaskCenterService {
           .filter(Boolean)
       )
     );
+    const studentIds = Array.from(
+      new Set(
+        (request.studentIds || [])
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    );
 
     if (!title) {
       return throwError(() => new Error('title is required.'));
@@ -690,7 +698,8 @@ export class TaskCenterService {
       content,
       category,
       tags,
-      targetStudentCount: Math.max(1, Math.min(999, tags.length * 12 || 18)),
+      targetStudentCount:
+        studentIds.length > 0 ? studentIds.length : Math.max(1, Math.min(999, tags.length * 12 || 18)),
       publishedByTeacherId: this.resolveSessionTeacherId() || 0,
       publishedByTeacherName: this.resolveSessionTeacherName(),
       createdAt: timestamp,

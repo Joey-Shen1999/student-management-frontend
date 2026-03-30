@@ -14,8 +14,8 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
-            <h2>Teacher Dashboard</h2>
-            <p>Current workspace and quick navigation</p>
+            <h2>教师工作台</h2>
+            <p>当前工作区与快捷入口</p>
           </div>
           <button
             type="button"
@@ -23,27 +23,27 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             [disabled]="signingOut"
             (click)="logout()"
           >
-            {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+            {{ signingOut ? '退出中...' : '退出登录' }}
           </button>
         </div>
 
         <section class="dashboard-card">
-          <h3>Quick Actions</h3>
+          <h3>快捷操作</h3>
           <div class="quick-actions">
             <button *ngIf="isAdmin" type="button" class="action-btn secondary" (click)="goTeachers()">
-              Teacher Management
+              教师管理
             </button>
             <button type="button" class="action-btn primary" (click)="goGoals()">
-              Goal Management
+              任务系统
             </button>
             <button type="button" class="action-btn primary" (click)="goTasks()">
-              Notification Management
+              通知管理
             </button>
             <button type="button" class="action-btn primary" (click)="goStudents()">
-              Student Management
+              学生管理
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
-              Account Settings
+              账号设置
             </button>
           </div>
         </section>

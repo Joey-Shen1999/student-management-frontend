@@ -1,17 +1,12 @@
 <div class="page">
   <div class="header">
-    <h2>任务系统</h2>
+    <h2>通知发布与管理</h2>
     <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
   </div>
 
   <section class="card create-entry-card">
-    <button
-      type="button"
-      class="create-launch-btn"
-      (click)="openCreatePanel()"
-      [disabled]="creating"
-    >
-      <span>新建任务</span>
+    <button type="button" class="create-launch-btn" (click)="openCreatePanel()" [disabled]="creatingInfo">
+      <span>发布新通知</span>
     </button>
 
     <div
@@ -21,20 +16,15 @@
     >
       <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <div class="create-modal-head">
-          <strong class="create-modal-title">新建任务</strong>
-          <button
-            type="button"
-            class="modal-close-btn"
-            (click)="closeCreatePanel()"
-            [disabled]="creating"
-          >
+          <strong class="create-modal-title">新建通知</strong>
+          <button type="button" class="modal-close-btn" (click)="closeCreatePanel()" [disabled]="creatingInfo">
             关闭
           </button>
         </div>
 
         <div class="create-body">
           <app-student-selector-panel
-            [disabled]="creating"
+            [disabled]="creatingInfo"
             [panelExpanded]="studentPanelExpanded"
             [filterExpanded]="studentFilterExpanded"
             [columnPanelExpanded]="createStudentColumnPanelExpanded"
@@ -88,25 +78,29 @@
           ></app-student-selector-panel>
 
           <div class="form">
-            <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="任务标题" />
+            <select [(ngModel)]="createInfoCategory" [disabled]="creatingInfo">
+              <option value="ACTIVITY">活动</option>
+              <option value="VOLUNTEER">义工</option>
+            </select>
+            <input [(ngModel)]="createInfoTags" [disabled]="creatingInfo" placeholder="标签：A,B,C" />
+            <input [(ngModel)]="createInfoTitle" [disabled]="creatingInfo" placeholder="通知标题" />
             <textarea
-              [(ngModel)]="createDescription"
-              [disabled]="creating"
-              rows="3"
-              placeholder="任务描述"
+              [(ngModel)]="createInfoContent"
+              [disabled]="creatingInfo"
+              rows="4"
+              placeholder="通知内容"
             ></textarea>
-            <input type="date" [(ngModel)]="createDueAt" [disabled]="creating" />
           </div>
 
           <div class="actions">
-            <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
-              {{ creating ? '发布中...' : '发布任务' }}
+            <button type="button" (click)="createInfo()" [disabled]="creatingInfo || studentsLoading">
+              {{ creatingInfo ? '发布中...' : '发布通知' }}
             </button>
-            <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
+            <button type="button" (click)="resetCreateInfoForm()" [disabled]="creatingInfo">清空</button>
           </div>
 
-          <div *ngIf="createError" class="error-text">{{ createError }}</div>
-          <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
+          <div *ngIf="createInfoError" class="error-text">{{ createInfoError }}</div>
+          <div *ngIf="createInfoSuccess" class="success-text">{{ createInfoSuccess }}</div>
         </div>
       </div>
     </div>
@@ -114,73 +108,34 @@
 
   <section class="card">
     <div class="tools">
-      <h3>已发布任务</h3>
-      <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
-        <option [ngValue]="null">全部学生</option>
-        <option
-          *ngFor="let student of studentOptions; trackBy: trackStudent"
-          [ngValue]="student.studentId"
-        >
-          {{ student.studentId }} - {{ student.studentName }}
-        </option>
+      <h3>已发布通知</h3>
+      <select [(ngModel)]="infoFilterCategory" [disabled]="infosLoading">
+        <option value="ALL">全部分类</option>
+        <option value="ACTIVITY">活动</option>
+        <option value="VOLUNTEER">义工</option>
       </select>
-      <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
-        <option value="ALL">全部状态</option>
-        <option value="NOT_STARTED">未开始</option>
-        <option value="IN_PROGRESS">进行中</option>
-        <option value="COMPLETED">已完成</option>
-      </select>
-      <input type="search" [(ngModel)]="filterKeyword" [disabled]="goalsLoading" placeholder="关键字" />
-      <button type="button" (click)="applyFilters()" [disabled]="goalsLoading">查询</button>
-      <button type="button" (click)="clearFilters()" [disabled]="goalsLoading">重置</button>
-      <button type="button" (click)="refreshGoals()" [disabled]="goalsLoading">刷新</button>
+      <input type="search" [(ngModel)]="infoFilterTag" [disabled]="infosLoading" placeholder="标签" />
+      <input type="search" [(ngModel)]="infoFilterKeyword" [disabled]="infosLoading" placeholder="关键字" />
+      <button type="button" (click)="applyInfoFilters()" [disabled]="infosLoading">查询</button>
+      <button type="button" (click)="clearInfoFilters()" [disabled]="infosLoading">重置</button>
+      <button type="button" (click)="refreshInfos()" [disabled]="infosLoading">刷新</button>
+      <span class="count-text">{{ infos.length }} 条</span>
     </div>
 
-    <div *ngIf="goalsLoading" class="state-text">正在加载任务...</div>
-    <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
-    <div *ngIf="!goalsLoading && !goalsError && goals.length === 0" class="state-text">暂无任务。</div>
+    <div *ngIf="infosLoading" class="state-text">正在加载通知...</div>
+    <div *ngIf="!infosLoading && infosError" class="error-text">{{ infosError }}</div>
+    <div *ngIf="!infosLoading && !infosError && infos.length === 0" class="state-text">暂无通知。</div>
 
-    <article
-      class="goal-item"
-      *ngFor="let goal of goals; trackBy: trackGoal"
-      (click)="selectGoal(goal)"
-      [class.goal-selected]="selectedGoalId === goal.id"
-    >
-      <div class="goal-head">
-        <strong>{{ goal.title }}</strong>
-        <span>{{ goalStatusLabel(goal.status) }}</span>
+    <article *ngFor="let info of infos; trackBy: trackInfo" class="info-item">
+      <div class="info-item-header">
+        <strong>{{ info.title }}</strong>
+        <span class="info-category">{{ infoCategoryLabel(info.category) }}</span>
       </div>
-      <p>{{ goal.description }}</p>
-      <small>
-        学生：{{ goal.assignedStudentName }} | 截止：{{ displayDueAt(goal) }} | 更新：{{
-          displayUpdatedAt(goal.updatedAt)
-        }}
-      </small>
-      <div class="actions">
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'NOT_STARTED'"
-        >
-          未开始
-        </button>
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'IN_PROGRESS'"
-        >
-          进行中
-        </button>
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'COMPLETED'"
-        >
-          完成
-        </button>
+      <p>{{ info.content }}</p>
+      <small>覆盖学生：{{ info.targetStudentCount }}</small>
+      <div class="info-tags" *ngIf="info.tags.length > 0">
+        <span *ngFor="let tag of info.tags">#{{ tag }}</span>
       </div>
     </article>
-
-    <div *ngIf="updateError" class="error-text">{{ updateError }}</div>
   </section>
 </div>
