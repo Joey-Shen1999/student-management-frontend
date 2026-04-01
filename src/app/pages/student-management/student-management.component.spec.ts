@@ -21,7 +21,7 @@ describe('StudentManagementComponent', () => {
   let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher'>;
   let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId' | 'getAuthorizationHeaderValue'>;
   let router: { url: string };
-  let ieltsApi: Pick<IeltsTrackingService, 'getTeacherStudentIeltsSummary'>;
+  let ieltsApi: Pick<IeltsTrackingService, 'getTeacherStudentIeltsModuleState' | 'updateTeacherStudentIeltsData'>;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -46,12 +46,32 @@ describe('StudentManagementComponent', () => {
       url: '/teacher/students',
     };
     ieltsApi = {
-      getTeacherStudentIeltsSummary: vi.fn().mockReturnValue(
+      getTeacherStudentIeltsModuleState: vi.fn().mockReturnValue(
         of({
-          summary: {
-            shouldShowModule: true,
-            trackingStatus: 'YELLOW_NEEDS_PREPARATION',
+          studentId: 1,
+          graduationYear: 2027,
+          hasTakenIeltsAcademic: null,
+          preparationIntent: 'UNSET',
+          languageTrackingManualStatus: null,
+          records: [],
+          languageRisk: {
+            shouldShowIeltsModule: true,
           },
+          updatedAt: null,
+        })
+      ),
+      updateTeacherStudentIeltsData: vi.fn().mockImplementation((studentId: number, payload: any) =>
+        of({
+          studentId,
+          graduationYear: 2027,
+          hasTakenIeltsAcademic: true,
+          preparationIntent: 'UNSET',
+          languageTrackingManualStatus: payload?.languageTrackingManualStatus ?? 'NEEDS_TRACKING',
+          records: [],
+          languageRisk: {
+            shouldShowIeltsModule: true,
+          },
+          updatedAt: null,
         })
       ),
     };
@@ -1031,6 +1051,7 @@ describe('StudentManagementComponent', () => {
         'canadaIdentity',
         'teacherNote',
         'ielts',
+        'languageTracking',
         'resetPassword',
       ].sort()
     );
@@ -1044,6 +1065,22 @@ describe('StudentManagementComponent', () => {
     );
 
     expect(defaultKeys).not.toContain('ielts');
+  });
+
+  it('language tracking column should allow teacher to save selected status', () => {
+    const student = { studentId: 301, username: 'student301', status: 'ACTIVE' } as any;
+    component.students = [student];
+    (component as any).languageTrackingStatusCache.set(301, 'NEEDS_TRACKING');
+
+    component.onLanguageTrackingStatusSelectionChange(student, 'AUTO_PASS_ALL_SCHOOLS');
+
+    expect(ieltsApi.updateTeacherStudentIeltsData).toHaveBeenCalledWith(
+      301,
+      expect.objectContaining({
+        languageTrackingManualStatus: 'AUTO_PASS_ALL_SCHOOLS',
+      })
+    );
+    expect(component.resolveLanguageTrackingStatusSelection(student)).toBe('AUTO_PASS_ALL_SCHOOLS');
   });
 
   it('column visibility should keep IELTS independent when profile toggles', () => {

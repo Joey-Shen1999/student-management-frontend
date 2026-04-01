@@ -18,6 +18,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: false,
     preparationIntent: 'PREPARING',
+    languageTrackingManualStatus: 'NEEDS_TRACKING',
     records: [],
     languageRisk: {
       shouldShowIeltsModule: true,
@@ -36,6 +37,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: false,
     preparationIntent: 'NOT_PREPARING',
+    languageTrackingManualStatus: 'NEEDS_TRACKING',
     records: [],
     languageRisk: {
       shouldShowIeltsModule: true,
@@ -54,6 +56,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2026,
     hasTakenIeltsAcademic: true,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'NEEDS_TRACKING',
     records: [
       {
         recordId: 'r-20003-1',
@@ -79,6 +82,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: true,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'AUTO_PASS_PARTIAL_SCHOOLS',
     records: [
       {
         recordId: 'r-20004-1',
@@ -104,6 +108,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: true,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'TEACHER_REVIEW_APPROVED',
     records: [
       {
         recordId: 'r-20005-1',
@@ -129,6 +134,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: true,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'AUTO_PASS_PARTIAL_SCHOOLS',
     records: [
       {
         recordId: 'r-20006-1',
@@ -162,6 +168,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: true,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'NEEDS_TRACKING',
     records: [
       {
         recordId: 'r-20007-1',
@@ -195,6 +202,7 @@ export const MOCK_STUDENT_IELTS_STATES: Record<number, StudentIeltsModuleState> 
     graduationYear: 2027,
     hasTakenIeltsAcademic: null,
     preparationIntent: 'UNSET',
+    languageTrackingManualStatus: 'NEEDS_TRACKING',
     records: [],
     languageRisk: {
       shouldShowIeltsModule: false,

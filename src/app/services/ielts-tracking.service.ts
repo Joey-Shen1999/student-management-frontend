@@ -15,6 +15,7 @@ import {
   IeltsPreparationIntent,
   IeltsRecordFormValue,
   IeltsSummaryViewModel,
+  LanguageTrackingManualStatus,
   IeltsTrackingStatus,
   StudentIeltsModuleState,
   StudentLanguageRiskSnapshot,
@@ -76,6 +77,9 @@ export class IeltsTrackingService {
         ...previous,
         hasTakenIeltsAcademic: true,
         preparationIntent: 'UNSET',
+        trackingStatus: null,
+        languageTrackingStatus: null,
+        languageTrackingManualStatus: null,
         records: this.normalizeRecords(payload.records),
         updatedAt: new Date().toISOString(),
       };
@@ -105,6 +109,9 @@ export class IeltsTrackingService {
         ...previous,
         hasTakenIeltsAcademic: false,
         preparationIntent: this.normalizePreparationIntent(intent),
+        trackingStatus: null,
+        languageTrackingStatus: null,
+        languageTrackingManualStatus: null,
         records: [],
         updatedAt: new Date().toISOString(),
       };
@@ -157,6 +164,10 @@ export class IeltsTrackingService {
             ? normalizedPayload.hasTakenIeltsAcademic
             : previous.hasTakenIeltsAcademic,
         preparationIntent: normalizedPayload.preparationIntent || previous.preparationIntent,
+        languageTrackingManualStatus:
+          normalizedPayload.languageTrackingManualStatus !== undefined
+            ? normalizedPayload.languageTrackingManualStatus
+            : previous.languageTrackingManualStatus,
         records: Array.isArray(normalizedPayload.records)
           ? this.normalizeRecords(normalizedPayload.records)
           : previous.records.map((record) => ({ ...record })),
@@ -208,6 +219,7 @@ export class IeltsTrackingService {
       graduationYear: null,
       hasTakenIeltsAcademic: null,
       preparationIntent: 'UNSET',
+      languageTrackingManualStatus: null,
       records: [],
       languageRisk: {
         ...languageRisk,
@@ -240,6 +252,10 @@ export class IeltsTrackingService {
             incomingSummary['graduationYear'],
             fallbackSummary.graduationYear
           ),
+          languageTrackingStatus: this.normalizeLanguageTrackingStatus(
+            incomingSummary['languageTrackingStatus'],
+            fallbackSummary.languageTrackingStatus
+          ),
           validityCutoffDate:
             this.toText(incomingSummary['validityCutoffDate']) || fallbackSummary.validityCutoffDate,
           validityAnchorDate:
@@ -261,6 +277,16 @@ export class IeltsTrackingService {
     const hasTakenIeltsAcademic = this.toNullableBoolean(source?.['hasTakenIeltsAcademic']);
     const records = this.normalizeRecords(source?.['records']);
     const preparationIntent = this.normalizePreparationIntent(source?.['preparationIntent']);
+    const summaryNode = this.toRecord(source?.['summary']);
+    const trackingStatus =
+      this.normalizeOptionalTrackingStatus(source?.['trackingStatus']) ??
+      this.normalizeOptionalTrackingStatus(summaryNode?.['trackingStatus']);
+    const languageTrackingStatus =
+      this.normalizeOptionalLanguageTrackingStatus(source?.['languageTrackingStatus']) ??
+      this.normalizeOptionalLanguageTrackingStatus(summaryNode?.['languageTrackingStatus']);
+    const languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
+      source?.['languageTrackingManualStatus']
+    );
     const languageRisk = this.normalizeLanguageRisk(source?.['languageRisk']);
 
     return {
@@ -268,6 +294,9 @@ export class IeltsTrackingService {
       graduationYear,
       hasTakenIeltsAcademic,
       preparationIntent,
+      trackingStatus,
+      languageTrackingStatus,
+      languageTrackingManualStatus,
       records,
       languageRisk,
       updatedAt: this.toNullableText(source?.['updatedAt']),
@@ -315,6 +344,12 @@ export class IeltsTrackingService {
       normalized.preparationIntent = this.normalizePreparationIntent(payload.preparationIntent);
     }
 
+    if (payload.languageTrackingManualStatus !== undefined) {
+      normalized.languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
+        payload.languageTrackingManualStatus
+      );
+    }
+
     if (Array.isArray(payload.records)) {
       normalized.records = this.normalizeRecords(payload.records);
     }
@@ -357,6 +392,46 @@ export class IeltsTrackingService {
     if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
     if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
     return 'YELLOW_NEEDS_PREPARATION';
+  }
+
+  private normalizeOptionalTrackingStatus(value: unknown): IeltsTrackingStatus | null {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return 'YELLOW_NEEDS_PREPARATION';
+    return null;
+  }
+
+  private normalizeLanguageTrackingStatus(
+    value: unknown,
+    fallback: IeltsSummaryViewModel['languageTrackingStatus']
+  ): IeltsSummaryViewModel['languageTrackingStatus'] {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return fallback;
+  }
+
+  private normalizeLanguageTrackingManualStatus(value: unknown): LanguageTrackingManualStatus {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return null;
+  }
+
+  private normalizeOptionalLanguageTrackingStatus(
+    value: unknown
+  ): IeltsSummaryViewModel['languageTrackingStatus'] | null {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return null;
   }
 
   private normalizeThresholdMatch(

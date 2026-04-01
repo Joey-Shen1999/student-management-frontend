@@ -4,6 +4,8 @@ import {
   DerivedValidityStatus,
   IeltsRecordFormValue,
   IeltsRecordViewModel,
+  LanguageTrackingManualStatus,
+  LanguageTrackingStatus,
   IeltsSummaryViewModel,
   IeltsTrackingRuleSet,
   IeltsTrackingStatus,
@@ -33,11 +35,16 @@ export function deriveStudentIeltsModuleState(
   const latestRecord = records.find((record) => record.isLatestRecord) ?? null;
   const latestValidRecord = records.find((record) => record.isLatestValidRecord) ?? null;
   const shouldShowModule = resolveShouldShowIeltsModule(state.languageRisk);
-  const trackingStatus = deriveIeltsTrackingStatus(state, latestValidRecord);
+  const computedTrackingStatus = deriveIeltsTrackingStatus(state, latestValidRecord);
+  const trackingStatus = state.trackingStatus ?? computedTrackingStatus;
+  const languageTrackingStatus =
+    state.languageTrackingStatus ??
+    deriveLanguageTrackingStatus(state.languageTrackingManualStatus, trackingStatus);
   const messageConfig = ruleSet.messaging[trackingStatus];
 
   const summary: IeltsSummaryViewModel = {
     trackingStatus,
+    languageTrackingStatus,
     trackingTitle: messageConfig.title,
     trackingMessage: messageConfig.message,
     colorToken: messageConfig.colorToken,
@@ -51,6 +58,19 @@ export function deriveStudentIeltsModuleState(
   };
 
   return { records, summary };
+}
+
+export function deriveLanguageTrackingStatus(
+  manualStatus: LanguageTrackingManualStatus | null | undefined,
+  trackingStatus: IeltsTrackingStatus
+): LanguageTrackingStatus {
+  if (manualStatus === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+  if (manualStatus === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+  if (manualStatus === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+  if (manualStatus === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+  if (trackingStatus === 'GREEN_STRICT_PASS') return 'AUTO_PASS_ALL_SCHOOLS';
+  if (trackingStatus === 'GREEN_COMMON_PASS_WITH_WARNING') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+  return 'NEEDS_TRACKING';
 }
 
 export function computeIeltsOverall(record: IeltsRecordFormValue): number | null {

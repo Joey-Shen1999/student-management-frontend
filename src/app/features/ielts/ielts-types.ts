@@ -3,6 +3,14 @@ export type IeltsTrackingStatus =
   | 'GREEN_COMMON_PASS_WITH_WARNING'
   | 'YELLOW_NEEDS_PREPARATION';
 
+export type LanguageTrackingStatus =
+  | 'TEACHER_REVIEW_APPROVED'
+  | 'AUTO_PASS_ALL_SCHOOLS'
+  | 'AUTO_PASS_PARTIAL_SCHOOLS'
+  | 'NEEDS_TRACKING';
+
+export type LanguageTrackingManualStatus = LanguageTrackingStatus | null;
+
 export type IeltsPreparationIntent = 'PREPARING' | 'NOT_PREPARING' | 'UNSET';
 
 export type DerivedValidityStatus =
@@ -32,6 +40,7 @@ export interface IeltsRecordViewModel extends IeltsRecordFormValue {
 
 export interface IeltsSummaryViewModel {
   trackingStatus: IeltsTrackingStatus;
+  languageTrackingStatus: LanguageTrackingStatus;
   trackingTitle: string;
   trackingMessage: string;
   colorToken: string;
@@ -61,6 +70,9 @@ export interface StudentIeltsModuleState {
   graduationYear: number | null;
   hasTakenIeltsAcademic: boolean | null;
   preparationIntent: IeltsPreparationIntent;
+  trackingStatus?: IeltsTrackingStatus | null;
+  languageTrackingStatus?: LanguageTrackingStatus | null;
+  languageTrackingManualStatus: LanguageTrackingManualStatus;
   records: IeltsRecordFormValue[];
   languageRisk: StudentLanguageRiskSnapshot;
   updatedAt: string | null;
@@ -75,6 +87,7 @@ export interface TeacherStudentIeltsSummary {
 export interface UpdateStudentIeltsPayload {
   hasTakenIeltsAcademic?: boolean | null;
   preparationIntent?: IeltsPreparationIntent;
+  languageTrackingManualStatus?: LanguageTrackingManualStatus;
   records?: IeltsRecordFormValue[];
   teacherNote?: string;
 }

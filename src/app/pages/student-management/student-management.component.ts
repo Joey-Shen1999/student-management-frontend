@@ -25,7 +25,16 @@ import {
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
-import { IeltsTrackingStatus } from '../../features/ielts/ielts-types';
+import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
+import { IeltsTrackingStatus, LanguageTrackingStatus } from '../../features/ielts/ielts-types';
+import {
+  IeltsStatusDisplayModel,
+  resolveIeltsStatusDisplay,
+} from '../../features/ielts/ielts-status-display';
+import {
+  LanguageTrackingStatusDisplay,
+  resolveLanguageTrackingStatusDisplay,
+} from '../../features/ielts/language-tracking-display';
 import {
   CITY_FILTER_OPTIONS_BY_COUNTRY,
   COUNTRY_FILTER_ALL_OPTION,
@@ -70,10 +79,9 @@ type StudentListColumnKey =
   | 'teacherNote'
   | 'profile'
   | 'ielts'
+  | 'languageTracking'
   | 'resetPassword'
   | 'archive';
-
-type StudentIeltsStatusKey = IeltsTrackingStatus | 'NO_IELTS_REQUIRED' | 'LOADING' | 'UNAVAILABLE';
 
 interface StudentListColumnConfig {
   key: StudentListColumnKey;
@@ -129,6 +137,7 @@ const IELTS_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
   'canadaIdentity',
   'teacherNote',
   'ielts',
+  'languageTracking',
   'resetPassword',
 ];
 
@@ -290,6 +299,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: true,
     headerStyle:
       'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:180px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'languageTracking',
+    label: 'Language Tracking',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -659,11 +678,44 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
                       [style.background]="resolveIeltsStatusBackground(student)"
                       [style.color]="resolveIeltsStatusTextColor(student)"
-                      [style.borderColor]="resolveIeltsStatusTextColor(student)"
+                      [style.borderColor]="resolveIeltsStatusBorderColor(student)"
                       [disabled]="!resolveStudentId(student)"
                     >
                       {{ resolveIeltsStatusLabel(student) }}
                     </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'languageTracking'">
+                    <select
+                      [ngModel]="resolveLanguageTrackingStatusSelection(student)"
+                      (ngModelChange)="onLanguageTrackingStatusSelectionChange(student, $event)"
+                      style="min-width:200px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;"
+                      [disabled]="
+                        !resolveStudentId(student) ||
+                        isLanguageTrackingStatusLoading(student) ||
+                        isLanguageTrackingStatusUnavailable(student) ||
+                        isLanguageTrackingStatusSaving(student)
+                      "
+                    >
+                      <option
+                        *ngIf="isLanguageTrackingStatusLoading(student)"
+                        [ngValue]="''"
+                      >
+                        Loading...
+                      </option>
+                      <option
+                        *ngIf="isLanguageTrackingStatusUnavailable(student)"
+                        [ngValue]="''"
+                      >
+                        Unavailable
+                      </option>
+                      <option
+                        *ngFor="let status of languageTrackingStatusOptions"
+                        [ngValue]="status"
+                      >
+                        {{ resolveLanguageTrackingStatusOptionLabel(status) }}
+                      </option>
+                    </select>
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'resetPassword'">
@@ -896,6 +948,12 @@ export class StudentManagementComponent implements OnInit {
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
   readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
+  readonly languageTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
+    'TEACHER_REVIEW_APPROVED',
+    'AUTO_PASS_ALL_SCHOOLS',
+    'AUTO_PASS_PARTIAL_SCHOOLS',
+    'NEEDS_TRACKING',
+  ];
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
   visibleColumnKeys = new Set<StudentListColumnKey>(
@@ -945,9 +1003,12 @@ export class StudentManagementComponent implements OnInit {
   private readonly teacherNoteCache = new Map<number, string>();
   private readonly teacherNoteLoadInFlight = new Set<number>();
   private readonly ieltsStatusCache = new Map<number, IeltsTrackingStatus>();
+  private readonly languageTrackingStatusCache = new Map<number, LanguageTrackingStatus>();
+  private readonly ieltsStatusColorTokenCache = new Map<number, string>();
   private readonly ieltsStatusLoadInFlight = new Set<number>();
   private readonly ieltsNoRequirement = new Set<number>();
   private readonly ieltsStatusUnavailable = new Set<number>();
+  private readonly languageTrackingStatusSaveInFlight = new Set<number>();
   private readonly teacherNoteProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
@@ -1752,44 +1813,155 @@ export class StudentManagementComponent implements OnInit {
   }
 
   resolveIeltsStatusLabel(student: StudentAccount): string {
-    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
-    if (status === 'NO_IELTS_REQUIRED') return '无需雅思';
-    if (status === 'GREEN_STRICT_PASS') return '以满足雅思';
-    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '以满足雅思(大部分本科)';
-    if (status === 'LOADING') return '加载中...';
-    if (status === 'YELLOW_NEEDS_PREPARATION' || status === 'UNAVAILABLE') return '可能需要雅思';
-    return '可能需要雅思';
+    return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).label;
   }
 
   resolveIeltsStatusBackground(student: StudentAccount): string {
-    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
-    if (status === 'NO_IELTS_REQUIRED') return '#f1f3f5';
-    if (status === 'UNAVAILABLE') return '#fff2d8';
-    if (status === 'GREEN_STRICT_PASS') return '#d8f3dc';
-    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '#e4f6e8';
-    if (status === 'YELLOW_NEEDS_PREPARATION') return '#fff2d8';
-    if (status === 'LOADING') return '#edf2fb';
-    return '#f1f3f5';
+    return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).background;
   }
 
   resolveIeltsStatusTextColor(student: StudentAccount): string {
-    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
-    if (status === 'NO_IELTS_REQUIRED') return '#6a7385';
-    if (status === 'UNAVAILABLE') return '#8a5a00';
-    if (status === 'GREEN_STRICT_PASS') return '#1f6a33';
-    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '#2d7d45';
-    if (status === 'YELLOW_NEEDS_PREPARATION') return '#8a5a00';
-    if (status === 'LOADING') return '#4a5f82';
-    return '#6a7385';
+    return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).textColor;
+  }
+
+  resolveIeltsStatusBorderColor(student: StudentAccount): string {
+    return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).borderColor;
+  }
+
+  resolveLanguageTrackingStatusLabel(student: StudentAccount): string {
+    return this.resolveLanguageTrackingStatusDisplayModel(this.resolveStudentId(student)).label;
+  }
+
+  resolveLanguageTrackingStatusBackground(student: StudentAccount): string {
+    return this.resolveLanguageTrackingStatusDisplayModel(this.resolveStudentId(student)).background;
+  }
+
+  resolveLanguageTrackingStatusTextColor(student: StudentAccount): string {
+    return this.resolveLanguageTrackingStatusDisplayModel(this.resolveStudentId(student)).textColor;
+  }
+
+  resolveLanguageTrackingStatusBorderColor(student: StudentAccount): string {
+    return this.resolveLanguageTrackingStatusDisplayModel(this.resolveStudentId(student)).borderColor;
+  }
+
+  resolveLanguageTrackingStatusOptionLabel(status: LanguageTrackingStatus): string {
+    return resolveLanguageTrackingStatusDisplay({ status }).label;
+  }
+
+  resolveLanguageTrackingStatusSelection(student: StudentAccount): LanguageTrackingStatus | '' {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return '';
+    }
+
+    return this.languageTrackingStatusCache.get(studentId) || '';
+  }
+
+  isLanguageTrackingStatusLoading(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+
+    return !this.languageTrackingStatusCache.has(studentId) && this.ieltsStatusLoadInFlight.has(studentId);
+  }
+
+  isLanguageTrackingStatusUnavailable(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return true;
+    }
+
+    return this.ieltsStatusUnavailable.has(studentId);
+  }
+
+  isLanguageTrackingStatusSaving(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+
+    return this.languageTrackingStatusSaveInFlight.has(studentId);
+  }
+
+  onLanguageTrackingStatusSelectionChange(student: StudentAccount, rawValue: unknown): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return;
+    }
+
+    const nextStatus = this.normalizeLanguageTrackingStatusValue(rawValue);
+    if (!nextStatus) {
+      return;
+    }
+
+    const previousStatus = this.languageTrackingStatusCache.get(studentId) || null;
+    if (previousStatus === nextStatus) {
+      return;
+    }
+    if (this.languageTrackingStatusSaveInFlight.has(studentId)) {
+      return;
+    }
+
+    this.languageTrackingStatusCache.set(studentId, nextStatus);
+    this.languageTrackingStatusSaveInFlight.add(studentId);
+    this.actionError = '';
+
+    this.ieltsApi
+      .updateTeacherStudentIeltsData(studentId, {
+        languageTrackingManualStatus: nextStatus,
+      })
+      .pipe(
+        finalize(() => {
+          this.languageTrackingStatusSaveInFlight.delete(studentId);
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (moduleState) => {
+          const summary = deriveStudentIeltsModuleState(moduleState).summary;
+          const statusColorToken = String(summary.colorToken || '').trim();
+
+          this.languageTrackingStatusCache.set(studentId, summary.languageTrackingStatus);
+          if (summary.shouldShowModule === false) {
+            this.ieltsNoRequirement.add(studentId);
+            this.ieltsStatusCache.delete(studentId);
+            this.ieltsStatusColorTokenCache.delete(studentId);
+            this.ieltsStatusUnavailable.delete(studentId);
+          } else {
+            this.ieltsStatusCache.set(studentId, summary.trackingStatus);
+            if (statusColorToken) {
+              this.ieltsStatusColorTokenCache.set(studentId, statusColorToken);
+            } else {
+              this.ieltsStatusColorTokenCache.delete(studentId);
+            }
+            this.ieltsNoRequirement.delete(studentId);
+            this.ieltsStatusUnavailable.delete(studentId);
+          }
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (previousStatus) {
+            this.languageTrackingStatusCache.set(studentId, previousStatus);
+          } else {
+            this.languageTrackingStatusCache.delete(studentId);
+          }
+          this.actionError = this.extractErrorMessage(err) || '保存语言跟踪状态失败。';
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   loadStudents(): void {
     this.loadingList = true;
     this.listError = '';
     this.ieltsStatusCache.clear();
+    this.languageTrackingStatusCache.clear();
+    this.ieltsStatusColorTokenCache.clear();
     this.ieltsStatusLoadInFlight.clear();
     this.ieltsNoRequirement.clear();
     this.ieltsStatusUnavailable.clear();
+    this.languageTrackingStatusSaveInFlight.clear();
     this.cdr.detectChanges();
 
     this.studentApi
@@ -2221,6 +2393,11 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleTeacherNotes();
       this.cdr.detectChanges();
     }
+
+    if ((columnKey === 'ielts' || columnKey === 'languageTracking') && checked) {
+      this.prefetchVisibleIeltsStatuses();
+      this.cdr.detectChanges();
+    }
   }
 
   resetVisibleColumns(): void {
@@ -2231,6 +2408,10 @@ export class StudentManagementComponent implements OnInit {
     this.hydrateStudentMetadata(this.students);
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
+      this.cdr.detectChanges();
+    }
+    if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
+      this.prefetchVisibleIeltsStatuses();
       this.cdr.detectChanges();
     }
   }
@@ -2485,7 +2666,7 @@ export class StudentManagementComponent implements OnInit {
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
     }
-    if (this.visibleColumnKeys.has('ielts')) {
+    if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
     }
   }
@@ -2776,15 +2957,65 @@ export class StudentManagementComponent implements OnInit {
     }
   }
 
-  private resolveIeltsStatusKey(studentId: number | null): StudentIeltsStatusKey {
-    if (!studentId) return 'UNAVAILABLE';
+  private resolveIeltsStatusDisplayModel(studentId: number | null): IeltsStatusDisplayModel {
+    if (!studentId) {
+      return resolveIeltsStatusDisplay({ isUnavailable: true });
+    }
 
-    if (this.ieltsNoRequirement.has(studentId)) return 'NO_IELTS_REQUIRED';
-    const cachedStatus = this.ieltsStatusCache.get(studentId);
-    if (cachedStatus) return cachedStatus;
-    if (this.ieltsStatusLoadInFlight.has(studentId)) return 'LOADING';
-    if (this.ieltsStatusUnavailable.has(studentId)) return 'UNAVAILABLE';
-    return 'LOADING';
+    if (this.ieltsNoRequirement.has(studentId)) {
+      return resolveIeltsStatusDisplay({ shouldShowModule: false });
+    }
+
+    const trackingStatus = this.ieltsStatusCache.get(studentId);
+    if (trackingStatus) {
+      return resolveIeltsStatusDisplay({
+        trackingStatus,
+        shouldShowModule: true,
+        colorToken: this.ieltsStatusColorTokenCache.get(studentId) || null,
+      });
+    }
+
+    if (this.ieltsStatusLoadInFlight.has(studentId)) {
+      return resolveIeltsStatusDisplay({ isLoading: true });
+    }
+
+    if (this.ieltsStatusUnavailable.has(studentId)) {
+      return resolveIeltsStatusDisplay({ isUnavailable: true });
+    }
+
+    return resolveIeltsStatusDisplay({ isLoading: true });
+  }
+
+  private resolveLanguageTrackingStatusDisplayModel(
+    studentId: number | null
+  ): LanguageTrackingStatusDisplay {
+    if (!studentId) {
+      return resolveLanguageTrackingStatusDisplay({ isUnavailable: true });
+    }
+
+    const status = this.languageTrackingStatusCache.get(studentId);
+    if (status) {
+      return resolveLanguageTrackingStatusDisplay({ status });
+    }
+
+    if (this.ieltsStatusLoadInFlight.has(studentId)) {
+      return resolveLanguageTrackingStatusDisplay({ isLoading: true });
+    }
+
+    if (this.ieltsStatusUnavailable.has(studentId)) {
+      return resolveLanguageTrackingStatusDisplay({ isUnavailable: true });
+    }
+
+    return resolveLanguageTrackingStatusDisplay({ isLoading: true });
+  }
+
+  private normalizeLanguageTrackingStatusValue(value: unknown): LanguageTrackingStatus | null {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return null;
   }
 
   private prefetchVisibleIeltsStatuses(): void {
@@ -2802,46 +3033,46 @@ export class StudentManagementComponent implements OnInit {
 
       this.ieltsStatusLoadInFlight.add(studentId);
       this.ieltsApi
-        .getTeacherStudentIeltsSummary(studentId)
+        .getTeacherStudentIeltsModuleState(studentId)
         .pipe(
           finalize(() => {
             this.ieltsStatusLoadInFlight.delete(studentId);
           })
         )
         .subscribe({
-          next: (payload) => {
-            const trackingStatus = this.normalizeIeltsTrackingStatus(payload?.summary?.trackingStatus);
-            if (payload?.summary?.shouldShowModule === false) {
+          next: (moduleState) => {
+            const summary = deriveStudentIeltsModuleState(moduleState).summary;
+            const trackingStatus = summary.trackingStatus;
+            const languageTrackingStatus = summary.languageTrackingStatus;
+            const statusColorToken = String(summary.colorToken || '').trim();
+            this.languageTrackingStatusCache.set(studentId, languageTrackingStatus);
+
+            if (summary.shouldShowModule === false) {
               this.ieltsNoRequirement.add(studentId);
               this.ieltsStatusCache.delete(studentId);
+              this.ieltsStatusColorTokenCache.delete(studentId);
               this.ieltsStatusUnavailable.delete(studentId);
-            } else if (!trackingStatus) {
-              this.ieltsStatusUnavailable.add(studentId);
-              this.ieltsNoRequirement.delete(studentId);
             } else {
               this.ieltsStatusCache.set(studentId, trackingStatus);
+              if (statusColorToken) {
+                this.ieltsStatusColorTokenCache.set(studentId, statusColorToken);
+              } else {
+                this.ieltsStatusColorTokenCache.delete(studentId);
+              }
               this.ieltsNoRequirement.delete(studentId);
               this.ieltsStatusUnavailable.delete(studentId);
             }
             this.cdr.detectChanges();
           },
           error: () => {
+            this.ieltsStatusCache.delete(studentId);
+            this.languageTrackingStatusCache.delete(studentId);
+            this.ieltsStatusColorTokenCache.delete(studentId);
             this.ieltsStatusUnavailable.add(studentId);
             this.cdr.detectChanges();
           },
         });
     }
-  }
-
-  private normalizeIeltsTrackingStatus(value: unknown): IeltsTrackingStatus | null {
-    const normalized = String(value ?? '')
-      .trim()
-      .toUpperCase();
-
-    if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
-    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
-    if (normalized === 'YELLOW_NEEDS_PREPARATION') return 'YELLOW_NEEDS_PREPARATION';
-    return null;
   }
 
   private prefetchVisibleTeacherNotes(): void {

@@ -9,11 +9,15 @@ import {
   deriveStudentIeltsModuleState,
   DerivedStudentIeltsModuleState,
 } from '../../features/ielts/ielts-derive';
+import { resolveLanguageTrackingStatusDisplay } from '../../features/ielts/language-tracking-display';
 import { IELTS_TRACKING_RULESET_V1 } from '../../features/ielts/ielts-rules';
+import { resolveIeltsStatusDisplay } from '../../features/ielts/ielts-status-display';
 import {
   IeltsPreparationIntent,
   IeltsRecordFormValue,
-  IeltsTrackingStatus,
+  LanguageTrackingManualStatus,
+  LanguageTrackingStatus,
+  IeltsSummaryViewModel,
   StudentIeltsModuleState,
 } from '../../features/ielts/ielts-types';
 import { AuthService } from '../../services/auth.service';
@@ -43,11 +47,29 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
         <ng-container *ngIf="!loading && !error && moduleState && derived as vm">
           <section class="card">
             <h3>你目前的雅思申请情况</h3>
-            <div class="status-pill" [style.background]="vm.summary.colorToken">
-              {{ displayTrackingStatusLabel(vm.summary.trackingStatus, vm.summary.shouldShowModule) }}
-            </div>
+            <ng-container *ngIf="resolveSummaryStatusDisplay(vm.summary) as statusDisplay">
+              <div
+                class="status-pill"
+                [style.background]="statusDisplay.background"
+                [style.color]="statusDisplay.textColor"
+                [style.borderColor]="statusDisplay.borderColor"
+              >
+                {{ statusDisplay.label }}
+              </div>
+            </ng-container>
             <div class="summary-title">{{ vm.summary.trackingTitle }}</div>
             <p class="summary-text">{{ vm.summary.trackingMessage }}</p>
+            <div class="summary-inline" *ngIf="resolveLanguageTrackingDisplay(vm.summary.languageTrackingStatus) as languageTrackingDisplay">
+              <span class="summary-note">语言跟踪状态：</span>
+              <span
+                class="status-pill compact"
+                [style.background]="languageTrackingDisplay.background"
+                [style.color]="languageTrackingDisplay.textColor"
+                [style.borderColor]="languageTrackingDisplay.borderColor"
+              >
+                {{ languageTrackingDisplay.label }}
+              </span>
+            </div>
             <p class="summary-note">
               规则线：{{ ruleSet.labels.commonLineName }} / {{ ruleSet.labels.strictLineName }}
             </p>
@@ -67,6 +89,47 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
             <p class="summary-note" *ngIf="forceShowModule && !vm.summary.shouldShowModule">
               Debug mode: form is forced visible by query param <code>forceShowIelts=1</code>.
             </p>
+            <div class="field-row" *ngIf="managedMode">
+              <label>Language Tracking Status (Teacher)</label>
+              <select
+                class="field-input"
+                [ngModel]="languageTrackingManualStatus || vm.summary.languageTrackingStatus"
+                (ngModelChange)="setLanguageTrackingManualStatus($event)"
+                name="languageTrackingStatus"
+              >
+                <option
+                  *ngFor="let status of languageTrackingStatusOptions; trackBy: trackLanguageTrackingStatusOption"
+                  [ngValue]="status"
+                >
+                  {{ resolveLanguageTrackingDisplay(status).label }}
+                </option>
+              </select>
+              <p class="summary-note">Teacher can directly choose the tracking status for this student.</p>
+            </div>
+            <div class="field-row" *ngIf="false && managedMode">
+              <label>语言跟踪审核（老师）</label>
+              <div class="inline-options">
+                <label>
+                  <input
+                    type="radio"
+                    name="languageTrackingReview"
+                    [checked]="languageTrackingManualStatus === null"
+                    (change)="setLanguageTrackingManualStatus(null)"
+                  />
+                  按系统自动判断
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="languageTrackingReview"
+                    [checked]="languageTrackingManualStatus === 'TEACHER_REVIEW_APPROVED'"
+                    (change)="setLanguageTrackingManualStatus('TEACHER_REVIEW_APPROVED')"
+                  />
+                  已审核通过
+                </label>
+              </div>
+              <p class="summary-note">说明：仅“已审核通过”由老师手动确认，其余状态由系统根据成绩自动更新。</p>
+            </div>
 
             <div class="field-row">
               <label>Have you taken IELTS Academic?</label>
@@ -218,6 +281,12 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 })
 export class IeltsTrackingComponent implements OnInit {
   readonly ruleSet = IELTS_TRACKING_RULESET_V1;
+  readonly languageTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
+    'TEACHER_REVIEW_APPROVED',
+    'AUTO_PASS_ALL_SCHOOLS',
+    'AUTO_PASS_PARTIAL_SCHOOLS',
+    'NEEDS_TRACKING',
+  ];
 
   managedMode = false;
   studentId = 0;
@@ -231,6 +300,7 @@ export class IeltsTrackingComponent implements OnInit {
   moduleState: StudentIeltsModuleState | null = null;
   hasTakenIeltsAcademic: boolean | null = null;
   preparationIntent: IeltsPreparationIntent = 'UNSET';
+  languageTrackingManualStatus: LanguageTrackingManualStatus = null;
   records: IeltsRecordFormValue[] = [];
 
   private loadWatchdog: number | null = null;
@@ -258,6 +328,7 @@ export class IeltsTrackingComponent implements OnInit {
       ...this.moduleState,
       hasTakenIeltsAcademic: this.hasTakenIeltsAcademic,
       preparationIntent: this.hasTakenIeltsAcademic === false ? this.preparationIntent : 'UNSET',
+      languageTrackingManualStatus: this.languageTrackingManualStatus,
       records: effectiveRecords,
     });
   }
@@ -283,6 +354,11 @@ export class IeltsTrackingComponent implements OnInit {
 
   setPreparationIntent(value: IeltsPreparationIntent): void {
     this.preparationIntent = value;
+    this.savedMessage = '';
+  }
+
+  setLanguageTrackingManualStatus(value: LanguageTrackingManualStatus): void {
+    this.languageTrackingManualStatus = value;
     this.savedMessage = '';
   }
 
@@ -321,6 +397,7 @@ export class IeltsTrackingComponent implements OnInit {
         ? this.ieltsApi.updateTeacherStudentIeltsData(this.studentId, {
             hasTakenIeltsAcademic: true,
             preparationIntent: 'UNSET',
+            languageTrackingManualStatus: this.languageTrackingManualStatus,
             records: payloadRecords,
           })
         : this.ieltsApi.saveStudentIeltsRecords(this.studentId, {
@@ -334,6 +411,7 @@ export class IeltsTrackingComponent implements OnInit {
           next: (state) => {
             this.applyState(state);
             this.savedMessage = this.managedMode ? 'Teacher update saved.' : 'IELTS records saved.';
+            this.refreshStateAfterSave();
             this.cdr.detectChanges();
           },
           error: (error: unknown) => {
@@ -354,6 +432,7 @@ export class IeltsTrackingComponent implements OnInit {
       ? this.ieltsApi.updateTeacherStudentIeltsData(this.studentId, {
           hasTakenIeltsAcademic: false,
           preparationIntent: this.preparationIntent,
+          languageTrackingManualStatus: this.languageTrackingManualStatus,
           records: [],
         })
       : this.ieltsApi.saveStudentIeltsPreparationIntent(this.studentId, this.preparationIntent);
@@ -364,6 +443,7 @@ export class IeltsTrackingComponent implements OnInit {
         next: (state) => {
           this.applyState(state);
           this.savedMessage = this.managedMode ? 'Teacher update saved.' : 'Preparation intent saved.';
+          this.refreshStateAfterSave();
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -377,16 +457,28 @@ export class IeltsTrackingComponent implements OnInit {
     return record.recordId || `record-${index + 1}`;
   };
 
+  trackLanguageTrackingStatusOption = (
+    _index: number,
+    status: LanguageTrackingStatus
+  ): LanguageTrackingStatus => {
+    return status;
+  };
+
   displayOverall(record: IeltsRecordFormValue): string {
     const overall = computeIeltsOverall(this.normalizeRecord(record));
     return overall === null ? '-' : overall.toFixed(1);
   }
 
-  displayTrackingStatusLabel(status: IeltsTrackingStatus, shouldShowModule: boolean): string {
-    if (!shouldShowModule) return '无需雅思';
-    if (status === 'GREEN_STRICT_PASS') return '以满足雅思';
-    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '以满足雅思(大部分本科)';
-    return '可能需要雅思';
+  resolveSummaryStatusDisplay(summary: IeltsSummaryViewModel) {
+    return resolveIeltsStatusDisplay({
+      trackingStatus: summary.trackingStatus,
+      shouldShowModule: summary.shouldShowModule,
+      colorToken: summary.colorToken,
+    });
+  }
+
+  resolveLanguageTrackingDisplay(status: LanguageTrackingStatus) {
+    return resolveLanguageTrackingStatusDisplay({ status });
   }
 
   recordVm(record: IeltsRecordFormValue) {
@@ -436,6 +528,7 @@ export class IeltsTrackingComponent implements OnInit {
     };
     this.hasTakenIeltsAcademic = state.hasTakenIeltsAcademic;
     this.preparationIntent = state.preparationIntent || 'UNSET';
+    this.languageTrackingManualStatus = state.languageTrackingManualStatus ?? null;
     this.records = normalizedRecords.map((record, index) => ({
       ...this.normalizeRecord(record),
       recordId: record.recordId || `record-${index + 1}`,
@@ -603,5 +696,21 @@ export class IeltsTrackingComponent implements OnInit {
     if (this.loadWatchdog === null) return;
     window.clearTimeout(this.loadWatchdog);
     this.loadWatchdog = null;
+  }
+
+  private refreshStateAfterSave(): void {
+    if (!this.studentId) return;
+
+    const request$ = this.managedMode
+      ? this.ieltsApi.getTeacherStudentIeltsModuleState(this.studentId)
+      : this.ieltsApi.getStudentIeltsModuleState(this.studentId);
+
+    request$.subscribe({
+      next: (state) => {
+        this.applyState(state);
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
   }
 }
