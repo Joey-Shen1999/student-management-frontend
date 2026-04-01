@@ -123,13 +123,15 @@ describe('InfoManagementComponent', () => {
 
     component.createInfo();
 
-    expect(taskCenter.createInfo).toHaveBeenCalledWith({
-      category: 'ACTIVITY',
-      title: '通知标题',
-      content: '通知内容',
-      tags: ['A', 'B'],
-      studentIds: [20001],
-    });
+    expect(taskCenter.createInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'ACTIVITY',
+        title: '通知标题',
+        content: '通知内容',
+        tags: ['A', 'B'],
+        studentIds: [20001],
+      })
+    );
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
 });

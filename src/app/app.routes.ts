@@ -55,6 +55,12 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/ielts',
+    loadComponent: () =>
+      import('./pages/ielts-tracking/ielts-tracking.component').then((m) => m.IeltsTrackingComponent),
+  },
+
+  {
     path: 'teacher',
     canActivateChild: [teacherRouteGuard],
     children: [
@@ -85,7 +91,23 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/ielts',
+        loadComponent: () =>
+          import('./pages/ielts-tracking/ielts-tracking.component').then(
+            (m) => m.IeltsTrackingComponent
+          ),
+      },
+
+      {
         path: 'students',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
+        path: 'ielts',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
             (m) => m.StudentManagementComponent

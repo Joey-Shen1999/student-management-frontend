@@ -8,7 +8,6 @@ import { catchError, concatMap, finalize, map, mergeMap, toArray } from 'rxjs/op
 import {
   type AssignableStudentOptionVm,
   type CreateInfoRequestVm,
-  type CreateGoalRequestVm,
   type GoalTaskStatus,
   type GoalTaskVm,
   TaskCenterService,
@@ -59,6 +58,18 @@ interface StudentDetailVm {
   schoolBoard: string;
   graduationSeason: string;
   status: 'ACTIVE' | 'ARCHIVED' | '';
+}
+
+interface GoalGroupRowVm {
+  taskGroupKey: string;
+  taskGroupId: string | null;
+  goals: GoalTaskVm[];
+  representativeGoal: GoalTaskVm;
+  status: GoalTaskStatus;
+  updatedAt: string;
+  studentNames: string[];
+  studentCount: number;
+  completedCount: number;
 }
 
 const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
@@ -145,10 +156,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   creating = false;
   createError = '';
   createSuccess = '';
-  editingGoalId: number | null = null;
+  editingTaskGroupId: string | null = null;
 
   selectedGoalId: number | null = null;
-  updatingGoalId: number | null = null;
+  updatingGoalGroupKey: string | null = null;
   updateError = '';
 
   constructor(
@@ -222,7 +233,62 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   get isEditMode(): boolean {
-    return this.editingGoalId !== null;
+    return this.editingTaskGroupId !== null;
+  }
+
+  get goalGroups(): GoalGroupRowVm[] {
+    const groups = new Map<string, GoalTaskVm[]>();
+    for (const goal of this.goals) {
+      const taskGroupId = this.resolveGoalTaskGroupId(goal);
+      const taskGroupKey = taskGroupId || `single-${goal.id}`;
+      const bucket = groups.get(taskGroupKey);
+      if (bucket) {
+        bucket.push(goal);
+      } else {
+        groups.set(taskGroupKey, [goal]);
+      }
+    }
+
+    const rows: GoalGroupRowVm[] = [];
+    for (const [taskGroupKey, goals] of groups.entries()) {
+      const sortedGoals = this.sortGoals(goals);
+      const representativeGoal = sortedGoals[0];
+      const taskGroupId = this.resolveGoalTaskGroupId(representativeGoal) || null;
+      const status = this.resolveGoalGroupStatus(sortedGoals);
+      const updatedAt = sortedGoals.reduce((latest, row) => {
+        return this.toTs(row.updatedAt, 0) > this.toTs(latest, 0) ? row.updatedAt : latest;
+      }, representativeGoal.updatedAt);
+      const studentNames = Array.from(
+        new Set(
+          sortedGoals
+            .map((row) => String(row.assignedStudentName || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const completedCount = sortedGoals.filter((row) => row.status === 'COMPLETED').length;
+
+      rows.push({
+        taskGroupKey,
+        taskGroupId,
+        goals: sortedGoals,
+        representativeGoal,
+        status,
+        updatedAt,
+        studentNames,
+        studentCount: sortedGoals.length,
+        completedCount,
+      });
+    }
+
+    return rows.sort((a, b) => {
+      const rankA = a.status === 'COMPLETED' ? 1 : 0;
+      const rankB = b.status === 'COMPLETED' ? 1 : 0;
+      if (rankA !== rankB) return rankA - rankB;
+      const dueA = this.toTs(a.representativeGoal.dueAt, Number.MAX_SAFE_INTEGER);
+      const dueB = this.toTs(b.representativeGoal.dueAt, Number.MAX_SAFE_INTEGER);
+      if (dueA !== dueB) return dueA - dueB;
+      return this.toTs(b.updatedAt, 0) - this.toTs(a.updatedAt, 0);
+    });
   }
 
   trackCreateStudentColumn = (
@@ -256,13 +322,20 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
   openCreatePanel(): void {
     if (this.creating) return;
-    this.editingGoalId = null;
+    this.editingTaskGroupId = null;
     this.resetCreateForm();
     this.createPanelExpanded = true;
   }
   openEditPanel(goal: GoalTaskVm): void {
     if (this.creating) return;
-    this.editingGoalId = goal.id;
+    const taskGroupId = this.resolveGoalTaskGroupId(goal);
+    if (!taskGroupId) {
+      this.createError = '当前任务缺少 taskGroupId，无法进入编辑模式。';
+      this.createSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+    this.editingTaskGroupId = taskGroupId;
     this.selectedGoalId = goal.id;
     this.createPanelExpanded = true;
     this.studentPanelExpanded = true;
@@ -273,8 +346,26 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createTitle = goal.title;
     this.createDescription = goal.description;
     this.createDueAt = goal.dueAt || '';
-    this.selectedCreateStudentIds = new Set<number>([goal.assignedStudentId]);
+    this.selectedCreateStudentIds = new Set<number>(
+      this.collectTaskGroupStudentIds(this.goals, taskGroupId, goal.assignedStudentId)
+    );
     this.loadMissingProfilesForVisibleRows();
+
+    this.taskCenter
+      .listTeacherGoals({ page: 1, size: 1000 })
+      .pipe(catchError(() => of({ items: [] as GoalTaskVm[], total: 0, page: 1, size: 1000 })))
+      .subscribe((resp) => {
+        if (this.editingTaskGroupId !== taskGroupId) return;
+        const groupedStudentIds = this.collectTaskGroupStudentIds(
+          resp.items || [],
+          taskGroupId,
+          goal.assignedStudentId
+        );
+        this.selectedCreateStudentIds = new Set<number>(groupedStudentIds);
+        this.pruneUnselectableSelectedStudents();
+        this.loadMissingProfilesForVisibleRows();
+        this.cdr.detectChanges();
+      });
   }
   closeCreatePanel(force = false): void {
     if (this.creating && !force) return;
@@ -282,7 +373,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
-    this.editingGoalId = null;
+    this.editingTaskGroupId = null;
   }
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
@@ -628,15 +719,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createSuccess = '';
     this.cdr.detectChanges();
 
-    const baseRequest = { title, description, dueAt };
-    from(selectedIds).pipe(
-      concatMap((studentId) =>
-        this.taskCenter.createGoal({ ...(baseRequest as Omit<CreateGoalRequestVm, 'studentId'>), studentId })
-      ),
-      toArray(),
+    this.taskCenter.createGoalGroup({
+      title,
+      description,
+      dueAt,
+      studentIds: selectedIds,
+    }).pipe(
       finalize(() => { this.creating = false; this.cdr.detectChanges(); })
     ).subscribe({
-      next: (rows) => {
+      next: (resp) => {
+        const rows = this.sortGoals(resp.items || []);
         const first = rows[0];
         if (first) this.selectedGoalId = first.id;
         this.createSuccess =
@@ -663,23 +755,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     description: string,
     dueAt: string | null
   ): void {
-    const editingGoalId = this.editingGoalId;
-    if (!editingGoalId) return;
+    const editingTaskGroupId = this.editingTaskGroupId;
+    if (!editingTaskGroupId) return;
 
-    const currentGoal = this.goals.find((goal) => goal.id === editingGoalId) || null;
-    const primaryStudentId =
-      currentGoal && selectedIds.includes(currentGoal.assignedStudentId)
-        ? currentGoal.assignedStudentId
-        : selectedIds[0];
-    const extraStudentIds = selectedIds.filter((studentId) => studentId !== primaryStudentId);
-    const baseRequest = { title, description, dueAt };
     const infoRequest: CreateInfoRequestVm = {
       category: 'ACTIVITY',
       title: `任务更新：${title}`,
       content: this.buildGoalUpdateInfoContent(title, description, dueAt),
       tags: ['任务系统', '任务更新'],
       studentIds: selectedIds,
-      goalId: editingGoalId,
+      taskGroupId: editingTaskGroupId,
     };
 
     this.creating = true;
@@ -688,29 +773,19 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
 
     this.taskCenter
-      .updateTeacherGoal(editingGoalId, {
-        studentId: primaryStudentId,
-        ...baseRequest,
+      .overwriteGoalGroup(editingTaskGroupId, {
+        title,
+        description,
+        dueAt,
+        studentIds: selectedIds,
       })
       .pipe(
-        concatMap((updatedGoal) =>
-          from(extraStudentIds).pipe(
-            concatMap((studentId) =>
-              this.taskCenter.createGoal({
-                ...(baseRequest as Omit<CreateGoalRequestVm, 'studentId'>),
-                studentId,
-              })
-            ),
-            toArray(),
-            map((createdGoals) => ({ updatedGoal, createdGoals }))
-          )
-        ),
-        concatMap((payload) =>
+        concatMap((updatedGroup) =>
           this.taskCenter.createInfo(infoRequest).pipe(
-            map((info) => ({ ...payload, info, notifyError: '' })),
+            map((info) => ({ updatedGroup, info, notifyError: '' })),
             catchError((error: unknown) =>
               of({
-                ...payload,
+                updatedGroup,
                 info: null,
                 notifyError: this.extractErrorMessage(error) || '覆盖通知失败。',
               })
@@ -723,11 +798,15 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe({
-        next: ({ updatedGoal, createdGoals, info, notifyError }) => {
-          this.selectedGoalId = updatedGoal.id;
+        next: ({ updatedGroup, info, notifyError }) => {
+          const updatedRows = this.sortGoals(updatedGroup.items || []);
+          const selectedInGroup = updatedRows.find((row) => row.id === this.selectedGoalId) || updatedRows[0];
+          if (selectedInGroup) {
+            this.selectedGoalId = selectedInGroup.id;
+          }
           this.createSuccess = info
             ? `任务已更新，并已覆盖通知：#${info.id}（覆盖 ${selectedIds.length} 人）`
-            : `任务已更新（共 ${1 + createdGoals.length} 条），但通知覆盖失败。`;
+            : `任务已更新（覆盖 ${selectedIds.length} 人），但通知覆盖失败。`;
           this.createError = notifyError || '';
           this.loadGoals();
         },
@@ -747,25 +826,112 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return `任务《${title}》已更新。\n任务描述：${description}\n截止日期：${dueText}`;
   }
 
-  selectGoal(goal: GoalTaskVm): void { this.selectedGoalId = goal.id; this.updateError = ''; }
+  private resolveGoalTaskGroupId(goal: GoalTaskVm | null | undefined): string {
+    return String(goal?.taskGroupId || '').trim();
+  }
 
-  setGoalStatus(goal: GoalTaskVm, status: GoalTaskStatus): void {
-    if (this.updatingGoalId !== null) return;
-    this.updatingGoalId = goal.id;
+  private collectTaskGroupStudentIds(
+    goals: GoalTaskVm[],
+    taskGroupId: string,
+    fallbackStudentId: number
+  ): number[] {
+    const groupedIds = goals
+      .filter((row) => this.resolveGoalTaskGroupId(row) === taskGroupId)
+      .map((row) => row.assignedStudentId);
+    const source = groupedIds.length > 0 ? groupedIds : [fallbackStudentId];
+    return Array.from(
+      new Set(
+        source
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    ).sort((a, b) => a - b);
+  }
+
+  private resolveGoalGroupStatus(goals: GoalTaskVm[]): GoalTaskStatus {
+    if (goals.length === 0) {
+      return 'NOT_STARTED';
+    }
+    if (goals.every((goal) => goal.status === 'COMPLETED')) {
+      return 'COMPLETED';
+    }
+    if (goals.every((goal) => goal.status === 'NOT_STARTED')) {
+      return 'NOT_STARTED';
+    }
+    return 'IN_PROGRESS';
+  }
+
+  selectGoal(group: GoalGroupRowVm): void {
+    this.selectedGoalId = group.representativeGoal.id;
+    this.updateError = '';
+  }
+
+  isGoalGroupSelected(group: GoalGroupRowVm): boolean {
+    if (!this.selectedGoalId) return false;
+    return group.goals.some((goal) => goal.id === this.selectedGoalId);
+  }
+
+  goalGroupStatusLabel(group: GoalGroupRowVm): string {
+    const baseStatus = this.goalStatusLabel(group.status);
+    if (group.studentCount <= 1) {
+      return baseStatus;
+    }
+    return `${baseStatus}（${group.completedCount}/${group.studentCount} 完成）`;
+  }
+
+  goalGroupStudentLabel(group: GoalGroupRowVm): string {
+    if (group.studentCount <= 0) {
+      return '-';
+    }
+    if (group.studentNames.length <= 3) {
+      return group.studentNames.join('、');
+    }
+    return `${group.studentNames.slice(0, 3).join('、')} 等${group.studentCount}人`;
+  }
+
+  setGoalStatus(group: GoalGroupRowVm, status: GoalTaskStatus): void {
+    if (this.updatingGoalGroupKey !== null) return;
+    const goalsToUpdate = group.goals.filter((goal) => goal.status !== status);
+    if (goalsToUpdate.length === 0) return;
+
+    this.updatingGoalGroupKey = group.taskGroupKey;
     this.updateError = '';
     this.cdr.detectChanges();
-    this.taskCenter.updateTeacherGoalStatus(goal.id, {
-      status,
-      progressNote: status === 'COMPLETED' ? '老师已在任务系统页标记完成。' : goal.progressNote,
-    }).pipe(finalize(() => { this.updatingGoalId = null; this.cdr.detectChanges(); }))
+
+    from(goalsToUpdate)
+      .pipe(
+        concatMap((goal) =>
+          this.taskCenter.updateTeacherGoalStatus(goal.id, {
+            status,
+            progressNote: status === 'COMPLETED' ? '老师已在任务系统页标记完成。' : goal.progressNote,
+          })
+        ),
+        toArray(),
+        finalize(() => {
+          this.updatingGoalGroupKey = null;
+          this.cdr.detectChanges();
+        })
+      )
       .subscribe({
-        next: (updated) => { this.goals = this.sortGoals(this.goals.map((row) => (row.id === updated.id ? updated : row))); this.selectedGoalId = updated.id; this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.updateError = this.extractErrorMessage(error) || '更新任务状态失败。'; this.cdr.detectChanges(); },
+        next: (updatedRows) => {
+          const updatedById = new Map(updatedRows.map((row) => [row.id, row]));
+          this.goals = this.sortGoals(
+            this.goals.map((row) => updatedById.get(row.id) || row)
+          );
+          const groupIds = new Set(group.goals.map((row) => row.id));
+          const selected = this.goals.find((row) => groupIds.has(row.id));
+          this.selectedGoalId = selected?.id || this.selectedGoalId;
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.updateError = this.extractErrorMessage(error) || '更新任务状态失败。';
+          this.cdr.detectChanges();
+        },
       });
   }
 
   trackStudent = (_: number, student: AssignableStudentOptionVm): number => student.studentId;
-  trackGoal = (_: number, goal: GoalTaskVm): number => goal.id;
+  trackGoal = (_: number, group: GoalGroupRowVm): string => group.taskGroupKey;
   goalStatusLabel(status: GoalTaskStatus): string { if (status === 'NOT_STARTED') return '未开始'; if (status === 'IN_PROGRESS') return '进行中'; return '已完成'; }
   displayDueAt(goal: GoalTaskVm): string { if (!goal.dueAt) return '无截止日期'; const ts = Date.parse(goal.dueAt); return Number.isFinite(ts) ? new Date(ts).toLocaleDateString() : goal.dueAt; }
   displayUpdatedAt(value: string): string { const ts = Date.parse(value); return Number.isFinite(ts) ? new Date(ts).toLocaleString() : value; }

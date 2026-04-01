@@ -201,6 +201,9 @@ import {
           <h3>快捷操作</h3>
           <div class="quick-actions">
             <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
+            <button type="button" class="action-btn primary" (click)="goIeltsTracking()">
+              IELTS 追踪
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
               姓名设置
             </button>
@@ -264,6 +267,10 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goIeltsTracking() {
+    this.router.navigate(['/student/ielts']);
   }
 
   goAccountProfile() {

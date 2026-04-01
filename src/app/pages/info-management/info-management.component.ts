@@ -100,8 +100,12 @@ export class InfoManagementComponent implements OnInit {
   creatingInfo = false;
   createInfoError = '';
   createInfoSuccess = '';
+  editingInfoId: number | null = null;
+  editingInfoTaskGroupId: string | null = null;
 
   private infosLoadWatchdog: number | null = null;
+  private readonly infoTaskGroupIdByInfoId = new Map<number, string>();
+  private readonly selectedStudentIdsByInfoId = new Map<number, number[]>();
 
   readonly isCreateStudentSelectedRef = (studentId: number): boolean =>
     this.isCreateStudentSelected(studentId);
@@ -169,12 +173,49 @@ export class InfoManagementComponent implements OnInit {
     return this.createStudentColumns;
   }
 
+  get isEditMode(): boolean {
+    return this.editingInfoId !== null && !!this.editingInfoTaskGroupId;
+  }
+
   goDashboard(): void {
     this.router.navigate(['/teacher/dashboard']);
   }
 
   openCreatePanel(): void {
+    if (this.creatingInfo) return;
+    this.editingInfoId = null;
+    this.editingInfoTaskGroupId = null;
+    this.resetCreateInfoForm();
     this.createPanelExpanded = true;
+  }
+
+  openEditPanel(info: InfoTaskVm): void {
+    if (this.creatingInfo) return;
+
+    const taskGroupId = this.resolveInfoTaskGroupId(info);
+    if (!taskGroupId) {
+      this.createInfoError = '当前通知缺少 taskGroupId，暂不支持覆盖编辑。';
+      this.createInfoSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.editingInfoId = info.id;
+    this.editingInfoTaskGroupId = taskGroupId;
+    this.createPanelExpanded = true;
+    this.studentPanelExpanded = true;
+    this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
+    this.createInfoCategory = info.category;
+    this.createInfoTitle = info.title;
+    this.createInfoContent = info.content;
+    this.createInfoTags = (info.tags || []).join(',');
+    const selectedIds = this.resolveInfoRecipientStudentIds(info.id);
+    this.selectedCreateStudentIds = new Set<number>(selectedIds);
+    this.createInfoError =
+      selectedIds.length > 0 ? '' : '请重新选择通知接收学生，然后保存。';
+    this.createInfoSuccess = '';
+    this.cdr.detectChanges();
   }
 
   closeCreatePanel(): void {
@@ -183,6 +224,8 @@ export class InfoManagementComponent implements OnInit {
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
+    this.editingInfoId = null;
+    this.editingInfoTaskGroupId = null;
   }
 
   onCreatePanelBackdropClick(event: MouseEvent): void {
@@ -567,12 +610,23 @@ export class InfoManagementComponent implements OnInit {
       return;
     }
 
+    if (this.isEditMode) {
+      this.saveEditedInfo(selectedStudentIds, title, content);
+      return;
+    }
+
+    this.createNewInfo(selectedStudentIds, title, content);
+  }
+
+  private createNewInfo(selectedStudentIds: number[], title: string, content: string): void {
+    const taskGroupId = this.generateInfoTaskGroupId();
     const request: CreateInfoRequestVm = {
       category: this.createInfoCategory,
       title,
       content,
       tags: this.parseTags(this.createInfoTags),
       studentIds: selectedStudentIds,
+      taskGroupId,
     };
 
     this.creatingInfo = true;
@@ -590,6 +644,7 @@ export class InfoManagementComponent implements OnInit {
       )
       .subscribe({
         next: (info) => {
+          this.rememberInfoMappings(info.id, taskGroupId, selectedStudentIds);
           this.createInfoSuccess = `通知已发布（${selectedStudentIds.length} 人）：#${info.id} ${info.title}`;
           this.createInfoTitle = '';
           this.createInfoContent = '';
@@ -606,8 +661,63 @@ export class InfoManagementComponent implements OnInit {
       });
   }
 
+  private saveEditedInfo(selectedStudentIds: number[], title: string, content: string): void {
+    const taskGroupId = this.normalizeTaskGroupId(this.editingInfoTaskGroupId);
+    const editingInfoId = this.editingInfoId;
+    if (!taskGroupId || !editingInfoId) {
+      this.createInfoError = '当前通知缺少 taskGroupId，无法覆盖更新。';
+      this.createInfoSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const request: CreateInfoRequestVm = {
+      category: this.createInfoCategory,
+      title,
+      content,
+      tags: this.parseTags(this.createInfoTags),
+      studentIds: selectedStudentIds,
+      taskGroupId,
+    };
+
+    this.creatingInfo = true;
+    this.createInfoError = '';
+    this.createInfoSuccess = '';
+    this.cdr.detectChanges();
+
+    this.taskCenter
+      .createInfo(request)
+      .pipe(
+        finalize(() => {
+          this.creatingInfo = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (info) => {
+          this.rememberInfoMappings(info.id, taskGroupId, selectedStudentIds);
+          this.rememberInfoMappings(editingInfoId, taskGroupId, selectedStudentIds);
+          this.createInfoSuccess = `通知已更新（覆盖 ${selectedStudentIds.length} 人）：#${info.id} ${info.title}`;
+          this.createInfoError = '';
+          this.loadInfos();
+        },
+        error: (error: unknown) => {
+          this.createInfoError = this.extractErrorMessage(error) || '更新通知失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
   trackStudent = (_index: number, student: AssignableStudentOptionVm): number => student.studentId;
+
+  canEditInfo(info: InfoTaskVm): boolean {
+    return !!this.resolveInfoTaskGroupId(info);
+  }
+
+  infoEditDisabledReason(info: InfoTaskVm): string {
+    return this.canEditInfo(info) ? '' : '该通知缺少 taskGroupId，暂不支持覆盖编辑。';
+  }
 
   infoCategoryLabel(category: InfoTaskCategory): string {
     return category === 'VOLUNTEER' ? '义工' : '活动';
@@ -686,7 +796,19 @@ export class InfoManagementComponent implements OnInit {
       )
       .subscribe({
         next: (resp) => {
-          this.infos = [...(resp.items || [])];
+          this.infos = (resp.items || []).map((info) => {
+            const taskGroupId =
+              this.normalizeTaskGroupId(info.taskGroupId) ||
+              this.infoTaskGroupIdByInfoId.get(info.id) ||
+              null;
+            if (taskGroupId) {
+              this.infoTaskGroupIdByInfoId.set(info.id, taskGroupId);
+            }
+            return {
+              ...info,
+              taskGroupId,
+            };
+          });
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -1139,6 +1261,54 @@ export class InfoManagementComponent implements OnInit {
       if (Array.isArray(node.data)) return node.data as StudentAccount[];
     }
     return [];
+  }
+
+  private normalizeTaskGroupId(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private resolveInfoTaskGroupId(info: InfoTaskVm | null | undefined): string {
+    const fromRow = this.normalizeTaskGroupId(info?.taskGroupId);
+    if (fromRow) {
+      return fromRow;
+    }
+    const infoId = Number(info?.id);
+    if (!Number.isFinite(infoId) || infoId <= 0) {
+      return '';
+    }
+    return this.infoTaskGroupIdByInfoId.get(Math.trunc(infoId)) || '';
+  }
+
+  private resolveInfoRecipientStudentIds(infoId: number): number[] {
+    const ids = this.selectedStudentIdsByInfoId.get(infoId) || [];
+    return ids
+      .map((studentId) => Math.trunc(Number(studentId)))
+      .filter((studentId) => Number.isFinite(studentId) && studentId > 0);
+  }
+
+  private rememberInfoMappings(infoId: number, taskGroupId: string, studentIds: number[]): void {
+    const normalizedInfoId = Math.trunc(Number(infoId));
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!Number.isFinite(normalizedInfoId) || normalizedInfoId <= 0 || !normalizedTaskGroupId) {
+      return;
+    }
+    const normalizedStudentIds = Array.from(
+      new Set(
+        (studentIds || [])
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    );
+    this.infoTaskGroupIdByInfoId.set(normalizedInfoId, normalizedTaskGroupId);
+    this.selectedStudentIdsByInfoId.set(normalizedInfoId, normalizedStudentIds);
+  }
+
+  private generateInfoTaskGroupId(): string {
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.floor(Math.random() * 0x1000000)
+      .toString(36)
+      .padStart(5, '0');
+    return `INFO-${timestamp}-${randomPart}`;
   }
 
   private startInfosLoadWatchdog(): void {

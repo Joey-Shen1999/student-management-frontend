@@ -21,6 +21,12 @@
     >
       <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <div class="create-modal-head">
+          <div class="create-modal-actions">
+            <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
+              保存
+            </button>
+            <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
+          </div>
           <strong class="create-modal-title">{{ isEditMode ? '编辑任务' : '新建任务' }}</strong>
           <button
             type="button"
@@ -98,17 +104,6 @@
             <input type="date" [(ngModel)]="createDueAt" [disabled]="creating" />
           </div>
 
-          <div class="actions">
-            <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
-              {{
-                creating
-                  ? (isEditMode ? '保存中...' : '发布中...')
-                  : (isEditMode ? '保存并覆盖通知' : '发布任务')
-              }}
-            </button>
-            <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
-          </div>
-
           <div *ngIf="createError" class="error-text">{{ createError }}</div>
           <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
         </div>
@@ -142,50 +137,50 @@
 
     <div *ngIf="goalsLoading" class="state-text">正在加载任务...</div>
     <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
-    <div *ngIf="!goalsLoading && !goalsError && goals.length === 0" class="state-text">暂无任务。</div>
+    <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">暂无任务。</div>
 
     <article
       class="goal-item"
-      *ngFor="let goal of goals; trackBy: trackGoal"
+      *ngFor="let goal of goalGroups; trackBy: trackGoal"
       (click)="selectGoal(goal)"
-      [class.goal-selected]="selectedGoalId === goal.id"
+      [class.goal-selected]="isGoalGroupSelected(goal)"
     >
       <div class="goal-head">
-        <strong>{{ goal.title }}</strong>
-        <span>{{ goalStatusLabel(goal.status) }}</span>
+        <strong>{{ goal.representativeGoal.title }}</strong>
+        <span>{{ goalGroupStatusLabel(goal) }}</span>
       </div>
-      <p>{{ goal.description }}</p>
+      <p>{{ goal.representativeGoal.description }}</p>
       <small>
-        学生：{{ goal.assignedStudentName }} | 截止：{{ displayDueAt(goal) }} | 更新：{{
+        学生：{{ goalGroupStudentLabel(goal) }} | 截止：{{ displayDueAt(goal.representativeGoal) }} | 更新：{{
           displayUpdatedAt(goal.updatedAt)
         }}
       </small>
       <div class="actions">
         <button
           type="button"
-          (click)="$event.stopPropagation(); openEditPanel(goal)"
-          [disabled]="creating || updatingGoalId === goal.id"
+          (click)="$event.stopPropagation(); openEditPanel(goal.representativeGoal)"
+          [disabled]="creating || updatingGoalGroupKey === goal.taskGroupKey"
         >
           编辑
         </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'NOT_STARTED'"
+          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'NOT_STARTED'"
         >
           未开始
         </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'IN_PROGRESS'"
+          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'IN_PROGRESS'"
         >
           进行中
         </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')"
-          [disabled]="updatingGoalId === goal.id || goal.status === 'COMPLETED'"
+          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'COMPLETED'"
         >
           完成
         </button>

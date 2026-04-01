@@ -73,16 +73,35 @@
   background: #fff;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   margin: -10px -10px 0;
   padding: 10px;
   border-bottom: 1px solid #e3ebf8;
 }
 
+.create-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.create-modal-actions button {
+  border: 1px solid #c8d2e0;
+  background: #f8faff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.create-modal-actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .create-modal-title {
   color: #1f2a44;
   font-size: 15px;
+  margin-right: auto;
 }
 
 .modal-close-btn {

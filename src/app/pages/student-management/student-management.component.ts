@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 
@@ -23,7 +23,9 @@ import {
   StudentProfileService,
 } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
+import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import { IeltsTrackingStatus } from '../../features/ielts/ielts-types';
 import {
   CITY_FILTER_OPTIONS_BY_COUNTRY,
   COUNTRY_FILTER_ALL_OPTION,
@@ -67,8 +69,11 @@ type StudentListColumnKey =
   | 'city'
   | 'teacherNote'
   | 'profile'
+  | 'ielts'
   | 'resetPassword'
   | 'archive';
+
+type StudentIeltsStatusKey = IeltsTrackingStatus | 'NO_IELTS_REQUIRED' | 'LOADING' | 'UNAVAILABLE';
 
 interface StudentListColumnConfig {
   key: StudentListColumnKey;
@@ -82,6 +87,7 @@ interface StudentListColumnConfig {
 
 type StudentCountryFilter = 'ALL' | 'N/A' | string;
 type StudentProvinceFilter = string;
+type StudentManagementPageContext = 'students' | 'ielts';
 
 interface StudentListMetadata {
   email: string;
@@ -108,8 +114,27 @@ interface StudentSchoolContext {
 
 const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'student-management.student-list.visible-columns';
-const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY = 'student-management.list-columns';
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v1';
+const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
+  StudentManagementPageContext,
+  string
+> = {
+  students: 'student-management.list-columns',
+  ielts: 'ielts-tracking.list-columns',
+};
+
+const IELTS_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
+  'name',
+  'graduation',
+  'schoolName',
+  'canadaIdentity',
+  'teacherNote',
+  'ielts',
+  'resetPassword',
+];
+
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v2';
+const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
+  'student-management.student-list.column-override';
 
 const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   {
@@ -258,6 +283,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
+    key: 'ielts',
+    label: 'IELTS',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:180px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
     key: 'resetPassword',
     label: '重置密码',
     defaultVisible: true,
@@ -307,7 +342,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   template: `
     <div style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">学生账号管理</h2>
+        <h2 style="margin:0;">{{ pageTitle }}</h2>
         <button type="button" routerLink="/teacher/dashboard" class="student-back-btn" style="margin-left:auto;">
           返回
         </button>
@@ -617,6 +652,20 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     </button>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'ielts'">
+                    <button
+                      type="button"
+                      [routerLink]="ieltsRoute(student)"
+                      style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
+                      [style.background]="resolveIeltsStatusBackground(student)"
+                      [style.color]="resolveIeltsStatusTextColor(student)"
+                      [style.borderColor]="resolveIeltsStatusTextColor(student)"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      {{ resolveIeltsStatusLabel(student) }}
+                    </button>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'resetPassword'">
                     <button
                       type="button"
@@ -895,6 +944,10 @@ export class StudentManagementComponent implements OnInit {
   private readonly studentContactLoadInFlight = new Set<number>();
   private readonly teacherNoteCache = new Map<number, string>();
   private readonly teacherNoteLoadInFlight = new Set<number>();
+  private readonly ieltsStatusCache = new Map<number, IeltsTrackingStatus>();
+  private readonly ieltsStatusLoadInFlight = new Set<number>();
+  private readonly ieltsNoRequirement = new Set<number>();
+  private readonly ieltsStatusUnavailable = new Set<number>();
   private readonly teacherNoteProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
@@ -906,6 +959,8 @@ export class StudentManagementComponent implements OnInit {
     private studentProfileApi: StudentProfileService,
     private inviteApi: StudentInviteService,
     private auth: AuthService,
+    private router: Router,
+    private ieltsApi: IeltsTrackingService,
     private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
@@ -934,8 +989,51 @@ export class StudentManagementComponent implements OnInit {
   }
 
   resolveStudentId(student: StudentAccount): number | null {
-    const id = student.studentId ?? student.id ?? student.userId;
-    return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
+    const row = (student ?? {}) as Record<string, unknown>;
+    const nestedStudent =
+      row['student'] && typeof row['student'] === 'object'
+        ? (row['student'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+    const nestedUser =
+      row['user'] && typeof row['user'] === 'object'
+        ? (row['user'] as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
+    const candidates: unknown[] = [
+      student.studentId,
+      row['studentId'],
+      row['student_id'],
+      row['studentID'],
+      student.id,
+      row['id'],
+      nestedStudent['studentId'],
+      nestedStudent['student_id'],
+      nestedStudent['id'],
+      student.userId,
+      row['userId'],
+      row['user_id'],
+      nestedUser['studentId'],
+      nestedUser['student_id'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.coercePositiveIntegerId(candidate);
+      if (normalized !== null) return normalized;
+    }
+    return null;
+  }
+
+  private coercePositiveIntegerId(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return Math.trunc(value);
+    }
+
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    if (!/^\d+$/.test(text)) return null;
+
+    const parsed = Number(text);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
   }
 
   resolveStudentEmail(student: StudentAccount): string {
@@ -1017,6 +1115,10 @@ export class StudentManagementComponent implements OnInit {
       default:
         return '-';
     }
+  }
+
+  get pageTitle(): string {
+    return this.resolvePageContext() === 'ielts' ? '雅思跟踪' : '学生账号管理';
   }
 
   get visibleColumns(): readonly StudentListColumnConfig[] {
@@ -1641,9 +1743,53 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'profile'];
   }
 
+  ieltsRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    return ['/teacher/students', String(studentId), 'ielts'];
+  }
+
+  resolveIeltsStatusLabel(student: StudentAccount): string {
+    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
+    if (status === 'NO_IELTS_REQUIRED') return '无需雅思';
+    if (status === 'GREEN_STRICT_PASS') return '以满足雅思';
+    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '以满足雅思(大部分本科)';
+    if (status === 'LOADING') return '加载中...';
+    if (status === 'YELLOW_NEEDS_PREPARATION' || status === 'UNAVAILABLE') return '可能需要雅思';
+    return '可能需要雅思';
+  }
+
+  resolveIeltsStatusBackground(student: StudentAccount): string {
+    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
+    if (status === 'NO_IELTS_REQUIRED') return '#f1f3f5';
+    if (status === 'UNAVAILABLE') return '#fff2d8';
+    if (status === 'GREEN_STRICT_PASS') return '#d8f3dc';
+    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '#e4f6e8';
+    if (status === 'YELLOW_NEEDS_PREPARATION') return '#fff2d8';
+    if (status === 'LOADING') return '#edf2fb';
+    return '#f1f3f5';
+  }
+
+  resolveIeltsStatusTextColor(student: StudentAccount): string {
+    const status = this.resolveIeltsStatusKey(this.resolveStudentId(student));
+    if (status === 'NO_IELTS_REQUIRED') return '#6a7385';
+    if (status === 'UNAVAILABLE') return '#8a5a00';
+    if (status === 'GREEN_STRICT_PASS') return '#1f6a33';
+    if (status === 'GREEN_COMMON_PASS_WITH_WARNING') return '#2d7d45';
+    if (status === 'YELLOW_NEEDS_PREPARATION') return '#8a5a00';
+    if (status === 'LOADING') return '#4a5f82';
+    return '#6a7385';
+  }
+
   loadStudents(): void {
     this.loadingList = true;
     this.listError = '';
+    this.ieltsStatusCache.clear();
+    this.ieltsStatusLoadInFlight.clear();
+    this.ieltsNoRequirement.clear();
+    this.ieltsStatusUnavailable.clear();
     this.cdr.detectChanges();
 
     this.studentApi
@@ -2063,6 +2209,7 @@ export class StudentManagementComponent implements OnInit {
     }
 
     this.visibleColumnKeys = next;
+    this.persistIndependentColumnOverrides();
     this.persistVisibleColumnsPreference();
     this.syncVisibleColumnsPreferenceToServer();
 
@@ -2078,6 +2225,7 @@ export class StudentManagementComponent implements OnInit {
 
   resetVisibleColumns(): void {
     this.visibleColumnKeys = this.buildDefaultVisibleColumnKeys();
+    this.persistIndependentColumnOverrides();
     this.persistVisibleColumnsPreference();
     this.syncVisibleColumnsPreferenceToServer();
     this.hydrateStudentMetadata(this.students);
@@ -2104,15 +2252,21 @@ export class StudentManagementComponent implements OnInit {
     const defaults = this.buildDefaultVisibleColumnKeys();
     const persisted = this.readVisibleColumnsPreference();
     if (!persisted) {
-      this.visibleColumnKeys = defaults;
+      this.visibleColumnKeys = this.applyIndependentColumnOverrides(defaults);
+      this.persistIndependentColumnOverrides();
       return;
     }
 
     const restored = this.normalizeVisibleColumnKeys(persisted);
-    this.visibleColumnKeys = restored.size > 0 ? restored : defaults;
+    const base = restored.size > 0 ? restored : defaults;
+    this.visibleColumnKeys = this.applyIndependentColumnOverrides(base);
+    this.persistIndependentColumnOverrides();
   }
 
   private buildDefaultVisibleColumnKeys(): Set<StudentListColumnKey> {
+    if (this.resolvePageContext() === 'ielts') {
+      return this.normalizeVisibleColumnKeys(IELTS_TRACKING_DEFAULT_COLUMN_KEYS);
+    }
     return buildVisibleColumnDefaults(this.studentListColumns);
   }
 
@@ -2149,18 +2303,34 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private resolveVisibleColumnsStorageKey(): string {
+    const pageContext = this.resolvePageContext();
+    const pageScope = `page-${pageContext}`;
     const session = this.auth.getSession();
     const teacherId = Number(session?.teacherId);
     if (Number.isFinite(teacherId) && teacherId > 0) {
-      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.teacher-${Math.trunc(teacherId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.teacher-${Math.trunc(teacherId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
     }
 
     const userId = this.auth.getCurrentUserId();
     if (userId && userId > 0) {
-      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.user-${Math.trunc(userId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.user-${Math.trunc(userId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
     }
 
-    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.anonymous.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.anonymous.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+  }
+
+  private resolvePageContext(): StudentManagementPageContext {
+    const url = String(this.router.url || (globalThis as { location?: Location }).location?.pathname || '')
+      .trim()
+      .toLowerCase();
+    if (url.startsWith('/teacher/ielts')) {
+      return 'ielts';
+    }
+    return 'students';
+  }
+
+  private resolveVisibleColumnsPreferencePageKey(): string {
+    return STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT[this.resolvePageContext()];
   }
 
   private normalizeVisibleColumnKeys(keys: readonly string[]): Set<StudentListColumnKey> {
@@ -2171,7 +2341,8 @@ export class StudentManagementComponent implements OnInit {
     const authorization = this.auth.getAuthorizationHeaderValue();
     if (!authorization) return;
 
-    this.teacherPreferenceApi.getPagePreference(STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY).subscribe({
+    const pagePreferenceKey = this.resolveVisibleColumnsPreferencePageKey();
+    this.teacherPreferenceApi.getPagePreference(pagePreferenceKey).subscribe({
       next: (payload) => {
         const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
           ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
@@ -2185,7 +2356,8 @@ export class StudentManagementComponent implements OnInit {
           return;
         }
 
-        this.visibleColumnKeys = normalized;
+        this.visibleColumnKeys = this.applyIndependentColumnOverrides(normalized);
+        this.persistIndependentColumnOverrides();
         this.persistVisibleColumnsPreference();
         this.hydrateStudentMetadata(this.students);
         if (this.visibleColumnKeys.has('teacherNote')) {
@@ -2197,16 +2369,73 @@ export class StudentManagementComponent implements OnInit {
     });
   }
 
+  private isIndependentlyOverridableColumn(
+    columnKey: StudentListColumnKey
+  ): columnKey is 'profile' | 'ielts' {
+    return columnKey === 'profile' || columnKey === 'ielts';
+  }
+
+  private persistIndependentColumnOverride(columnKey: StudentListColumnKey): void {
+    if (!this.isIndependentlyOverridableColumn(columnKey)) return;
+
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const storageKey = this.resolveIndependentColumnOverrideStorageKey(columnKey);
+      const visible = this.visibleColumnKeys.has(columnKey) ? '1' : '0';
+      storage.setItem(storageKey, visible);
+    } catch {}
+  }
+
+  private persistIndependentColumnOverrides(): void {
+    this.persistIndependentColumnOverride('profile');
+    this.persistIndependentColumnOverride('ielts');
+  }
+
+  private applyIndependentColumnOverrides(
+    base: Set<StudentListColumnKey>
+  ): Set<StudentListColumnKey> {
+    const next = new Set<StudentListColumnKey>(base);
+    for (const columnKey of ['profile', 'ielts'] as const) {
+      const override = this.readIndependentColumnOverride(columnKey);
+      if (override === null) continue;
+      if (override) next.add(columnKey);
+      else next.delete(columnKey);
+    }
+    return next;
+  }
+
+  private readIndependentColumnOverride(columnKey: 'profile' | 'ielts'): boolean | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const storageKey = this.resolveIndependentColumnOverrideStorageKey(columnKey);
+      const raw = String(storage.getItem(storageKey) ?? '').trim();
+      if (!raw) return null;
+      if (raw === '1' || raw.toLowerCase() === 'true') return true;
+      if (raw === '0' || raw.toLowerCase() === 'false') return false;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveIndependentColumnOverrideStorageKey(columnKey: 'profile' | 'ielts'): string {
+    const sessionScopedKey = this.resolveVisibleColumnsStorageKey();
+    return `${STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX}.${sessionScopedKey}.${columnKey}`;
+  }
+
   private syncVisibleColumnsPreferenceToServer(): void {
     const authorization = this.auth.getAuthorizationHeaderValue();
     if (!authorization) return;
 
+    const pagePreferenceKey = this.resolveVisibleColumnsPreferencePageKey();
     const payload = {
       version: STUDENT_LIST_COLUMN_PREFERENCE_VERSION,
       visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
     };
     this.teacherPreferenceApi
-      .upsertPagePreference(STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY, payload)
+      .upsertPagePreference(pagePreferenceKey, payload)
       .subscribe({
         next: () => {},
         error: () => {},
@@ -2255,6 +2484,9 @@ export class StudentManagementComponent implements OnInit {
     this.visibleStudents = filtered.slice(0, this.listLimit);
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
+    }
+    if (this.visibleColumnKeys.has('ielts')) {
+      this.prefetchVisibleIeltsStatuses();
     }
   }
 
@@ -2542,6 +2774,74 @@ export class StudentManagementComponent implements OnInit {
           error: () => {},
         });
     }
+  }
+
+  private resolveIeltsStatusKey(studentId: number | null): StudentIeltsStatusKey {
+    if (!studentId) return 'UNAVAILABLE';
+
+    if (this.ieltsNoRequirement.has(studentId)) return 'NO_IELTS_REQUIRED';
+    const cachedStatus = this.ieltsStatusCache.get(studentId);
+    if (cachedStatus) return cachedStatus;
+    if (this.ieltsStatusLoadInFlight.has(studentId)) return 'LOADING';
+    if (this.ieltsStatusUnavailable.has(studentId)) return 'UNAVAILABLE';
+    return 'LOADING';
+  }
+
+  private prefetchVisibleIeltsStatuses(): void {
+    for (const student of this.visibleStudents) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId) continue;
+      if (
+        this.ieltsNoRequirement.has(studentId) ||
+        this.ieltsStatusCache.has(studentId) ||
+        this.ieltsStatusUnavailable.has(studentId)
+      ) {
+        continue;
+      }
+      if (this.ieltsStatusLoadInFlight.has(studentId)) continue;
+
+      this.ieltsStatusLoadInFlight.add(studentId);
+      this.ieltsApi
+        .getTeacherStudentIeltsSummary(studentId)
+        .pipe(
+          finalize(() => {
+            this.ieltsStatusLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (payload) => {
+            const trackingStatus = this.normalizeIeltsTrackingStatus(payload?.summary?.trackingStatus);
+            if (payload?.summary?.shouldShowModule === false) {
+              this.ieltsNoRequirement.add(studentId);
+              this.ieltsStatusCache.delete(studentId);
+              this.ieltsStatusUnavailable.delete(studentId);
+            } else if (!trackingStatus) {
+              this.ieltsStatusUnavailable.add(studentId);
+              this.ieltsNoRequirement.delete(studentId);
+            } else {
+              this.ieltsStatusCache.set(studentId, trackingStatus);
+              this.ieltsNoRequirement.delete(studentId);
+              this.ieltsStatusUnavailable.delete(studentId);
+            }
+            this.cdr.detectChanges();
+          },
+          error: () => {
+            this.ieltsStatusUnavailable.add(studentId);
+            this.cdr.detectChanges();
+          },
+        });
+    }
+  }
+
+  private normalizeIeltsTrackingStatus(value: unknown): IeltsTrackingStatus | null {
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+
+    if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return 'YELLOW_NEEDS_PREPARATION';
+    return null;
   }
 
   private prefetchVisibleTeacherNotes(): void {

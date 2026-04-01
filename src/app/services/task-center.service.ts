@@ -14,6 +14,7 @@ export interface GoalTaskVm {
   description: string;
   status: GoalTaskStatus;
   dueAt: string | null;
+  taskGroupId?: string;
   assignedStudentId: number;
   assignedStudentName: string;
   assignedByTeacherId: number;
@@ -52,6 +53,7 @@ export interface CreateGoalRequestVm {
   title: string;
   description: string;
   dueAt: string | null;
+  taskGroupId?: string;
 }
 
 export interface UpdateTeacherGoalRequestVm {
@@ -59,6 +61,21 @@ export interface UpdateTeacherGoalRequestVm {
   title: string;
   description: string;
   dueAt: string | null;
+  taskGroupId?: string;
+}
+
+export interface GoalGroupUpsertRequestVm {
+  taskGroupId?: string;
+  title: string;
+  description: string;
+  dueAt: string | null;
+  studentIds: number[];
+}
+
+export interface GoalGroupResponseVm {
+  taskGroupId: string;
+  items: GoalTaskVm[];
+  total: number;
 }
 
 export interface AssignableStudentOptionVm {
@@ -75,6 +92,7 @@ export interface InfoTaskVm {
   category: InfoTaskCategory;
   tags: string[];
   goalId?: number | null;
+  taskGroupId?: string | null;
   targetStudentCount: number;
   publishedByTeacherId: number;
   publishedByTeacherName: string;
@@ -107,6 +125,7 @@ export interface CreateInfoRequestVm {
   tags: string[];
   studentIds?: number[];
   goalId?: number | null;
+  taskGroupId?: string;
 }
 
 const MOCK_GOALS: GoalTaskVm[] = [
@@ -117,6 +136,7 @@ const MOCK_GOALS: GoalTaskVm[] = [
     description: '本周内完成 OUAC 注册并截图上传。',
     status: 'NOT_STARTED',
     dueAt: '2026-03-15',
+    taskGroupId: 'TG-1001',
     assignedStudentId: 20001,
     assignedStudentName: '张三',
     assignedByTeacherId: 9001,
@@ -133,6 +153,7 @@ const MOCK_GOALS: GoalTaskVm[] = [
     description: '包含专业方向和申请理由。',
     status: 'IN_PROGRESS',
     dueAt: '2026-03-18',
+    taskGroupId: 'TG-1002',
     assignedStudentId: 20001,
     assignedStudentName: '张三',
     assignedByTeacherId: 9001,
@@ -149,6 +170,7 @@ const MOCK_GOALS: GoalTaskVm[] = [
     description: '上传证明文件并填写活动说明。',
     status: 'COMPLETED',
     dueAt: '2026-03-05',
+    taskGroupId: 'TG-1003',
     assignedStudentId: 20002,
     assignedStudentName: '李四',
     assignedByTeacherId: 9002,
@@ -305,6 +327,42 @@ export class TaskCenterService {
     return this.withRequestTimeout(
       this.http.post<GoalTaskVm>(
         `${this.teacherBaseUrl}/goals`,
+        request,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  createGoalGroup(request: GoalGroupUpsertRequestVm): Observable<GoalGroupResponseVm> {
+    if (this.useMock) {
+      return this.createGoalGroupFromMock(request);
+    }
+
+    return this.withRequestTimeout(
+      this.http.post<GoalGroupResponseVm>(
+        `${this.teacherBaseUrl}/goal-groups`,
+        request,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  overwriteGoalGroup(
+    taskGroupId: string,
+    request: GoalGroupUpsertRequestVm
+  ): Observable<GoalGroupResponseVm> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    if (this.useMock) {
+      return this.overwriteGoalGroupFromMock(normalizedTaskGroupId, request);
+    }
+
+    return this.withRequestTimeout(
+      this.http.put<GoalGroupResponseVm>(
+        `${this.teacherBaseUrl}/goal-groups/${encodeURIComponent(normalizedTaskGroupId)}`,
         request,
         this.withAuthHeaderIfAvailable()
       )
@@ -558,6 +616,7 @@ export class TaskCenterService {
     const title = String(request.title || '').trim();
     const description = String(request.description || '').trim();
     const dueAtText = String(request.dueAt || '').trim();
+    const requestedTaskGroupId = this.normalizeTaskGroupId(request.taskGroupId);
 
     if (!Number.isFinite(studentId) || studentId <= 0) {
       return throwError(() => new Error('studentId is required.'));
@@ -572,6 +631,7 @@ export class TaskCenterService {
     const student = this.resolveStudentOption(studentId);
     const timestamp = new Date().toISOString();
     const nextId = this.nextGoalId();
+    const taskGroupId = requestedTaskGroupId || this.nextTaskGroupId();
 
     const nextGoal: GoalTaskVm = {
       id: nextId,
@@ -580,6 +640,7 @@ export class TaskCenterService {
       description,
       status: 'NOT_STARTED',
       dueAt: dueAtText || null,
+      taskGroupId,
       assignedStudentId: studentId,
       assignedStudentName: student?.studentName || `学生 #${studentId}`,
       assignedByTeacherId: this.resolveSessionTeacherId() || 0,
@@ -596,6 +657,174 @@ export class TaskCenterService {
     return of({ ...nextGoal }).pipe(delay(120));
   }
 
+  private createGoalGroupFromMock(
+    request: GoalGroupUpsertRequestVm
+  ): Observable<GoalGroupResponseVm> {
+    const title = String(request.title || '').trim();
+    const description = String(request.description || '').trim();
+    const dueAtText = String(request.dueAt || '').trim();
+    const hasTaskGroupId = request.taskGroupId !== undefined && request.taskGroupId !== null;
+    const requestedTaskGroupId = this.normalizeTaskGroupId(request.taskGroupId);
+    const studentIds = Array.from(
+      new Set(
+        (request.studentIds || [])
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    );
+
+    if (!title) {
+      return throwError(() => new Error('title is required.'));
+    }
+    if (!description) {
+      return throwError(() => new Error('description is required.'));
+    }
+    if (hasTaskGroupId && !requestedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is invalid.'));
+    }
+    if (studentIds.length === 0) {
+      return throwError(() => new Error('studentIds is required.'));
+    }
+
+    const taskGroupId = requestedTaskGroupId || this.nextTaskGroupId();
+    const dueAt = dueAtText || null;
+    const timestamp = new Date().toISOString();
+    const teacherId = this.resolveSessionTeacherId() || 0;
+    const teacherName = this.resolveSessionTeacherName();
+    let nextId = this.nextGoalId();
+
+    const createdRows: GoalTaskVm[] = studentIds.map((studentId) => {
+      const student = this.resolveStudentOption(studentId);
+      const goalId = nextId;
+      nextId += 1;
+      return {
+        id: goalId,
+        type: 'GOAL',
+        title,
+        description,
+        status: 'NOT_STARTED',
+        dueAt,
+        taskGroupId,
+        assignedStudentId: studentId,
+        assignedStudentName: student?.studentName || `学生 #${studentId}`,
+        assignedByTeacherId: teacherId,
+        assignedByTeacherName: teacherName,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        completedAt: null,
+        progressNote: '',
+      };
+    });
+
+    this.mockGoals$.next([...createdRows, ...this.mockGoals$.value]);
+
+    return of({
+      taskGroupId,
+      items: createdRows.map((row) => ({ ...row })),
+      total: createdRows.length,
+    }).pipe(delay(120));
+  }
+
+  private overwriteGoalGroupFromMock(
+    taskGroupId: string,
+    request: GoalGroupUpsertRequestVm
+  ): Observable<GoalGroupResponseVm> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    const title = String(request.title || '').trim();
+    const description = String(request.description || '').trim();
+    const dueAtText = String(request.dueAt || '').trim();
+    const studentIds = Array.from(
+      new Set(
+        (request.studentIds || [])
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    );
+
+    if (!title) {
+      return throwError(() => new Error('title is required.'));
+    }
+    if (!description) {
+      return throwError(() => new Error('description is required.'));
+    }
+    if (studentIds.length === 0) {
+      return throwError(() => new Error('studentIds is required.'));
+    }
+
+    const rows = this.mockGoals$.value;
+    const groupRows = rows.filter(
+      (goal) => this.normalizeTaskGroupId(goal.taskGroupId) === normalizedTaskGroupId
+    );
+    if (groupRows.length === 0) {
+      return throwError(() => new Error('Goal task group not found.'));
+    }
+
+    const scopedTeacherId = this.resolveTeacherScopeTeacherId(true);
+    if (scopedTeacherId !== null && groupRows.some((goal) => goal.assignedByTeacherId !== scopedTeacherId)) {
+      return throwError(() => new Error('Permission denied for this goal task group.'));
+    }
+
+    const dueAt = dueAtText || null;
+    const timestamp = new Date().toISOString();
+    const existingByStudentId = new Map<number, GoalTaskVm>(
+      groupRows.map((goal) => [goal.assignedStudentId, goal])
+    );
+    const fallbackTeacherId = groupRows[0].assignedByTeacherId;
+    const fallbackTeacherName = groupRows[0].assignedByTeacherName;
+    let nextId = this.nextGoalId();
+
+    const nextGroupRows: GoalTaskVm[] = studentIds.map((studentId) => {
+      const existing = existingByStudentId.get(studentId);
+      const student = this.resolveStudentOption(studentId);
+      if (existing) {
+        return {
+          ...existing,
+          title,
+          description,
+          dueAt,
+          taskGroupId: normalizedTaskGroupId,
+          assignedStudentName: student?.studentName || `学生 #${studentId}`,
+          updatedAt: timestamp,
+        };
+      }
+
+      const goalId = nextId;
+      nextId += 1;
+      return {
+        id: goalId,
+        type: 'GOAL',
+        title,
+        description,
+        status: 'NOT_STARTED',
+        dueAt,
+        taskGroupId: normalizedTaskGroupId,
+        assignedStudentId: studentId,
+        assignedStudentName: student?.studentName || `学生 #${studentId}`,
+        assignedByTeacherId: fallbackTeacherId || this.resolveSessionTeacherId() || 0,
+        assignedByTeacherName: fallbackTeacherName || this.resolveSessionTeacherName(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        completedAt: null,
+        progressNote: '',
+      };
+    });
+
+    const nonGroupRows = rows.filter(
+      (goal) => this.normalizeTaskGroupId(goal.taskGroupId) !== normalizedTaskGroupId
+    );
+    this.mockGoals$.next([...nextGroupRows, ...nonGroupRows]);
+
+    return of({
+      taskGroupId: normalizedTaskGroupId,
+      items: nextGroupRows.map((row) => ({ ...row })),
+      total: nextGroupRows.length,
+    }).pipe(delay(120));
+  }
+
   private updateTeacherGoalFromMock(
     goalId: number,
     request: UpdateTeacherGoalRequestVm
@@ -609,6 +838,8 @@ export class TaskCenterService {
     const title = String(request.title || '').trim();
     const description = String(request.description || '').trim();
     const dueAtText = String(request.dueAt || '').trim();
+    const hasTaskGroupId = request.taskGroupId !== undefined && request.taskGroupId !== null;
+    const requestedTaskGroupId = this.normalizeTaskGroupId(request.taskGroupId);
 
     if (!Number.isFinite(studentId) || studentId <= 0) {
       return throwError(() => new Error('studentId is required.'));
@@ -618,6 +849,9 @@ export class TaskCenterService {
     }
     if (!description) {
       return throwError(() => new Error('description is required.'));
+    }
+    if (hasTaskGroupId && !requestedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is invalid.'));
     }
 
     const rows = this.mockGoals$.value;
@@ -638,6 +872,7 @@ export class TaskCenterService {
       title,
       description,
       dueAt: dueAtText || null,
+      taskGroupId: requestedTaskGroupId || rows[index].taskGroupId || this.nextTaskGroupId(),
       assignedStudentId: studentId,
       assignedStudentName: student?.studentName || `学生 #${studentId}`,
       updatedAt: timestamp,
@@ -746,6 +981,8 @@ export class TaskCenterService {
     const hasGoalId = request.goalId !== undefined && request.goalId !== null;
     const goalId =
       hasGoalId && Number.isFinite(goalIdRaw) && goalIdRaw > 0 ? Math.trunc(goalIdRaw) : null;
+    const hasTaskGroupId = request.taskGroupId !== undefined && request.taskGroupId !== null;
+    const taskGroupId = this.normalizeTaskGroupId(request.taskGroupId) || null;
     const tags = Array.from(
       new Set(
         (request.tags || [])
@@ -773,6 +1010,9 @@ export class TaskCenterService {
     if (hasGoalId && goalId === null) {
       return throwError(() => new Error('goalId is invalid.'));
     }
+    if (hasTaskGroupId && !taskGroupId) {
+      return throwError(() => new Error('taskGroupId is invalid.'));
+    }
 
     const timestamp = new Date().toISOString();
     const targetStudentCount =
@@ -780,28 +1020,37 @@ export class TaskCenterService {
     const publisherTeacherId = this.resolveSessionTeacherId() || 0;
     const publisherTeacherName = this.resolveSessionTeacherName();
     const rows = this.mockInfos$.value;
+    let existingIndex = -1;
 
-    if (goalId !== null) {
-      const existingIndex = rows.findIndex(
+    if (taskGroupId) {
+      existingIndex = rows.findIndex(
+        (info) =>
+          this.normalizeTaskGroupId(info.taskGroupId) === taskGroupId &&
+          info.publishedByTeacherId === publisherTeacherId
+      );
+    } else if (goalId !== null) {
+      existingIndex = rows.findIndex(
         (info) => info.goalId === goalId && info.publishedByTeacherId === publisherTeacherId
       );
-      if (existingIndex >= 0) {
-        const existing = rows[existingIndex];
-        const updatedInfo: InfoTaskVm = {
-          ...existing,
-          title,
-          content,
-          category,
-          tags,
-          goalId,
-          targetStudentCount,
-          updatedAt: timestamp,
-        };
-        const nextRows = [...rows];
-        nextRows[existingIndex] = updatedInfo;
-        this.mockInfos$.next(nextRows);
-        return of({ ...updatedInfo, tags: [...updatedInfo.tags] }).pipe(delay(120));
-      }
+    }
+
+    if (existingIndex >= 0) {
+      const existing = rows[existingIndex];
+      const updatedInfo: InfoTaskVm = {
+        ...existing,
+        title,
+        content,
+        category,
+        tags,
+        goalId: hasGoalId ? goalId : existing.goalId || null,
+        taskGroupId: hasTaskGroupId ? taskGroupId : existing.taskGroupId || null,
+        targetStudentCount,
+        updatedAt: timestamp,
+      };
+      const nextRows = [...rows];
+      nextRows[existingIndex] = updatedInfo;
+      this.mockInfos$.next(nextRows);
+      return of({ ...updatedInfo, tags: [...updatedInfo.tags] }).pipe(delay(120));
     }
 
     const nextInfo: InfoTaskVm = {
@@ -811,7 +1060,8 @@ export class TaskCenterService {
       content,
       category,
       tags,
-      goalId,
+      goalId: hasGoalId ? goalId : null,
+      taskGroupId,
       targetStudentCount,
       publishedByTeacherId: publisherTeacherId,
       publishedByTeacherName: publisherTeacherName,
@@ -943,6 +1193,21 @@ export class TaskCenterService {
   private nextGoalId(): number {
     const maxId = this.mockGoals$.value.reduce((max, goal) => (goal.id > max ? goal.id : max), 1000);
     return maxId + 1;
+  }
+
+  private nextTaskGroupId(): string {
+    const maxId = this.mockGoals$.value.reduce((max, goal) => {
+      const matched = this.normalizeTaskGroupId(goal.taskGroupId).match(/^TG-(\d+)$/i);
+      if (!matched) return max;
+      const numericId = Number(matched[1]);
+      if (!Number.isFinite(numericId) || numericId <= max) return max;
+      return numericId;
+    }, 1000);
+    return `TG-${maxId + 1}`;
+  }
+
+  private normalizeTaskGroupId(value: unknown): string {
+    return String(value ?? '').trim();
   }
 
   private nextInfoId(): number {

@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
@@ -39,8 +39,11 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <button type="button" class="action-btn primary" (click)="goTasks()">
               通知管理
             </button>
-            <button type="button" class="action-btn primary" (click)="goStudents()">
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/students']">
               学生管理
+            </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/ielts']">
+              雅思跟踪
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
               账号设置
@@ -68,6 +71,10 @@ export class TeacherDashboardComponent {
 
   goStudents() {
     this.router.navigate(['/teacher/students']);
+  }
+
+  goIeltsTracking() {
+    this.router.navigate(['/teacher/ielts']);
   }
 
   goGoals() {

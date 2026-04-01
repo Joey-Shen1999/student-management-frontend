@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -7,6 +8,7 @@ import { StudentManagementService } from '../../services/student-management.serv
 import { StudentInviteService } from '../../services/student-invite.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
+import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 
 describe('StudentManagementComponent', () => {
@@ -18,6 +20,8 @@ describe('StudentManagementComponent', () => {
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
   let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher'>;
   let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId' | 'getAuthorizationHeaderValue'>;
+  let router: { url: string };
+  let ieltsApi: Pick<IeltsTrackingService, 'getTeacherStudentIeltsSummary'>;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -38,6 +42,19 @@ describe('StudentManagementComponent', () => {
       getCurrentUserId: vi.fn().mockReturnValue(1),
       getAuthorizationHeaderValue: vi.fn().mockReturnValue('Bearer token-1'),
     };
+    router = {
+      url: '/teacher/students',
+    };
+    ieltsApi = {
+      getTeacherStudentIeltsSummary: vi.fn().mockReturnValue(
+        of({
+          summary: {
+            shouldShowModule: true,
+            trackingStatus: 'YELLOW_NEEDS_PREPARATION',
+          },
+        })
+      ),
+    };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
       upsertPagePreference: vi.fn().mockReturnValue(of({})),
@@ -48,6 +65,8 @@ describe('StudentManagementComponent', () => {
       profileApi as StudentProfileService,
       inviteApi as StudentInviteService,
       auth as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
       preferenceApi as TeacherPreferenceService
     );
   });
@@ -972,8 +991,80 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v1',
+        version: 'v2',
       })
     );
+  });
+
+  it('column visibility on /teacher/ielts should sync to ielts-tracking preference key', () => {
+    router.url = '/teacher/ielts';
+
+    component.onColumnVisibilityChange('city', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
+      'ielts-tracking.list-columns',
+      expect.objectContaining({
+        version: 'v2',
+      })
+    );
+  });
+
+  it('page title should be 雅思跟踪 on /teacher/ielts', () => {
+    router.url = '/teacher/ielts';
+    expect(component.pageTitle).toBe('雅思跟踪');
+  });
+
+  it('default columns on /teacher/ielts should match IELTS tracking defaults', () => {
+    router.url = '/teacher/ielts';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'graduation',
+        'schoolName',
+        'canadaIdentity',
+        'teacherNote',
+        'ielts',
+        'resetPassword',
+      ].sort()
+    );
+  });
+
+  it('column visibility should keep IELTS independent when profile toggles', () => {
+    component.onColumnVisibilityChange('profile', {
+      target: { checked: false },
+    } as unknown as Event);
+
+    expect(component.isColumnVisible('profile')).toBe(false);
+    expect(component.isColumnVisible('ielts')).toBe(true);
+
+    component.onColumnVisibilityChange('profile', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(component.isColumnVisible('profile')).toBe(true);
+    expect(component.isColumnVisible('ielts')).toBe(true);
+  });
+
+  it('column visibility should keep profile independent when IELTS toggles', () => {
+    component.onColumnVisibilityChange('ielts', {
+      target: { checked: false },
+    } as unknown as Event);
+
+    expect(component.isColumnVisible('ielts')).toBe(false);
+    expect(component.isColumnVisible('profile')).toBe(true);
+
+    component.onColumnVisibilityChange('ielts', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(component.isColumnVisible('ielts')).toBe(true);
+    expect(component.isColumnVisible('profile')).toBe(true);
   });
 });

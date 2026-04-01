@@ -16,7 +16,7 @@
     >
       <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <div class="create-modal-head">
-          <strong class="create-modal-title">新建通知</strong>
+          <strong class="create-modal-title">{{ isEditMode ? '编辑通知' : '新建通知' }}</strong>
           <button type="button" class="modal-close-btn" (click)="closeCreatePanel()" [disabled]="creatingInfo">
             关闭
           </button>
@@ -94,7 +94,7 @@
 
           <div class="actions">
             <button type="button" (click)="createInfo()" [disabled]="creatingInfo || studentsLoading">
-              {{ creatingInfo ? '发布中...' : '发布通知' }}
+              {{ creatingInfo ? '保存中...' : '保存' }}
             </button>
             <button type="button" (click)="resetCreateInfoForm()" [disabled]="creatingInfo">清空</button>
           </div>
@@ -135,6 +135,16 @@
       <small>覆盖学生：{{ info.targetStudentCount }}</small>
       <div class="info-tags" *ngIf="info.tags.length > 0">
         <span *ngFor="let tag of info.tags">#{{ tag }}</span>
+      </div>
+      <div class="info-actions">
+        <button
+          type="button"
+          (click)="openEditPanel(info)"
+          [disabled]="creatingInfo || !canEditInfo(info)"
+          [title]="infoEditDisabledReason(info)"
+        >
+          编辑并换人
+        </button>
       </div>
     </article>
   </section>

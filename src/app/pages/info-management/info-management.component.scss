@@ -170,6 +170,24 @@
   color: #48607f;
 }
 
+.info-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.info-actions button {
+  border: 1px solid #c8d2e0;
+  background: #f8faff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.info-actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .state-text {
   color: #5d6678;
 }
