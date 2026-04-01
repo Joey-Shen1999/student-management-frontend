@@ -285,7 +285,7 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   {
     key: 'ielts',
     label: 'IELTS',
-    defaultVisible: true,
+    defaultVisible: false,
     hideable: true,
     backendDependent: true,
     headerStyle:

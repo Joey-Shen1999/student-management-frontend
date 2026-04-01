@@ -1036,20 +1036,30 @@ describe('StudentManagementComponent', () => {
     );
   });
 
+  it('default columns on /teacher/students should not include IELTS', () => {
+    router.url = '/teacher/students';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    );
+
+    expect(defaultKeys).not.toContain('ielts');
+  });
+
   it('column visibility should keep IELTS independent when profile toggles', () => {
     component.onColumnVisibilityChange('profile', {
       target: { checked: false },
     } as unknown as Event);
 
     expect(component.isColumnVisible('profile')).toBe(false);
-    expect(component.isColumnVisible('ielts')).toBe(true);
+    expect(component.isColumnVisible('ielts')).toBe(false);
 
     component.onColumnVisibilityChange('profile', {
       target: { checked: true },
     } as unknown as Event);
 
     expect(component.isColumnVisible('profile')).toBe(true);
-    expect(component.isColumnVisible('ielts')).toBe(true);
+    expect(component.isColumnVisible('ielts')).toBe(false);
   });
 
   it('column visibility should keep profile independent when IELTS toggles', () => {
