@@ -71,12 +71,11 @@ export function computeIeltsValidityWindow(
   graduationYear: number | null,
   ruleSet: IeltsTrackingRuleSet = IELTS_TRACKING_RULESET_V1
 ): IeltsValidityWindow | null {
-  const year = Number(graduationYear);
-  if (!Number.isFinite(year) || year < 1900 || year > 2999) {
+  const normalizedYear = resolveEffectiveGraduationYear(graduationYear, ruleSet);
+  if (normalizedYear === null) {
     return null;
   }
 
-  const normalizedYear = Math.trunc(year);
   const anchorDate = new Date(
     Date.UTC(normalizedYear, ruleSet.validity.anchorMonth - 1, ruleSet.validity.anchorDay, 0, 0, 0, 0)
   );
@@ -254,6 +253,55 @@ function pickLatestRecord(
     }
   }
   return latest;
+}
+
+function resolveEffectiveGraduationYear(
+  graduationYear: number | null,
+  ruleSet: IeltsTrackingRuleSet
+): number | null {
+  const normalized = normalizeGraduationYear(graduationYear);
+  if (normalized !== null) {
+    return normalized;
+  }
+  return resolveCurrentCohortGraduationYear(ruleSet);
+}
+
+function normalizeGraduationYear(graduationYear: number | null): number | null {
+  const year = Number(graduationYear);
+  if (!Number.isFinite(year) || year < 1900 || year > 2999) {
+    return null;
+  }
+  return Math.trunc(year);
+}
+
+function resolveCurrentCohortGraduationYear(
+  ruleSet: IeltsTrackingRuleSet,
+  now: Date = new Date()
+): number | null {
+  const anchorMonth = Math.trunc(ruleSet.validity.anchorMonth);
+  const anchorDay = Math.trunc(ruleSet.validity.anchorDay);
+  if (
+    !Number.isFinite(anchorMonth) ||
+    !Number.isFinite(anchorDay) ||
+    anchorMonth < 1 ||
+    anchorMonth > 12 ||
+    anchorDay < 1 ||
+    anchorDay > 31
+  ) {
+    return null;
+  }
+
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentDay = now.getUTCDate();
+  const hasPassedAnchor =
+    currentMonth > anchorMonth || (currentMonth === anchorMonth && currentDay > anchorDay);
+
+  const candidateYear = hasPassedAnchor ? currentYear + 1 : currentYear;
+  if (candidateYear < 1900 || candidateYear > 2999) {
+    return null;
+  }
+  return candidateYear;
 }
 
 function normalizeBandScore(value: number | null | undefined): number | null {
