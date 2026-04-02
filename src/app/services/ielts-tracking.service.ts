@@ -16,6 +16,7 @@ import {
   IeltsRecordFormValue,
   IeltsSummaryViewModel,
   LanguageTrackingManualStatus,
+  LanguageScoreType,
   IeltsTrackingStatus,
   StudentIeltsModuleState,
   StudentLanguageRiskSnapshot,
@@ -68,29 +69,38 @@ export class IeltsTrackingService {
 
   saveStudentIeltsRecords(
     studentId: number,
+    languageScoreType: LanguageScoreType,
     payload: UpdateStudentIeltsPayload
   ): Observable<StudentIeltsModuleState> {
     const normalizedStudentId = this.normalizeStudentId(studentId);
+    const normalizedScoreType = this.normalizeLanguageScoreType(languageScoreType) ?? 'IELTS';
     if (this.useMock) {
       const previous = this.readMockState(normalizedStudentId);
+      const normalizedRecords = this.normalizeRecords(payload.records, normalizedScoreType);
       const next: StudentIeltsModuleState = {
         ...previous,
+        languageScoreType: normalizedScoreType,
         hasTakenIeltsAcademic: true,
         preparationIntent: 'UNSET',
         trackingStatus: null,
         languageTrackingStatus: null,
         languageTrackingManualStatus: null,
-        records: this.normalizeRecords(payload.records),
+        records: normalizedRecords,
         updatedAt: new Date().toISOString(),
       };
       this.mockStore.set(normalizedStudentId, next);
       return of(cloneMockIeltsState(next)).pipe(delay(this.mockLatencyMs));
     }
 
-    const requestBody: UpdateStudentIeltsPayload = {
-      hasTakenIeltsAcademic: true,
-      records: this.normalizeRecords(payload.records),
-    };
+    const normalizedRecords = this.normalizeRecords(payload.records, normalizedScoreType);
+    const requestBody = this.buildScoreRecordPayload(
+      {
+        hasTakenIeltsAcademic: true,
+        languageScoreType: normalizedScoreType,
+      },
+      normalizedRecords,
+      normalizedScoreType
+    );
 
     return this.http.put<unknown>(`${this.studentModuleUrl}/records`, requestBody).pipe(
       timeout({ first: this.requestTimeoutMs }),
@@ -100,13 +110,16 @@ export class IeltsTrackingService {
 
   saveStudentIeltsPreparationIntent(
     studentId: number,
+    languageScoreType: LanguageScoreType,
     intent: IeltsPreparationIntent
   ): Observable<StudentIeltsModuleState> {
     const normalizedStudentId = this.normalizeStudentId(studentId);
+    const normalizedScoreType = this.normalizeLanguageScoreType(languageScoreType) ?? 'IELTS';
     if (this.useMock) {
       const previous = this.readMockState(normalizedStudentId);
       const next: StudentIeltsModuleState = {
         ...previous,
+        languageScoreType: normalizedScoreType,
         hasTakenIeltsAcademic: false,
         preparationIntent: this.normalizePreparationIntent(intent),
         trackingStatus: null,
@@ -120,6 +133,8 @@ export class IeltsTrackingService {
     }
 
     const requestBody: UpdateStudentIeltsPayload = {
+      languageScoreType: normalizedScoreType,
+      testType: normalizedScoreType,
       hasTakenIeltsAcademic: false,
       preparationIntent: this.normalizePreparationIntent(intent),
     };
@@ -157,8 +172,13 @@ export class IeltsTrackingService {
 
     if (this.useMock) {
       const previous = this.readMockState(normalizedStudentId);
+      const effectiveScoreType =
+        this.normalizeLanguageScoreType(normalizedPayload.languageScoreType) ??
+        previous.languageScoreType ??
+        'IELTS';
       const next: StudentIeltsModuleState = {
         ...previous,
+        languageScoreType: effectiveScoreType,
         hasTakenIeltsAcademic:
           typeof normalizedPayload.hasTakenIeltsAcademic === 'boolean'
             ? normalizedPayload.hasTakenIeltsAcademic
@@ -169,7 +189,7 @@ export class IeltsTrackingService {
             ? normalizedPayload.languageTrackingManualStatus
             : previous.languageTrackingManualStatus,
         records: Array.isArray(normalizedPayload.records)
-          ? this.normalizeRecords(normalizedPayload.records)
+          ? this.normalizeRecords(normalizedPayload.records, effectiveScoreType)
           : previous.records.map((record) => ({ ...record })),
         updatedAt: new Date().toISOString(),
       };
@@ -217,6 +237,7 @@ export class IeltsTrackingService {
     return {
       studentId,
       graduationYear: null,
+      languageScoreType: 'IELTS',
       hasTakenIeltsAcademic: null,
       preparationIntent: 'UNSET',
       languageTrackingManualStatus: null,
@@ -230,68 +251,121 @@ export class IeltsTrackingService {
   }
 
   private normalizeTeacherSummary(raw: unknown, fallbackStudentId: number): TeacherStudentIeltsSummary {
-    const source = this.toRecord(raw);
-    const stateForFallback = this.normalizeModuleState(source, fallbackStudentId);
+    const source = this.unwrapObjectPayload(raw);
+    const stateForFallback = this.normalizeModuleState(source ?? raw, fallbackStudentId);
     const fallbackSummary = deriveStudentIeltsModuleState(stateForFallback).summary;
 
-    const studentId = this.toInteger(source?.['studentId'], fallbackStudentId);
-    const studentName = this.toText(source?.['studentName']) || `Student #${studentId}`;
+    const studentId = this.toInteger(
+      this.readValue(source, ['studentId', 'student_id', 'id']),
+      fallbackStudentId
+    );
+    const studentName =
+      this.toText(this.readValue(source, ['studentName', 'student_name'])) || `Student #${studentId}`;
 
-    const incomingSummary = this.toRecord(source?.['summary']);
+    const incomingSummary = this.unwrapObjectPayload(this.readValue(source, ['summary']));
+    const trackingStatusRaw =
+      this.readValue(incomingSummary, ['trackingStatus', 'tracking_status']) ??
+      this.readValue(source, ['trackingStatus', 'tracking_status']);
+    const languageTrackingStatusRaw =
+      this.readValue(incomingSummary, ['languageTrackingStatus', 'language_tracking_status']) ??
+      this.readValue(source, ['languageTrackingStatus', 'language_tracking_status']);
     const summary: IeltsSummaryViewModel = incomingSummary
       ? {
-          trackingStatus: this.normalizeTrackingStatus(incomingSummary['trackingStatus']),
-          trackingTitle: this.toText(incomingSummary['trackingTitle']) || fallbackSummary.trackingTitle,
-          trackingMessage: this.toText(incomingSummary['trackingMessage']) || fallbackSummary.trackingMessage,
-          colorToken: this.toText(incomingSummary['colorToken']) || fallbackSummary.colorToken,
+          trackingStatus: this.normalizeTrackingStatus(trackingStatusRaw),
+          trackingTitle:
+            this.toText(this.readValue(incomingSummary, ['trackingTitle', 'tracking_title'])) ||
+            fallbackSummary.trackingTitle,
+          trackingMessage:
+            this.toText(this.readValue(incomingSummary, ['trackingMessage', 'tracking_message'])) ||
+            fallbackSummary.trackingMessage,
+          colorToken:
+            this.toText(this.readValue(incomingSummary, ['colorToken', 'color_token'])) ||
+            fallbackSummary.colorToken,
           shouldShowModule:
-            typeof incomingSummary['shouldShowModule'] === 'boolean'
-              ? (incomingSummary['shouldShowModule'] as boolean)
+            typeof this.readValue(incomingSummary, ['shouldShowModule', 'should_show_module']) === 'boolean'
+              ? (this.readValue(incomingSummary, ['shouldShowModule', 'should_show_module']) as boolean)
               : fallbackSummary.shouldShowModule,
           graduationYear: this.toNullableInteger(
-            incomingSummary['graduationYear'],
+            this.readValue(incomingSummary, ['graduationYear', 'graduation_year']),
             fallbackSummary.graduationYear
           ),
           languageTrackingStatus: this.normalizeLanguageTrackingStatus(
-            incomingSummary['languageTrackingStatus'],
+            languageTrackingStatusRaw,
             fallbackSummary.languageTrackingStatus
           ),
           validityCutoffDate:
-            this.toText(incomingSummary['validityCutoffDate']) || fallbackSummary.validityCutoffDate,
+            this.toText(this.readValue(incomingSummary, ['validityCutoffDate', 'validity_cutoff_date'])) ||
+            fallbackSummary.validityCutoffDate,
           validityAnchorDate:
-            this.toText(incomingSummary['validityAnchorDate']) || fallbackSummary.validityAnchorDate,
-          latestRecordId: this.toText(incomingSummary['latestRecordId']) || fallbackSummary.latestRecordId,
+            this.toText(this.readValue(incomingSummary, ['validityAnchorDate', 'validity_anchor_date'])) ||
+            fallbackSummary.validityAnchorDate,
+          latestRecordId:
+            this.toText(this.readValue(incomingSummary, ['latestRecordId', 'latest_record_id'])) ||
+            fallbackSummary.latestRecordId,
           latestValidRecordId:
-            this.toText(incomingSummary['latestValidRecordId']) || fallbackSummary.latestValidRecordId,
-          thresholdMatch: this.normalizeThresholdMatch(incomingSummary['thresholdMatch']),
+            this.toText(this.readValue(incomingSummary, ['latestValidRecordId', 'latest_valid_record_id'])) ||
+            fallbackSummary.latestValidRecordId,
+          thresholdMatch: this.normalizeThresholdMatch(
+            this.readValue(incomingSummary, ['thresholdMatch', 'threshold_match'])
+          ),
         }
-      : fallbackSummary;
+      : {
+          ...fallbackSummary,
+          trackingStatus: this.normalizeTrackingStatus(trackingStatusRaw ?? fallbackSummary.trackingStatus),
+          languageTrackingStatus: this.normalizeLanguageTrackingStatus(
+            languageTrackingStatusRaw,
+            fallbackSummary.languageTrackingStatus
+          ),
+        };
 
     return { studentId, studentName, summary };
   }
 
   private normalizeModuleState(raw: unknown, fallbackStudentId: number): StudentIeltsModuleState {
-    const source = this.toRecord(raw);
-    const studentId = this.toInteger(source?.['studentId'], fallbackStudentId);
-    const graduationYear = this.toNullableInteger(source?.['graduationYear']);
-    const hasTakenIeltsAcademic = this.toNullableBoolean(source?.['hasTakenIeltsAcademic']);
-    const records = this.normalizeRecords(source?.['records']);
-    const preparationIntent = this.normalizePreparationIntent(source?.['preparationIntent']);
-    const summaryNode = this.toRecord(source?.['summary']);
-    const trackingStatus =
-      this.normalizeOptionalTrackingStatus(source?.['trackingStatus']) ??
-      this.normalizeOptionalTrackingStatus(summaryNode?.['trackingStatus']);
-    const languageTrackingStatus =
-      this.normalizeOptionalLanguageTrackingStatus(source?.['languageTrackingStatus']) ??
-      this.normalizeOptionalLanguageTrackingStatus(summaryNode?.['languageTrackingStatus']);
-    const languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
-      source?.['languageTrackingManualStatus']
+    const source = this.unwrapObjectPayload(raw);
+    const studentId = this.toInteger(
+      this.readValue(source, ['studentId', 'student_id', 'id']),
+      fallbackStudentId
     );
-    const languageRisk = this.normalizeLanguageRisk(source?.['languageRisk']);
+    const graduationYear = this.toNullableInteger(
+      this.readValue(source, ['graduationYear', 'graduation_year'])
+    );
+    const explicitScoreType = this.normalizeLanguageScoreType(
+      this.readValue(source, ['languageScoreType', 'language_score_type', 'testType', 'test_type'])
+    );
+    const hasToeflRecords = Array.isArray(this.readValue(source, ['toeflRecords', 'toefl_records']));
+    const inferredScoreType: LanguageScoreType | null = explicitScoreType ?? (hasToeflRecords ? 'TOEFL' : null);
+    const recordScoreType = inferredScoreType ?? 'IELTS';
+    const hasTakenIeltsAcademic = this.toNullableBoolean(
+      this.readValue(source, ['hasTakenIeltsAcademic', 'has_taken_ielts_academic'])
+    );
+    const records = this.normalizeRecords(
+      this.resolveRecordsNode(source, recordScoreType),
+      recordScoreType
+    );
+    const preparationIntent = this.normalizePreparationIntent(
+      this.readValue(source, ['preparationIntent', 'preparation_intent'])
+    );
+    const summaryNode = this.unwrapObjectPayload(this.readValue(source, ['summary']));
+    const trackingStatus =
+      this.normalizeOptionalTrackingStatus(this.readValue(source, ['trackingStatus', 'tracking_status'])) ??
+      this.normalizeOptionalTrackingStatus(this.readValue(summaryNode, ['trackingStatus', 'tracking_status']));
+    const languageTrackingStatus =
+      this.normalizeOptionalLanguageTrackingStatus(
+        this.readValue(source, ['languageTrackingStatus', 'language_tracking_status'])
+      ) ??
+      this.normalizeOptionalLanguageTrackingStatus(
+        this.readValue(summaryNode, ['languageTrackingStatus', 'language_tracking_status'])
+      );
+    const languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
+      this.readValue(source, ['languageTrackingManualStatus', 'language_tracking_manual_status'])
+    );
+    const languageRisk = this.normalizeLanguageRisk(this.readValue(source, ['languageRisk', 'language_risk']));
 
     return {
       studentId,
       graduationYear,
+      languageScoreType: inferredScoreType,
       hasTakenIeltsAcademic,
       preparationIntent,
       trackingStatus,
@@ -299,7 +373,7 @@ export class IeltsTrackingService {
       languageTrackingManualStatus,
       records,
       languageRisk,
-      updatedAt: this.toNullableText(source?.['updatedAt']),
+      updatedAt: this.toNullableText(this.readValue(source, ['updatedAt', 'updated_at'])),
     };
   }
 
@@ -335,6 +409,16 @@ export class IeltsTrackingService {
 
   private normalizeTeacherUpdatePayload(payload: UpdateStudentIeltsPayload): UpdateStudentIeltsPayload {
     const normalized: UpdateStudentIeltsPayload = {};
+    const normalizedScoreType =
+      this.normalizeLanguageScoreType(payload.languageScoreType) ??
+      this.normalizeLanguageScoreType(payload.testType) ??
+      this.normalizeLanguageScoreType(payload.test_type) ??
+      null;
+
+    if (normalizedScoreType) {
+      normalized.languageScoreType = normalizedScoreType;
+      normalized.testType = normalizedScoreType;
+    }
 
     if (typeof payload.hasTakenIeltsAcademic === 'boolean' || payload.hasTakenIeltsAcademic === null) {
       normalized.hasTakenIeltsAcademic = payload.hasTakenIeltsAcademic;
@@ -350,8 +434,25 @@ export class IeltsTrackingService {
       );
     }
 
-    if (Array.isArray(payload.records)) {
-      normalized.records = this.normalizeRecords(payload.records);
+    const rawRecords = Array.isArray(payload.records)
+      ? payload.records
+      : Array.isArray(payload.toeflRecords)
+        ? payload.toeflRecords
+        : null;
+    if (rawRecords) {
+      const effectiveScoreType = normalizedScoreType ?? 'IELTS';
+      const normalizedRecords = this.normalizeRecords(rawRecords, effectiveScoreType);
+      Object.assign(
+        normalized,
+        this.buildScoreRecordPayload(
+          {
+            languageScoreType: effectiveScoreType,
+            testType: effectiveScoreType,
+          },
+          normalizedRecords,
+          effectiveScoreType
+        )
+      );
     }
 
     const teacherNote = this.toText(payload.teacherNote);
@@ -362,7 +463,40 @@ export class IeltsTrackingService {
     return normalized;
   }
 
-  private normalizeRecords(value: unknown): IeltsRecordFormValue[] {
+  private buildScoreRecordPayload(
+    basePayload: UpdateStudentIeltsPayload,
+    records: IeltsRecordFormValue[],
+    languageScoreType: LanguageScoreType
+  ): UpdateStudentIeltsPayload {
+    const scorePayload: UpdateStudentIeltsPayload = {
+      ...basePayload,
+      languageScoreType,
+      testType: languageScoreType,
+      records,
+    };
+    if (languageScoreType === 'TOEFL') {
+      scorePayload.toeflRecords = records;
+    }
+
+    return {
+      ...scorePayload,
+    };
+  }
+
+  private resolveRecordsNode(
+    source: Record<string, unknown> | null,
+    languageScoreType: LanguageScoreType
+  ): unknown {
+    if (languageScoreType === 'TOEFL') {
+      return this.readValue(source, ['toeflRecords', 'toefl_records', 'records', 'ieltsRecords', 'ielts_records']);
+    }
+    return this.readValue(source, ['records', 'ieltsRecords', 'ielts_records', 'toeflRecords', 'toefl_records']);
+  }
+
+  private normalizeRecords(
+    value: unknown,
+    languageScoreType: LanguageScoreType = 'IELTS'
+  ): IeltsRecordFormValue[] {
     if (!Array.isArray(value)) {
       return [];
     }
@@ -370,14 +504,38 @@ export class IeltsTrackingService {
     return value.map((record, index) => {
       const source = this.toRecord(record);
       return {
-        recordId: this.toNullableText(source?.['recordId']) || `record-${index + 1}`,
-        testDate: this.toText(source?.['testDate']),
-        listening: this.toNullableBandScore(source?.['listening']),
-        reading: this.toNullableBandScore(source?.['reading']),
-        writing: this.toNullableBandScore(source?.['writing']),
-        speaking: this.toNullableBandScore(source?.['speaking']),
+        recordId:
+          this.toNullableText(this.readValue(source, ['recordId', 'record_id', 'id'])) ||
+          `record-${index + 1}`,
+        testDate: this.toText(this.readValue(source, ['testDate', 'test_date'])),
+        listening: this.toNullableBandScore(this.readValue(source, ['listening']), languageScoreType),
+        reading: this.toNullableBandScore(this.readValue(source, ['reading']), languageScoreType),
+        writing: this.toNullableBandScore(this.readValue(source, ['writing']), languageScoreType),
+        speaking: this.toNullableBandScore(this.readValue(source, ['speaking']), languageScoreType),
       };
     });
+  }
+
+  private unwrapObjectPayload(value: unknown): Record<string, unknown> | null {
+    let current = this.toRecord(value);
+    for (let depth = 0; depth < 3; depth += 1) {
+      const nested = this.toRecord(current?.['data']);
+      if (!nested || nested === current) {
+        break;
+      }
+      current = nested;
+    }
+    return current;
+  }
+
+  private readValue(source: Record<string, unknown> | null, keys: readonly string[]): unknown {
+    if (!source) return undefined;
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        return source[key];
+      }
+    }
+    return undefined;
   }
 
   private normalizePreparationIntent(value: unknown): IeltsPreparationIntent {
@@ -385,6 +543,15 @@ export class IeltsTrackingService {
     if (normalized === 'PREPARING') return 'PREPARING';
     if (normalized === 'NOT_PREPARING') return 'NOT_PREPARING';
     return 'UNSET';
+  }
+
+  private normalizeLanguageScoreType(value: unknown): LanguageScoreType | null {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'IELTS') return 'IELTS';
+    if (normalized === 'TOEFL') return 'TOEFL';
+    if (normalized === 'DUOLINGO') return 'DUOLINGO';
+    if (normalized === 'OTHER') return 'OTHER';
+    return null;
   }
 
   private normalizeTrackingStatus(value: unknown): IeltsTrackingStatus {
@@ -493,10 +660,12 @@ export class IeltsTrackingService {
     return null;
   }
 
-  private toNullableBandScore(value: unknown): number | null {
+  private toNullableBandScore(value: unknown, languageScoreType: LanguageScoreType = 'IELTS'): number | null {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return null;
-    if (parsed < 0 || parsed > 9) return null;
+    const min = languageScoreType === 'TOEFL' ? 1 : 0;
+    const max = languageScoreType === 'TOEFL' ? 6 : 9;
+    if (parsed < min || parsed > max) return null;
     return Number(parsed.toFixed(1));
   }
 

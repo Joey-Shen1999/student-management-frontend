@@ -76,7 +76,7 @@ describe('deriveLanguageTrackingStatus', () => {
 });
 
 describe('deriveStudentIeltsModuleState', () => {
-  it('prefers backend-provided tracking fields when present', () => {
+  it('recomputes tracking fields from records and manual status', () => {
     const state: StudentIeltsModuleState = {
       studentId: 1,
       graduationYear: 2027,
@@ -86,6 +86,96 @@ describe('deriveStudentIeltsModuleState', () => {
       languageTrackingStatus: 'AUTO_PASS_PARTIAL_SCHOOLS',
       languageTrackingManualStatus: null,
       records: [],
+      languageRisk: {
+        shouldShowIeltsModule: true,
+      },
+      updatedAt: null,
+    };
+
+    const summary = deriveStudentIeltsModuleState(state).summary;
+    expect(summary.trackingStatus).toBe('YELLOW_NEEDS_PREPARATION');
+    expect(summary.languageTrackingStatus).toBe('NEEDS_TRACKING');
+  });
+
+  it('ignores stale backend statuses when TOEFL records satisfy strict line', () => {
+    const state: StudentIeltsModuleState = {
+      studentId: 11,
+      graduationYear: 2027,
+      languageScoreType: 'TOEFL',
+      hasTakenIeltsAcademic: true,
+      preparationIntent: 'UNSET',
+      trackingStatus: 'YELLOW_NEEDS_PREPARATION',
+      languageTrackingStatus: 'NEEDS_TRACKING',
+      languageTrackingManualStatus: null,
+      records: [
+        {
+          recordId: 'toefl-5-pass',
+          testDate: '2026-01-15',
+          listening: 5.0,
+          reading: 5.0,
+          writing: 5.0,
+          speaking: 5.0,
+        },
+      ],
+      languageRisk: {
+        shouldShowIeltsModule: true,
+      },
+      updatedAt: null,
+    };
+
+    const summary = deriveStudentIeltsModuleState(state).summary;
+    expect(summary.trackingStatus).toBe('GREEN_STRICT_PASS');
+    expect(summary.languageTrackingStatus).toBe('AUTO_PASS_ALL_SCHOOLS');
+  });
+
+  it('uses TOEFL strict thresholds when language score type is TOEFL', () => {
+    const state: StudentIeltsModuleState = {
+      studentId: 2,
+      graduationYear: 2027,
+      languageScoreType: 'TOEFL',
+      hasTakenIeltsAcademic: true,
+      preparationIntent: 'UNSET',
+      languageTrackingManualStatus: null,
+      records: [
+        {
+          recordId: 'toefl-strict',
+          testDate: '2026-01-15',
+          listening: 5.0,
+          reading: 5.0,
+          writing: 5.0,
+          speaking: 5.0,
+        },
+      ],
+      languageRisk: {
+        shouldShowIeltsModule: true,
+      },
+      updatedAt: null,
+    };
+
+    const summary = deriveStudentIeltsModuleState(state).summary;
+    expect(summary.trackingStatus).toBe('GREEN_STRICT_PASS');
+    expect(summary.languageTrackingStatus).toBe('AUTO_PASS_ALL_SCHOOLS');
+    expect(summary.trackingMessage).toContain('TOEFL iBT');
+  });
+
+  it('uses TOEFL common thresholds when language score type is TOEFL', () => {
+    const state: StudentIeltsModuleState = {
+      studentId: 3,
+      graduationYear: 2027,
+      languageScoreType: 'TOEFL',
+      hasTakenIeltsAcademic: true,
+      preparationIntent: 'UNSET',
+      languageTrackingManualStatus: null,
+      records: [
+        {
+          recordId: 'toefl-common',
+          testDate: '2026-01-15',
+          listening: 4.5,
+          reading: 4.5,
+          writing: 4.0,
+          speaking: 4.0,
+        },
+      ],
       languageRisk: {
         shouldShowIeltsModule: true,
       },

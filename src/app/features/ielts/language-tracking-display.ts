@@ -46,9 +46,9 @@ function buildLanguageTrackingStatusDisplay(
     return {
       state,
       label: '已审核通过',
-      background: '#1f7a3f',
-      textColor: '#ffffff',
-      borderColor: '#1f7a3f',
+      background: '#e7f6ec',
+      textColor: '#2f6b43',
+      borderColor: '#8fc8a3',
     };
   }
 
@@ -56,9 +56,9 @@ function buildLanguageTrackingStatusDisplay(
     return {
       state,
       label: '已通过，适配全部学校',
-      background: '#2e7d32',
-      textColor: '#ffffff',
-      borderColor: '#2e7d32',
+      background: '#e7f6ec',
+      textColor: '#2f6b43',
+      borderColor: '#8fc8a3',
     };
   }
 
@@ -66,9 +66,9 @@ function buildLanguageTrackingStatusDisplay(
     return {
       state,
       label: '已通过，适配部分学校',
-      background: '#fff3da',
-      textColor: '#875a00',
-      borderColor: '#875a00',
+      background: '#e7f6ec',
+      textColor: '#2f6b43',
+      borderColor: '#8fc8a3',
     };
   }
 

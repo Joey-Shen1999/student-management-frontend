@@ -13,6 +13,8 @@ export type LanguageTrackingManualStatus = LanguageTrackingStatus | null;
 
 export type IeltsPreparationIntent = 'PREPARING' | 'NOT_PREPARING' | 'UNSET';
 
+export type LanguageScoreType = 'IELTS' | 'TOEFL' | 'DUOLINGO' | 'OTHER';
+
 export type DerivedValidityStatus =
   | 'VALID'
   | 'EXPIRED'
@@ -68,6 +70,7 @@ export interface StudentLanguageRiskSnapshot {
 export interface StudentIeltsModuleState {
   studentId: number;
   graduationYear: number | null;
+  languageScoreType?: LanguageScoreType | null;
   hasTakenIeltsAcademic: boolean | null;
   preparationIntent: IeltsPreparationIntent;
   trackingStatus?: IeltsTrackingStatus | null;
@@ -85,10 +88,14 @@ export interface TeacherStudentIeltsSummary {
 }
 
 export interface UpdateStudentIeltsPayload {
+  languageScoreType?: LanguageScoreType;
+  testType?: LanguageScoreType;
+  test_type?: LanguageScoreType;
   hasTakenIeltsAcademic?: boolean | null;
   preparationIntent?: IeltsPreparationIntent;
   languageTrackingManualStatus?: LanguageTrackingManualStatus;
   records?: IeltsRecordFormValue[];
+  toeflRecords?: IeltsRecordFormValue[];
   teacherNote?: string;
 }
 
@@ -102,7 +109,7 @@ export interface IeltsThresholdRule {
 
 export interface IeltsTrackingRuleSet {
   id: string;
-  scope: 'IELTS_ACADEMIC_ONLY';
+  scope: 'IELTS_ACADEMIC_ONLY' | 'TOEFL_IBT_2026_ONLY';
   labels: {
     strictLineName: string;
     commonLineName: string;

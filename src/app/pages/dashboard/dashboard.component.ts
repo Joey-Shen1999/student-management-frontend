@@ -202,7 +202,7 @@ import {
           <div class="quick-actions">
             <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
             <button type="button" class="action-btn primary" (click)="goIeltsTracking()">
-              IELTS 追踪
+              语言成绩跟踪
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
               姓名设置

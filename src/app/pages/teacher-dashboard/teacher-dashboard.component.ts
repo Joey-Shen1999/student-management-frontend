@@ -43,7 +43,7 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
               学生管理
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/ielts']">
-              雅思跟踪
+              语言成绩跟踪
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
               账号设置

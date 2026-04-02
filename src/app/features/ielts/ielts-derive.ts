@@ -1,4 +1,4 @@
-import { IELTS_TRACKING_RULESET_V1 } from './ielts-rules';
+import { IELTS_TRACKING_RULESET_V1, resolveLanguageTrackingRuleSet } from './ielts-rules';
 import {
   DerivedThresholdMatch,
   DerivedValidityStatus,
@@ -27,20 +27,21 @@ export interface DerivedStudentIeltsModuleState {
 
 export function deriveStudentIeltsModuleState(
   state: StudentIeltsModuleState,
-  ruleSet: IeltsTrackingRuleSet = IELTS_TRACKING_RULESET_V1
+  ruleSet?: IeltsTrackingRuleSet | null
 ): DerivedStudentIeltsModuleState {
-  const window = computeIeltsValidityWindow(state.graduationYear, ruleSet);
-  const records = deriveIeltsRecordViewModels(state.records, window, ruleSet);
+  const effectiveRuleSet = ruleSet ?? resolveLanguageTrackingRuleSet(state.languageScoreType ?? 'IELTS');
+  const window = computeIeltsValidityWindow(state.graduationYear, effectiveRuleSet);
+  const records = deriveIeltsRecordViewModels(state.records, window, effectiveRuleSet);
 
   const latestRecord = records.find((record) => record.isLatestRecord) ?? null;
   const latestValidRecord = records.find((record) => record.isLatestValidRecord) ?? null;
   const shouldShowModule = resolveShouldShowIeltsModule(state.languageRisk);
-  const computedTrackingStatus = deriveIeltsTrackingStatus(state, latestValidRecord);
-  const trackingStatus = state.trackingStatus ?? computedTrackingStatus;
-  const languageTrackingStatus =
-    state.languageTrackingStatus ??
-    deriveLanguageTrackingStatus(state.languageTrackingManualStatus, trackingStatus);
-  const messageConfig = ruleSet.messaging[trackingStatus];
+  const trackingStatus = deriveIeltsTrackingStatus(state, latestValidRecord);
+  const languageTrackingStatus = deriveLanguageTrackingStatus(
+    state.languageTrackingManualStatus,
+    trackingStatus
+  );
+  const messageConfig = effectiveRuleSet.messaging[trackingStatus];
 
   const summary: IeltsSummaryViewModel = {
     trackingStatus,
@@ -124,7 +125,7 @@ export function deriveIeltsRecordViewModels(
   window: IeltsValidityWindow | null,
   ruleSet: IeltsTrackingRuleSet = IELTS_TRACKING_RULESET_V1
 ): IeltsRecordViewModel[] {
-  const normalizedRecords = records.map((record, index) => normalizeRecord(record, index));
+  const normalizedRecords = records.map((record, index) => normalizeRecord(record, index, ruleSet));
   const parsedDatesById = new Map<string, Date | null>();
   for (const record of normalizedRecords) {
     parsedDatesById.set(record.recordId || '', parseIsoDate(record.testDate));
@@ -244,15 +245,21 @@ function matchesThresholdRule(
   );
 }
 
-function normalizeRecord(record: IeltsRecordFormValue, index: number): IeltsRecordFormValue {
+function normalizeRecord(
+  record: IeltsRecordFormValue,
+  index: number,
+  ruleSet: IeltsTrackingRuleSet
+): IeltsRecordFormValue {
+  const min = ruleSet.scope === 'TOEFL_IBT_2026_ONLY' ? 1 : 0;
+  const max = ruleSet.scope === 'TOEFL_IBT_2026_ONLY' ? 6 : 9;
   const recordId = normalizeText(record.recordId) || `record-${index + 1}`;
   return {
     recordId,
     testDate: normalizeIsoDateText(record.testDate),
-    listening: normalizeBandScore(record.listening),
-    reading: normalizeBandScore(record.reading),
-    writing: normalizeBandScore(record.writing),
-    speaking: normalizeBandScore(record.speaking),
+    listening: normalizeBandScore(record.listening, min, max),
+    reading: normalizeBandScore(record.reading, min, max),
+    writing: normalizeBandScore(record.writing, min, max),
+    speaking: normalizeBandScore(record.speaking, min, max),
   };
 }
 
@@ -324,11 +331,15 @@ function resolveCurrentCohortGraduationYear(
   return candidateYear;
 }
 
-function normalizeBandScore(value: number | null | undefined): number | null {
+function normalizeBandScore(
+  value: number | null | undefined,
+  min: number = 0,
+  max: number = 9
+): number | null {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
-  if (parsed < 0 || parsed > 9) return null;
+  if (parsed < min || parsed > max) return null;
   return Number(parsed.toFixed(1));
 }
 

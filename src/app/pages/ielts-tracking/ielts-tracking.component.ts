@@ -9,13 +9,17 @@ import {
   deriveStudentIeltsModuleState,
   DerivedStudentIeltsModuleState,
 } from '../../features/ielts/ielts-derive';
-import { resolveLanguageTrackingStatusDisplay } from '../../features/ielts/language-tracking-display';
-import { IELTS_TRACKING_RULESET_V1 } from '../../features/ielts/ielts-rules';
+import {
+  LanguageTrackingStatusDisplay,
+  resolveLanguageTrackingStatusDisplay,
+} from '../../features/ielts/language-tracking-display';
+import { resolveLanguageTrackingRuleSet } from '../../features/ielts/ielts-rules';
 import { resolveIeltsStatusDisplay } from '../../features/ielts/ielts-status-display';
 import {
   IeltsPreparationIntent,
   IeltsRecordFormValue,
   LanguageTrackingManualStatus,
+  LanguageScoreType,
   LanguageTrackingStatus,
   IeltsSummaryViewModel,
   StudentIeltsModuleState,
@@ -32,7 +36,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
       <div class="ielts-shell">
         <div class="header-row">
           <div>
-            <h2>IELTS / English Requirement</h2>
+            <h2>语言成绩要求</h2>
             <p class="sub-title">
               {{ managedMode ? ('Teacher mode - Student #' + studentId) : 'Student mode' }}
             </p>
@@ -40,13 +44,13 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
           <button type="button" class="ghost-btn" (click)="goBack()">Back</button>
         </div>
 
-        <div *ngIf="loading" class="state-text">Loading IELTS module...</div>
+        <div *ngIf="loading" class="state-text">正在加载语言成绩模块...</div>
         <div *ngIf="error" class="error-banner">{{ error }}</div>
         <div *ngIf="savedMessage" class="success-banner">{{ savedMessage }}</div>
 
         <ng-container *ngIf="!loading && !error && moduleState && derived as vm">
           <section class="card">
-            <h3>你目前的雅思申请情况</h3>
+            <h3>你目前的语言申请情况</h3>
             <ng-container *ngIf="resolveSummaryStatusDisplay(vm.summary) as statusDisplay">
               <div
                 class="status-pill"
@@ -59,6 +63,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
             </ng-container>
             <div class="summary-title">{{ vm.summary.trackingTitle }}</div>
             <p class="summary-text">{{ vm.summary.trackingMessage }}</p>
+            <ng-container *ngIf="shouldShowLanguageTrackingStatus(vm.summary.languageTrackingStatus)">
             <div class="summary-inline" *ngIf="resolveLanguageTrackingDisplay(vm.summary.languageTrackingStatus) as languageTrackingDisplay">
               <span class="summary-note">语言跟踪状态：</span>
               <span
@@ -70,6 +75,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                 {{ languageTrackingDisplay.label }}
               </span>
             </div>
+            </ng-container>
             <p class="summary-note">
               规则线：{{ ruleSet.labels.commonLineName }} / {{ ruleSet.labels.strictLineName }}
             </p>
@@ -80,7 +86,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
           </section>
 
           <section class="card" *ngIf="!vm.summary.shouldShowModule && !forceShowModule">
-            <h3>无需雅思</h3>
+            <h3>无需语言成绩</h3>
             <p>该学生当前不在语言风险范围内。本期仍允许老师按实际申请情况人工复核。</p>
           </section>
 
@@ -90,12 +96,15 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
               Debug mode: form is forced visible by query param <code>forceShowIelts=1</code>.
             </p>
             <div class="field-row" *ngIf="managedMode">
-              <label>Language Tracking Status (Teacher)</label>
+              <label>跟进状态（老师）</label>
               <select
                 class="field-input"
                 [ngModel]="languageTrackingManualStatus || vm.summary.languageTrackingStatus"
                 (ngModelChange)="setLanguageTrackingManualStatus($event)"
                 name="languageTrackingStatus"
+                [style.background]="resolveLanguageTrackingSelectDisplay(vm.summary.languageTrackingStatus).background"
+                [style.color]="resolveLanguageTrackingSelectDisplay(vm.summary.languageTrackingStatus).textColor"
+                [style.borderColor]="resolveLanguageTrackingSelectDisplay(vm.summary.languageTrackingStatus).borderColor"
               >
                 <option
                   *ngFor="let status of languageTrackingStatusOptions; trackBy: trackLanguageTrackingStatusOption"
@@ -104,7 +113,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                   {{ resolveLanguageTrackingDisplay(status).label }}
                 </option>
               </select>
-              <p class="summary-note">Teacher can directly choose the tracking status for this student.</p>
+              <p class="summary-note">老师可直接选择该学生的跟进状态。</p>
             </div>
             <div class="field-row" *ngIf="false && managedMode">
               <label>语言跟踪审核（老师）</label>
@@ -132,7 +141,27 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
             </div>
 
             <div class="field-row">
-              <label>Have you taken IELTS Academic?</label>
+              <label>语言成绩类型</label>
+              <select
+                class="field-input"
+                [ngModel]="languageScoreType"
+                (ngModelChange)="setLanguageScoreType($event)"
+                name="languageScoreType"
+              >
+                <option
+                  *ngFor="let scoreType of languageScoreTypeOptions; trackBy: trackLanguageScoreTypeOption"
+                  [ngValue]="scoreType"
+                >
+                  {{ resolveLanguageScoreTypeLabel(scoreType) }}
+                </option>
+              </select>
+              <p class="summary-note" *ngIf="languageScoreType === 'DUOLINGO' || languageScoreType === 'OTHER'">
+                多邻国 / 其他 当前仍为占位模式，暂复用语言成绩流程。
+              </p>
+            </div>
+
+            <div class="field-row">
+              <label>{{ resolveHasTakenQuestionLabel() }}</label>
               <div class="inline-options">
                 <label>
                   <input
@@ -157,7 +186,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 
             <div *ngIf="hasTakenIeltsAcademic === true" class="records-block">
               <div class="records-head">
-                <h4>IELTS Academic Records</h4>
+                <h4>{{ resolveRecordSectionTitle() }}</h4>
                 <button type="button" class="secondary-btn" (click)="addRecord()">+ Add record</button>
               </div>
 
@@ -178,9 +207,9 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                     Listening
                     <input
                       type="number"
-                      min="0"
-                      max="9"
-                      step="0.5"
+                      [min]="resolveScoreRangeMin()"
+                      [max]="resolveScoreRangeMax()"
+                      [step]="resolveScoreRangeStep()"
                       [(ngModel)]="record.listening"
                       [name]="'listening_' + idx"
                     />
@@ -189,9 +218,9 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                     Reading
                     <input
                       type="number"
-                      min="0"
-                      max="9"
-                      step="0.5"
+                      [min]="resolveScoreRangeMin()"
+                      [max]="resolveScoreRangeMax()"
+                      [step]="resolveScoreRangeStep()"
                       [(ngModel)]="record.reading"
                       [name]="'reading_' + idx"
                     />
@@ -200,9 +229,9 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                     Writing
                     <input
                       type="number"
-                      min="0"
-                      max="9"
-                      step="0.5"
+                      [min]="resolveScoreRangeMin()"
+                      [max]="resolveScoreRangeMax()"
+                      [step]="resolveScoreRangeStep()"
                       [(ngModel)]="record.writing"
                       [name]="'writing_' + idx"
                     />
@@ -211,9 +240,9 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                     Speaking
                     <input
                       type="number"
-                      min="0"
-                      max="9"
-                      step="0.5"
+                      [min]="resolveScoreRangeMin()"
+                      [max]="resolveScoreRangeMax()"
+                      [step]="resolveScoreRangeStep()"
                       [(ngModel)]="record.speaking"
                       [name]="'speaking_' + idx"
                     />
@@ -244,7 +273,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
             </div>
 
             <div *ngIf="hasTakenIeltsAcademic === false" class="prep-block">
-              <label>Are you preparing for IELTS?</label>
+              <label>{{ resolvePreparationIntentLabel() }}</label>
               <div class="inline-options">
                 <label>
                   <input
@@ -269,7 +298,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 
             <div class="actions">
               <button type="button" class="primary-btn" (click)="save()" [disabled]="saving">
-                {{ saving ? '保存中...' : '保存雅思跟踪' }}
+                {{ saving ? '保存中...' : '保存语言成绩' }}
               </button>
             </div>
           </section>
@@ -280,12 +309,17 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
   styleUrl: './ielts-tracking.component.scss',
 })
 export class IeltsTrackingComponent implements OnInit {
-  readonly ruleSet = IELTS_TRACKING_RULESET_V1;
   readonly languageTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
     'TEACHER_REVIEW_APPROVED',
     'AUTO_PASS_ALL_SCHOOLS',
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
+  ];
+  readonly languageScoreTypeOptions: readonly LanguageScoreType[] = [
+    'IELTS',
+    'TOEFL',
+    'DUOLINGO',
+    'OTHER',
   ];
 
   managedMode = false;
@@ -298,12 +332,14 @@ export class IeltsTrackingComponent implements OnInit {
   forceShowModule = false;
 
   moduleState: StudentIeltsModuleState | null = null;
+  languageScoreType: LanguageScoreType = 'IELTS';
   hasTakenIeltsAcademic: boolean | null = null;
   preparationIntent: IeltsPreparationIntent = 'UNSET';
   languageTrackingManualStatus: LanguageTrackingManualStatus = null;
   records: IeltsRecordFormValue[] = [];
 
   private loadWatchdog: number | null = null;
+  private readonly languageScoreTypeStorageKeyPrefix = 'ielts-module.language-score-type';
 
   constructor(
     private route: ActivatedRoute,
@@ -319,6 +355,10 @@ export class IeltsTrackingComponent implements OnInit {
     });
   }
 
+  get ruleSet() {
+    return resolveLanguageTrackingRuleSet(this.languageScoreType);
+  }
+
   get derived(): DerivedStudentIeltsModuleState | null {
     if (!this.moduleState) return null;
     const effectiveRecords =
@@ -326,6 +366,7 @@ export class IeltsTrackingComponent implements OnInit {
 
     return deriveStudentIeltsModuleState({
       ...this.moduleState,
+      languageScoreType: this.languageScoreType,
       hasTakenIeltsAcademic: this.hasTakenIeltsAcademic,
       preparationIntent: this.hasTakenIeltsAcademic === false ? this.preparationIntent : 'UNSET',
       languageTrackingManualStatus: this.languageTrackingManualStatus,
@@ -362,6 +403,15 @@ export class IeltsTrackingComponent implements OnInit {
     this.savedMessage = '';
   }
 
+  setLanguageScoreType(value: unknown): void {
+    const normalized = this.normalizeLanguageScoreType(value);
+    if (!normalized) return;
+    this.languageScoreType = normalized;
+    this.records = this.records.map((record) => this.normalizeRecord(record, normalized));
+    this.savedMessage = '';
+    this.persistLanguageScoreTypePreference(this.studentId, normalized);
+  }
+
   addRecord(): void {
     this.records = [
       ...this.records,
@@ -383,7 +433,9 @@ export class IeltsTrackingComponent implements OnInit {
   save(): void {
     if (!this.studentId) return;
     if (this.hasTakenIeltsAcademic === null) {
-      this.error = 'Please select whether IELTS Academic has been taken.';
+      this.error = `Please select whether ${this.resolveLanguageScoreTypeLabel(
+        this.languageScoreType
+      )} has been taken.`;
       return;
     }
 
@@ -395,12 +447,14 @@ export class IeltsTrackingComponent implements OnInit {
       const payloadRecords = this.records.map((record) => this.normalizeRecord(record));
       const request$ = this.managedMode
         ? this.ieltsApi.updateTeacherStudentIeltsData(this.studentId, {
+            languageScoreType: this.languageScoreType,
             hasTakenIeltsAcademic: true,
             preparationIntent: 'UNSET',
             languageTrackingManualStatus: this.languageTrackingManualStatus,
             records: payloadRecords,
           })
-        : this.ieltsApi.saveStudentIeltsRecords(this.studentId, {
+        : this.ieltsApi.saveStudentIeltsRecords(this.studentId, this.languageScoreType, {
+            languageScoreType: this.languageScoreType,
             hasTakenIeltsAcademic: true,
             records: payloadRecords,
           });
@@ -410,12 +464,14 @@ export class IeltsTrackingComponent implements OnInit {
         .subscribe({
           next: (state) => {
             this.applyState(state);
-            this.savedMessage = this.managedMode ? 'Teacher update saved.' : 'IELTS records saved.';
+            this.savedMessage = this.managedMode
+              ? 'Teacher update saved.'
+              : `${this.resolveLanguageScoreTypeLabel(this.languageScoreType)} records saved.`;
             this.refreshStateAfterSave();
             this.cdr.detectChanges();
           },
           error: (error: unknown) => {
-            this.error = this.extractErrorMessage(error, 'Failed to save IELTS records.');
+            this.error = this.extractErrorMessage(error, 'Failed to save language score records.');
             this.cdr.detectChanges();
           },
         });
@@ -430,12 +486,17 @@ export class IeltsTrackingComponent implements OnInit {
 
     const request$ = this.managedMode
       ? this.ieltsApi.updateTeacherStudentIeltsData(this.studentId, {
+          languageScoreType: this.languageScoreType,
           hasTakenIeltsAcademic: false,
           preparationIntent: this.preparationIntent,
           languageTrackingManualStatus: this.languageTrackingManualStatus,
           records: [],
         })
-      : this.ieltsApi.saveStudentIeltsPreparationIntent(this.studentId, this.preparationIntent);
+      : this.ieltsApi.saveStudentIeltsPreparationIntent(
+          this.studentId,
+          this.languageScoreType,
+          this.preparationIntent
+        );
 
     request$
       .pipe(finalize(() => (this.saving = false)))
@@ -464,6 +525,10 @@ export class IeltsTrackingComponent implements OnInit {
     return status;
   };
 
+  trackLanguageScoreTypeOption = (_index: number, scoreType: LanguageScoreType): LanguageScoreType => {
+    return scoreType;
+  };
+
   displayOverall(record: IeltsRecordFormValue): string {
     const overall = computeIeltsOverall(this.normalizeRecord(record));
     return overall === null ? '-' : overall.toFixed(1);
@@ -479,6 +544,64 @@ export class IeltsTrackingComponent implements OnInit {
 
   resolveLanguageTrackingDisplay(status: LanguageTrackingStatus) {
     return resolveLanguageTrackingStatusDisplay({ status });
+  }
+
+  shouldShowLanguageTrackingStatus(status: LanguageTrackingStatus): boolean {
+    return this.managedMode || status !== 'NEEDS_TRACKING';
+  }
+
+  resolveLanguageTrackingSelectDisplay(
+    summaryStatus: LanguageTrackingStatus
+  ): LanguageTrackingStatusDisplay {
+    return resolveLanguageTrackingStatusDisplay({
+      status: this.languageTrackingManualStatus ?? summaryStatus,
+    });
+  }
+
+  resolveLanguageScoreTypeLabel(scoreType: LanguageScoreType): string {
+    if (scoreType === 'IELTS') return 'IELTS';
+    if (scoreType === 'TOEFL') return 'TOEFL iBT';
+    if (scoreType === 'DUOLINGO') return 'Duolingo';
+    return 'Other';
+  }
+
+  resolveHasTakenQuestionLabel(): string {
+    if (this.languageScoreType === 'IELTS') {
+      return 'Have you taken IELTS Academic?';
+    }
+    if (this.languageScoreType === 'TOEFL') {
+      return 'Have you taken TOEFL iBT?';
+    }
+    if (this.languageScoreType === 'DUOLINGO') {
+      return 'Have you taken Duolingo English Test?';
+    }
+    return 'Have you taken a language score test?';
+  }
+
+  resolveRecordSectionTitle(): string {
+    if (this.languageScoreType === 'IELTS') {
+      return 'IELTS Academic Records';
+    }
+    return `${this.resolveLanguageScoreTypeLabel(this.languageScoreType)} Records`;
+  }
+
+  resolvePreparationIntentLabel(): string {
+    if (this.languageScoreType === 'IELTS') {
+      return 'Are you preparing for IELTS?';
+    }
+    return `Are you preparing for ${this.resolveLanguageScoreTypeLabel(this.languageScoreType)}?`;
+  }
+
+  resolveScoreRangeMin(): number {
+    return this.languageScoreType === 'TOEFL' ? 1 : 0;
+  }
+
+  resolveScoreRangeMax(): number {
+    return this.languageScoreType === 'TOEFL' ? 6 : 9;
+  }
+
+  resolveScoreRangeStep(): number {
+    return 0.5;
   }
 
   recordVm(record: IeltsRecordFormValue) {
@@ -514,7 +637,7 @@ export class IeltsTrackingComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.error = this.extractErrorMessage(error, '加载雅思跟踪模块失败。');
+          this.error = this.extractErrorMessage(error, '加载语言成绩模块失败。');
           this.cdr.detectChanges();
         },
       });
@@ -522,8 +645,18 @@ export class IeltsTrackingComponent implements OnInit {
 
   private applyState(state: StudentIeltsModuleState): void {
     const normalizedRecords = Array.isArray(state.records) ? state.records : [];
+    const preferredScoreType = this.readLanguageScoreTypePreference(this.studentId);
+    const effectiveScoreType =
+      this.normalizeLanguageScoreType(state.languageScoreType) ??
+      preferredScoreType ??
+      this.languageScoreType ??
+      'IELTS';
+    this.languageScoreType = effectiveScoreType;
+    this.persistLanguageScoreTypePreference(this.studentId, effectiveScoreType);
+
     this.moduleState = {
       ...state,
+      languageScoreType: effectiveScoreType,
       records: normalizedRecords.map((record) => this.normalizeRecord(record)),
     };
     this.hasTakenIeltsAcademic = state.hasTakenIeltsAcademic;
@@ -553,6 +686,7 @@ export class IeltsTrackingComponent implements OnInit {
       }
       this.managedMode = true;
       this.studentId = Math.trunc(parsed);
+      this.languageScoreType = this.readLanguageScoreTypePreference(this.studentId) ?? 'IELTS';
       this.loadState();
       return;
     }
@@ -567,25 +701,63 @@ export class IeltsTrackingComponent implements OnInit {
       return;
     }
     this.studentId = Math.trunc(sessionStudentId);
+    this.languageScoreType = this.readLanguageScoreTypePreference(this.studentId) ?? 'IELTS';
     this.loadState();
   }
 
-  private normalizeRecord(record: IeltsRecordFormValue): IeltsRecordFormValue {
+  private normalizeRecord(
+    record: IeltsRecordFormValue,
+    scoreType: LanguageScoreType = this.languageScoreType
+  ): IeltsRecordFormValue {
     return {
       recordId: String(record.recordId || '').trim(),
       testDate: String(record.testDate || '').trim(),
-      listening: this.toBandScore(record.listening),
-      reading: this.toBandScore(record.reading),
-      writing: this.toBandScore(record.writing),
-      speaking: this.toBandScore(record.speaking),
+      listening: this.toBandScore(record.listening, scoreType),
+      reading: this.toBandScore(record.reading, scoreType),
+      writing: this.toBandScore(record.writing, scoreType),
+      speaking: this.toBandScore(record.speaking, scoreType),
     };
   }
 
-  private toBandScore(value: number | null): number | null {
+  private toBandScore(value: number | null, scoreType: LanguageScoreType = this.languageScoreType): number | null {
     if (value === null || value === undefined) return null;
     const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 9) return null;
+    const min = scoreType === 'TOEFL' ? 1 : 0;
+    const max = scoreType === 'TOEFL' ? 6 : 9;
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
     return Number(parsed.toFixed(1));
+  }
+
+  private normalizeLanguageScoreType(value: unknown): LanguageScoreType | null {
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    if (normalized === 'IELTS') return 'IELTS';
+    if (normalized === 'TOEFL') return 'TOEFL';
+    if (normalized === 'DUOLINGO') return 'DUOLINGO';
+    if (normalized === 'OTHER') return 'OTHER';
+    return null;
+  }
+
+  private readLanguageScoreTypePreference(studentId: number): LanguageScoreType | null {
+    if (!studentId) return null;
+    try {
+      const raw = window.localStorage.getItem(this.resolveLanguageScoreTypeStorageKey(studentId));
+      return this.normalizeLanguageScoreType(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  private persistLanguageScoreTypePreference(studentId: number, scoreType: LanguageScoreType): void {
+    if (!studentId) return;
+    try {
+      window.localStorage.setItem(this.resolveLanguageScoreTypeStorageKey(studentId), scoreType);
+    } catch {}
+  }
+
+  private resolveLanguageScoreTypeStorageKey(studentId: number): string {
+    return `${this.languageScoreTypeStorageKeyPrefix}.${Math.trunc(studentId)}`;
   }
 
   private extractErrorMessage(error: unknown, fallback: string): string {
@@ -686,7 +858,7 @@ export class IeltsTrackingComponent implements OnInit {
       if (!this.loading) return;
       this.loading = false;
       if (!this.error) {
-        this.error = 'Request timed out while loading IELTS module.';
+        this.error = '加载语言成绩模块请求超时。';
       }
       this.cdr.detectChanges();
     }, 15000);

@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { finalize } from 'rxjs/operators';
+import { throwError } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
 
 import {
   ResetStudentPasswordResponse,
@@ -26,7 +27,13 @@ import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
-import { IeltsTrackingStatus, LanguageTrackingStatus } from '../../features/ielts/ielts-types';
+import {
+  IeltsRecordFormValue,
+  IeltsTrackingStatus,
+  LanguageTrackingStatus,
+  StudentIeltsModuleState,
+  UpdateStudentIeltsPayload,
+} from '../../features/ielts/ielts-types';
 import {
   IeltsStatusDisplayModel,
   resolveIeltsStatusDisplay,
@@ -293,7 +300,7 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   },
   {
     key: 'ielts',
-    label: 'IELTS',
+    label: '语言成绩',
     defaultVisible: false,
     hideable: true,
     backendDependent: true,
@@ -303,7 +310,7 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   },
   {
     key: 'languageTracking',
-    label: 'Language Tracking',
+    label: '跟进状态',
     defaultVisible: true,
     hideable: true,
     backendDependent: true,
@@ -689,7 +696,10 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     <select
                       [ngModel]="resolveLanguageTrackingStatusSelection(student)"
                       (ngModelChange)="onLanguageTrackingStatusSelectionChange(student, $event)"
-                      style="min-width:200px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;"
+                      style="min-width:200px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-weight:600;"
+                      [style.background]="resolveLanguageTrackingStatusBackground(student)"
+                      [style.color]="resolveLanguageTrackingStatusTextColor(student)"
+                      [style.borderColor]="resolveLanguageTrackingStatusBorderColor(student)"
                       [disabled]="
                         !resolveStudentId(student) ||
                         isLanguageTrackingStatusLoading(student) ||
@@ -1179,7 +1189,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get pageTitle(): string {
-    return this.resolvePageContext() === 'ielts' ? '雅思跟踪' : '学生账号管理';
+    return this.resolvePageContext() === 'ielts' ? '语言成绩跟踪' : '学生账号管理';
   }
 
   get visibleColumns(): readonly StudentListColumnConfig[] {
@@ -1912,6 +1922,20 @@ export class StudentManagementComponent implements OnInit {
         languageTrackingManualStatus: nextStatus,
       })
       .pipe(
+        catchError((err: HttpErrorResponse) => {
+          if (!this.shouldRetryLanguageTrackingSave(err)) {
+            return throwError(() => err);
+          }
+
+          return this.ieltsApi.getTeacherStudentIeltsModuleState(studentId).pipe(
+            switchMap((state) =>
+              this.ieltsApi.updateTeacherStudentIeltsData(
+                studentId,
+                this.buildLanguageTrackingRetryPayload(state, nextStatus)
+              )
+            )
+          );
+        }),
         finalize(() => {
           this.languageTrackingStatusSaveInFlight.delete(studentId);
           this.cdr.detectChanges();
@@ -3016,6 +3040,72 @@ export class StudentManagementComponent implements OnInit {
     if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
     return null;
+  }
+
+  private shouldRetryLanguageTrackingSave(err: HttpErrorResponse): boolean {
+    const status = Number(err?.status);
+    if (status === 403) {
+      return false;
+    }
+
+    const message = this.extractErrorMessage(err).toLowerCase();
+    const isValidationLike =
+      message.includes('validation') || message.includes('invalid') || message.includes('failed');
+    if (!isValidationLike) {
+      return false;
+    }
+
+    return status === 400 || status === 422;
+  }
+
+  private buildLanguageTrackingRetryPayload(
+    state: StudentIeltsModuleState,
+    nextStatus: LanguageTrackingStatus
+  ): UpdateStudentIeltsPayload {
+    const hasTaken = state.hasTakenIeltsAcademic;
+    const languageScoreTypeText = String(state.languageScoreType ?? '')
+      .trim()
+      .toUpperCase();
+    const languageScoreType =
+      languageScoreTypeText === 'TOEFL'
+        ? 'TOEFL'
+        : languageScoreTypeText === 'DUOLINGO'
+          ? 'DUOLINGO'
+          : languageScoreTypeText === 'OTHER'
+            ? 'OTHER'
+            : 'IELTS';
+    const records: IeltsRecordFormValue[] = Array.isArray(state.records) ? state.records : [];
+    const prepText = String(state.preparationIntent ?? '').trim().toUpperCase();
+    const preparationIntent: 'PREPARING' | 'NOT_PREPARING' | 'UNSET' =
+      prepText === 'PREPARING' || prepText === 'NOT_PREPARING'
+        ? (prepText as 'PREPARING' | 'NOT_PREPARING')
+        : 'UNSET';
+
+    if (hasTaken === true) {
+      const payload: UpdateStudentIeltsPayload = {
+        languageScoreType,
+        hasTakenIeltsAcademic: true,
+        languageTrackingManualStatus: nextStatus,
+      };
+      if (records.length > 0) {
+        payload.records = records;
+      }
+      return payload;
+    }
+
+    if (hasTaken === false) {
+      return {
+        languageScoreType,
+        hasTakenIeltsAcademic: false,
+        preparationIntent: preparationIntent === 'UNSET' ? 'PREPARING' : preparationIntent,
+        languageTrackingManualStatus: nextStatus,
+      };
+    }
+
+    return {
+      languageScoreType,
+      languageTrackingManualStatus: nextStatus,
+    };
   }
 
   private prefetchVisibleIeltsStatuses(): void {

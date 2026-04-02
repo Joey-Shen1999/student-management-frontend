@@ -19,12 +19,12 @@ interface TeacherIeltsListRow {
   template: `
     <div style="padding: 20px; display: grid; gap: 12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">雅思跟踪</h2>
+        <h2 style="margin:0;">语言成绩跟踪</h2>
         <button type="button" [routerLink]="['/teacher/students']">返回学生管理</button>
       </div>
 
       <p style="margin:0;color:#5a6578;">
-        该页面用于快速进入学生的雅思跟踪详情，避免和“学生管理”入口混淆。
+        该页面用于快速进入学生的语言成绩详情，避免和“学生管理”入口混淆。
       </p>
 
       <div *ngIf="loading" style="padding:12px;border:1px solid #d8e2f3;border-radius:8px;background:#f7fbff;">
@@ -55,7 +55,7 @@ interface TeacherIeltsListRow {
               <td style="padding:10px;border-bottom:1px solid #f0f3f8;">{{ row.email || '-' }}</td>
               <td style="padding:10px;border-bottom:1px solid #f0f3f8;text-align:center;">
                 <button type="button" [routerLink]="['/teacher/students', row.studentId, 'ielts']">
-                  进入雅思跟踪
+                  进入语言成绩
                 </button>
               </td>
             </tr>
@@ -164,4 +164,3 @@ export class TeacherIeltsDashboardComponent implements OnInit {
     return null;
   }
 }
-

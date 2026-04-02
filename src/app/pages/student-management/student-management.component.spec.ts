@@ -1031,9 +1031,9 @@ describe('StudentManagementComponent', () => {
     );
   });
 
-  it('page title should be 雅思跟踪 on /teacher/ielts', () => {
+  it('page title should be 语言成绩跟踪 on /teacher/ielts', () => {
     router.url = '/teacher/ielts';
-    expect(component.pageTitle).toBe('雅思跟踪');
+    expect(component.pageTitle).toBe('语言成绩跟踪');
   });
 
   it('default columns on /teacher/ielts should match IELTS tracking defaults', () => {

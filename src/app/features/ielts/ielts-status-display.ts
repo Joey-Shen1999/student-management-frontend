@@ -1,4 +1,3 @@
-import { IELTS_TRACKING_RULESET_V1 } from './ielts-rules';
 import { IeltsTrackingStatus } from './ielts-types';
 
 export type IeltsStatusDisplayState =
@@ -42,20 +41,17 @@ export function resolveIeltsStatusDisplay(input: ResolveIeltsStatusDisplayInput)
     status === 'GREEN_COMMON_PASS_WITH_WARNING' ||
     status === 'YELLOW_NEEDS_PREPARATION'
   ) {
-    return buildDisplayModel(status, input.colorToken);
+    return buildDisplayModel(status);
   }
 
   return buildDisplayModel('UNAVAILABLE');
 }
 
-function buildDisplayModel(
-  state: IeltsStatusDisplayState,
-  colorToken: string | null = null
-): IeltsStatusDisplayModel {
+function buildDisplayModel(state: IeltsStatusDisplayState): IeltsStatusDisplayModel {
   if (state === 'NO_IELTS_REQUIRED') {
     return {
       state,
-      label: '无需雅思',
+      label: '无需语言成绩',
       background: '#f1f3f5',
       textColor: '#6a7385',
       borderColor: '#6a7385',
@@ -75,50 +71,38 @@ function buildDisplayModel(
   if (state === 'UNAVAILABLE') {
     return {
       state,
-      label: '可能需要雅思',
-      background: '#fff2d8',
+      label: '可能需要语言成绩',
+      background: '#fff6dc',
       textColor: '#8a5a00',
-      borderColor: '#8a5a00',
+      borderColor: '#e3c77a',
     };
   }
 
-  const background = resolveStatusColorToken(state, colorToken);
   if (state === 'GREEN_STRICT_PASS') {
     return {
       state,
-      label: '已满足雅思',
-      background,
-      textColor: '#ffffff',
-      borderColor: background,
+      label: '已满足语言成绩',
+      background: '#e7f6ec',
+      textColor: '#2f6b43',
+      borderColor: '#8fc8a3',
     };
   }
 
   if (state === 'GREEN_COMMON_PASS_WITH_WARNING') {
     return {
       state,
-      label: '已满足雅思(大部分本科)',
-      background,
-      textColor: '#ffffff',
-      borderColor: background,
+      label: '已满足语言成绩(大部分本科)',
+      background: '#e7f6ec',
+      textColor: '#2f6b43',
+      borderColor: '#8fc8a3',
     };
   }
 
   return {
     state,
-    label: '可能需要雅思',
-    background,
-    textColor: '#ffffff',
-    borderColor: background,
+    label: '可能需要语言成绩',
+    background: '#fff6dc',
+    textColor: '#8a5a00',
+    borderColor: '#e3c77a',
   };
-}
-
-function resolveStatusColorToken(
-  status: IeltsTrackingStatus,
-  colorToken: string | null
-): string {
-  const explicitColorToken = String(colorToken || '').trim();
-  if (explicitColorToken) {
-    return explicitColorToken;
-  }
-  return IELTS_TRACKING_RULESET_V1.messaging[status].colorToken;
 }
