@@ -334,7 +334,11 @@ export class IeltsTrackingService {
       this.readValue(source, ['languageScoreType', 'language_score_type', 'testType', 'test_type'])
     );
     const hasToeflRecords = Array.isArray(this.readValue(source, ['toeflRecords', 'toefl_records']));
-    const inferredScoreType: LanguageScoreType | null = explicitScoreType ?? (hasToeflRecords ? 'TOEFL' : null);
+    const hasDuolingoRecords = Array.isArray(
+      this.readValue(source, ['duolingoRecords', 'duolingo_records'])
+    );
+    const inferredScoreType: LanguageScoreType | null =
+      explicitScoreType ?? (hasToeflRecords ? 'TOEFL' : hasDuolingoRecords ? 'DUOLINGO' : null);
     const recordScoreType = inferredScoreType ?? 'IELTS';
     const hasTakenIeltsAcademic = this.toNullableBoolean(
       this.readValue(source, ['hasTakenIeltsAcademic', 'has_taken_ielts_academic'])
@@ -438,6 +442,8 @@ export class IeltsTrackingService {
       ? payload.records
       : Array.isArray(payload.toeflRecords)
         ? payload.toeflRecords
+        : Array.isArray(payload.duolingoRecords)
+          ? payload.duolingoRecords
         : null;
     if (rawRecords) {
       const effectiveScoreType = normalizedScoreType ?? 'IELTS';
@@ -477,6 +483,9 @@ export class IeltsTrackingService {
     if (languageScoreType === 'TOEFL') {
       scorePayload.toeflRecords = records;
     }
+    if (languageScoreType === 'DUOLINGO') {
+      scorePayload.duolingoRecords = records;
+    }
 
     return {
       ...scorePayload,
@@ -489,6 +498,15 @@ export class IeltsTrackingService {
   ): unknown {
     if (languageScoreType === 'TOEFL') {
       return this.readValue(source, ['toeflRecords', 'toefl_records', 'records', 'ieltsRecords', 'ielts_records']);
+    }
+    if (languageScoreType === 'DUOLINGO') {
+      return this.readValue(source, [
+        'duolingoRecords',
+        'duolingo_records',
+        'records',
+        'ieltsRecords',
+        'ielts_records',
+      ]);
     }
     return this.readValue(source, ['records', 'ieltsRecords', 'ielts_records', 'toeflRecords', 'toefl_records']);
   }
@@ -663,9 +681,12 @@ export class IeltsTrackingService {
   private toNullableBandScore(value: unknown, languageScoreType: LanguageScoreType = 'IELTS'): number | null {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return null;
-    const min = languageScoreType === 'TOEFL' ? 1 : 0;
-    const max = languageScoreType === 'TOEFL' ? 6 : 9;
+    const min = languageScoreType === 'TOEFL' ? 1 : languageScoreType === 'DUOLINGO' ? 10 : 0;
+    const max = languageScoreType === 'TOEFL' ? 6 : languageScoreType === 'DUOLINGO' ? 160 : 9;
     if (parsed < min || parsed > max) return null;
+    if (languageScoreType === 'DUOLINGO') {
+      return Number(parsed.toFixed(0));
+    }
     return Number(parsed.toFixed(1));
   }
 

@@ -155,8 +155,8 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                   {{ resolveLanguageScoreTypeLabel(scoreType) }}
                 </option>
               </select>
-              <p class="summary-note" *ngIf="languageScoreType === 'DUOLINGO' || languageScoreType === 'OTHER'">
-                多邻国 / 其他 当前仍为占位模式，暂复用语言成绩流程。
+              <p class="summary-note" *ngIf="languageScoreType === 'OTHER'">
+                其他 当前仍为占位模式，暂复用语言成绩流程。
               </p>
             </div>
 
@@ -561,7 +561,7 @@ export class IeltsTrackingComponent implements OnInit {
   resolveLanguageScoreTypeLabel(scoreType: LanguageScoreType): string {
     if (scoreType === 'IELTS') return 'IELTS';
     if (scoreType === 'TOEFL') return 'TOEFL iBT';
-    if (scoreType === 'DUOLINGO') return 'Duolingo';
+    if (scoreType === 'DUOLINGO') return 'Duolingo English Test';
     return 'Other';
   }
 
@@ -593,14 +593,19 @@ export class IeltsTrackingComponent implements OnInit {
   }
 
   resolveScoreRangeMin(): number {
-    return this.languageScoreType === 'TOEFL' ? 1 : 0;
+    if (this.languageScoreType === 'TOEFL') return 1;
+    if (this.languageScoreType === 'DUOLINGO') return 10;
+    return 0;
   }
 
   resolveScoreRangeMax(): number {
-    return this.languageScoreType === 'TOEFL' ? 6 : 9;
+    if (this.languageScoreType === 'TOEFL') return 6;
+    if (this.languageScoreType === 'DUOLINGO') return 160;
+    return 9;
   }
 
   resolveScoreRangeStep(): number {
+    if (this.languageScoreType === 'DUOLINGO') return 5;
     return 0.5;
   }
 
@@ -722,9 +727,10 @@ export class IeltsTrackingComponent implements OnInit {
   private toBandScore(value: number | null, scoreType: LanguageScoreType = this.languageScoreType): number | null {
     if (value === null || value === undefined) return null;
     const parsed = Number(value);
-    const min = scoreType === 'TOEFL' ? 1 : 0;
-    const max = scoreType === 'TOEFL' ? 6 : 9;
+    const min = scoreType === 'TOEFL' ? 1 : scoreType === 'DUOLINGO' ? 10 : 0;
+    const max = scoreType === 'TOEFL' ? 6 : scoreType === 'DUOLINGO' ? 160 : 9;
     if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+    if (scoreType === 'DUOLINGO') return Number(parsed.toFixed(0));
     return Number(parsed.toFixed(1));
   }
 

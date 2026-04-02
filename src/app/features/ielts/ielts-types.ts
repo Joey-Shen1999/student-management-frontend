@@ -96,6 +96,7 @@ export interface UpdateStudentIeltsPayload {
   languageTrackingManualStatus?: LanguageTrackingManualStatus;
   records?: IeltsRecordFormValue[];
   toeflRecords?: IeltsRecordFormValue[];
+  duolingoRecords?: IeltsRecordFormValue[];
   teacherNote?: string;
 }
 
@@ -109,7 +110,7 @@ export interface IeltsThresholdRule {
 
 export interface IeltsTrackingRuleSet {
   id: string;
-  scope: 'IELTS_ACADEMIC_ONLY' | 'TOEFL_IBT_2026_ONLY';
+  scope: 'IELTS_ACADEMIC_ONLY' | 'TOEFL_IBT_2026_ONLY' | 'DUOLINGO_DET_2026_ONLY';
   labels: {
     strictLineName: string;
     commonLineName: string;

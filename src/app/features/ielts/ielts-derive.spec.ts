@@ -186,4 +186,63 @@ describe('deriveStudentIeltsModuleState', () => {
     expect(summary.trackingStatus).toBe('GREEN_COMMON_PASS_WITH_WARNING');
     expect(summary.languageTrackingStatus).toBe('AUTO_PASS_PARTIAL_SCHOOLS');
   });
+
+  it('uses Duolingo strict thresholds when language score type is DUOLINGO', () => {
+    const state: StudentIeltsModuleState = {
+      studentId: 4,
+      graduationYear: 2027,
+      languageScoreType: 'DUOLINGO',
+      hasTakenIeltsAcademic: true,
+      preparationIntent: 'UNSET',
+      languageTrackingManualStatus: null,
+      records: [
+        {
+          recordId: 'duolingo-strict',
+          testDate: '2026-01-15',
+          listening: 135,
+          reading: 130,
+          writing: 130,
+          speaking: 125,
+        },
+      ],
+      languageRisk: {
+        shouldShowIeltsModule: true,
+      },
+      updatedAt: null,
+    };
+
+    const summary = deriveStudentIeltsModuleState(state).summary;
+    expect(summary.trackingStatus).toBe('GREEN_STRICT_PASS');
+    expect(summary.languageTrackingStatus).toBe('AUTO_PASS_ALL_SCHOOLS');
+    expect(summary.trackingMessage).toContain('Duolingo English Test');
+  });
+
+  it('uses Duolingo common thresholds when language score type is DUOLINGO', () => {
+    const state: StudentIeltsModuleState = {
+      studentId: 5,
+      graduationYear: 2027,
+      languageScoreType: 'DUOLINGO',
+      hasTakenIeltsAcademic: true,
+      preparationIntent: 'UNSET',
+      languageTrackingManualStatus: null,
+      records: [
+        {
+          recordId: 'duolingo-common',
+          testDate: '2026-01-15',
+          listening: 125,
+          reading: 120,
+          writing: 115,
+          speaking: 110,
+        },
+      ],
+      languageRisk: {
+        shouldShowIeltsModule: true,
+      },
+      updatedAt: null,
+    };
+
+    const summary = deriveStudentIeltsModuleState(state).summary;
+    expect(summary.trackingStatus).toBe('GREEN_COMMON_PASS_WITH_WARNING');
+    expect(summary.languageTrackingStatus).toBe('AUTO_PASS_PARTIAL_SCHOOLS');
+  });
 });

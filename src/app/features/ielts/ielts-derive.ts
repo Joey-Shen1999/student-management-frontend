@@ -75,17 +75,18 @@ export function deriveLanguageTrackingStatus(
 }
 
 export function computeIeltsOverall(record: IeltsRecordFormValue): number | null {
-  const listening = normalizeBandScore(record.listening);
-  const reading = normalizeBandScore(record.reading);
-  const writing = normalizeBandScore(record.writing);
-  const speaking = normalizeBandScore(record.speaking);
+  const scoreConfig = resolveScoreNormalizationConfigByRecord(record);
+  const listening = normalizeBandScore(record.listening, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const reading = normalizeBandScore(record.reading, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const writing = normalizeBandScore(record.writing, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const speaking = normalizeBandScore(record.speaking, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
   if (listening === null || reading === null || writing === null || speaking === null) {
     return null;
   }
 
   const average = (listening + reading + writing + speaking) / 4;
-  const rounded = Math.round(average * 2) / 2;
-  return Number(rounded.toFixed(1));
+  const rounded = Math.round(average / scoreConfig.overallStep) * scoreConfig.overallStep;
+  return Number(rounded.toFixed(scoreConfig.decimals));
 }
 
 export function computeIeltsValidityWindow(
@@ -232,10 +233,11 @@ function matchesThresholdRule(
 ): boolean {
   const overall = computeIeltsOverall(record);
   if (overall === null || overall < rule.minimumOverall) return false;
-  const listening = normalizeBandScore(record.listening);
-  const reading = normalizeBandScore(record.reading);
-  const writing = normalizeBandScore(record.writing);
-  const speaking = normalizeBandScore(record.speaking);
+  const scoreConfig = resolveScoreNormalizationConfigByRecord(record);
+  const listening = normalizeBandScore(record.listening, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const reading = normalizeBandScore(record.reading, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const writing = normalizeBandScore(record.writing, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
+  const speaking = normalizeBandScore(record.speaking, scoreConfig.min, scoreConfig.max, scoreConfig.decimals);
   if (listening === null || reading === null || writing === null || speaking === null) return false;
   return (
     listening >= rule.minimumListening &&
@@ -250,16 +252,15 @@ function normalizeRecord(
   index: number,
   ruleSet: IeltsTrackingRuleSet
 ): IeltsRecordFormValue {
-  const min = ruleSet.scope === 'TOEFL_IBT_2026_ONLY' ? 1 : 0;
-  const max = ruleSet.scope === 'TOEFL_IBT_2026_ONLY' ? 6 : 9;
+  const scoreConfig = resolveScoreNormalizationConfigByRuleSet(ruleSet);
   const recordId = normalizeText(record.recordId) || `record-${index + 1}`;
   return {
     recordId,
     testDate: normalizeIsoDateText(record.testDate),
-    listening: normalizeBandScore(record.listening, min, max),
-    reading: normalizeBandScore(record.reading, min, max),
-    writing: normalizeBandScore(record.writing, min, max),
-    speaking: normalizeBandScore(record.speaking, min, max),
+    listening: normalizeBandScore(record.listening, scoreConfig.min, scoreConfig.max, scoreConfig.decimals),
+    reading: normalizeBandScore(record.reading, scoreConfig.min, scoreConfig.max, scoreConfig.decimals),
+    writing: normalizeBandScore(record.writing, scoreConfig.min, scoreConfig.max, scoreConfig.decimals),
+    speaking: normalizeBandScore(record.speaking, scoreConfig.min, scoreConfig.max, scoreConfig.decimals),
   };
 }
 
@@ -334,13 +335,45 @@ function resolveCurrentCohortGraduationYear(
 function normalizeBandScore(
   value: number | null | undefined,
   min: number = 0,
-  max: number = 9
+  max: number = 9,
+  decimals: number = 1
 ): number | null {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   if (parsed < min || parsed > max) return null;
-  return Number(parsed.toFixed(1));
+  return Number(parsed.toFixed(decimals));
+}
+
+function resolveScoreNormalizationConfigByRuleSet(ruleSet: IeltsTrackingRuleSet): {
+  min: number;
+  max: number;
+  decimals: number;
+  overallStep: number;
+} {
+  if (ruleSet.scope === 'TOEFL_IBT_2026_ONLY') {
+    return { min: 1, max: 6, decimals: 1, overallStep: 0.5 };
+  }
+  if (ruleSet.scope === 'DUOLINGO_DET_2026_ONLY') {
+    return { min: 10, max: 160, decimals: 0, overallStep: 5 };
+  }
+  return { min: 0, max: 9, decimals: 1, overallStep: 0.5 };
+}
+
+function resolveScoreNormalizationConfigByRecord(record: IeltsRecordFormValue): {
+  min: number;
+  max: number;
+  decimals: number;
+  overallStep: number;
+} {
+  const candidates = [record.listening, record.reading, record.writing, record.speaking]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  const maxScore = candidates.length > 0 ? Math.max(...candidates) : Number.NEGATIVE_INFINITY;
+  if (maxScore > 20) {
+    return { min: 10, max: 160, decimals: 0, overallStep: 5 };
+  }
+  return { min: 0, max: 9, decimals: 1, overallStep: 0.5 };
 }
 
 function normalizeIsoDateText(value: unknown): string {
