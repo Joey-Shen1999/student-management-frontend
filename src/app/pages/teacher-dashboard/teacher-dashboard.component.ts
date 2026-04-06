@@ -42,6 +42,9 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/students']">
               学生管理
             </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/osslt']">
+              OSSLT 跟踪
+            </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/ielts']">
               语言成绩跟踪
             </button>

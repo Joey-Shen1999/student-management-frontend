@@ -34,3 +34,10 @@ export const normalizeVisibleColumnKeys = <TKey extends string>(
 
   return normalized;
 };
+
+export const buildPresetVisibleColumnKeys = <TKey extends string>(
+  columns: readonly ColumnVisibilityConfig<TKey>[],
+  preferredKeys: readonly TKey[]
+): Set<TKey> => {
+  return normalizeVisibleColumnKeys(columns, preferredKeys as readonly string[]);
+};

@@ -25,6 +25,7 @@ import {
 } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
+import { OssltTrackingService } from '../../services/osslt-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
@@ -42,6 +43,9 @@ import {
   LanguageTrackingStatusDisplay,
   resolveLanguageTrackingStatusDisplay,
 } from '../../features/ielts/language-tracking-display';
+import { deriveStudentOssltSummary } from '../../features/osslt/osslt-derive';
+import { resolveOssltStatusDisplay } from '../../features/osslt/osslt-status-display';
+import { OssltResult, OssltTrackingStatus, StudentOssltModuleState } from '../../features/osslt/osslt-types';
 import {
   CITY_FILTER_OPTIONS_BY_COUNTRY,
   COUNTRY_FILTER_ALL_OPTION,
@@ -56,6 +60,11 @@ import {
   buildDefaultVisibleColumnKeys as buildVisibleColumnDefaults,
   normalizeVisibleColumnKeys as normalizeVisibleKeys,
 } from '../../shared/student-columns/student-column-visibility.util';
+import {
+  STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
+  type StudentListColumnKey,
+  type StudentManagementPageContext,
+} from '../../shared/student-fields/student-field-presets';
 
 interface PasswordResetResult {
   studentId: number;
@@ -69,27 +78,6 @@ interface StatusUpdateResult {
   status: StudentAccountStatus;
 }
 
-type StudentListColumnKey =
-  | 'name'
-  | 'email'
-  | 'phone'
-  | 'graduation'
-  | 'schoolName'
-  | 'canadaIdentity'
-  | 'gender'
-  | 'nationality'
-  | 'firstLanguage'
-  | 'schoolBoard'
-  | 'country'
-  | 'province'
-  | 'city'
-  | 'teacherNote'
-  | 'profile'
-  | 'ielts'
-  | 'languageTracking'
-  | 'resetPassword'
-  | 'archive';
-
 interface StudentListColumnConfig {
   key: StudentListColumnKey;
   label: string;
@@ -102,7 +90,7 @@ interface StudentListColumnConfig {
 
 type StudentCountryFilter = 'ALL' | 'N/A' | string;
 type StudentProvinceFilter = string;
-type StudentManagementPageContext = 'students' | 'ielts';
+type TrackingManualStatusOption = LanguageTrackingStatus | OssltTrackingStatus;
 
 interface StudentListMetadata {
   email: string;
@@ -112,6 +100,7 @@ interface StudentListMetadata {
   gender: string;
   nationality: string;
   firstLanguage: string;
+  motherLanguage: string;
   currentSchoolCountry: string;
   currentSchoolProvince: string;
   currentSchoolCity: string;
@@ -135,20 +124,41 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
 > = {
   students: 'student-management.list-columns',
   ielts: 'ielts-tracking.list-columns',
+  osslt: 'osslt-tracking.list-columns',
 };
 
-const IELTS_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
-  'name',
-  'graduation',
-  'schoolName',
-  'canadaIdentity',
-  'teacherNote',
-  'ielts',
-  'languageTracking',
-  'resetPassword',
-];
+const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
+  students: '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406',
+  ielts: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
+  osslt: 'OSSLT \u8ddf\u8e2a',
+};
 
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v2';
+const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
+  name: '\u59d3\u540d',
+  email: '\u90ae\u7bb1',
+  phone: '\u7535\u8bdd',
+  graduation: '\u6bd5\u4e1a\u65f6\u95f4',
+  schoolName: '\u5b66\u6821\u540d',
+  canadaIdentity: '\u5728\u52a0\u62ff\u5927\u7684\u8eab\u4efd',
+  gender: '\u6027\u522b',
+  nationality: '\u56fd\u7c4d',
+  firstLanguage: '\u7b2c\u4e00\u8bed\u8a00',
+  motherLanguage: '\u6bcd\u8bed',
+  schoolBoard: '\u6240\u5c5e\u6559\u80b2\u5c40\uff08\u5728\u8bfb\u5b66\u6821\uff09',
+  country: '\u56fd\u5bb6',
+  province: '\u7701\u4efd',
+  city: '\u57ce\u5e02\uff08\u5728\u8bfb\u5b66\u6821\uff09',
+  teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
+  profile: '\u6863\u6848',
+  ielts: '\u8bed\u8a00\u6210\u7ee9',
+  languageTracking: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
+  ossltResult: 'OSSLT \u6210\u7ee9',
+  ossltTracking: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
+  resetPassword: '\u91cd\u7f6e\u5bc6\u7801',
+  archive: '\u5f52\u6863',
+};
+
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v5';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 
@@ -241,6 +251,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
   },
   {
+    key: 'motherLanguage',
+    label: '母语',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
     key: 'schoolBoard',
     label: '所属教育局（在读学校）',
     defaultVisible: false,
@@ -319,6 +339,26 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
+    key: 'ossltResult',
+    label: 'OSSLT 成绩',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:180px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'ossltTracking',
+    label: 'OSSLT 跟进状态',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
     key: 'resetPassword',
     label: '重置密码',
     defaultVisible: true,
@@ -368,7 +408,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   template: `
     <div style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">{{ pageTitle }}</h2>
+        <h2 style="margin:0;">{{ resolvedPageTitle }}</h2>
         <button type="button" routerLink="/teacher/dashboard" class="student-back-btn" style="margin-left:auto;">
           返回
         </button>
@@ -598,7 +638,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
               (change)="onColumnVisibilityChange(column.key, $event)"
               [disabled]="loadingList || !column.hideable"
             />
-            <span>{{ column.label }}</span>
+            <span>{{ resolveUnifiedStudentListColumnLabel(column) }}</span>
             <small *ngIf="!column.hideable" style="color:#7f8a9e;">必选</small>
           </label>
         </div>
@@ -625,15 +665,15 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         </div>
       </div>
 
-      <div style="margin-top:12px;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <div class="student-list-table-wrap">
+        <table class="student-list-table">
           <thead style="background:#f6f7fb;">
             <tr *ngIf="visibleColumns.length > 0">
               <th
                 *ngFor="let column of visibleColumns; trackBy: trackColumn"
                 [attr.style]="column.headerStyle"
               >
-                {{ column.label }}
+                {{ resolveUnifiedStudentListColumnLabel(column) }}
               </th>
             </tr>
             <tr *ngIf="false">
@@ -692,6 +732,20 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     </button>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'ossltResult'">
+                    <button
+                      type="button"
+                      [routerLink]="ossltRoute(student)"
+                      style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
+                      [style.background]="resolveOssltResultStatusBackground(student)"
+                      [style.color]="resolveOssltResultStatusTextColor(student)"
+                      [style.borderColor]="resolveOssltResultStatusBorderColor(student)"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      {{ resolveOssltResultStatusLabel(student) }}
+                    </button>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'languageTracking'">
                     <select
                       [ngModel]="resolveLanguageTrackingStatusSelection(student)"
@@ -720,10 +774,46 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                         Unavailable
                       </option>
                       <option
-                        *ngFor="let status of languageTrackingStatusOptions"
+                        *ngFor="let status of languageScoreTrackingStatusOptions"
                         [ngValue]="status"
                       >
                         {{ resolveLanguageTrackingStatusOptionLabel(status) }}
+                      </option>
+                    </select>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'ossltTracking'">
+                    <select
+                      [ngModel]="resolveOssltTrackingStatusSelection(student)"
+                      (ngModelChange)="onOssltTrackingStatusSelectionChangePublic(student, $event)"
+                      style="min-width:200px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-weight:600;"
+                      [style.background]="resolveOssltTrackingStatusBackground(student)"
+                      [style.color]="resolveOssltTrackingStatusTextColor(student)"
+                      [style.borderColor]="resolveOssltTrackingStatusBorderColor(student)"
+                      [disabled]="
+                        !resolveStudentId(student) ||
+                        isOssltTrackingStatusLoading(student) ||
+                        isOssltTrackingStatusUnavailable(student) ||
+                        isOssltTrackingStatusSaving(student)
+                      "
+                    >
+                      <option
+                        *ngIf="isOssltTrackingStatusLoading(student)"
+                        [ngValue]="''"
+                      >
+                        Loading...
+                      </option>
+                      <option
+                        *ngIf="isOssltTrackingStatusUnavailable(student)"
+                        [ngValue]="''"
+                      >
+                        Unavailable
+                      </option>
+                      <option
+                        *ngFor="let status of ossltTrackingStatusOptions"
+                        [ngValue]="status"
+                      >
+                        {{ resolveOssltTrackingStatusOptionLabel(status) }}
                       </option>
                     </select>
                   </ng-container>
@@ -912,6 +1002,28 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         box-sizing: border-box;
       }
 
+      .student-list-table-wrap {
+        margin-top: 12px;
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        overflow-x: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .student-list-table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: auto;
+      }
+
+      .student-list-table th,
+      .student-list-table td {
+        white-space: nowrap;
+      }
+
       .student-page-header {
         padding-right: 128px;
       }
@@ -958,11 +1070,16 @@ export class StudentManagementComponent implements OnInit {
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
   readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
-  readonly languageTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
+  readonly languageScoreTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
     'TEACHER_REVIEW_APPROVED',
     'AUTO_PASS_ALL_SCHOOLS',
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
+  ];
+  readonly ossltTrackingStatusOptions: readonly OssltTrackingStatus[] = [
+    'WAITING_UPDATE',
+    'NEEDS_TRACKING',
+    'PASSED',
   ];
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
@@ -1019,6 +1136,11 @@ export class StudentManagementComponent implements OnInit {
   private readonly ieltsNoRequirement = new Set<number>();
   private readonly ieltsStatusUnavailable = new Set<number>();
   private readonly languageTrackingStatusSaveInFlight = new Set<number>();
+  private readonly ossltResultCache = new Map<number, OssltResult>();
+  private readonly ossltTrackingStatusCache = new Map<number, OssltTrackingStatus>();
+  private readonly ossltStatusLoadInFlight = new Set<number>();
+  private readonly ossltStatusUnavailable = new Set<number>();
+  private readonly ossltTrackingStatusSaveInFlight = new Set<number>();
   private readonly teacherNoteProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
@@ -1032,6 +1154,7 @@ export class StudentManagementComponent implements OnInit {
     private auth: AuthService,
     private router: Router,
     private ieltsApi: IeltsTrackingService,
+    private ossltApi: OssltTrackingService,
     private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
@@ -1049,6 +1172,52 @@ export class StudentManagementComponent implements OnInit {
   trackColumn = (_index: number, column: StudentListColumnConfig): StudentListColumnKey => {
     return column.key;
   };
+
+  resolveStudentListColumnLabel(column: StudentListColumnConfig): string {
+    return this.resolveUnifiedStudentListColumnLabel(column);
+    const pageContext = this.resolvePageContext();
+    if (pageContext === 'osslt' && column.key === 'ielts') {
+      return 'OSSLT \u6210\u7ee9';
+    }
+    if (pageContext === 'osslt' && column.key === 'languageTracking') {
+      return 'OSSLT \u8ddf\u8fdb\u72b6\u6001';
+    }
+    if (pageContext === 'ielts' && column.key === 'languageTracking') {
+      return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
+    }
+    if (pageContext === 'osslt' && column.key === 'ielts') {
+      return 'OSSLT 成绩';
+    }
+    if (pageContext === 'osslt' && column.key === 'languageTracking') {
+      return 'OSSLT 跟进状态';
+    }
+    if (pageContext === 'ielts' && column.key === 'languageTracking') {
+      return '语言成绩跟踪';
+    }
+    if (pageContext === 'osslt') {
+      if (column.key === 'ielts') return 'OSSLT 成绩';
+      if (column.key === 'languageTracking') return 'OSSLT 跟进状态';
+    }
+    if (pageContext === 'ielts' && column.key === 'languageTracking') {
+      return '语言成绩跟踪';
+    }
+    return column.label;
+  }
+
+  resolveUnifiedStudentListColumnLabel(column: StudentListColumnConfig): string {
+    return STUDENT_LIST_COLUMN_LABEL_BY_KEY[column.key] || column.label;
+    const pageContext = this.resolvePageContext();
+    if (pageContext === 'osslt' && column.key === 'ielts') {
+      return 'OSSLT \u6210\u7ee9';
+    }
+    if (pageContext === 'osslt' && column.key === 'languageTracking') {
+      return 'OSSLT \u8ddf\u8fdb\u72b6\u6001';
+    }
+    if (pageContext === 'ielts' && column.key === 'languageTracking') {
+      return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
+    }
+    return STUDENT_LIST_COLUMN_LABEL_BY_KEY[column.key] || column.label;
+  }
 
   displayName(student: StudentAccount): string {
     const fullName = `${student.firstName || ''} ${student.lastName || ''}`.trim();
@@ -1139,6 +1308,10 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveFirstLanguageValue(student) || '-';
   }
 
+  resolveStudentMotherLanguage(student: StudentAccount): string {
+    return this.resolveMotherLanguageValue(student) || '-';
+  }
+
   resolveStudentSchoolBoard(student: StudentAccount): string {
     return this.resolveCurrentSchoolBoardForFilter(student) || '-';
   }
@@ -1175,6 +1348,8 @@ export class StudentManagementComponent implements OnInit {
         return this.resolveStudentNationality(student);
       case 'firstLanguage':
         return this.resolveStudentFirstLanguage(student);
+      case 'motherLanguage':
+        return this.resolveStudentMotherLanguage(student);
       case 'schoolBoard':
         return this.resolveStudentSchoolBoard(student);
       case 'country':
@@ -1189,19 +1364,55 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get pageTitle(): string {
+    return PAGE_TITLE_BY_CONTEXT[this.resolvePageContext()];
+    const pageContextForTitle = String(this.resolvePageContext());
+    if (pageContextForTitle === 'ielts') return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
+    if (pageContextForTitle === 'osslt') return 'OSSLT \u8ddf\u8e2a';
+    if (pageContextForTitle === 'students') return '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406';
+    const pageContext = String(this.resolvePageContext());
+    if (pageContext === 'ielts') return '语言成绩跟踪';
+    if (pageContext === 'osslt') return 'OSSLT 跟踪';
+    if (pageContext === 'students') return '学生账号管理';
     return this.resolvePageContext() === 'ielts' ? '语言成绩跟踪' : '学生账号管理';
   }
 
+  get resolvedPageTitle(): string {
+    return this.pageTitle;
+    const pageContextForTitle = String(this.resolvePageContext());
+    if (pageContextForTitle === 'ielts') return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
+    if (pageContextForTitle === 'osslt') return 'OSSLT \u8ddf\u8e2a';
+    if (pageContextForTitle === 'students') return '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406';
+    const pageContext = this.resolvePageContext();
+    const pageContextText = String(pageContext);
+    if (pageContextText === 'ielts') return '语言成绩跟踪';
+    if (pageContextText === 'osslt') return 'OSSLT 跟踪';
+    if (pageContextText === 'students') return '学生账号管理';
+    if (pageContext === 'ielts') return '语言成绩跟踪';
+    if (pageContext === 'osslt') return 'OSSLT 跟踪';
+    return '学生账号管理';
+  }
+
+  get languageTrackingStatusOptions(): readonly TrackingManualStatusOption[] {
+    if (this.resolvePageContext() === 'osslt') {
+      return this.ossltTrackingStatusOptions;
+    }
+    return this.languageScoreTrackingStatusOptions;
+  }
+
   get visibleColumns(): readonly StudentListColumnConfig[] {
-    return this.studentListColumns.filter((column) => this.visibleColumnKeys.has(column.key));
+    return this.studentListColumns.filter(
+      (column) => this.visibleColumnKeys.has(column.key) && this.isColumnAllowedForCurrentContext(column.key)
+    );
   }
 
   get columnToggleOptions(): readonly StudentListColumnConfig[] {
-    return this.studentListColumns;
+    return this.studentListColumns.filter((column) =>
+      this.isColumnAllowedForCurrentContext(column.key)
+    );
   }
 
   isColumnVisible(columnKey: StudentListColumnKey): boolean {
-    return this.visibleColumnKeys.has(columnKey);
+    return this.isColumnAllowedForCurrentContext(columnKey) && this.visibleColumnKeys.has(columnKey);
   }
 
   get provinceFilterCountry(): ProvinceFilterCountry | '' {
@@ -1822,6 +2033,14 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'ielts'];
   }
 
+  ossltRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    return ['/teacher/students', String(studentId), 'osslt'];
+  }
+
   resolveIeltsStatusLabel(student: StudentAccount): string {
     return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).label;
   }
@@ -1836,6 +2055,22 @@ export class StudentManagementComponent implements OnInit {
 
   resolveIeltsStatusBorderColor(student: StudentAccount): string {
     return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).borderColor;
+  }
+
+  resolveOssltResultStatusLabel(student: StudentAccount): string {
+    return this.resolveOssltResultLabel(this.resolveStudentId(student));
+  }
+
+  resolveOssltResultStatusBackground(student: StudentAccount): string {
+    return this.resolveOssltResultBackground(this.resolveStudentId(student));
+  }
+
+  resolveOssltResultStatusTextColor(student: StudentAccount): string {
+    return this.resolveOssltResultTextColor(this.resolveStudentId(student));
+  }
+
+  resolveOssltResultStatusBorderColor(student: StudentAccount): string {
+    return this.resolveOssltResultBorderColor(this.resolveStudentId(student));
   }
 
   resolveLanguageTrackingStatusLabel(student: StudentAccount): string {
@@ -1854,16 +2089,31 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveLanguageTrackingStatusDisplayModel(this.resolveStudentId(student)).borderColor;
   }
 
-  resolveLanguageTrackingStatusOptionLabel(status: LanguageTrackingStatus): string {
-    return resolveLanguageTrackingStatusDisplay({ status }).label;
+  resolveOssltTrackingStatusLabel(student: StudentAccount): string {
+    return this.resolveOssltTrackingStatusDisplayModel(this.resolveStudentId(student)).label;
   }
 
-  resolveLanguageTrackingStatusSelection(student: StudentAccount): LanguageTrackingStatus | '' {
+  resolveOssltTrackingStatusBackground(student: StudentAccount): string {
+    return this.resolveOssltTrackingStatusDisplayModel(this.resolveStudentId(student)).background;
+  }
+
+  resolveOssltTrackingStatusTextColor(student: StudentAccount): string {
+    return this.resolveOssltTrackingStatusDisplayModel(this.resolveStudentId(student)).textColor;
+  }
+
+  resolveOssltTrackingStatusBorderColor(student: StudentAccount): string {
+    return this.resolveOssltTrackingStatusDisplayModel(this.resolveStudentId(student)).borderColor;
+  }
+
+  resolveLanguageTrackingStatusOptionLabel(status: TrackingManualStatusOption): string {
+    return resolveLanguageTrackingStatusDisplay({ status: status as LanguageTrackingStatus }).label;
+  }
+
+  resolveLanguageTrackingStatusSelection(student: StudentAccount): TrackingManualStatusOption | '' {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
       return '';
     }
-
     return this.languageTrackingStatusCache.get(studentId) || '';
   }
 
@@ -1872,7 +2122,6 @@ export class StudentManagementComponent implements OnInit {
     if (!studentId) {
       return false;
     }
-
     return !this.languageTrackingStatusCache.has(studentId) && this.ieltsStatusLoadInFlight.has(studentId);
   }
 
@@ -1881,7 +2130,6 @@ export class StudentManagementComponent implements OnInit {
     if (!studentId) {
       return true;
     }
-
     return this.ieltsStatusUnavailable.has(studentId);
   }
 
@@ -1890,7 +2138,6 @@ export class StudentManagementComponent implements OnInit {
     if (!studentId) {
       return false;
     }
-
     return this.languageTrackingStatusSaveInFlight.has(studentId);
   }
 
@@ -1976,6 +2223,92 @@ export class StudentManagementComponent implements OnInit {
       });
   }
 
+  resolveOssltTrackingStatusOptionLabel(status: TrackingManualStatusOption): string {
+    return this.resolveOssltTrackingOptionLabel(status);
+  }
+
+  resolveOssltTrackingStatusSelection(student: StudentAccount): TrackingManualStatusOption | '' {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return '';
+    }
+    return this.ossltTrackingStatusCache.get(studentId) || '';
+  }
+
+  isOssltTrackingStatusLoading(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+    return !this.ossltTrackingStatusCache.has(studentId) && this.ossltStatusLoadInFlight.has(studentId);
+  }
+
+  isOssltTrackingStatusUnavailable(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return true;
+    }
+    return this.ossltStatusUnavailable.has(studentId);
+  }
+
+  isOssltTrackingStatusSaving(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+    return this.ossltTrackingStatusSaveInFlight.has(studentId);
+  }
+
+  onOssltTrackingStatusSelectionChangePublic(student: StudentAccount, rawValue: unknown): void {
+    this.onOssltTrackingStatusSelectionChange(student, rawValue);
+  }
+
+  private onOssltTrackingStatusSelectionChange(student: StudentAccount, rawValue: unknown): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) return;
+
+    const nextStatus = this.normalizeOssltTrackingStatusValue(rawValue);
+    if (!nextStatus) return;
+
+    const previousStatus = this.ossltTrackingStatusCache.get(studentId) || null;
+    if (previousStatus === nextStatus) return;
+    if (this.ossltTrackingStatusSaveInFlight.has(studentId)) return;
+
+    this.ossltTrackingStatusCache.set(studentId, nextStatus);
+    this.ossltTrackingStatusSaveInFlight.add(studentId);
+    this.actionError = '';
+    this.cdr.detectChanges();
+
+    this.ossltApi
+      .updateTeacherStudentOssltData(studentId, {
+        ossltTrackingManualStatus: nextStatus,
+      })
+      .pipe(
+        finalize(() => {
+          this.ossltTrackingStatusSaveInFlight.delete(studentId);
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (state) => {
+          const summary = deriveStudentOssltSummary(state);
+          this.ossltTrackingStatusCache.set(studentId, summary.trackingStatus);
+          this.ossltResultCache.set(studentId, state.latestOssltResult);
+          this.ossltStatusUnavailable.delete(studentId);
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (previousStatus) {
+            this.ossltTrackingStatusCache.set(studentId, previousStatus);
+          } else {
+            this.ossltTrackingStatusCache.delete(studentId);
+          }
+          this.actionError = this.extractErrorMessage(err) || '保存 OSSLT 跟进状态失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   loadStudents(): void {
     this.loadingList = true;
     this.listError = '';
@@ -1986,6 +2319,11 @@ export class StudentManagementComponent implements OnInit {
     this.ieltsNoRequirement.clear();
     this.ieltsStatusUnavailable.clear();
     this.languageTrackingStatusSaveInFlight.clear();
+    this.ossltResultCache.clear();
+    this.ossltTrackingStatusCache.clear();
+    this.ossltStatusLoadInFlight.clear();
+    this.ossltStatusUnavailable.clear();
+    this.ossltTrackingStatusSaveInFlight.clear();
     this.cdr.detectChanges();
 
     this.studentApi
@@ -2390,6 +2728,8 @@ export class StudentManagementComponent implements OnInit {
   }
 
   onColumnVisibilityChange(columnKey: StudentListColumnKey, event: Event): void {
+    if (!this.isColumnAllowedForCurrentContext(columnKey)) return;
+
     const config = this.studentListColumns.find((column) => column.key === columnKey);
     if (!config || !config.hideable) return;
 
@@ -2422,6 +2762,10 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleIeltsStatuses();
       this.cdr.detectChanges();
     }
+    if ((columnKey === 'ossltResult' || columnKey === 'ossltTracking') && checked) {
+      this.prefetchVisibleOssltStatuses();
+      this.cdr.detectChanges();
+    }
   }
 
   resetVisibleColumns(): void {
@@ -2436,6 +2780,10 @@ export class StudentManagementComponent implements OnInit {
     }
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
+      this.cdr.detectChanges();
+    }
+    if (this.visibleColumnKeys.has('ossltResult') || this.visibleColumnKeys.has('ossltTracking')) {
+      this.prefetchVisibleOssltStatuses();
       this.cdr.detectChanges();
     }
   }
@@ -2457,22 +2805,32 @@ export class StudentManagementComponent implements OnInit {
     const defaults = this.buildDefaultVisibleColumnKeys();
     const persisted = this.readVisibleColumnsPreference();
     if (!persisted) {
-      this.visibleColumnKeys = this.applyIndependentColumnOverrides(defaults);
+      this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
+        this.applyIndependentColumnOverrides(defaults)
+      );
       this.persistIndependentColumnOverrides();
       return;
     }
 
     const restored = this.normalizeVisibleColumnKeys(persisted);
     const base = restored.size > 0 ? restored : defaults;
-    this.visibleColumnKeys = this.applyIndependentColumnOverrides(base);
+    this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
+      this.applyIndependentColumnOverrides(base)
+    );
     this.persistIndependentColumnOverrides();
   }
 
   private buildDefaultVisibleColumnKeys(): Set<StudentListColumnKey> {
-    if (this.resolvePageContext() === 'ielts') {
-      return this.normalizeVisibleColumnKeys(IELTS_TRACKING_DEFAULT_COLUMN_KEYS);
+    const contextualDefaults =
+      STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT[this.resolvePageContext()];
+    if (contextualDefaults.length > 0) {
+      return this.sanitizeVisibleColumnKeysForCurrentContext(
+        this.normalizeVisibleColumnKeys(contextualDefaults)
+      );
     }
-    return buildVisibleColumnDefaults(this.studentListColumns);
+    return this.sanitizeVisibleColumnKeysForCurrentContext(
+      buildVisibleColumnDefaults(this.studentListColumns)
+    );
   }
 
   private persistVisibleColumnsPreference(): void {
@@ -2531,11 +2889,31 @@ export class StudentManagementComponent implements OnInit {
     if (url.startsWith('/teacher/ielts')) {
       return 'ielts';
     }
+    if (url.startsWith('/teacher/osslt')) {
+      return 'osslt';
+    }
     return 'students';
   }
 
   private resolveVisibleColumnsPreferencePageKey(): string {
     return STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT[this.resolvePageContext()];
+  }
+
+  private isColumnAllowedForCurrentContext(columnKey: StudentListColumnKey): boolean {
+    void columnKey;
+    return true;
+  }
+
+  private sanitizeVisibleColumnKeysForCurrentContext(
+    keys: Set<StudentListColumnKey>
+  ): Set<StudentListColumnKey> {
+    const sanitized = new Set<StudentListColumnKey>();
+    for (const key of keys.values()) {
+      if (this.isColumnAllowedForCurrentContext(key)) {
+        sanitized.add(key);
+      }
+    }
+    return sanitized;
   }
 
   private normalizeVisibleColumnKeys(keys: readonly string[]): Set<StudentListColumnKey> {
@@ -2549,6 +2927,12 @@ export class StudentManagementComponent implements OnInit {
     const pagePreferenceKey = this.resolveVisibleColumnsPreferencePageKey();
     this.teacherPreferenceApi.getPagePreference(pagePreferenceKey).subscribe({
       next: (payload) => {
+        const remoteVersion = String(payload?.version ?? '').trim();
+        if (remoteVersion !== STUDENT_LIST_COLUMN_PREFERENCE_VERSION) {
+          this.syncVisibleColumnsPreferenceToServer();
+          return;
+        }
+
         const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
           ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
           : [];
@@ -2561,7 +2945,9 @@ export class StudentManagementComponent implements OnInit {
           return;
         }
 
-        this.visibleColumnKeys = this.applyIndependentColumnOverrides(normalized);
+        this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
+          this.applyIndependentColumnOverrides(normalized)
+        );
         this.persistIndependentColumnOverrides();
         this.persistVisibleColumnsPreference();
         this.hydrateStudentMetadata(this.students);
@@ -2693,6 +3079,9 @@ export class StudentManagementComponent implements OnInit {
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
     }
+    if (this.visibleColumnKeys.has('ossltResult') || this.visibleColumnKeys.has('ossltTracking')) {
+      this.prefetchVisibleOssltStatuses();
+    }
   }
 
   private matchesListFilters(
@@ -2787,6 +3176,7 @@ export class StudentManagementComponent implements OnInit {
       this.resolveGenderValue(student),
       this.resolveNationalityValue(student),
       this.resolveFirstLanguageValue(student),
+      this.resolveMotherLanguageValue(student),
       this.resolveCurrentSchoolBoardValue(student),
       this.resolveCurrentSchoolCountryValue(student),
       this.resolveCurrentSchoolProvinceValue(student),
@@ -2823,6 +3213,7 @@ export class StudentManagementComponent implements OnInit {
       const gender = this.resolveGenderValue(student);
       const nationality = this.resolveNationalityValue(student);
       const firstLanguage = this.resolveFirstLanguageValue(student);
+      const motherLanguage = this.resolveMotherLanguageValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
@@ -2838,6 +3229,7 @@ export class StudentManagementComponent implements OnInit {
         gender: gender || undefined,
         nationality: nationality || undefined,
         firstLanguage: firstLanguage || undefined,
+        motherLanguage: motherLanguage || undefined,
         currentSchoolCountry: currentSchoolCountry || undefined,
         currentSchoolProvince: currentSchoolProvince || undefined,
         currentSchoolCity: currentSchoolCity || undefined,
@@ -2854,7 +3246,8 @@ export class StudentManagementComponent implements OnInit {
       this.visibleColumnKeys.has('canadaIdentity') ||
       this.visibleColumnKeys.has('gender') ||
       this.visibleColumnKeys.has('nationality') ||
-      this.visibleColumnKeys.has('firstLanguage');
+      this.visibleColumnKeys.has('firstLanguage') ||
+      this.visibleColumnKeys.has('motherLanguage');
 
     for (const student of students) {
       const studentId = this.resolveStudentId(student);
@@ -2881,7 +3274,8 @@ export class StudentManagementComponent implements OnInit {
             cached.canadaIdentity &&
             cached.gender &&
             cached.nationality &&
-            cached.firstLanguage
+            cached.firstLanguage &&
+            cached.motherLanguage
           );
         if (cachedHasCore && (!requiresExtendedMetadata || cachedHasExtended)) {
           continue;
@@ -2895,6 +3289,7 @@ export class StudentManagementComponent implements OnInit {
       const gender = this.resolveGenderValue(student);
       const nationality = this.resolveNationalityValue(student);
       const firstLanguage = this.resolveFirstLanguageValue(student);
+      const motherLanguage = this.resolveMotherLanguageValue(student);
       const currentSchoolCountry = this.resolveCurrentSchoolCountryValue(student);
       const currentSchoolProvince = this.resolveCurrentSchoolProvinceValue(student);
       const currentSchoolCity = this.resolveCurrentSchoolCityValue(student);
@@ -2916,7 +3311,8 @@ export class StudentManagementComponent implements OnInit {
           canadaIdentity &&
           gender &&
           nationality &&
-          firstLanguage
+          firstLanguage &&
+          motherLanguage
         );
 
       if (hasCoreMetadata && (!requiresExtendedMetadata || hasExtendedMetadata)) {
@@ -2928,6 +3324,7 @@ export class StudentManagementComponent implements OnInit {
           gender,
           nationality,
           firstLanguage,
+          motherLanguage,
           currentSchoolCountry,
           currentSchoolProvince,
           currentSchoolCity,
@@ -2962,6 +3359,7 @@ export class StudentManagementComponent implements OnInit {
               !metadata.gender &&
               !metadata.nationality &&
               !metadata.firstLanguage &&
+              !metadata.motherLanguage &&
               !metadata.currentSchoolCountry &&
               !metadata.currentSchoolProvince &&
               !metadata.currentSchoolCity &&
@@ -3010,6 +3408,89 @@ export class StudentManagementComponent implements OnInit {
     return resolveIeltsStatusDisplay({ isLoading: true });
   }
 
+  private resolveOssltTrackingOptionLabel(status: TrackingManualStatusOption): string {
+    const normalized = String(status || '').trim().toUpperCase();
+    if (normalized === 'PASSED') return '已通过';
+    if (normalized === 'WAITING_UPDATE') return '等待更新';
+    if (normalized === 'NEEDS_TRACKING') return '需要跟进';
+    return '未设置';
+  }
+
+  private resolveOssltResultLabel(studentId: number | null): string {
+    return this.resolveOssltResultDisplayModel(studentId).label;
+  }
+
+  private resolveOssltResultBackground(studentId: number | null): string {
+    return this.resolveOssltResultDisplayModel(studentId).background;
+  }
+
+  private resolveOssltResultTextColor(studentId: number | null): string {
+    return this.resolveOssltResultDisplayModel(studentId).textColor;
+  }
+
+  private resolveOssltResultBorderColor(studentId: number | null): string {
+    return this.resolveOssltResultDisplayModel(studentId).borderColor;
+  }
+
+  private resolveOssltResultDisplayModel(studentId: number | null): {
+    label: string;
+    background: string;
+    textColor: string;
+    borderColor: string;
+  } {
+    if (!studentId) {
+      return {
+        label: '不可用',
+        background: '#f1f3f5',
+        textColor: '#6a7385',
+        borderColor: '#c8cfda',
+      };
+    }
+
+    const result = this.ossltResultCache.get(studentId);
+    if (result === 'PASS') {
+      return {
+        label: '已通过',
+        background: '#e7f6ec',
+        textColor: '#2f6b43',
+        borderColor: '#8fc8a3',
+      };
+    }
+    if (result === 'FAIL') {
+      return {
+        label: '未通过',
+        background: '#fff2d8',
+        textColor: '#8a5a00',
+        borderColor: '#e3c77a',
+      };
+    }
+
+    if (this.ossltStatusLoadInFlight.has(studentId)) {
+      return {
+        label: '加载中...',
+        background: '#edf2fb',
+        textColor: '#4a5f82',
+        borderColor: '#9fb4d8',
+      };
+    }
+
+    if (this.ossltStatusUnavailable.has(studentId)) {
+      return {
+        label: '不可用',
+        background: '#f1f3f5',
+        textColor: '#6a7385',
+        borderColor: '#c8cfda',
+      };
+    }
+
+    return {
+      label: '待更新',
+      background: '#edf2fb',
+      textColor: '#4a5f82',
+      borderColor: '#9fb4d8',
+    };
+  }
+
   private resolveLanguageTrackingStatusDisplayModel(
     studentId: number | null
   ): LanguageTrackingStatusDisplay {
@@ -3033,12 +3514,41 @@ export class StudentManagementComponent implements OnInit {
     return resolveLanguageTrackingStatusDisplay({ isLoading: true });
   }
 
+  private resolveOssltTrackingStatusDisplayModel(studentId: number | null): LanguageTrackingStatusDisplay {
+    if (!studentId) {
+      return resolveOssltStatusDisplay({ isUnavailable: true }) as unknown as LanguageTrackingStatusDisplay;
+    }
+
+    const status = this.ossltTrackingStatusCache.get(studentId);
+    if (status) {
+      return resolveOssltStatusDisplay({ status }) as unknown as LanguageTrackingStatusDisplay;
+    }
+
+    if (this.ossltStatusLoadInFlight.has(studentId)) {
+      return resolveOssltStatusDisplay({ isLoading: true }) as unknown as LanguageTrackingStatusDisplay;
+    }
+
+    if (this.ossltStatusUnavailable.has(studentId)) {
+      return resolveOssltStatusDisplay({ isUnavailable: true }) as unknown as LanguageTrackingStatusDisplay;
+    }
+
+    return resolveOssltStatusDisplay({ isLoading: true }) as unknown as LanguageTrackingStatusDisplay;
+  }
+
   private normalizeLanguageTrackingStatusValue(value: unknown): LanguageTrackingStatus | null {
     const normalized = String(value ?? '').trim().toUpperCase();
     if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
     if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
     if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return null;
+  }
+
+  private normalizeOssltTrackingStatusValue(value: unknown): OssltTrackingStatus | null {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'WAITING_UPDATE') return 'WAITING_UPDATE';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    if (normalized === 'PASSED') return 'PASSED';
     return null;
   }
 
@@ -3159,6 +3669,41 @@ export class StudentManagementComponent implements OnInit {
             this.languageTrackingStatusCache.delete(studentId);
             this.ieltsStatusColorTokenCache.delete(studentId);
             this.ieltsStatusUnavailable.add(studentId);
+            this.cdr.detectChanges();
+          },
+        });
+    }
+  }
+
+  private prefetchVisibleOssltStatuses(): void {
+    for (const student of this.visibleStudents) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId) continue;
+      if (this.ossltTrackingStatusCache.has(studentId) || this.ossltStatusUnavailable.has(studentId)) {
+        continue;
+      }
+      if (this.ossltStatusLoadInFlight.has(studentId)) continue;
+
+      this.ossltStatusLoadInFlight.add(studentId);
+      this.ossltApi
+        .getTeacherStudentOssltModuleState(studentId)
+        .pipe(
+          finalize(() => {
+            this.ossltStatusLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (moduleState: StudentOssltModuleState) => {
+            const summary = deriveStudentOssltSummary(moduleState);
+            this.ossltTrackingStatusCache.set(studentId, summary.trackingStatus);
+            this.ossltResultCache.set(studentId, moduleState.latestOssltResult);
+            this.ossltStatusUnavailable.delete(studentId);
+            this.cdr.detectChanges();
+          },
+          error: () => {
+            this.ossltTrackingStatusCache.delete(studentId);
+            this.ossltResultCache.delete(studentId);
+            this.ossltStatusUnavailable.add(studentId);
             this.cdr.detectChanges();
           },
         });
@@ -3313,6 +3858,14 @@ export class StudentManagementComponent implements OnInit {
         root['primaryLanguage'],
         root['nativeLanguage'],
         root['motherTongue'],
+      ]),
+      motherLanguage: this.pickFirstText([
+        profileNode['motherLanguage'],
+        profileNode['motherTongue'],
+        profileNode['nativeLanguage'],
+        root['motherLanguage'],
+        root['motherTongue'],
+        root['nativeLanguage'],
       ]),
       currentSchoolCountry: this.pickFirstText([
         profileNode['currentSchoolCountry'],
@@ -3540,6 +4093,9 @@ export class StudentManagementComponent implements OnInit {
     if (!this.resolveFirstLanguageValue(student) && metadata.firstLanguage) {
       student['firstLanguage'] = metadata.firstLanguage;
     }
+    if (!this.resolveMotherLanguageValue(student) && metadata.motherLanguage) {
+      student['motherLanguage'] = metadata.motherLanguage;
+    }
     if (!this.resolveCurrentSchoolCountryValue(student) && metadata.currentSchoolCountry) {
       student['currentSchoolCountry'] = metadata.currentSchoolCountry;
     }
@@ -3677,6 +4233,18 @@ export class StudentManagementComponent implements OnInit {
       profile?.['primaryLanguage'],
       profile?.['nativeLanguage'],
       profile?.['motherTongue'],
+    ]);
+  }
+
+  private resolveMotherLanguageValue(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    return this.pickFirstText([
+      student?.['motherLanguage'],
+      student?.['motherTongue'],
+      student?.['nativeLanguage'],
+      profile?.['motherLanguage'],
+      profile?.['motherTongue'],
+      profile?.['nativeLanguage'],
     ]);
   }
 

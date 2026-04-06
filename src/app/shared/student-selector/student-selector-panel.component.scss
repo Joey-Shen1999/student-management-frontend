@@ -112,7 +112,9 @@
 }
 
 .selected-table-wrap {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #e2e8f3;
   border-radius: 8px;
   background: #fff;
@@ -144,15 +146,18 @@
 }
 
 .table-wrap {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #e2e8f3;
   border-radius: 8px;
 }
 
 .student-table {
-  width: 100%;
-  min-width: 1200px;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .student-table th,
@@ -161,6 +166,7 @@
   padding: 7px;
   text-align: left;
   vertical-align: top;
+  white-space: nowrap;
 }
 
 .student-table thead th {

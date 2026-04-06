@@ -83,7 +83,9 @@ export class IeltsTrackingService {
         hasTakenIeltsAcademic: true,
         preparationIntent: 'UNSET',
         trackingStatus: null,
+        languageScoreTrackingStatus: null,
         languageTrackingStatus: null,
+        languageScoreTrackingManualStatus: null,
         languageTrackingManualStatus: null,
         records: normalizedRecords,
         updatedAt: new Date().toISOString(),
@@ -123,7 +125,9 @@ export class IeltsTrackingService {
         hasTakenIeltsAcademic: false,
         preparationIntent: this.normalizePreparationIntent(intent),
         trackingStatus: null,
+        languageScoreTrackingStatus: null,
         languageTrackingStatus: null,
+        languageScoreTrackingManualStatus: null,
         languageTrackingManualStatus: null,
         records: [],
         updatedAt: new Date().toISOString(),
@@ -184,10 +188,18 @@ export class IeltsTrackingService {
             ? normalizedPayload.hasTakenIeltsAcademic
             : previous.hasTakenIeltsAcademic,
         preparationIntent: normalizedPayload.preparationIntent || previous.preparationIntent,
+        languageScoreTrackingManualStatus:
+          normalizedPayload.languageScoreTrackingManualStatus !== undefined
+            ? normalizedPayload.languageScoreTrackingManualStatus
+            : normalizedPayload.languageTrackingManualStatus !== undefined
+              ? normalizedPayload.languageTrackingManualStatus
+              : previous.languageScoreTrackingManualStatus ?? previous.languageTrackingManualStatus,
         languageTrackingManualStatus:
           normalizedPayload.languageTrackingManualStatus !== undefined
             ? normalizedPayload.languageTrackingManualStatus
-            : previous.languageTrackingManualStatus,
+            : normalizedPayload.languageScoreTrackingManualStatus !== undefined
+              ? normalizedPayload.languageScoreTrackingManualStatus
+              : previous.languageTrackingManualStatus,
         records: Array.isArray(normalizedPayload.records)
           ? this.normalizeRecords(normalizedPayload.records, effectiveScoreType)
           : previous.records.map((record) => ({ ...record })),
@@ -240,6 +252,7 @@ export class IeltsTrackingService {
       languageScoreType: 'IELTS',
       hasTakenIeltsAcademic: null,
       preparationIntent: 'UNSET',
+      languageScoreTrackingManualStatus: null,
       languageTrackingManualStatus: null,
       records: [],
       languageRisk: {
@@ -267,8 +280,18 @@ export class IeltsTrackingService {
       this.readValue(incomingSummary, ['trackingStatus', 'tracking_status']) ??
       this.readValue(source, ['trackingStatus', 'tracking_status']);
     const languageTrackingStatusRaw =
-      this.readValue(incomingSummary, ['languageTrackingStatus', 'language_tracking_status']) ??
-      this.readValue(source, ['languageTrackingStatus', 'language_tracking_status']);
+      this.readValue(incomingSummary, [
+        'languageScoreTrackingStatus',
+        'language_score_tracking_status',
+        'languageTrackingStatus',
+        'language_tracking_status',
+      ]) ??
+      this.readValue(source, [
+        'languageScoreTrackingStatus',
+        'language_score_tracking_status',
+        'languageTrackingStatus',
+        'language_tracking_status',
+      ]);
     const summary: IeltsSummaryViewModel = incomingSummary
       ? {
           trackingStatus: this.normalizeTrackingStatus(trackingStatusRaw),
@@ -293,6 +316,10 @@ export class IeltsTrackingService {
             languageTrackingStatusRaw,
             fallbackSummary.languageTrackingStatus
           ),
+          languageScoreTrackingStatus: this.normalizeLanguageTrackingStatus(
+            languageTrackingStatusRaw,
+            fallbackSummary.languageScoreTrackingStatus ?? fallbackSummary.languageTrackingStatus
+          ),
           validityCutoffDate:
             this.toText(this.readValue(incomingSummary, ['validityCutoffDate', 'validity_cutoff_date'])) ||
             fallbackSummary.validityCutoffDate,
@@ -315,6 +342,10 @@ export class IeltsTrackingService {
           languageTrackingStatus: this.normalizeLanguageTrackingStatus(
             languageTrackingStatusRaw,
             fallbackSummary.languageTrackingStatus
+          ),
+          languageScoreTrackingStatus: this.normalizeLanguageTrackingStatus(
+            languageTrackingStatusRaw,
+            fallbackSummary.languageScoreTrackingStatus ?? fallbackSummary.languageTrackingStatus
           ),
         };
 
@@ -356,13 +387,28 @@ export class IeltsTrackingService {
       this.normalizeOptionalTrackingStatus(this.readValue(summaryNode, ['trackingStatus', 'tracking_status']));
     const languageTrackingStatus =
       this.normalizeOptionalLanguageTrackingStatus(
-        this.readValue(source, ['languageTrackingStatus', 'language_tracking_status'])
+        this.readValue(source, [
+          'languageScoreTrackingStatus',
+          'language_score_tracking_status',
+          'languageTrackingStatus',
+          'language_tracking_status',
+        ])
       ) ??
       this.normalizeOptionalLanguageTrackingStatus(
-        this.readValue(summaryNode, ['languageTrackingStatus', 'language_tracking_status'])
+        this.readValue(summaryNode, [
+          'languageScoreTrackingStatus',
+          'language_score_tracking_status',
+          'languageTrackingStatus',
+          'language_tracking_status',
+        ])
       );
     const languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
-      this.readValue(source, ['languageTrackingManualStatus', 'language_tracking_manual_status'])
+      this.readValue(source, [
+        'languageScoreTrackingManualStatus',
+        'language_score_tracking_manual_status',
+        'languageTrackingManualStatus',
+        'language_tracking_manual_status',
+      ])
     );
     const languageRisk = this.normalizeLanguageRisk(this.readValue(source, ['languageRisk', 'language_risk']));
 
@@ -373,7 +419,9 @@ export class IeltsTrackingService {
       hasTakenIeltsAcademic,
       preparationIntent,
       trackingStatus,
+      languageScoreTrackingStatus: languageTrackingStatus,
       languageTrackingStatus,
+      languageScoreTrackingManualStatus: languageTrackingManualStatus,
       languageTrackingManualStatus,
       records,
       languageRisk,
@@ -432,10 +480,15 @@ export class IeltsTrackingService {
       normalized.preparationIntent = this.normalizePreparationIntent(payload.preparationIntent);
     }
 
-    if (payload.languageTrackingManualStatus !== undefined) {
+    const manualStatusInput =
+      payload.languageScoreTrackingManualStatus !== undefined
+        ? payload.languageScoreTrackingManualStatus
+        : payload.languageTrackingManualStatus;
+    if (manualStatusInput !== undefined) {
       normalized.languageTrackingManualStatus = this.normalizeLanguageTrackingManualStatus(
-        payload.languageTrackingManualStatus
+        manualStatusInput
       );
+      normalized.languageScoreTrackingManualStatus = normalized.languageTrackingManualStatus;
     }
 
     const rawRecords = Array.isArray(payload.records)

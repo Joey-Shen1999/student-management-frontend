@@ -22,14 +22,20 @@ import {
 } from '../../services/student-profile.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import {
-  GOAL_STUDENT_SELECTOR_COLUMNS,
+  buildGoalStudentSelectorColumns,
   type GoalStudentSelectorColumnConfig,
   type GoalStudentSelectorColumnKey,
 } from '../../shared/student-columns/goal-student-selector-columns';
 import {
-  buildDefaultVisibleColumnKeys,
+  buildPresetVisibleColumnKeys,
   normalizeVisibleColumnKeys,
 } from '../../shared/student-columns/student-column-visibility.util';
+import {
+  STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT,
+  STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
+  STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT,
+  type StudentSelectorFilterFieldKey,
+} from '../../shared/student-fields/student-field-presets';
 import {
   CITY_FILTER_OPTIONS_BY_COUNTRY,
   COUNTRY_FILTER_ALL_OPTION,
@@ -53,6 +59,7 @@ interface StudentDetailVm {
   gender: string;
   nationality: string;
   firstLanguage: string;
+  motherLanguage: string;
   teacherNote: string;
   country: string;
   schoolBoard: string;
@@ -95,7 +102,7 @@ const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'goal-management.create-goal.student-selector.visible-columns';
 const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY =
   'goal-management.create-goal.student-selector-columns';
-const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v1';
+const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v2';
 
 @Component({
   selector: 'app-goal-management',
@@ -105,8 +112,13 @@ const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v1';
   styleUrl: './goal-management.component.scss',
 })
 export class GoalManagementComponent implements OnInit, OnDestroy {
+  private readonly selectorContext = 'goal-create' as const;
   readonly createStudentColumns: readonly GoalStudentSelectorColumnConfig[] =
-    GOAL_STUDENT_SELECTOR_COLUMNS;
+    buildGoalStudentSelectorColumns(
+      STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT[this.selectorContext]
+    );
+  readonly createStudentFilterFields: readonly StudentSelectorFilterFieldKey[] =
+    STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT[this.selectorContext];
   studentOptions: AssignableStudentOptionVm[] = [];
   studentsLoading = false;
   studentsError = '';
@@ -147,9 +159,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createStudentColumnPanelExpanded = false;
   createStudentKeyword = '';
   selectedCreateStudentIds = new Set<number>();
-  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> = buildDefaultVisibleColumnKeys(
-    this.createStudentColumns
-  );
+  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> =
+    this.buildCreateStudentDefaultVisibleColumnKeys();
   createTitle = '';
   createDescription = '';
   createDueAt = '';
@@ -432,13 +443,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
   }
   resetCreateStudentVisibleColumns(): void {
-    this.visibleCreateStudentColumnKeys = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    this.visibleCreateStudentColumnKeys = this.buildCreateStudentDefaultVisibleColumnKeys();
     this.persistCreateStudentVisibleColumnsPreference();
     this.syncCreateStudentVisibleColumnsPreferenceToServer();
     this.loadMissingProfilesForVisibleRows();
   }
   isCreateStudentColumnSelectionAtDefault(): boolean {
-    const defaultSet = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    const defaultSet = this.buildCreateStudentDefaultVisibleColumnKeys();
     if (defaultSet.size !== this.visibleCreateStudentColumnKeys.size) {
       return false;
     }
@@ -606,6 +617,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   detailFirstLanguage(studentId: number): string {
     return this.studentDetails.get(studentId)?.firstLanguage || '-';
   }
+  detailMotherLanguage(studentId: number): string {
+    return this.studentDetails.get(studentId)?.motherLanguage || '-';
+  }
   detailSchoolBoard(studentId: number): string { return this.studentDetails.get(studentId)?.schoolBoard || '-'; }
   detailCountry(studentId: number): string { return this.studentDetails.get(studentId)?.country || '-'; }
   detailProvince(studentId: number): string { return this.studentDetails.get(studentId)?.province || '-'; }
@@ -640,6 +654,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         return this.detailNationality(student.studentId);
       case 'firstLanguage':
         return this.detailFirstLanguage(student.studentId);
+      case 'motherLanguage':
+        return this.detailMotherLanguage(student.studentId);
       case 'schoolBoard':
         return this.detailSchoolBoard(student.studentId);
       case 'country':
@@ -985,14 +1001,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         d.canadaIdentity &&
         d.gender &&
         d.nationality &&
-        d.firstLanguage
+        d.firstLanguage &&
+        d.motherLanguage
       );
       const needsExtended =
         this.visibleCreateStudentColumnKeys.has('schoolName') ||
         this.visibleCreateStudentColumnKeys.has('canadaIdentity') ||
         this.visibleCreateStudentColumnKeys.has('gender') ||
         this.visibleCreateStudentColumnKeys.has('nationality') ||
-        this.visibleCreateStudentColumnKeys.has('firstLanguage');
+        this.visibleCreateStudentColumnKeys.has('firstLanguage') ||
+        this.visibleCreateStudentColumnKeys.has('motherLanguage');
       const needsTeacherNote = this.visibleCreateStudentColumnKeys.has('teacherNote');
       const hasProfileLoaded = this.teacherNoteProfileCache.has(studentId);
       return (
@@ -1147,6 +1165,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       gender: '',
       nationality: '',
       firstLanguage: '',
+      motherLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
@@ -1166,6 +1185,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       gender: patch.gender?.trim() || current.gender,
       nationality: patch.nationality?.trim() || current.nationality,
       firstLanguage: patch.firstLanguage?.trim() || current.firstLanguage,
+      motherLanguage: patch.motherLanguage?.trim() || current.motherLanguage,
       teacherNote: patch.teacherNote?.trim() || current.teacherNote,
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
@@ -1186,6 +1206,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       gender: '',
       nationality: '',
       firstLanguage: '',
+      motherLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
@@ -1257,6 +1278,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         profile['nativeLanguage'],
         profile['motherTongue'],
       ]),
+      motherLanguage: this.pick([
+        student['motherLanguage'],
+        student['motherTongue'],
+        student['nativeLanguage'],
+        profile['motherLanguage'],
+        profile['motherTongue'],
+        profile['nativeLanguage'],
+      ]),
       teacherNote: this.pick([student['teacherNote'], student['teacherNotes'], profile['teacherNote']]),
       country: this.pick([student['currentSchoolCountry'], student['schoolCountry'], student['country'], profile['currentSchoolCountry'], profile['country']]),
       schoolBoard: this.pick([student['currentSchoolBoard'], student['schoolBoard'], student['educationBoard'], profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard']]),
@@ -1326,6 +1355,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         root['primaryLanguage'],
         root['nativeLanguage'],
         root['motherTongue'],
+      ]),
+      motherLanguage: this.pick([
+        profile['motherLanguage'],
+        profile['motherTongue'],
+        profile['nativeLanguage'],
+        root['motherLanguage'],
+        root['motherTongue'],
+        root['nativeLanguage'],
       ]),
       teacherNote: this.pick([profile['teacherNote'], profile['teacherNotes'], root['teacherNote']]),
       country: this.pick([profile['currentSchoolCountry'], profile['country'], school['country'], root['currentSchoolCountry']]),
@@ -1551,6 +1588,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       detail?.gender || '',
       detail?.nationality || '',
       detail?.firstLanguage || '',
+      detail?.motherLanguage || '',
       detail?.province || '',
       detail?.city || '',
       detail?.graduation || '',
@@ -1659,7 +1697,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   private initializeCreateStudentVisibleColumns(): void {
-    const defaults = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    const defaults = this.buildCreateStudentDefaultVisibleColumnKeys();
     const persisted = this.readCreateStudentVisibleColumnsPreference();
     if (!persisted) {
       this.visibleCreateStudentColumnKeys = defaults;
@@ -1668,6 +1706,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
     const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, persisted);
     this.visibleCreateStudentColumnKeys = normalized.size > 0 ? normalized : defaults;
+  }
+
+  private buildCreateStudentDefaultVisibleColumnKeys(): Set<GoalStudentSelectorColumnKey> {
+    const presetKeys = STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT[this.selectorContext];
+    return buildPresetVisibleColumnKeys(this.createStudentColumns, presetKeys);
   }
 
   private persistCreateStudentVisibleColumnsPreference(): void {
@@ -1718,6 +1761,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .getPagePreference(GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY)
       .subscribe({
         next: (payload) => {
+          const remoteVersion = String(payload?.version ?? '').trim();
+          if (remoteVersion !== GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION) {
+            this.syncCreateStudentVisibleColumnsPreferenceToServer();
+            return;
+          }
+
           const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
             ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
             : [];

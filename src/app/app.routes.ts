@@ -61,6 +61,12 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/osslt',
+    loadComponent: () =>
+      import('./pages/student-osslt/student-osslt.component').then((m) => m.StudentOssltComponent),
+  },
+
+  {
     path: 'teacher',
     canActivateChild: [teacherRouteGuard],
     children: [
@@ -99,6 +105,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/osslt',
+        loadComponent: () =>
+          import('./pages/osslt-tracking/osslt-tracking.component').then(
+            (m) => m.OssltTrackingComponent
+          ),
+      },
+
+      {
         path: 'students',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
@@ -108,6 +122,14 @@ export const routes: Routes = [
 
       {
         path: 'ielts',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
+        path: 'osslt',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
             (m) => m.StudentManagementComponent

@@ -3,6 +3,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { AssignableStudentOptionVm } from '../../services/task-center.service';
+import type { StudentSelectorFilterFieldKey } from '../student-fields/student-field-presets';
 import type { StudentSelectorColumnConfig } from './student-selector.types';
 
 export interface StudentSelectionChangeEvent {
@@ -29,6 +30,14 @@ export interface StudentTeacherNoteChangeEvent {
 })
 export class StudentSelectorPanelComponent {
   readonly idPrefix = `student-selector-${Math.trunc(Math.random() * 1_000_000_000)}`;
+  readonly allFilterFields: readonly StudentSelectorFilterFieldKey[] = [
+    'country',
+    'province',
+    'city',
+    'schoolBoard',
+    'graduationSeason',
+    'keyword',
+  ];
 
   @Input() disabled = false;
   @Input() panelExpanded = false;
@@ -54,6 +63,7 @@ export class StudentSelectorPanelComponent {
   @Input() schoolBoardFilterInput = '';
   @Input() graduationSeasonFilterInput = '';
   @Input() studentKeyword = '';
+  @Input() filterFields: readonly StudentSelectorFilterFieldKey[] = this.allFilterFields;
 
   @Input() visibleColumns: readonly StudentSelectorColumnConfig[] = [];
   @Input() columnToggleOptions: readonly StudentSelectorColumnConfig[] = [];
@@ -102,6 +112,10 @@ export class StudentSelectorPanelComponent {
     _index: number,
     column: StudentSelectorColumnConfig
   ): string => column.key;
+
+  shouldShowFilterField(field: StudentSelectorFilterFieldKey): boolean {
+    return this.filterFields.includes(field);
+  }
 
   onSelectAllChange(event: Event): void {
     const checked = (event.target as HTMLInputElement | null)?.checked === true;

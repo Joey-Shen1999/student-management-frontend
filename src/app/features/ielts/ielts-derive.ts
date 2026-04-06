@@ -45,6 +45,7 @@ export function deriveStudentIeltsModuleState(
 
   const summary: IeltsSummaryViewModel = {
     trackingStatus,
+    languageScoreTrackingStatus: languageTrackingStatus,
     languageTrackingStatus,
     trackingTitle: messageConfig.title,
     trackingMessage: messageConfig.message,

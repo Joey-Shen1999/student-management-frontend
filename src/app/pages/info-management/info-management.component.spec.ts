@@ -134,4 +134,22 @@ describe('InfoManagementComponent', () => {
     );
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
+
+  it('should use unified All option and normalize country aliases', () => {
+    expect(component.createCountryFilter).toBe('All');
+    expect(component.countryFilterOptions.includes('All')).toBe(true);
+    expect(component.countryFilterOptions.includes('全部')).toBe(false);
+
+    component.onCountryFilterInputChange('US');
+
+    expect(component.createCountryFilter).toBe('United States');
+    expect(component.createCountryFilterInput).toBe('US');
+  });
+
+  it('should expose standardized province options after selecting country', () => {
+    component.onCountryFilterInputChange('Canada');
+
+    expect(component.provinceFilterOptions.includes('Ontario')).toBe(true);
+    expect(component.provinceFilterOptions.includes('British Columbia')).toBe(true);
+  });
 });

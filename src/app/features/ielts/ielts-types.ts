@@ -3,13 +3,19 @@ export type IeltsTrackingStatus =
   | 'GREEN_COMMON_PASS_WITH_WARNING'
   | 'YELLOW_NEEDS_PREPARATION';
 
-export type LanguageTrackingStatus =
+export type LanguageScoreTrackingStatus =
   | 'TEACHER_REVIEW_APPROVED'
   | 'AUTO_PASS_ALL_SCHOOLS'
   | 'AUTO_PASS_PARTIAL_SCHOOLS'
   | 'NEEDS_TRACKING';
 
-export type LanguageTrackingManualStatus = LanguageTrackingStatus | null;
+// Backward-compatible alias. Prefer LanguageScoreTrackingStatus in new code.
+export type LanguageTrackingStatus = LanguageScoreTrackingStatus;
+
+export type LanguageScoreTrackingManualStatus = LanguageScoreTrackingStatus | null;
+
+// Backward-compatible alias. Prefer LanguageScoreTrackingManualStatus in new code.
+export type LanguageTrackingManualStatus = LanguageScoreTrackingManualStatus;
 
 export type IeltsPreparationIntent = 'PREPARING' | 'NOT_PREPARING' | 'UNSET';
 
@@ -42,6 +48,7 @@ export interface IeltsRecordViewModel extends IeltsRecordFormValue {
 
 export interface IeltsSummaryViewModel {
   trackingStatus: IeltsTrackingStatus;
+  languageScoreTrackingStatus?: LanguageScoreTrackingStatus;
   languageTrackingStatus: LanguageTrackingStatus;
   trackingTitle: string;
   trackingMessage: string;
@@ -74,7 +81,9 @@ export interface StudentIeltsModuleState {
   hasTakenIeltsAcademic: boolean | null;
   preparationIntent: IeltsPreparationIntent;
   trackingStatus?: IeltsTrackingStatus | null;
+  languageScoreTrackingStatus?: LanguageScoreTrackingStatus | null;
   languageTrackingStatus?: LanguageTrackingStatus | null;
+  languageScoreTrackingManualStatus?: LanguageScoreTrackingManualStatus;
   languageTrackingManualStatus: LanguageTrackingManualStatus;
   records: IeltsRecordFormValue[];
   languageRisk: StudentLanguageRiskSnapshot;
@@ -93,6 +102,7 @@ export interface UpdateStudentIeltsPayload {
   test_type?: LanguageScoreType;
   hasTakenIeltsAcademic?: boolean | null;
   preparationIntent?: IeltsPreparationIntent;
+  languageScoreTrackingManualStatus?: LanguageScoreTrackingManualStatus;
   languageTrackingManualStatus?: LanguageTrackingManualStatus;
   records?: IeltsRecordFormValue[];
   toeflRecords?: IeltsRecordFormValue[];

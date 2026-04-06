@@ -204,6 +204,9 @@ import {
             <button type="button" class="action-btn primary" (click)="goIeltsTracking()">
               语言成绩跟踪
             </button>
+            <button type="button" class="action-btn primary" (click)="goOssltTracking()">
+              OSSLT 登记
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
               姓名设置
             </button>
@@ -271,6 +274,10 @@ export class DashboardComponent implements OnInit {
 
   goIeltsTracking() {
     this.router.navigate(['/student/ielts']);
+  }
+
+  goOssltTracking() {
+    this.router.navigate(['/student/osslt']);
   }
 
   goAccountProfile() {

@@ -9,6 +9,7 @@ import { StudentInviteService } from '../../services/student-invite.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
+import { OssltTrackingService } from '../../services/osslt-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 
 describe('StudentManagementComponent', () => {
@@ -22,6 +23,10 @@ describe('StudentManagementComponent', () => {
   let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId' | 'getAuthorizationHeaderValue'>;
   let router: { url: string };
   let ieltsApi: Pick<IeltsTrackingService, 'getTeacherStudentIeltsModuleState' | 'updateTeacherStudentIeltsData'>;
+  let ossltApi: Pick<
+    OssltTrackingService,
+    'getTeacherStudentOssltModuleState' | 'updateTeacherStudentOssltData'
+  >;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -75,6 +80,30 @@ describe('StudentManagementComponent', () => {
         })
       ),
     };
+    ossltApi = {
+      getTeacherStudentOssltModuleState: vi.fn().mockReturnValue(
+        of({
+          studentId: 1,
+          graduationYear: 2027,
+          latestOssltResult: 'UNKNOWN',
+          latestOssltDate: null,
+          hasOsslc: null,
+          ossltTrackingManualStatus: null,
+          updatedAt: null,
+        })
+      ),
+      updateTeacherStudentOssltData: vi.fn().mockImplementation((studentId: number, payload: any) =>
+        of({
+          studentId,
+          graduationYear: 2027,
+          latestOssltResult: payload?.latestOssltResult ?? 'UNKNOWN',
+          latestOssltDate: payload?.latestOssltDate ?? null,
+          hasOsslc: payload?.hasOsslc ?? null,
+          ossltTrackingManualStatus: payload?.ossltTrackingManualStatus ?? 'NEEDS_TRACKING',
+          updatedAt: null,
+        })
+      ),
+    };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
       upsertPagePreference: vi.fn().mockReturnValue(of({})),
@@ -87,6 +116,7 @@ describe('StudentManagementComponent', () => {
       auth as AuthService,
       router as Router,
       ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
       preferenceApi as TeacherPreferenceService
     );
   });
@@ -1011,7 +1041,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v2',
+        version: 'v5',
       })
     );
   });
@@ -1026,7 +1056,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'ielts-tracking.list-columns',
       expect.objectContaining({
-        version: 'v2',
+        version: 'v5',
       })
     );
   });
@@ -1052,19 +1082,64 @@ describe('StudentManagementComponent', () => {
         'teacherNote',
         'ielts',
         'languageTracking',
-        'resetPassword',
       ].sort()
     );
   });
 
-  it('default columns on /teacher/students should not include IELTS', () => {
+  it('default columns on /teacher/students should match student account management defaults', () => {
     router.url = '/teacher/students';
 
     const defaultKeys = Array.from(
       ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
-    );
+    ).sort();
 
-    expect(defaultKeys).not.toContain('ielts');
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'email',
+        'phone',
+        'graduation',
+        'teacherNote',
+        'profile',
+        'resetPassword',
+        'archive',
+      ].sort()
+    );
+  });
+
+  it('languageTracking column label on /teacher/students should be 语言成绩跟踪', () => {
+    router.url = '/teacher/students';
+    const column = component.columnToggleOptions.find((item) => item.key === 'languageTracking');
+    expect(column).toBeTruthy();
+    expect(component.resolveUnifiedStudentListColumnLabel(column as any)).toBe('语言成绩跟踪');
+  });
+
+  it('default columns on /teacher/osslt should match OSSLT tracking defaults', () => {
+    router.url = '/teacher/osslt';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'graduation',
+        'schoolName',
+        'schoolBoard',
+        'city',
+        'teacherNote',
+        'ossltResult',
+        'ossltTracking',
+      ].sort()
+    );
+  });
+
+  it('column toggle options on /teacher/osslt should include teacherNote in full field mode', () => {
+    router.url = '/teacher/osslt';
+
+    const keys = component.columnToggleOptions.map((column) => column.key);
+    expect(keys).toContain('teacherNote');
   });
 
   it('language tracking column should allow teacher to save selected status', () => {

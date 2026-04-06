@@ -16,12 +16,29 @@ import {
   type StudentAccount,
   StudentManagementService,
 } from '../../services/student-management.service';
+import { EDUCATION_BOARD_LIBRARY_OPTIONS } from '../../services/student-profile.service';
 import {
-  GOAL_STUDENT_SELECTOR_COLUMNS,
+  buildGoalStudentSelectorColumns,
   type GoalStudentSelectorColumnConfig,
   type GoalStudentSelectorColumnKey,
 } from '../../shared/student-columns/goal-student-selector-columns';
-import { buildDefaultVisibleColumnKeys } from '../../shared/student-columns/student-column-visibility.util';
+import { buildPresetVisibleColumnKeys } from '../../shared/student-columns/student-column-visibility.util';
+import {
+  STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT,
+  STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
+  STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT,
+  type StudentSelectorFilterFieldKey,
+} from '../../shared/student-fields/student-field-presets';
+import {
+  CITY_FILTER_OPTIONS_BY_COUNTRY,
+  COUNTRY_FILTER_ALL_OPTION,
+  COUNTRY_FILTER_FALLBACK_OPTIONS,
+  COUNTRY_FILTER_NA_OPTION,
+  COUNTRY_FILTER_PRIORITY_OPTIONS,
+  PROVINCE_FILTER_COUNTRIES,
+  PROVINCE_FILTER_OPTIONS_BY_COUNTRY,
+  type ProvinceFilterCountry,
+} from '../../shared/student-location/student-location-options';
 import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
 
 interface StudentDetailVm {
@@ -35,6 +52,7 @@ interface StudentDetailVm {
   gender: string;
   nationality: string;
   firstLanguage: string;
+  motherLanguage: string;
   teacherNote: string;
   country: string;
   schoolBoard: string;
@@ -42,7 +60,24 @@ interface StudentDetailVm {
   status: 'ACTIVE' | 'ARCHIVED' | '';
 }
 
-const ALL_FILTER_OPTION = '全部';
+const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
+  Record<ProvinceFilterCountry, Record<string, string>>
+> = {
+  Canada: {
+    on: 'Ontario',
+    'o n': 'Ontario',
+    ontario: 'Ontario',
+    bc: 'British Columbia',
+    'b c': 'British Columbia',
+    'british columbia': 'British Columbia',
+    ab: 'Alberta',
+    'a b': 'Alberta',
+    alberta: 'Alberta',
+    qc: 'Quebec',
+    'q c': 'Quebec',
+    quebec: 'Quebec',
+  },
+};
 
 @Component({
   selector: 'app-info-management',
@@ -52,38 +87,40 @@ const ALL_FILTER_OPTION = '全部';
   styleUrl: './info-management.component.scss',
 })
 export class InfoManagementComponent implements OnInit {
+  private readonly selectorContext = 'info-create' as const;
   readonly createStudentColumns: readonly GoalStudentSelectorColumnConfig[] =
-    GOAL_STUDENT_SELECTOR_COLUMNS;
+    buildGoalStudentSelectorColumns(
+      STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT[this.selectorContext]
+    );
+  readonly createStudentFilterFields: readonly StudentSelectorFilterFieldKey[] =
+    STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT[this.selectorContext];
   studentOptions: AssignableStudentOptionVm[] = [];
   studentsLoading = false;
   studentsError = '';
   private readonly studentDetails = new Map<number, StudentDetailVm>();
   private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
 
-  countryFilterOptions: string[] = [ALL_FILTER_OPTION];
-  provinceFilterOptions: string[] = [];
-  cityFilterOptions: string[] = [];
-  schoolBoardFilterOptions: string[] = [ALL_FILTER_OPTION];
-  graduationSeasonFilterOptions: string[] = [ALL_FILTER_OPTION];
+  countryFilterOptions: string[] = this.buildCountryFilterOptions();
+  schoolBoardFilterOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
+  graduationSeasonFilterOptions: string[] = [COUNTRY_FILTER_ALL_OPTION];
   createCountryFilterInput = '';
-  createCountryFilter = ALL_FILTER_OPTION;
+  createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
   createProvinceFilterInput = '';
   createProvinceFilter = '';
   createCityFilterInput = '';
   createCityFilter = '';
   createSchoolBoardFilterInput = '';
-  createSchoolBoardFilter = ALL_FILTER_OPTION;
+  createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
   createGraduationSeasonFilterInput = '';
-  createGraduationSeasonFilter = ALL_FILTER_OPTION;
+  createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
 
   studentPanelExpanded = false;
   studentFilterExpanded = false;
   createStudentColumnPanelExpanded = false;
   createStudentKeyword = '';
   selectedCreateStudentIds = new Set<number>();
-  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> = buildDefaultVisibleColumnKeys(
-    this.createStudentColumns
-  );
+  visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> =
+    this.buildCreateStudentDefaultVisibleColumnKeys();
 
   infos: InfoTaskVm[] = [];
   infosLoading = false;
@@ -171,6 +208,22 @@ export class InfoManagementComponent implements OnInit {
 
   get createStudentColumnToggleOptions(): readonly GoalStudentSelectorColumnConfig[] {
     return this.createStudentColumns;
+  }
+
+  get provinceFilterCountry(): ProvinceFilterCountry | '' {
+    return this.resolveProvinceFilterCountry(this.createCountryFilter);
+  }
+
+  get provinceFilterOptions(): string[] {
+    return this.collectProvinceFilterOptions(this.provinceFilterCountry);
+  }
+
+  get cityFilterCountry(): ProvinceFilterCountry | '' {
+    return this.provinceFilterCountry;
+  }
+
+  get cityFilterOptions(): string[] {
+    return this.collectCityFilterOptions(this.cityFilterCountry);
   }
 
   get isEditMode(): boolean {
@@ -277,51 +330,56 @@ export class InfoManagementComponent implements OnInit {
     const input = String(value ?? '').trim();
     this.createCountryFilterInput = input;
     this.createCountryFilter = input
-      ? this.resolveFilterSelection(input, this.countryFilterOptions, ALL_FILTER_OPTION)
-      : ALL_FILTER_OPTION;
+      ? this.resolveCountryFilterInputSelection(input)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.syncProvinceFilterSelection();
+    this.syncCityFilterSelection();
+    this.syncSchoolBoardFilterSelection();
+    this.syncGraduationSeasonFilterSelection();
   }
 
   onProvinceFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.createProvinceFilterInput = input;
-    this.createProvinceFilter = input
-      ? this.resolveFilterSelection(input, this.provinceFilterOptions, '')
-      : '';
+    const country = this.provinceFilterCountry;
+    this.createProvinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
   }
 
   onCityFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.createCityFilterInput = input;
-    this.createCityFilter = input ? this.resolveFilterSelection(input, this.cityFilterOptions, '') : '';
+    const country = this.cityFilterCountry;
+    this.createCityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
   }
 
   onSchoolBoardFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.createSchoolBoardFilterInput = input;
     this.createSchoolBoardFilter = input
-      ? this.resolveFilterSelection(input, this.schoolBoardFilterOptions, ALL_FILTER_OPTION)
-      : ALL_FILTER_OPTION;
+      ? this.resolveSchoolBoardFilterSelection(input)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.syncGraduationSeasonFilterSelection();
   }
 
   onGraduationSeasonFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.createGraduationSeasonFilterInput = input;
     this.createGraduationSeasonFilter = input
-      ? this.resolveFilterSelection(input, this.graduationSeasonFilterOptions, ALL_FILTER_OPTION)
-      : ALL_FILTER_OPTION;
+      ? this.resolveGraduationSeasonFilterSelection(input)
+      : COUNTRY_FILTER_ALL_OPTION;
   }
 
   resetStudentMetaFilters(): void {
     this.createCountryFilterInput = '';
-    this.createCountryFilter = ALL_FILTER_OPTION;
+    this.createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createProvinceFilterInput = '';
     this.createProvinceFilter = '';
     this.createCityFilterInput = '';
     this.createCityFilter = '';
     this.createSchoolBoardFilterInput = '';
-    this.createSchoolBoardFilter = ALL_FILTER_OPTION;
+    this.createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createGraduationSeasonFilterInput = '';
-    this.createGraduationSeasonFilter = ALL_FILTER_OPTION;
+    this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createStudentKeyword = '';
   }
 
@@ -370,11 +428,11 @@ export class InfoManagementComponent implements OnInit {
   }
 
   resetCreateStudentVisibleColumns(): void {
-    this.visibleCreateStudentColumnKeys = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    this.visibleCreateStudentColumnKeys = this.buildCreateStudentDefaultVisibleColumnKeys();
   }
 
   isCreateStudentColumnSelectionAtDefault(): boolean {
-    const defaultSet = buildDefaultVisibleColumnKeys(this.createStudentColumns);
+    const defaultSet = this.buildCreateStudentDefaultVisibleColumnKeys();
     if (defaultSet.size !== this.visibleCreateStudentColumnKeys.size) {
       return false;
     }
@@ -384,6 +442,11 @@ export class InfoManagementComponent implements OnInit {
       }
     }
     return true;
+  }
+
+  private buildCreateStudentDefaultVisibleColumnKeys(): Set<GoalStudentSelectorColumnKey> {
+    const presetKeys = STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT[this.selectorContext];
+    return buildPresetVisibleColumnKeys(this.createStudentColumns, presetKeys);
   }
 
   onCreateStudentCheckboxChange(studentId: number, event: Event | boolean): void {
@@ -489,6 +552,10 @@ export class InfoManagementComponent implements OnInit {
     return this.studentDetails.get(studentId)?.firstLanguage || '-';
   }
 
+  detailMotherLanguage(studentId: number): string {
+    return this.studentDetails.get(studentId)?.motherLanguage || '-';
+  }
+
   detailSchoolBoard(studentId: number): string {
     return this.studentDetails.get(studentId)?.schoolBoard || '-';
   }
@@ -540,6 +607,8 @@ export class InfoManagementComponent implements OnInit {
         return this.detailNationality(student.studentId);
       case 'firstLanguage':
         return this.detailFirstLanguage(student.studentId);
+      case 'motherLanguage':
+        return this.detailMotherLanguage(student.studentId);
       case 'schoolBoard':
         return this.detailSchoolBoard(student.studentId);
       case 'country':
@@ -848,6 +917,7 @@ export class InfoManagementComponent implements OnInit {
       detail?.gender || '',
       detail?.nationality || '',
       detail?.firstLanguage || '',
+      detail?.motherLanguage || '',
       detail?.province || '',
       detail?.city || '',
       detail?.graduation || '',
@@ -864,28 +934,63 @@ export class InfoManagementComponent implements OnInit {
   }
 
   private matchesCountryFilter(detail: StudentDetailVm | undefined): boolean {
-    if (this.createCountryFilter === ALL_FILTER_OPTION) return true;
-    return this.normalizeKey(detail?.country) === this.normalizeKey(this.createCountryFilter);
+    const selected = this.resolveCountryFilterSelection(this.createCountryFilter);
+    if (selected === 'ALL') {
+      return true;
+    }
+
+    const studentCountry = this.normalizeCountryFilterValue(detail?.country) || 'N/A';
+    if (selected === 'N/A') {
+      return studentCountry === 'N/A';
+    }
+    if (selected === 'Canada') {
+      return studentCountry === 'Canada' || studentCountry === 'N/A';
+    }
+    return studentCountry === selected;
   }
 
   private matchesProvinceFilter(detail: StudentDetailVm | undefined): boolean {
-    if (!this.createProvinceFilter) return true;
-    return this.normalizeKey(detail?.province) === this.normalizeKey(this.createProvinceFilter);
+    const selectedKey = this.normalizeCountryKey(this.createProvinceFilter);
+    if (!selectedKey) {
+      return true;
+    }
+
+    const detailCountry = this.resolveProvinceFilterCountry(detail?.country);
+    const studentProvince = this.normalizeProvinceValueForDetail(detail?.province, detailCountry);
+    const studentKey = this.normalizeCountryKey(studentProvince);
+    return !!studentKey && studentKey === selectedKey;
   }
 
   private matchesCityFilter(detail: StudentDetailVm | undefined): boolean {
-    if (!this.createCityFilter) return true;
-    return this.normalizeKey(detail?.city) === this.normalizeKey(this.createCityFilter);
+    const selectedKey = this.normalizeCountryKey(this.createCityFilter);
+    if (!selectedKey) {
+      return true;
+    }
+
+    const detailCountry = this.resolveProvinceFilterCountry(detail?.country);
+    const studentCity = this.normalizeCityValueForDetail(detail?.city, detailCountry);
+    const studentKey = this.normalizeCountryKey(studentCity);
+    return !!studentKey && studentKey === selectedKey;
   }
 
   private matchesSchoolBoardFilter(detail: StudentDetailVm | undefined): boolean {
-    if (this.createSchoolBoardFilter === ALL_FILTER_OPTION) return true;
-    return this.normalizeKey(detail?.schoolBoard) === this.normalizeKey(this.createSchoolBoardFilter);
+    if (this.createSchoolBoardFilter === COUNTRY_FILTER_ALL_OPTION) {
+      return true;
+    }
+
+    const selectedKey = this.normalizeCountryKey(this.createSchoolBoardFilter);
+    const studentKey = this.normalizeCountryKey(detail?.schoolBoard);
+    return !!selectedKey && selectedKey === studentKey;
   }
 
   private matchesGraduationSeasonFilter(detail: StudentDetailVm | undefined): boolean {
-    if (this.createGraduationSeasonFilter === ALL_FILTER_OPTION) return true;
-    return this.normalizeKey(detail?.graduationSeason) === this.normalizeKey(this.createGraduationSeasonFilter);
+    if (this.createGraduationSeasonFilter === COUNTRY_FILTER_ALL_OPTION) {
+      return true;
+    }
+
+    const selected = this.normalizeGraduationSeasonFilterValue(this.createGraduationSeasonFilter);
+    const student = this.normalizeGraduationSeasonFilterValue(detail?.graduationSeason);
+    return !!selected && selected === student;
   }
 
   private syncSelectedStudents(): void {
@@ -978,6 +1083,7 @@ export class InfoManagementComponent implements OnInit {
       gender: '',
       nationality: '',
       firstLanguage: '',
+      motherLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
@@ -997,6 +1103,7 @@ export class InfoManagementComponent implements OnInit {
       gender: patch.gender?.trim() || current.gender,
       nationality: patch.nationality?.trim() || current.nationality,
       firstLanguage: patch.firstLanguage?.trim() || current.firstLanguage,
+      motherLanguage: patch.motherLanguage?.trim() || current.motherLanguage,
       teacherNote: patch.teacherNote?.trim() || current.teacherNote,
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
@@ -1017,6 +1124,7 @@ export class InfoManagementComponent implements OnInit {
       gender: '',
       nationality: '',
       firstLanguage: '',
+      motherLanguage: '',
       teacherNote: '',
       country: '',
       schoolBoard: '',
@@ -1082,7 +1190,19 @@ export class InfoManagementComponent implements OnInit {
         student['firstLanguage'],
         student['primaryLanguage'],
         student['nativeLanguage'],
+        student['motherTongue'],
         profile['firstLanguage'],
+        profile['primaryLanguage'],
+        profile['nativeLanguage'],
+        profile['motherTongue'],
+      ]),
+      motherLanguage: this.pick([
+        student['motherLanguage'],
+        student['motherTongue'],
+        student['nativeLanguage'],
+        profile['motherLanguage'],
+        profile['motherTongue'],
+        profile['nativeLanguage'],
       ]),
       teacherNote: this.pick([student['teacherNote'], student['teacherNotes'], profile['teacherNote']]),
       country: this.pick([
@@ -1105,98 +1225,530 @@ export class InfoManagementComponent implements OnInit {
   private rebuildMetaFilterOptions(): void {
     const validIds = new Set(this.studentOptions.map((row) => row.studentId));
     const countries = new Set<string>();
-    const provinces = new Set<string>();
-    const cities = new Set<string>();
     const boards = new Set<string>();
     const seasons = new Set<string>();
     for (const [studentId, detail] of this.studentDetails.entries()) {
       if (!validIds.has(studentId)) continue;
       if (detail.country) countries.add(detail.country);
-      if (detail.province) provinces.add(detail.province);
-      if (detail.city) cities.add(detail.city);
       if (detail.schoolBoard) boards.add(detail.schoolBoard);
       if (detail.graduationSeason) seasons.add(detail.graduationSeason);
     }
 
-    this.countryFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(countries));
-    this.provinceFilterOptions = this.mergeFilterOptions([], Array.from(provinces));
-    this.cityFilterOptions = this.mergeFilterOptions([], Array.from(cities));
-    this.schoolBoardFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(boards));
-    this.graduationSeasonFilterOptions = this.mergeFilterOptions([ALL_FILTER_OPTION], Array.from(seasons));
-    this.syncFilterSelection();
+    this.countryFilterOptions = this.mergeFilterOptions(
+      this.buildCountryFilterOptions(),
+      Array.from(countries)
+    );
+    this.schoolBoardFilterOptions = this.mergeFilterOptions(
+      this.buildSchoolBoardFilterBaseOptions(),
+      Array.from(boards)
+    );
+    this.graduationSeasonFilterOptions = this.mergeFilterOptions(
+      [COUNTRY_FILTER_ALL_OPTION],
+      Array.from(seasons)
+    );
+
+    this.syncCountryFilterSelection();
+    this.syncProvinceFilterSelection();
+    this.syncCityFilterSelection();
+    this.syncSchoolBoardFilterSelection();
+    this.syncGraduationSeasonFilterSelection();
   }
 
-  private syncFilterSelection(): void {
-    if (
-      !this.countryFilterOptions.some(
-        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createCountryFilter)
-      )
-    ) {
-      this.createCountryFilter = ALL_FILTER_OPTION;
-      this.createCountryFilterInput = '';
-    }
-    if (
-      this.createProvinceFilter &&
-      !this.provinceFilterOptions.some(
-        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createProvinceFilter)
-      )
-    ) {
-      this.createProvinceFilter = '';
-      this.createProvinceFilterInput = '';
-    }
-    if (
-      this.createCityFilter &&
-      !this.cityFilterOptions.some((opt) => this.normalizeKey(opt) === this.normalizeKey(this.createCityFilter))
-    ) {
-      this.createCityFilter = '';
-      this.createCityFilterInput = '';
-    }
-    if (
-      !this.schoolBoardFilterOptions.some(
-        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createSchoolBoardFilter)
-      )
-    ) {
-      this.createSchoolBoardFilter = ALL_FILTER_OPTION;
-      this.createSchoolBoardFilterInput = '';
-    }
-    if (
-      !this.graduationSeasonFilterOptions.some(
-        (opt) => this.normalizeKey(opt) === this.normalizeKey(this.createGraduationSeasonFilter)
-      )
-    ) {
-      this.createGraduationSeasonFilter = ALL_FILTER_OPTION;
-      this.createGraduationSeasonFilterInput = '';
-    }
-  }
-
-  private resolveFilterSelection(value: string, options: string[], fallback: string): string {
-    const normalizedInput = this.normalizeKey(value);
-    const matched = options.find((option) => this.normalizeKey(option) === normalizedInput);
-    return matched || fallback;
-  }
-
-  private normalizeKey(value: unknown): string {
-    return String(value ?? '')
-      .trim()
-      .toLowerCase();
-  }
-
-  private mergeFilterOptions(base: string[], rawOptions: string[]): string[] {
-    const normalized = new Map<string, string>();
-    for (const option of base) {
-      const text = String(option || '').trim();
-      if (!text) continue;
-      normalized.set(this.normalizeKey(text), text);
-    }
-    for (const option of rawOptions) {
-      const text = String(option || '').trim();
-      if (!text) continue;
-      const key = this.normalizeKey(text);
-      if (!normalized.has(key)) {
-        normalized.set(key, text);
+  private collectProvinceFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    const options: string[] = [];
+    for (const [studentId, detail] of this.studentDetails.entries()) {
+      if (!validIds.has(studentId)) continue;
+      const detailCountry = this.resolveProvinceFilterCountry(detail.country);
+      if (country && detailCountry !== country) continue;
+      const province = this.normalizeProvinceValueForDetail(detail.province, country || detailCountry);
+      if (province) {
+        options.push(province);
       }
     }
-    return Array.from(normalized.values());
+    return this.mergeFilterOptions(baseOptions, options);
+  }
+
+  private collectCityFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
+    const baseOptions = country
+      ? CITY_FILTER_OPTIONS_BY_COUNTRY[country]
+      : PROVINCE_FILTER_COUNTRIES.flatMap(
+          (supportedCountry) => CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry]
+        );
+    const validIds = new Set(this.studentOptions.map((row) => row.studentId));
+    const options: string[] = [];
+    for (const [studentId, detail] of this.studentDetails.entries()) {
+      if (!validIds.has(studentId)) continue;
+      const detailCountry = this.resolveProvinceFilterCountry(detail.country);
+      if (country && detailCountry !== country) continue;
+      const city = this.normalizeCityValueForDetail(detail.city, country || detailCountry);
+      if (city) {
+        options.push(city);
+      }
+    }
+    return this.mergeFilterOptions(baseOptions, options);
+  }
+
+  private normalizeProvinceValueForDetail(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    return this.normalizeProvinceFilterValue(value, country);
+  }
+
+  private normalizeCityValueForDetail(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    return this.normalizeCityFilterValue(value, country);
+  }
+
+  private syncCountryFilterSelection(): void {
+    const input = String(this.createCountryFilterInput ?? '').trim();
+    if (!input) {
+      this.createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    const resolved = this.resolveCountryFilterInputSelection(input);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.countryFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !optionExists) {
+      this.createCountryFilterInput = '';
+      this.createCountryFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    this.createCountryFilterInput = resolved;
+    this.createCountryFilter = resolved;
+  }
+
+  private syncProvinceFilterSelection(): void {
+    const input = String(this.createProvinceFilterInput ?? '').trim();
+    if (!input) {
+      this.createProvinceFilter = '';
+      return;
+    }
+
+    const country = this.provinceFilterCountry;
+    const resolved = this.resolveProvinceFilterSelection(input, country);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.provinceFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !resolvedKey || !optionExists) {
+      this.createProvinceFilterInput = '';
+      this.createProvinceFilter = '';
+      return;
+    }
+
+    this.createProvinceFilterInput = resolved;
+    this.createProvinceFilter = resolved;
+  }
+
+  private syncCityFilterSelection(): void {
+    const input = String(this.createCityFilterInput ?? '').trim();
+    if (!input) {
+      this.createCityFilter = '';
+      return;
+    }
+
+    const country = this.cityFilterCountry;
+    const resolved = this.resolveCityFilterSelection(input, country);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.cityFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !resolvedKey || !optionExists) {
+      this.createCityFilterInput = '';
+      this.createCityFilter = '';
+      return;
+    }
+
+    this.createCityFilterInput = resolved;
+    this.createCityFilter = resolved;
+  }
+
+  private syncSchoolBoardFilterSelection(): void {
+    const input = String(this.createSchoolBoardFilterInput ?? '').trim();
+    if (!input) {
+      this.createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    const resolved = this.resolveSchoolBoardFilterSelection(input);
+    const resolvedKey = this.normalizeCountryKey(resolved);
+    const optionExists = this.schoolBoardFilterOptions.some(
+      (option) => this.normalizeCountryKey(option) === resolvedKey
+    );
+    if (!resolved || !optionExists) {
+      this.createSchoolBoardFilterInput = '';
+      this.createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    this.createSchoolBoardFilterInput = resolved;
+    this.createSchoolBoardFilter = resolved;
+  }
+
+  private syncGraduationSeasonFilterSelection(): void {
+    const input = String(this.createGraduationSeasonFilterInput ?? '').trim();
+    if (!input) {
+      this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    const resolved = this.resolveGraduationSeasonFilterSelection(input);
+    const resolvedKey = this.normalizeGraduationSeasonFilterValue(resolved);
+    const optionExists = this.graduationSeasonFilterOptions.some(
+      (option) => this.normalizeGraduationSeasonFilterValue(option) === resolvedKey
+    );
+    if (!resolved || (!resolvedKey && resolved !== COUNTRY_FILTER_ALL_OPTION) || !optionExists) {
+      this.createGraduationSeasonFilterInput = '';
+      this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
+      return;
+    }
+
+    this.createGraduationSeasonFilterInput = resolved;
+    this.createGraduationSeasonFilter = resolved;
+  }
+
+  private mergeFilterOptions(baseOptions: readonly string[], dynamicOptions: readonly string[]): string[] {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    const append = (value: unknown): void => {
+      const text = String(value ?? '').trim();
+      if (!text) return;
+      const key = this.normalizeCountryKey(text);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      options.push(text);
+    };
+
+    for (const option of baseOptions) append(option);
+    for (const option of dynamicOptions) append(option);
+
+    return options;
+  }
+
+  private buildCountryFilterOptions(): string[] {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    const append = (value: unknown): void => {
+      const text = String(value ?? '').trim();
+      if (!text) return;
+      const key = this.normalizeCountryKey(text);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      options.push(text);
+    };
+
+    append(COUNTRY_FILTER_ALL_OPTION);
+    append(COUNTRY_FILTER_NA_OPTION);
+    for (const option of COUNTRY_FILTER_PRIORITY_OPTIONS) append(option);
+    for (const option of this.buildRegionCountryFilterOptions()) append(option);
+    for (const option of COUNTRY_FILTER_FALLBACK_OPTIONS) append(option);
+    return options;
+  }
+
+  private buildSchoolBoardFilterBaseOptions(): string[] {
+    return this.mergeFilterOptions([COUNTRY_FILTER_ALL_OPTION], EDUCATION_BOARD_LIBRARY_OPTIONS);
+  }
+
+  private buildRegionCountryFilterOptions(): string[] {
+    try {
+      if (typeof Intl === 'undefined' || typeof Intl.DisplayNames !== 'function') {
+        return [];
+      }
+
+      const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+      const options: string[] = [];
+      for (let first = 65; first <= 90; first += 1) {
+        for (let second = 65; second <= 90; second += 1) {
+          const code = `${String.fromCharCode(first)}${String.fromCharCode(second)}`;
+          const name = displayNames.of(code);
+          if (!name || name === code) continue;
+          options.push(String(name));
+        }
+      }
+      return options;
+    } catch {
+      return [];
+    }
+  }
+
+  private resolveCountryFilterSelection(value: unknown): 'ALL' | 'N/A' | string {
+    const normalized = this.normalizeCountryFilterValue(value);
+    return normalized || 'ALL';
+  }
+
+  private resolveCountryFilterInputSelection(value: unknown): string {
+    const resolved = this.resolveCountryFilterSelection(value);
+    if (resolved === 'ALL') return COUNTRY_FILTER_ALL_OPTION;
+    if (resolved === 'N/A') return COUNTRY_FILTER_NA_OPTION;
+    return resolved;
+  }
+
+  private resolveProvinceFilterCountry(value: unknown): ProvinceFilterCountry | '' {
+    const normalized = this.normalizeCountryFilterValue(value);
+    if (
+      normalized === 'Canada' ||
+      normalized === 'China (mainland)' ||
+      normalized === 'United States'
+    ) {
+      return normalized;
+    }
+    return '';
+  }
+
+  private resolveProvinceFilterSelection(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    const normalized = this.normalizeProvinceFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeProvinceFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (country) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[country]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const alias = PROVINCE_FILTER_ALIASES_BY_COUNTRY[supportedCountry]?.[normalizedKey];
+      if (alias) {
+        return alias;
+      }
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = PROVINCE_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
+  }
+
+  private resolveCityFilterSelection(
+    value: unknown,
+    country: ProvinceFilterCountry | '' = ''
+  ): string {
+    const normalized = this.normalizeCityFilterValue(value, country);
+    return normalized || '';
+  }
+
+  private normalizeCityFilterValue(value: unknown, country: ProvinceFilterCountry | ''): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (country) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[country].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      return matched || rawText;
+    }
+
+    for (const supportedCountry of PROVINCE_FILTER_COUNTRIES) {
+      const matched = CITY_FILTER_OPTIONS_BY_COUNTRY[supportedCountry].find(
+        (option) => this.normalizeCountryKey(option) === normalizedKey
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return rawText;
+  }
+
+  private normalizeCountryFilterValue(value: unknown): 'ALL' | 'N/A' | string | '' {
+    const rawText = String(value ?? '').trim();
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) return '';
+
+    if (
+      normalizedKey === 'all' ||
+      normalizedKey === 'all countries' ||
+      normalizedKey === 'all country'
+    ) {
+      return 'ALL';
+    }
+
+    if (
+      normalizedKey === 'n a' ||
+      normalizedKey === 'na' ||
+      normalizedKey === 'not available'
+    ) {
+      return 'N/A';
+    }
+
+    if (normalizedKey === 'ca' || normalizedKey === 'canada') {
+      return 'Canada';
+    }
+
+    if (
+      normalizedKey === 'cn' ||
+      normalizedKey === 'china' ||
+      normalizedKey === 'pr china' ||
+      normalizedKey === 'peoples republic of china' ||
+      normalizedKey === 'china mainland'
+    ) {
+      return 'China (mainland)';
+    }
+
+    if (
+      normalizedKey === 'us' ||
+      normalizedKey === 'usa' ||
+      normalizedKey === 'u s' ||
+      normalizedKey === 'u s a' ||
+      normalizedKey === 'america' ||
+      normalizedKey === 'united states' ||
+      normalizedKey === 'united states of america'
+    ) {
+      return 'United States';
+    }
+
+    const matched = this.countryFilterOptions.find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private resolveSchoolBoardFilterSelection(value: unknown): string {
+    const normalized = this.normalizeSchoolBoardFilterValue(value);
+    return normalized || COUNTRY_FILTER_ALL_OPTION;
+  }
+
+  private normalizeSchoolBoardFilterValue(value: unknown): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    if (
+      normalizedKey === 'all' ||
+      normalizedKey === 'all school boards' ||
+      normalizedKey === 'all boards'
+    ) {
+      return COUNTRY_FILTER_ALL_OPTION;
+    }
+
+    const matched = this.schoolBoardFilterOptions.find(
+      (option) => this.normalizeCountryKey(option) === normalizedKey
+    );
+    return matched || rawText;
+  }
+
+  private resolveGraduationSeasonFilterSelection(value: unknown): string {
+    const normalized = this.normalizeGraduationSeasonFilterValue(value);
+    if (!normalized) {
+      const rawKey = this.normalizeCountryKey(value);
+      if (
+        rawKey === 'all' ||
+        rawKey === 'all graduation seasons' ||
+        rawKey === 'all seasons'
+      ) {
+        return COUNTRY_FILTER_ALL_OPTION;
+      }
+      return '';
+    }
+
+    const matched = this.graduationSeasonFilterOptions.find(
+      (option) => this.normalizeGraduationSeasonFilterValue(option) === normalized
+    );
+    return matched || normalized;
+  }
+
+  private normalizeGraduationSeasonFilterValue(value: unknown): string {
+    const rawText = String(value ?? '').trim();
+    if (!rawText) {
+      return '';
+    }
+
+    const normalizedKey = this.normalizeCountryKey(rawText);
+    if (!normalizedKey) {
+      return '';
+    }
+
+    const yearFirst = normalizedKey.match(/^(\d{4})\s+([a-z\u4e00-\u9fff]+)$/);
+    if (yearFirst) {
+      const year = Number(yearFirst[1]);
+      const season = this.resolveGraduationSeasonName(yearFirst[2]);
+      if (season) return `${year} ${season}`;
+    }
+
+    const seasonFirst = normalizedKey.match(/^([a-z\u4e00-\u9fff]+)\s+(\d{4})$/);
+    if (seasonFirst) {
+      const season = this.resolveGraduationSeasonName(seasonFirst[1]);
+      const year = Number(seasonFirst[2]);
+      if (season) return `${year} ${season}`;
+    }
+
+    const compactText = rawText.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '').trim();
+    const compactMatch = compactText.match(/^(\d{4})(fall|autumn|winter|f|w)$/);
+    if (compactMatch) {
+      const year = Number(compactMatch[1]);
+      const season = this.resolveGraduationSeasonName(compactMatch[2]);
+      if (season) return `${year} ${season}`;
+    }
+
+    return '';
+  }
+
+  private resolveGraduationSeasonName(value: unknown): 'Fall' | 'Winter' | '' {
+    const token = String(value ?? '').trim().toLowerCase();
+    if (!token) return '';
+    if (token === 'fall' || token === 'autumn' || token === 'f') return 'Fall';
+    if (token === 'winter' || token === 'w') return 'Winter';
+    return '';
+  }
+
+  private normalizeCountryKey(value: unknown): string {
+    return String(value ?? '')
+      .toLowerCase()
+      .replace(/[.]/g, '')
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ')
+      .trim();
   }
 
   private pick(candidates: unknown[]): string {
