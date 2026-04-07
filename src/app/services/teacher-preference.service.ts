@@ -8,6 +8,7 @@ export interface TeacherPagePreferenceResponse {
   pageKey?: string;
   version?: string;
   visibleColumnKeys?: string[];
+  orderedColumnKeys?: string[];
   updatedAt?: string;
   [key: string]: unknown;
 }
@@ -15,6 +16,7 @@ export interface TeacherPagePreferenceResponse {
 export interface TeacherPagePreferenceRequest {
   version: string;
   visibleColumnKeys: string[];
+  orderedColumnKeys?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -59,4 +61,3 @@ export class TeacherPreferenceService {
     );
   }
 }
-

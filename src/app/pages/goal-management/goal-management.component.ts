@@ -79,6 +79,11 @@ interface GoalGroupRowVm {
   completedCount: number;
 }
 
+interface CreateStudentColumnPreferenceVm {
+  visibleColumnKeys?: string[];
+  orderedColumnKeys?: string[];
+}
+
 const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   Record<ProvinceFilterCountry, Record<string, string>>
 > = {
@@ -117,6 +122,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     buildGoalStudentSelectorColumns(
       STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT[this.selectorContext]
     );
+  private readonly createStudentColumnConfigByKey = new Map<
+    GoalStudentSelectorColumnKey,
+    GoalStudentSelectorColumnConfig
+  >(this.createStudentColumns.map((column) => [column.key, column]));
   readonly createStudentFilterFields: readonly StudentSelectorFilterFieldKey[] =
     STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT[this.selectorContext];
   studentOptions: AssignableStudentOptionVm[] = [];
@@ -159,6 +168,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createStudentColumnPanelExpanded = false;
   createStudentKeyword = '';
   selectedCreateStudentIds = new Set<number>();
+  createStudentColumnOrderKeys: GoalStudentSelectorColumnKey[] =
+    this.createStudentColumns.map((column) => column.key);
   visibleCreateStudentColumnKeys: Set<GoalStudentSelectorColumnKey> =
     this.buildCreateStudentDefaultVisibleColumnKeys();
   createTitle = '';
@@ -218,13 +229,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   get visibleCreateStudentColumns(): readonly GoalStudentSelectorColumnConfig[] {
-    return this.createStudentColumns.filter((column) =>
+    return this.getOrderedCreateStudentColumns().filter((column) =>
       this.visibleCreateStudentColumnKeys.has(column.key)
     );
   }
 
   get createStudentColumnToggleOptions(): readonly GoalStudentSelectorColumnConfig[] {
-    return this.createStudentColumns;
+    return this.getOrderedCreateStudentColumns();
   }
 
   get provinceFilterCountry(): ProvinceFilterCountry | '' {
@@ -405,12 +416,93 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   toggleCreateStudentColumnPanel(): void {
     this.createStudentColumnPanelExpanded = !this.createStudentColumnPanelExpanded;
   }
+
+  private getOrderedCreateStudentColumns(): GoalStudentSelectorColumnConfig[] {
+    const ordered: GoalStudentSelectorColumnConfig[] = [];
+    const seen = new Set<GoalStudentSelectorColumnKey>();
+    const normalizedOrder = this.normalizeCreateStudentColumnOrderKeys(this.createStudentColumnOrderKeys);
+    for (const key of normalizedOrder) {
+      const config = this.createStudentColumnConfigByKey.get(key);
+      if (!config || seen.has(key)) continue;
+      seen.add(key);
+      ordered.push(config);
+    }
+    for (const column of this.createStudentColumns) {
+      if (seen.has(column.key)) continue;
+      seen.add(column.key);
+      ordered.push(column);
+    }
+    return ordered;
+  }
+
   private findCreateStudentColumnConfig(columnKey: string): GoalStudentSelectorColumnConfig | null {
-    return this.createStudentColumns.find((column) => column.key === columnKey) ?? null;
+    const key = this.asCreateStudentColumnKey(columnKey);
+    return key ? this.createStudentColumnConfigByKey.get(key) ?? null : null;
   }
   private asCreateStudentColumnKey(columnKey: string): GoalStudentSelectorColumnKey | null {
-    return this.findCreateStudentColumnConfig(columnKey)?.key ?? null;
+    const normalized = String(columnKey ?? '').trim();
+    if (!normalized) return null;
+    return this.createStudentColumnConfigByKey.has(normalized as GoalStudentSelectorColumnKey)
+      ? (normalized as GoalStudentSelectorColumnKey)
+      : null;
   }
+
+  private normalizeCreateStudentColumnOrderKeys(
+    keys: readonly string[]
+  ): GoalStudentSelectorColumnKey[] {
+    const normalized: GoalStudentSelectorColumnKey[] = [];
+    const seen = new Set<GoalStudentSelectorColumnKey>();
+    for (const key of keys) {
+      const normalizedKey = this.asCreateStudentColumnKey(key);
+      if (!normalizedKey || seen.has(normalizedKey)) continue;
+      seen.add(normalizedKey);
+      normalized.push(normalizedKey);
+    }
+
+    for (const column of this.createStudentColumns) {
+      if (seen.has(column.key)) continue;
+      seen.add(column.key);
+      normalized.push(column.key);
+    }
+
+    return normalized;
+  }
+
+  private normalizeCreateStudentVisibleColumnOrderKeys(
+    keys: readonly string[]
+  ): GoalStudentSelectorColumnKey[] {
+    const normalized: GoalStudentSelectorColumnKey[] = [];
+    const seen = new Set<GoalStudentSelectorColumnKey>();
+    for (const key of keys) {
+      const normalizedKey = this.asCreateStudentColumnKey(key);
+      if (!normalizedKey || seen.has(normalizedKey)) continue;
+      seen.add(normalizedKey);
+      normalized.push(normalizedKey);
+    }
+    return normalized;
+  }
+
+  onCreateStudentColumnOrderChange(orderedVisibleColumnKeys: readonly string[]): void {
+    const normalizedVisibleOrder =
+      this.normalizeCreateStudentVisibleColumnOrderKeys(orderedVisibleColumnKeys);
+    if (normalizedVisibleOrder.length < 2) return;
+
+    const visibleSet = new Set<GoalStudentSelectorColumnKey>(normalizedVisibleOrder);
+    const normalizedOrder = this.normalizeCreateStudentColumnOrderKeys(this.createStudentColumnOrderKeys);
+    const currentVisibleOrder = normalizedOrder.filter((key) => visibleSet.has(key));
+    if (
+      currentVisibleOrder.length !== normalizedVisibleOrder.length ||
+      currentVisibleOrder.some((key, index) => key !== normalizedVisibleOrder[index])
+    ) {
+      let visibleIndex = 0;
+      this.createStudentColumnOrderKeys = normalizedOrder.map((key) =>
+        visibleSet.has(key) ? normalizedVisibleOrder[visibleIndex++] : key
+      );
+      this.persistCreateStudentVisibleColumnsPreference();
+      this.syncCreateStudentVisibleColumnsPreferenceToServer();
+    }
+  }
+
   isCreateStudentColumnVisible(columnKey: GoalStudentSelectorColumnKey): boolean {
     return this.visibleCreateStudentColumnKeys.has(columnKey);
   }
@@ -443,6 +535,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
   }
   resetCreateStudentVisibleColumns(): void {
+    this.createStudentColumnOrderKeys = this.createStudentColumns.map((column) => column.key);
     this.visibleCreateStudentColumnKeys = this.buildCreateStudentDefaultVisibleColumnKeys();
     this.persistCreateStudentVisibleColumnsPreference();
     this.syncCreateStudentVisibleColumnsPreferenceToServer();
@@ -458,7 +551,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         return false;
       }
     }
-    return true;
+    const normalizedOrder = this.normalizeCreateStudentColumnOrderKeys(this.createStudentColumnOrderKeys);
+    return (
+      normalizedOrder.length === this.createStudentColumns.length &&
+      normalizedOrder.every((key, index) => key === this.createStudentColumns[index]?.key)
+    );
   }
   onStudentKeywordChange(value?: string): void {
     if (typeof value === 'string') {
@@ -1698,13 +1795,23 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   private initializeCreateStudentVisibleColumns(): void {
     const defaults = this.buildCreateStudentDefaultVisibleColumnKeys();
+    const defaultOrder = this.createStudentColumns.map((column) => column.key);
     const persisted = this.readCreateStudentVisibleColumnsPreference();
+    this.createStudentColumnOrderKeys = defaultOrder;
     if (!persisted) {
       this.visibleCreateStudentColumnKeys = defaults;
       return;
     }
 
-    const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, persisted);
+    if (Array.isArray(persisted.orderedColumnKeys) && persisted.orderedColumnKeys.length > 0) {
+      this.createStudentColumnOrderKeys =
+        this.normalizeCreateStudentColumnOrderKeys(persisted.orderedColumnKeys);
+    }
+
+    const normalized = normalizeVisibleColumnKeys(
+      this.createStudentColumns,
+      persisted.visibleColumnKeys || []
+    );
     this.visibleCreateStudentColumnKeys = normalized.size > 0 ? normalized : defaults;
   }
 
@@ -1717,22 +1824,43 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     try {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return;
+      const payload: CreateStudentColumnPreferenceVm = {
+        visibleColumnKeys: Array.from(this.visibleCreateStudentColumnKeys.values()),
+        orderedColumnKeys: this.normalizeCreateStudentColumnOrderKeys(
+          this.createStudentColumnOrderKeys
+        ),
+      };
       storage.setItem(
         this.resolveCreateStudentVisibleColumnsStorageKey(),
-        JSON.stringify(Array.from(this.visibleCreateStudentColumnKeys.values()))
+        JSON.stringify(payload)
       );
     } catch {}
   }
 
-  private readCreateStudentVisibleColumnsPreference(): string[] | null {
+  private readCreateStudentVisibleColumnsPreference(): CreateStudentColumnPreferenceVm | null {
     try {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return null;
       const raw = storage.getItem(this.resolveCreateStudentVisibleColumnsStorageKey());
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return null;
-      return parsed.map((value) => String(value ?? '').trim()).filter(Boolean);
+      if (Array.isArray(parsed)) {
+        return {
+          visibleColumnKeys: parsed
+            .map((value) => String(value ?? '').trim())
+            .filter(Boolean),
+        };
+      }
+      if (!parsed || typeof parsed !== 'object') return null;
+      const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown };
+      return {
+        visibleColumnKeys: Array.isArray(node.visibleColumnKeys)
+          ? node.visibleColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+        orderedColumnKeys: Array.isArray(node.orderedColumnKeys)
+          ? node.orderedColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+      };
     } catch {
       return null;
     }
@@ -1767,15 +1895,22 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
             return;
           }
 
+          const remoteOrderedKeys = Array.isArray(payload?.orderedColumnKeys)
+            ? payload.orderedColumnKeys.map((key) => String(key ?? '').trim()).filter(Boolean)
+            : [];
           const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
             ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
             : [];
-          if (remoteKeys.length === 0) return;
-
-          const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, remoteKeys);
-          if (normalized.size === 0) return;
-
-          this.visibleCreateStudentColumnKeys = normalized;
+          if (remoteOrderedKeys.length > 0) {
+            this.createStudentColumnOrderKeys =
+              this.normalizeCreateStudentColumnOrderKeys(remoteOrderedKeys);
+          }
+          if (remoteKeys.length > 0) {
+            const normalized = normalizeVisibleColumnKeys(this.createStudentColumns, remoteKeys);
+            if (normalized.size > 0) {
+              this.visibleCreateStudentColumnKeys = normalized;
+            }
+          }
           this.persistCreateStudentVisibleColumnsPreference();
           this.loadMissingProfilesForVisibleRows();
           this.cdr.detectChanges();
@@ -1792,6 +1927,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .upsertPagePreference(GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY, {
         version: GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION,
         visibleColumnKeys: Array.from(this.visibleCreateStudentColumnKeys.values()),
+        orderedColumnKeys: this.normalizeCreateStudentColumnOrderKeys(
+          this.createStudentColumnOrderKeys
+        ),
       })
       .subscribe({
         next: () => {},

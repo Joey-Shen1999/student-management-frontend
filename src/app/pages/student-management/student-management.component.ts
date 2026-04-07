@@ -116,6 +116,11 @@ interface StudentSchoolContext {
   schoolNodeAddress: Record<string, unknown>;
 }
 
+interface StudentListColumnPreferenceVm {
+  visibleColumnKeys?: string[];
+  orderedColumnKeys?: string[];
+}
+
 const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'student-management.student-list.visible-columns';
 const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
@@ -672,6 +677,13 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
               <th
                 *ngFor="let column of visibleColumns; trackBy: trackColumn"
                 [attr.style]="column.headerStyle"
+                class="draggable-column-header"
+                [class.draggable-enabled]="canDragColumnHeaders()"
+                [draggable]="canDragColumnHeaders()"
+                (dragstart)="onColumnHeaderDragStart(column.key, $event)"
+                (dragover)="onColumnHeaderDragOver($event)"
+                (drop)="onColumnHeaderDrop(column.key, $event)"
+                (dragend)="onColumnHeaderDragEnd()"
               >
                 {{ resolveUnifiedStudentListColumnLabel(column) }}
               </th>
@@ -1024,6 +1036,10 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         white-space: nowrap;
       }
 
+      .student-list-table th.draggable-column-header.draggable-enabled {
+        cursor: move;
+      }
+
       .student-page-header {
         padding-right: 128px;
       }
@@ -1070,6 +1086,9 @@ export class StudentManagementComponent implements OnInit {
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
   readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
+  private readonly studentListColumnConfigByKey = new Map<StudentListColumnKey, StudentListColumnConfig>(
+    this.studentListColumns.map((column) => [column.key, column])
+  );
   readonly languageScoreTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
     'TEACHER_REVIEW_APPROVED',
     'AUTO_PASS_ALL_SCHOOLS',
@@ -1088,6 +1107,7 @@ export class StudentManagementComponent implements OnInit {
       .filter((column) => column.defaultVisible || !column.hideable)
       .map((column) => column.key)
   );
+  columnOrderKeys: StudentListColumnKey[] = this.studentListColumns.map((column) => column.key);
   filteredCount = 0;
   loadingList = false;
   listError = '';
@@ -1145,6 +1165,7 @@ export class StudentManagementComponent implements OnInit {
     number,
     StudentProfilePayload | StudentProfileResponse
   >();
+  private draggingColumnKey: StudentListColumnKey | null = null;
   private teacherNoteAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -1172,6 +1193,51 @@ export class StudentManagementComponent implements OnInit {
   trackColumn = (_index: number, column: StudentListColumnConfig): StudentListColumnKey => {
     return column.key;
   };
+
+  canDragColumnHeaders(): boolean {
+    return !this.loadingList && this.visibleColumns.length > 1;
+  }
+
+  onColumnHeaderDragStart(columnKey: StudentListColumnKey, event: DragEvent): void {
+    if (!this.canDragColumnHeaders()) {
+      event.preventDefault();
+      return;
+    }
+    this.draggingColumnKey = columnKey;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', columnKey);
+    }
+  }
+
+  onColumnHeaderDragOver(event: DragEvent): void {
+    if (!this.draggingColumnKey) return;
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  onColumnHeaderDrop(targetColumnKey: StudentListColumnKey, event: DragEvent): void {
+    event.preventDefault();
+    const sourceColumnKey =
+      this.draggingColumnKey || (event.dataTransfer?.getData('text/plain') as StudentListColumnKey);
+    this.draggingColumnKey = null;
+    if (!sourceColumnKey || sourceColumnKey === targetColumnKey) return;
+
+    const orderedVisibleColumnKeys = this.visibleColumns.map((column) => column.key);
+    const sourceIndex = orderedVisibleColumnKeys.indexOf(sourceColumnKey);
+    const targetIndex = orderedVisibleColumnKeys.indexOf(targetColumnKey);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [draggedKey] = orderedVisibleColumnKeys.splice(sourceIndex, 1);
+    orderedVisibleColumnKeys.splice(targetIndex, 0, draggedKey);
+    this.onColumnOrderChange(orderedVisibleColumnKeys);
+  }
+
+  onColumnHeaderDragEnd(): void {
+    this.draggingColumnKey = null;
+  }
 
   resolveStudentListColumnLabel(column: StudentListColumnConfig): string {
     return this.resolveUnifiedStudentListColumnLabel(column);
@@ -1399,14 +1465,81 @@ export class StudentManagementComponent implements OnInit {
     return this.languageScoreTrackingStatusOptions;
   }
 
+  private getOrderedColumnsForCurrentContext(): StudentListColumnConfig[] {
+    const ordered: StudentListColumnConfig[] = [];
+    const seen = new Set<StudentListColumnKey>();
+    const normalizedOrder = this.normalizeColumnOrderKeys(this.columnOrderKeys);
+    for (const key of normalizedOrder) {
+      if (seen.has(key) || !this.isColumnAllowedForCurrentContext(key)) continue;
+      const config = this.studentListColumnConfigByKey.get(key);
+      if (!config) continue;
+      seen.add(key);
+      ordered.push(config);
+    }
+    return ordered;
+  }
+
+  private normalizeColumnOrderKeys(keys: readonly string[]): StudentListColumnKey[] {
+    const normalized: StudentListColumnKey[] = [];
+    const seen = new Set<StudentListColumnKey>();
+    for (const key of keys) {
+      const normalizedKey = String(key ?? '').trim();
+      if (!normalizedKey) continue;
+      const typedKey = normalizedKey as StudentListColumnKey;
+      if (!this.studentListColumnConfigByKey.has(typedKey) || seen.has(typedKey)) continue;
+      seen.add(typedKey);
+      normalized.push(typedKey);
+    }
+    for (const column of this.studentListColumns) {
+      if (seen.has(column.key)) continue;
+      seen.add(column.key);
+      normalized.push(column.key);
+    }
+    return normalized;
+  }
+
+  private normalizeVisibleColumnOrderKeys(keys: readonly string[]): StudentListColumnKey[] {
+    const normalized: StudentListColumnKey[] = [];
+    const seen = new Set<StudentListColumnKey>();
+    for (const key of keys) {
+      const normalizedKey = String(key ?? '').trim();
+      if (!normalizedKey) continue;
+      const typedKey = normalizedKey as StudentListColumnKey;
+      if (!this.studentListColumnConfigByKey.has(typedKey) || seen.has(typedKey)) continue;
+      seen.add(typedKey);
+      normalized.push(typedKey);
+    }
+    return normalized;
+  }
+
+  onColumnOrderChange(orderedVisibleColumnKeys: readonly string[]): void {
+    const normalizedVisibleOrder = this.normalizeVisibleColumnOrderKeys(orderedVisibleColumnKeys);
+    if (normalizedVisibleOrder.length < 2) return;
+
+    const visibleSet = new Set<StudentListColumnKey>(normalizedVisibleOrder);
+    const normalizedOrder = this.normalizeColumnOrderKeys(this.columnOrderKeys);
+    const currentVisibleOrder = normalizedOrder.filter((key) => visibleSet.has(key));
+    if (
+      currentVisibleOrder.length !== normalizedVisibleOrder.length ||
+      currentVisibleOrder.some((key, index) => key !== normalizedVisibleOrder[index])
+    ) {
+      let visibleIndex = 0;
+      this.columnOrderKeys = normalizedOrder.map((key) =>
+        visibleSet.has(key) ? normalizedVisibleOrder[visibleIndex++] : key
+      );
+      this.persistVisibleColumnsPreference();
+      this.syncVisibleColumnsPreferenceToServer();
+    }
+  }
+
   get visibleColumns(): readonly StudentListColumnConfig[] {
-    return this.studentListColumns.filter(
+    return this.getOrderedColumnsForCurrentContext().filter(
       (column) => this.visibleColumnKeys.has(column.key) && this.isColumnAllowedForCurrentContext(column.key)
     );
   }
 
   get columnToggleOptions(): readonly StudentListColumnConfig[] {
-    return this.studentListColumns.filter((column) =>
+    return this.getOrderedColumnsForCurrentContext().filter((column) =>
       this.isColumnAllowedForCurrentContext(column.key)
     );
   }
@@ -2769,6 +2902,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   resetVisibleColumns(): void {
+    this.columnOrderKeys = this.studentListColumns.map((column) => column.key);
     this.visibleColumnKeys = this.buildDefaultVisibleColumnKeys();
     this.persistIndependentColumnOverrides();
     this.persistVisibleColumnsPreference();
@@ -2798,12 +2932,18 @@ export class StudentManagementComponent implements OnInit {
         return false;
       }
     }
-    return true;
+    const normalizedOrder = this.normalizeColumnOrderKeys(this.columnOrderKeys);
+    return (
+      normalizedOrder.length === this.studentListColumns.length &&
+      normalizedOrder.every((key, index) => key === this.studentListColumns[index]?.key)
+    );
   }
 
   private initializeVisibleColumns(): void {
     const defaults = this.buildDefaultVisibleColumnKeys();
+    const defaultOrder = this.studentListColumns.map((column) => column.key);
     const persisted = this.readVisibleColumnsPreference();
+    this.columnOrderKeys = defaultOrder;
     if (!persisted) {
       this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
         this.applyIndependentColumnOverrides(defaults)
@@ -2812,7 +2952,11 @@ export class StudentManagementComponent implements OnInit {
       return;
     }
 
-    const restored = this.normalizeVisibleColumnKeys(persisted);
+    if (Array.isArray(persisted.orderedColumnKeys) && persisted.orderedColumnKeys.length > 0) {
+      this.columnOrderKeys = this.normalizeColumnOrderKeys(persisted.orderedColumnKeys);
+    }
+
+    const restored = this.normalizeVisibleColumnKeys(persisted.visibleColumnKeys || []);
     const base = restored.size > 0 ? restored : defaults;
     this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
       this.applyIndependentColumnOverrides(base)
@@ -2838,14 +2982,18 @@ export class StudentManagementComponent implements OnInit {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return;
       const storageKey = this.resolveVisibleColumnsStorageKey();
+      const payload: StudentListColumnPreferenceVm = {
+        visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
+        orderedColumnKeys: this.normalizeColumnOrderKeys(this.columnOrderKeys),
+      };
       storage.setItem(
         storageKey,
-        JSON.stringify(Array.from(this.visibleColumnKeys.values()))
+        JSON.stringify(payload)
       );
     } catch {}
   }
 
-  private readVisibleColumnsPreference(): StudentListColumnKey[] | null {
+  private readVisibleColumnsPreference(): StudentListColumnPreferenceVm | null {
     try {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return null;
@@ -2853,13 +3001,21 @@ export class StudentManagementComponent implements OnInit {
       const raw = storage.getItem(storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return null;
-      const keys = parsed
-        .map((value) => String(value ?? '').trim())
-        .filter((value): value is StudentListColumnKey => {
-          return this.studentListColumns.some((column) => column.key === value);
-        });
-      return keys.length > 0 ? keys : null;
+      if (Array.isArray(parsed)) {
+        return {
+          visibleColumnKeys: parsed.map((value) => String(value ?? '').trim()).filter(Boolean),
+        };
+      }
+      if (!parsed || typeof parsed !== 'object') return null;
+      const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown };
+      return {
+        visibleColumnKeys: Array.isArray(node.visibleColumnKeys)
+          ? node.visibleColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+        orderedColumnKeys: Array.isArray(node.orderedColumnKeys)
+          ? node.orderedColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+      };
     } catch {
       return null;
     }
@@ -2933,21 +3089,24 @@ export class StudentManagementComponent implements OnInit {
           return;
         }
 
+        const remoteOrderedKeys = Array.isArray(payload?.orderedColumnKeys)
+          ? payload.orderedColumnKeys.map((key) => String(key ?? '').trim()).filter(Boolean)
+          : [];
         const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
           ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
           : [];
-        if (remoteKeys.length === 0) {
-          return;
+        if (remoteOrderedKeys.length > 0) {
+          this.columnOrderKeys = this.normalizeColumnOrderKeys(remoteOrderedKeys);
         }
 
-        const normalized = this.normalizeVisibleColumnKeys(remoteKeys);
-        if (normalized.size === 0) {
-          return;
+        if (remoteKeys.length > 0) {
+          const normalized = this.normalizeVisibleColumnKeys(remoteKeys);
+          if (normalized.size > 0) {
+            this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
+              this.applyIndependentColumnOverrides(normalized)
+            );
+          }
         }
-
-        this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
-          this.applyIndependentColumnOverrides(normalized)
-        );
         this.persistIndependentColumnOverrides();
         this.persistVisibleColumnsPreference();
         this.hydrateStudentMetadata(this.students);
@@ -3024,6 +3183,7 @@ export class StudentManagementComponent implements OnInit {
     const payload = {
       version: STUDENT_LIST_COLUMN_PREFERENCE_VERSION,
       visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
+      orderedColumnKeys: this.normalizeColumnOrderKeys(this.columnOrderKeys),
     };
     this.teacherPreferenceApi
       .upsertPagePreference(pagePreferenceKey, payload)

@@ -1033,6 +1033,117 @@ describe('StudentManagementComponent', () => {
     expect(storageKey).toContain('student-management.student-list.visible-columns');
   });
 
+  it('column preference localStorage key should be isolated by page context', () => {
+    router.url = '/teacher/students';
+    const studentsKey = (component as any).resolveVisibleColumnsStorageKey();
+    router.url = '/teacher/osslt';
+    const ossltKey = (component as any).resolveVisibleColumnsStorageKey();
+
+    expect(studentsKey).toContain('page-students');
+    expect(ossltKey).toContain('page-osslt');
+    expect(studentsKey).not.toBe(ossltKey);
+  });
+
+  it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
+    (preferenceApi.getPagePreference as any).mockReturnValue(
+      of({
+        version: 'v5',
+        visibleColumnKeys: [
+          'name',
+          'email',
+          'phone',
+          'graduation',
+          'teacherNote',
+          'profile',
+          'resetPassword',
+          'archive',
+        ],
+      })
+    );
+
+    const local = new StudentManagementComponent(
+      api as StudentManagementService,
+      profileApi as StudentProfileService,
+      inviteApi as StudentInviteService,
+      auth as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
+      preferenceApi as TeacherPreferenceService
+    );
+
+    local.ngOnInit();
+    expect(local.visibleColumns.length).toBeGreaterThan(0);
+    expect(local.visibleColumns[0]?.key).toBe('name');
+
+    (preferenceApi.upsertPagePreference as any).mockClear();
+    local.onColumnVisibilityChange('city', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
+      'student-management.list-columns',
+      expect.objectContaining({
+        version: 'v5',
+        visibleColumnKeys: expect.any(Array),
+        orderedColumnKeys: expect.any(Array),
+      })
+    );
+  });
+
+  it('column order should remain after re-init from persisted preference', () => {
+    const storage = (globalThis as { localStorage?: Storage }).localStorage;
+    const isolatedAuth = {
+      getSession: vi.fn().mockReturnValue({ userId: 90001, teacherId: 90001 }),
+      getCurrentUserId: vi.fn().mockReturnValue(90001),
+      getAuthorizationHeaderValue: vi.fn().mockReturnValue('Bearer token-90001'),
+    };
+    const first = new StudentManagementComponent(
+      api as StudentManagementService,
+      profileApi as StudentProfileService,
+      inviteApi as StudentInviteService,
+      isolatedAuth as unknown as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
+      preferenceApi as TeacherPreferenceService
+    );
+
+    const storageKey = (first as any).resolveVisibleColumnsStorageKey();
+    storage?.removeItem(storageKey);
+
+    first.ngOnInit();
+    (preferenceApi.upsertPagePreference as any).mockClear();
+    first.onColumnOrderChange([
+      'email',
+      'name',
+      'phone',
+      'graduation',
+      'teacherNote',
+      'profile',
+      'resetPassword',
+      'archive',
+    ]);
+    expect(first.visibleColumns[0]?.key).toBe('email');
+    expect(first.visibleColumns[1]?.key).toBe('name');
+
+    const second = new StudentManagementComponent(
+      api as StudentManagementService,
+      profileApi as StudentProfileService,
+      inviteApi as StudentInviteService,
+      isolatedAuth as unknown as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
+      preferenceApi as TeacherPreferenceService
+    );
+    second.ngOnInit();
+
+    expect(second.visibleColumns[0]?.key).toBe('email');
+    expect(second.visibleColumns[1]?.key).toBe('name');
+    storage?.removeItem(storageKey);
+  });
+
   it('column visibility change should sync preference to backend endpoint', () => {
     component.onColumnVisibilityChange('city', {
       target: { checked: true },

@@ -21,6 +21,10 @@ export interface StudentTeacherNoteChangeEvent {
   value: string;
 }
 
+export interface StudentColumnOrderChangeEvent {
+  orderedVisibleColumnKeys: string[];
+}
+
 @Component({
   selector: 'app-student-selector-panel',
   standalone: true,
@@ -102,10 +106,13 @@ export class StudentSelectorPanelComponent {
   @Output() selectAllToggle = new EventEmitter<boolean>();
   @Output() studentSelectionChange = new EventEmitter<StudentSelectionChangeEvent>();
   @Output() columnVisibilityChange = new EventEmitter<StudentColumnVisibilityChangeEvent>();
+  @Output() columnOrderChange = new EventEmitter<StudentColumnOrderChangeEvent>();
 
   @Output() teacherNoteFocus = new EventEmitter<number>();
   @Output() teacherNoteChange = new EventEmitter<StudentTeacherNoteChangeEvent>();
   @Output() teacherNoteBlur = new EventEmitter<number>();
+
+  private draggingColumnKey: string | null = null;
 
   trackStudent = (_index: number, student: AssignableStudentOptionVm): number => student.studentId;
   trackColumn = (
@@ -131,5 +138,52 @@ export class StudentSelectorPanelComponent {
   onColumnVisibilityChange(columnKey: string, event: Event): void {
     const checked = (event.target as HTMLInputElement | null)?.checked === true;
     this.columnVisibilityChange.emit({ key: columnKey, checked });
+  }
+
+  canDragColumnHeaders(): boolean {
+    return !this.disabled && !this.studentsLoading && this.visibleColumns.length > 1;
+  }
+
+  onColumnHeaderDragStart(columnKey: string, event: DragEvent): void {
+    if (!this.canDragColumnHeaders()) {
+      event.preventDefault();
+      return;
+    }
+
+    this.draggingColumnKey = columnKey;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', columnKey);
+    }
+  }
+
+  onColumnHeaderDragOver(event: DragEvent): void {
+    if (!this.draggingColumnKey) return;
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  onColumnHeaderDrop(targetColumnKey: string, event: DragEvent): void {
+    event.preventDefault();
+
+    const sourceColumnKey =
+      this.draggingColumnKey || event.dataTransfer?.getData('text/plain') || null;
+    this.draggingColumnKey = null;
+    if (!sourceColumnKey || sourceColumnKey === targetColumnKey) return;
+
+    const orderedVisibleColumnKeys = this.visibleColumns.map((column) => column.key);
+    const sourceIndex = orderedVisibleColumnKeys.indexOf(sourceColumnKey);
+    const targetIndex = orderedVisibleColumnKeys.indexOf(targetColumnKey);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [draggedKey] = orderedVisibleColumnKeys.splice(sourceIndex, 1);
+    orderedVisibleColumnKeys.splice(targetIndex, 0, draggedKey);
+    this.columnOrderChange.emit({ orderedVisibleColumnKeys });
+  }
+
+  onColumnHeaderDragEnd(): void {
+    this.draggingColumnKey = null;
   }
 }

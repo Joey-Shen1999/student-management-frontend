@@ -173,6 +173,10 @@
   background: #f7f9fd;
 }
 
+.draggable-column-header.draggable-enabled {
+  cursor: move;
+}
+
 .student-table tbody tr {
   cursor: default;
 }

@@ -6,7 +6,11 @@ import { finalize } from 'rxjs/operators';
 
 import { deriveStudentOssltSummary } from '../../features/osslt/osslt-derive';
 import { resolveOssltStatusDisplay } from '../../features/osslt/osslt-status-display';
-import { OssltResult, StudentOssltModuleState } from '../../features/osslt/osslt-types';
+import {
+  OssltResult,
+  StudentOssltModuleState,
+  UpdateStudentOssltPayload,
+} from '../../features/osslt/osslt-types';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
 
 @Component({
@@ -19,7 +23,7 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
         <div class="header-row">
           <div>
             <h2>OSSLT 信息登记</h2>
-            <p class="sub-title">仅填写：OSSLT 是否通过 + OSSLC 是否已上</p>
+            <p class="sub-title">仅填写：OSSLT 结果（仅当未通过时需填写 OSSLC）</p>
           </div>
           <button type="button" class="ghost-btn" (click)="goBack()">返回</button>
         </div>
@@ -63,7 +67,7 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
               </select>
             </div>
 
-            <div class="field-row">
+            <div class="field-row" *ngIf="shouldShowOsslcField()">
               <label>OSSLC 状态</label>
               <select
                 class="field-input"
@@ -120,6 +124,9 @@ export class StudentOssltComponent implements OnInit {
 
   setResult(value: '' | 'PASS' | 'FAIL'): void {
     this.resultInput = value === 'PASS' || value === 'FAIL' ? value : '';
+    if (this.resultInput !== 'FAIL') {
+      this.osslcInput = '';
+    }
     this.savedMessage = '';
   }
 
@@ -128,8 +135,18 @@ export class StudentOssltComponent implements OnInit {
     this.savedMessage = '';
   }
 
+  shouldShowOsslcField(): boolean {
+    return this.resultInput === 'FAIL';
+  }
+
   isFormReady(): boolean {
-    return (this.resultInput === 'PASS' || this.resultInput === 'FAIL') && (this.osslcInput === 'YES' || this.osslcInput === 'NO');
+    if (this.resultInput === 'PASS') {
+      return true;
+    }
+    if (this.resultInput === 'FAIL') {
+      return this.osslcInput === 'YES' || this.osslcInput === 'NO';
+    }
+    return false;
   }
 
   resolveStatusDisplay() {
@@ -146,7 +163,8 @@ export class StudentOssltComponent implements OnInit {
 
   save(): void {
     if (!this.isFormReady()) {
-      this.error = '请先完整填写 OSSLT 结果与 OSSLC 状态。';
+      this.error =
+        this.resultInput === 'FAIL' ? '请先填写 OSSLC 状态。' : '请先选择 OSSLT 结果。';
       return;
     }
 
@@ -155,11 +173,15 @@ export class StudentOssltComponent implements OnInit {
     this.savedMessage = '';
     this.cdr.detectChanges();
 
+    const payload: UpdateStudentOssltPayload = {
+      latestOssltResult: this.resultInput as OssltResult,
+    };
+    if (this.resultInput === 'FAIL') {
+      payload.hasOsslc = this.osslcInput === 'YES';
+    }
+
     this.ossltApi
-      .updateStudentOssltData({
-        latestOssltResult: this.resultInput as OssltResult,
-        hasOsslc: this.osslcInput === 'YES',
-      })
+      .updateStudentOssltData(payload)
       .pipe(
         finalize(() => {
           this.saving = false;
@@ -208,7 +230,14 @@ export class StudentOssltComponent implements OnInit {
   private applyState(state: StudentOssltModuleState): void {
     this.moduleState = { ...state };
     this.resultInput = state.latestOssltResult === 'PASS' || state.latestOssltResult === 'FAIL' ? state.latestOssltResult : '';
-    this.osslcInput = state.hasOsslc === true ? 'YES' : state.hasOsslc === false ? 'NO' : '';
+    this.osslcInput =
+      this.resultInput === 'FAIL'
+        ? state.hasOsslc === true
+          ? 'YES'
+          : state.hasOsslc === false
+            ? 'NO'
+            : ''
+        : '';
   }
 
   private resolveResultForPreview(): OssltResult {

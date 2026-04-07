@@ -17,6 +17,7 @@ export function deriveOssltTrackingStatus(
   latestResult: OssltResult,
   hasOsslc: boolean | null = null
 ): OssltTrackingStatus {
+  if (hasOsslc === true) return 'PASSED';
   if (manualStatus === 'WAITING_UPDATE') return 'WAITING_UPDATE';
   if (manualStatus === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
   if (manualStatus === 'PASSED') return 'PASSED';

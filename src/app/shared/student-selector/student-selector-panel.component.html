@@ -207,7 +207,16 @@
         <thead>
           <tr>
             <th class="select-col">选择</th>
-            <th *ngFor="let column of visibleColumns; trackBy: trackColumn">
+            <th
+              *ngFor="let column of visibleColumns; trackBy: trackColumn"
+              class="draggable-column-header"
+              [class.draggable-enabled]="canDragColumnHeaders()"
+              [draggable]="canDragColumnHeaders()"
+              (dragstart)="onColumnHeaderDragStart(column.key, $event)"
+              (dragover)="onColumnHeaderDragOver($event)"
+              (drop)="onColumnHeaderDrop(column.key, $event)"
+              (dragend)="onColumnHeaderDragEnd()"
+            >
               {{ column.label }}
             </th>
           </tr>
@@ -286,7 +295,16 @@
       <thead>
         <tr>
           <th class="select-col">选择</th>
-          <th *ngFor="let column of visibleColumns; trackBy: trackColumn">
+          <th
+            *ngFor="let column of visibleColumns; trackBy: trackColumn"
+            class="draggable-column-header"
+            [class.draggable-enabled]="canDragColumnHeaders()"
+            [draggable]="canDragColumnHeaders()"
+            (dragstart)="onColumnHeaderDragStart(column.key, $event)"
+            (dragover)="onColumnHeaderDragOver($event)"
+            (drop)="onColumnHeaderDrop(column.key, $event)"
+            (dragend)="onColumnHeaderDragEnd()"
+          >
             {{ column.label }}
           </th>
         </tr>

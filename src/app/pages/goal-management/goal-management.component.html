@@ -89,6 +89,7 @@
             (selectAllToggle)="onToggleSelectAll($event)"
             (studentSelectionChange)="onCreateStudentCheckboxChange($event.studentId, $event.checked)"
             (columnVisibilityChange)="onCreateStudentColumnVisibilityChange($event.key, $event.checked)"
+            (columnOrderChange)="onCreateStudentColumnOrderChange($event.orderedVisibleColumnKeys)"
             (teacherNoteFocus)="onTeacherNoteCellFocus($event)"
             (teacherNoteChange)="onTeacherNoteCellChange($event.studentId, $event.value)"
             (teacherNoteBlur)="onTeacherNoteCellBlur($event)"
