@@ -67,6 +67,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/volunteer',
+    loadComponent: () =>
+      import('./pages/student-volunteer/student-volunteer.component').then(
+        (m) => m.StudentVolunteerComponent
+      ),
+  },
+
+  {
     path: 'teacher',
     canActivateChild: [teacherRouteGuard],
     children: [
@@ -113,6 +121,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/volunteer',
+        loadComponent: () =>
+          import('./pages/teacher-student-volunteer-tracking/teacher-student-volunteer-tracking.component').then(
+            (m) => m.TeacherStudentVolunteerTrackingComponent
+          ),
+      },
+
+      {
         path: 'students',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
@@ -130,6 +146,14 @@ export const routes: Routes = [
 
       {
         path: 'osslt',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
+        path: 'volunteer',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
             (m) => m.StudentManagementComponent

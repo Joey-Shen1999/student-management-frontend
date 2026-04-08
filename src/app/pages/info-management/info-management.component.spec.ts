@@ -11,6 +11,7 @@ import {
   type StudentAccount,
   StudentManagementService,
 } from '../../services/student-management.service';
+import { AuthService } from '../../services/auth.service';
 import { InfoManagementComponent } from './info-management.component';
 
 describe('InfoManagementComponent', () => {
@@ -21,6 +22,7 @@ describe('InfoManagementComponent', () => {
     'listAssignableStudents' | 'listTeacherInfos' | 'createInfo'
   >;
   let studentManagement: Pick<StudentManagementService, 'listStudents'>;
+  let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId'>;
 
   const students: AssignableStudentOptionVm[] = [
     {
@@ -32,7 +34,6 @@ describe('InfoManagementComponent', () => {
       studentId: 20002,
       studentName: '李四',
       username: 'lisi',
-      // @ts-expect-error runtime payload may carry extra fields
       status: 'ARCHIVED',
     },
   ];
@@ -42,11 +43,17 @@ describe('InfoManagementComponent', () => {
       studentId: 20001,
       username: 'zhangsan',
       status: 'ACTIVE',
+      latestOssltResult: 'PASS',
+      ossltTrackingStatus: 'PASSED',
     },
     {
       studentId: 20002,
       username: 'lisi',
       status: 'ARCHIVED',
+      ossltModule: {
+        latestOssltResult: 'FAIL',
+        ossltTrackingStatus: 'NEEDS_TRACKING',
+      },
     },
   ];
 
@@ -69,6 +76,7 @@ describe('InfoManagementComponent', () => {
   ];
 
   beforeEach(() => {
+    (globalThis as { localStorage?: Storage }).localStorage?.clear();
     router = {
       navigate: vi.fn(),
     };
@@ -82,10 +90,15 @@ describe('InfoManagementComponent', () => {
     studentManagement = {
       listStudents: vi.fn().mockReturnValue(of(accounts)),
     };
+    auth = {
+      getSession: vi.fn().mockReturnValue({ userId: 1, teacherId: 1 }),
+      getCurrentUserId: vi.fn().mockReturnValue(1),
+    };
 
     component = new InfoManagementComponent(
       taskCenter as TaskCenterService,
       studentManagement as StudentManagementService,
+      auth as AuthService,
       router as Router
     );
     component.ngOnInit();
@@ -102,6 +115,20 @@ describe('InfoManagementComponent', () => {
     const visibleIds = component.filteredCreateStudentOptions.map((row) => row.studentId);
     expect(visibleIds).toEqual([20001]);
     expect(component.isCreateStudentSelectableById(20002)).toBe(false);
+  });
+
+  it('should expose OSSLT selector columns and resolve OSSLT status values', () => {
+    expect(component.createStudentColumns.some((column) => column.key === 'ossltResult')).toBe(true);
+    expect(component.createStudentColumns.some((column) => column.key === 'ossltTracking')).toBe(true);
+    expect(component.visibleCreateStudentColumnKeys.has('ossltResult')).toBe(true);
+    expect(component.visibleCreateStudentColumnKeys.has('ossltTracking')).toBe(true);
+
+    const row = component.studentOptions.find((student) => student.studentId === 20001);
+    expect(row).toBeTruthy();
+    if (!row) return;
+
+    expect(component.resolveCreateStudentColumnValue(row, 'ossltResult')).toBe('\u5df2\u901a\u8fc7');
+    expect(component.resolveCreateStudentColumnValue(row, 'ossltTracking')).toBe('\u5df2\u901a\u8fc7');
   });
 
   it('createInfo should require at least one selected student', () => {
@@ -135,6 +162,64 @@ describe('InfoManagementComponent', () => {
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
 
+  it('createInfo should validate volunteer task collection', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.onCreateInfoCategoryChange('VOLUNTEER');
+    component.createInfoTitle = '义工通知';
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('义工任务');
+  });
+
+  it('createInfo should keep legacy volunteer content editable in edit mode', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.onCreateInfoCategoryChange('VOLUNTEER');
+    component.editingInfoId = 123;
+    component.editingInfoTaskGroupId = 'INFO-legacy';
+    component.createInfoTitle = '历史义工通知';
+    component.createInfoContent = '这是旧版本义工通知内容。';
+    component.createInfo();
+
+    expect(taskCenter.createInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'VOLUNTEER',
+        title: '历史义工通知',
+        content: '这是旧版本义工通知内容。',
+        studentIds: [20001],
+        taskGroupId: 'INFO-legacy',
+      })
+    );
+  });
+
+  it('createInfo should serialize volunteer task content with total hours', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.onCreateInfoCategoryChange('VOLUNTEER');
+    component.createInfoTitle = '义工通知';
+    component.createInfoContent = '请按时提交证明材料。';
+    component.volunteerTasks = [
+      {
+        taskName: '图书馆整理',
+        description: '整理图书并帮助借还登记',
+        durationHours: '3.5',
+        startDate: '2026-04-01',
+        endDate: '2026-04-01',
+        verifierContact: 'library@example.com',
+      },
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'VOLUNTEER',
+        title: '义工通知',
+        content: expect.stringContaining('义工总时长：3.50 小时'),
+        studentIds: [20001],
+      })
+    );
+  });
+
   it('should use unified All option and normalize country aliases', () => {
     expect(component.createCountryFilter).toBe('All');
     expect(component.countryFilterOptions.includes('All')).toBe(true);
@@ -151,5 +236,70 @@ describe('InfoManagementComponent', () => {
 
     expect(component.provinceFilterOptions.includes('Ontario')).toBe(true);
     expect(component.provinceFilterOptions.includes('British Columbia')).toBe(true);
+  });
+
+  it('should restore selector column visibility and order from local preference', () => {
+    const isolatedAuth = {
+      getSession: vi.fn().mockReturnValue({ userId: 92001, teacherId: 92001 }),
+      getCurrentUserId: vi.fn().mockReturnValue(92001),
+    };
+    const first = new InfoManagementComponent(
+      taskCenter as TaskCenterService,
+      studentManagement as StudentManagementService,
+      isolatedAuth as unknown as AuthService,
+      router as Router
+    );
+    first.ngOnInit();
+    const allKeys = first.createStudentColumns.map((column) => column.key);
+    first.createStudentColumnOrderKeys = [...allKeys].reverse();
+    first.visibleCreateStudentColumnKeys = new Set(allKeys.slice(0, 3));
+    (first as any).persistCreateStudentVisibleColumnsPreference();
+
+    const second = new InfoManagementComponent(
+      taskCenter as TaskCenterService,
+      studentManagement as StudentManagementService,
+      isolatedAuth as unknown as AuthService,
+      router as Router
+    );
+    second.ngOnInit();
+
+    expect(second.createStudentColumnOrderKeys[0]).toBe(allKeys[allKeys.length - 1]);
+    expect(second.visibleCreateStudentColumnKeys.has(allKeys[0])).toBe(true);
+    expect(second.visibleCreateStudentColumnKeys.has(allKeys[1])).toBe(true);
+  });
+
+  it('should restore selector filters from local preference', () => {
+    const isolatedAuth = {
+      getSession: vi.fn().mockReturnValue({ userId: 93001, teacherId: 93001 }),
+      getCurrentUserId: vi.fn().mockReturnValue(93001),
+    };
+    const first = new InfoManagementComponent(
+      taskCenter as TaskCenterService,
+      studentManagement as StudentManagementService,
+      isolatedAuth as unknown as AuthService,
+      router as Router
+    );
+    first.ngOnInit();
+    first.onCountryFilterInputChange('Canada');
+    first.onProvinceFilterInputChange('Ontario');
+    first.onCityFilterInputChange('Toronto');
+    first.onSchoolBoardFilterInputChange('Toronto District School Board');
+    first.onGraduationSeasonFilterInputChange('2026 Fall');
+    first.onStudentKeywordChange('alice');
+
+    const second = new InfoManagementComponent(
+      taskCenter as TaskCenterService,
+      studentManagement as StudentManagementService,
+      isolatedAuth as unknown as AuthService,
+      router as Router
+    );
+    second.ngOnInit();
+
+    expect(second.createCountryFilter).toBe('Canada');
+    expect(second.createProvinceFilter).toBe('Ontario');
+    expect(second.createCityFilter).toBe('Toronto');
+    expect(second.createSchoolBoardFilter).toBe('Toronto District School Board');
+    expect(second.createGraduationSeasonFilter).toBe('2026 Fall');
+    expect(second.createStudentKeyword).toBe('alice');
   });
 });

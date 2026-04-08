@@ -10,6 +10,7 @@ import { StudentProfileService } from '../../services/student-profile.service';
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
+import { VolunteerTrackingService } from '../../services/volunteer-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 
 describe('StudentManagementComponent', () => {
@@ -27,9 +28,14 @@ describe('StudentManagementComponent', () => {
     OssltTrackingService,
     'getTeacherStudentOssltModuleState' | 'updateTeacherStudentOssltData'
   >;
+  let volunteerApi: Pick<
+    VolunteerTrackingService,
+    'getTeacherStudentVolunteerTracking' | 'getTeacherStudentsVolunteerBatchSummary'
+  >;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
+    (globalThis as { localStorage?: Storage }).localStorage?.clear();
     api = {
       listStudents: vi.fn().mockReturnValue(of([])),
       resetStudentPassword: vi.fn(),
@@ -104,6 +110,15 @@ describe('StudentManagementComponent', () => {
         })
       ),
     };
+    volunteerApi = {
+      getTeacherStudentVolunteerTracking: vi.fn().mockReturnValue(
+        of({
+          studentId: 1,
+          records: [],
+        })
+      ),
+      getTeacherStudentsVolunteerBatchSummary: vi.fn().mockReturnValue(of([])),
+    };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
       upsertPagePreference: vi.fn().mockReturnValue(of({})),
@@ -117,6 +132,7 @@ describe('StudentManagementComponent', () => {
       router as Router,
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
       preferenceApi as TeacherPreferenceService
     );
   });
@@ -416,6 +432,11 @@ describe('StudentManagementComponent', () => {
     component.schoolBoardFilter = 'Toronto District School Board';
     component.graduationSeasonFilterInput = '2026 Fall';
     component.graduationSeasonFilter = '2026 Fall';
+    component.languageScoreFilter = 'GREEN_STRICT_PASS';
+    component.languageScoreTrackingFilter = 'AUTO_PASS_ALL_SCHOOLS';
+    component.ossltResultFilter = 'PASS';
+    component.ossltTrackingFilter = 'PASSED';
+    component.volunteerCompletedFilter = true;
 
     component.clearListControls();
 
@@ -432,6 +453,11 @@ describe('StudentManagementComponent', () => {
     expect(component.schoolBoardFilter).toBe('');
     expect(component.graduationSeasonFilterInput).toBe('');
     expect(component.graduationSeasonFilter).toBe('');
+    expect(component.languageScoreFilter).toBe('');
+    expect(component.languageScoreTrackingFilter).toBe('');
+    expect(component.ossltResultFilter).toBe('');
+    expect(component.ossltTrackingFilter).toBe('');
+    expect(component.volunteerCompletedFilter).toBe(false);
   });
 
   it('country filter input should stay empty when cleared instead of restoring All text', () => {
@@ -951,6 +977,164 @@ describe('StudentManagementComponent', () => {
     expect(component.schoolBoardFilterOptions).toContain('私校');
   });
 
+  it('applyListView should support language and OSSLT status filters', () => {
+    component.students = [
+      {
+        studentId: 501,
+        username: 'student501',
+        status: 'ACTIVE',
+        trackingStatus: 'GREEN_STRICT_PASS',
+        languageScoreTrackingStatus: 'AUTO_PASS_ALL_SCHOOLS',
+        latestOssltResult: 'PASS',
+        ossltTrackingStatus: 'PASSED',
+      },
+      {
+        studentId: 502,
+        username: 'student502',
+        status: 'ACTIVE',
+        trackingStatus: 'YELLOW_NEEDS_PREPARATION',
+        languageTrackingStatus: 'NEEDS_TRACKING',
+        latestOssltResult: 'FAIL',
+        ossltTrackingStatus: 'NEEDS_TRACKING',
+      },
+      {
+        studentId: 503,
+        username: 'student503',
+        status: 'ACTIVE',
+        ieltsModule: {
+          summary: {
+            trackingStatus: 'GREEN_COMMON_PASS_WITH_WARNING',
+            languageTrackingStatus: 'AUTO_PASS_PARTIAL_SCHOOLS',
+          },
+        },
+        ossltModule: {
+          latestOssltResult: 'UNKNOWN',
+          ossltTrackingStatus: 'WAITING_UPDATE',
+        },
+      },
+    ] as any;
+
+    component.languageScoreFilter = 'GREEN_STRICT_PASS';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([501]);
+
+    component.languageScoreFilter = '';
+    component.languageScoreTrackingFilter = 'AUTO_PASS_PARTIAL_SCHOOLS';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([503]);
+
+    component.languageScoreTrackingFilter = '';
+    component.ossltResultFilter = 'FAIL';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([502]);
+
+    component.ossltResultFilter = '';
+    component.ossltTrackingFilter = 'WAITING_UPDATE';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([503]);
+  });
+
+  it('applyListView should support volunteer completed checkbox filter by >= 40 hours', () => {
+    component.students = [
+      {
+        studentId: 511,
+        username: 'student511',
+        status: 'ACTIVE',
+        totalVolunteerHours: 39.9,
+      },
+      {
+        studentId: 512,
+        username: 'student512',
+        status: 'ACTIVE',
+        totalVolunteerHours: 40,
+      },
+      {
+        studentId: 513,
+        username: 'student513',
+        status: 'ACTIVE',
+        totalVolunteerHours: 45.5,
+      },
+    ] as any;
+
+    component.volunteerCompletedFilter = true;
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([512, 513]);
+
+    component.volunteerCompletedFilter = false;
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([511, 512, 513]);
+  });
+
+  it('volunteer completed filter should use volunteerCompleted flag directly without per-row request', () => {
+    component.students = [
+      {
+        studentId: 514,
+        username: 'student514',
+        status: 'ACTIVE',
+        volunteerCompleted: false,
+      },
+      {
+        studentId: 515,
+        username: 'student515',
+        status: 'ACTIVE',
+        volunteerCompleted: true,
+      },
+    ] as any;
+
+    component.volunteerCompletedFilter = true;
+    component.applyListView();
+
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([515]);
+    expect(volunteerApi.getTeacherStudentVolunteerTracking).not.toHaveBeenCalled();
+    expect(volunteerApi.getTeacherStudentsVolunteerBatchSummary).not.toHaveBeenCalled();
+  });
+
+  it('volunteer completed filter should use batch-summary API when row does not include volunteer summary fields', () => {
+    (volunteerApi.getTeacherStudentsVolunteerBatchSummary as any).mockImplementation(
+      (studentIds: number[]) =>
+        of([
+          {
+            studentId: studentIds[0],
+            totalVolunteerHours: 41,
+            volunteerCompleted: true,
+            updatedAt: '2026-04-08T00:00:00Z',
+          },
+          {
+            studentId: studentIds[1],
+            totalVolunteerHours: 10,
+            volunteerCompleted: false,
+            updatedAt: '2026-04-08T00:00:00Z',
+          },
+        ])
+    );
+
+    component.students = [
+      { studentId: 521, username: 'student521', status: 'ACTIVE' } as any,
+      { studentId: 522, username: 'student522', status: 'ACTIVE' } as any,
+    ];
+    component.volunteerCompletedFilter = true;
+
+    component.applyListView();
+
+    expect(volunteerApi.getTeacherStudentsVolunteerBatchSummary).toHaveBeenCalledWith([521, 522]);
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([521]);
+  });
+
+  it('volunteer completed filter should degrade when batch-summary request is forbidden', () => {
+    (volunteerApi.getTeacherStudentsVolunteerBatchSummary as any).mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' }))
+    );
+
+    component.students = [{ studentId: 531, username: 'student531', status: 'ACTIVE' } as any];
+    component.volunteerCompletedFilter = true;
+
+    component.applyListView();
+
+    expect(component.volunteerCompletedFilterAvailable).toBe(false);
+    expect(component.volunteerCompletedFilter).toBe(false);
+    expect(component.volunteerCompletedFilterError).toContain('无权限');
+  });
+
   it('createInviteLink should build register url from invite token', () => {
     (inviteApi.createInvite as any).mockReturnValue(
       of({
@@ -1044,6 +1228,74 @@ describe('StudentManagementComponent', () => {
     expect(studentsKey).not.toBe(ossltKey);
   });
 
+  it('list controls localStorage key should be isolated by page context', () => {
+    router.url = '/teacher/students';
+    const studentsKey = (component as any).resolveListControlsStorageKey();
+    router.url = '/teacher/volunteer';
+    const volunteerKey = (component as any).resolveListControlsStorageKey();
+
+    expect(studentsKey).toContain('page-students');
+    expect(volunteerKey).toContain('page-volunteer');
+    expect(studentsKey).not.toBe(volunteerKey);
+  });
+
+  it('should restore list controls from persisted local preference', () => {
+    const storage = (globalThis as { localStorage?: Storage }).localStorage;
+    const isolatedAuth = {
+      getSession: vi.fn().mockReturnValue({ userId: 91001, teacherId: 91001 }),
+      getCurrentUserId: vi.fn().mockReturnValue(91001),
+      getAuthorizationHeaderValue: vi.fn().mockReturnValue('Bearer token-91001'),
+    };
+    router.url = '/teacher/volunteer';
+    const local = new StudentManagementComponent(
+      api as StudentManagementService,
+      profileApi as StudentProfileService,
+      inviteApi as StudentInviteService,
+      isolatedAuth as unknown as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
+      preferenceApi as TeacherPreferenceService
+    );
+    const storageKey = (local as any).resolveListControlsStorageKey();
+    storage?.setItem(
+      storageKey,
+      JSON.stringify({
+        listLimit: 50,
+        showInactive: true,
+        searchKeyword: 'alex',
+        countryFilter: 'Canada',
+        provinceFilter: 'Ontario',
+        cityFilter: 'Toronto',
+        schoolBoardFilter: 'Toronto District School Board',
+        graduationSeasonFilter: '2026 Fall',
+        languageScoreFilter: 'GREEN_STRICT_PASS',
+        languageScoreTrackingFilter: 'AUTO_PASS_ALL_SCHOOLS',
+        ossltResultFilter: 'PASS',
+        ossltTrackingFilter: 'PASSED',
+        volunteerCompletedFilter: true,
+      })
+    );
+
+    local.ngOnInit();
+
+    expect(local.listLimit).toBe(50);
+    expect(local.showInactive).toBe(true);
+    expect(local.searchKeyword).toBe('alex');
+    expect(local.countryFilter).toBe('Canada');
+    expect(local.provinceFilter).toBe('Ontario');
+    expect(local.cityFilter).toBe('Toronto');
+    expect(local.schoolBoardFilter).toBe('Toronto District School Board');
+    expect(local.graduationSeasonFilter).toBe('2026 Fall');
+    expect(local.languageScoreFilter).toBe('GREEN_STRICT_PASS');
+    expect(local.languageScoreTrackingFilter).toBe('AUTO_PASS_ALL_SCHOOLS');
+    expect(local.ossltResultFilter).toBe('PASS');
+    expect(local.ossltTrackingFilter).toBe('PASSED');
+    expect(local.volunteerCompletedFilter).toBe(true);
+    storage?.removeItem(storageKey);
+  });
+
   it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
     (preferenceApi.getPagePreference as any).mockReturnValue(
       of({
@@ -1069,6 +1321,7 @@ describe('StudentManagementComponent', () => {
       router as Router,
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1106,6 +1359,7 @@ describe('StudentManagementComponent', () => {
       router as Router,
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1135,6 +1389,7 @@ describe('StudentManagementComponent', () => {
       router as Router,
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
       preferenceApi as TeacherPreferenceService
     );
     second.ngOnInit();
@@ -1299,5 +1554,78 @@ describe('StudentManagementComponent', () => {
 
     expect(component.isColumnVisible('ielts')).toBe(true);
     expect(component.isColumnVisible('profile')).toBe(true);
+  });
+
+  it('volunteer badge should load total hours from batch-summary API when list row has no hours field', () => {
+    (volunteerApi.getTeacherStudentsVolunteerBatchSummary as any).mockReturnValue(
+      of([
+        {
+          studentId: 410,
+          totalVolunteerHours: 20,
+          volunteerCompleted: false,
+          updatedAt: '2026-04-08T00:00:00Z',
+        },
+      ])
+    );
+
+    component.visibleColumnKeys.add('volunteerTracking');
+    component.students = [
+      {
+        studentId: 410,
+        username: 'student410',
+        status: 'ACTIVE',
+      } as any,
+    ];
+
+    component.applyListView();
+
+    expect(volunteerApi.getTeacherStudentsVolunteerBatchSummary).toHaveBeenCalledWith([410]);
+    expect(component.resolveVolunteerHoursLabel(component.students[0] as any)).toBe('20');
+    expect(component.resolveVolunteerHoursBadgeLabel(component.students[0] as any)).toBe('20 小时');
+  });
+
+  it('volunteer badge should be yellow when total hours is below 40', () => {
+    const student = {
+      studentId: 401,
+      username: 'student401',
+      totalVolunteerHours: 35.5,
+    } as any;
+
+    expect(component.resolveVolunteerHoursLabel(student)).toBe('35.5');
+    expect(component.resolveVolunteerHoursBadgeLabel(student)).toBe('35.5 小时');
+    expect(component.resolveVolunteerHoursBackground(student)).toBe('#fff2d8');
+    expect(component.resolveVolunteerHoursTextColor(student)).toBe('#8a5a00');
+    expect(component.resolveVolunteerHoursBorderColor(student)).toBe('#e3c77a');
+  });
+
+  it('volunteer badge should be green when total hours is at least 40', () => {
+    const student = {
+      studentId: 402,
+      username: 'student402',
+      volunteerTracking: {
+        summary: {
+          totalHours: 40,
+        },
+      },
+    } as any;
+
+    expect(component.resolveVolunteerHoursLabel(student)).toBe('40');
+    expect(component.resolveVolunteerHoursBadgeLabel(student)).toBe('40 小时');
+    expect(component.resolveVolunteerHoursBackground(student)).toBe('#e7f6ec');
+    expect(component.resolveVolunteerHoursTextColor(student)).toBe('#2f6b43');
+    expect(component.resolveVolunteerHoursBorderColor(student)).toBe('#8fc8a3');
+  });
+
+  it('volunteer badge should show unavailable style when hours is missing', () => {
+    const student = {
+      studentId: 403,
+      username: 'student403',
+    } as any;
+
+    expect(component.resolveVolunteerHoursLabel(student)).toBe('--');
+    expect(component.resolveVolunteerHoursBadgeLabel(student)).toBe('--');
+    expect(component.resolveVolunteerHoursBackground(student)).toBe('#f1f3f5');
+    expect(component.resolveVolunteerHoursTextColor(student)).toBe('#6a7385');
+    expect(component.resolveVolunteerHoursBorderColor(student)).toBe('#c8cfda');
   });
 });

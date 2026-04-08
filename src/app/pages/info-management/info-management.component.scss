@@ -7,6 +7,20 @@
   font-family: 'Segoe UI', sans-serif;
 }
 
+.volunteer-total-badge {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1101;
+  padding: 8px 12px;
+  border: 1px solid #b6d4c2;
+  border-radius: 999px;
+  background: #ecfbf1;
+  color: #1a5f2a;
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(21, 55, 35, 0.18);
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -112,6 +126,48 @@
 .form textarea,
 .form select {
   padding: 6px;
+}
+
+.volunteer-collection {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d6e6ff;
+  border-radius: 8px;
+  padding: 8px;
+  background: #f8fbff;
+}
+
+.volunteer-collection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.volunteer-task-item {
+  border: 1px solid #dfe6f4;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.volunteer-task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.volunteer-task-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.volunteer-task-span-2 {
+  grid-column: 1 / -1;
 }
 
 .actions {

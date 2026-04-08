@@ -16,6 +16,8 @@ export type GoalStudentSelectorColumnKey =
   | 'province'
   | 'city'
   | 'teacherNote'
+  | 'ossltResult'
+  | 'ossltTracking'
   | 'status'
   | 'selectable';
 
@@ -127,6 +129,20 @@ export const GOAL_STUDENT_SELECTOR_COLUMNS: readonly GoalStudentSelectorColumnCo
     defaultVisible: true,
     hideable: true,
     backendDependent: true,
+  },
+  {
+    key: 'ossltResult',
+    label: 'OSSLT \u6210\u7ee9',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+  },
+  {
+    key: 'ossltTracking',
+    label: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
   },
   {
     key: 'status',

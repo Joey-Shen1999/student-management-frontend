@@ -26,6 +26,10 @@ import {
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
+import {
+  VolunteerTrackingService,
+  type VolunteerTrackingBatchSummaryItemVm,
+} from '../../services/volunteer-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
@@ -121,6 +125,27 @@ interface StudentListColumnPreferenceVm {
   orderedColumnKeys?: string[];
 }
 
+interface StudentListFilterPreferenceVm {
+  listLimit?: number;
+  showInactive?: boolean;
+  searchKeyword?: string;
+  countryFilterInput?: string;
+  countryFilter?: string;
+  provinceFilterInput?: string;
+  provinceFilter?: string;
+  cityFilterInput?: string;
+  cityFilter?: string;
+  schoolBoardFilterInput?: string;
+  schoolBoardFilter?: string;
+  graduationSeasonFilterInput?: string;
+  graduationSeasonFilter?: string;
+  languageScoreFilter?: string;
+  languageScoreTrackingFilter?: string;
+  ossltResultFilter?: string;
+  ossltTrackingFilter?: string;
+  volunteerCompletedFilter?: boolean;
+}
+
 const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'student-management.student-list.visible-columns';
 const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
@@ -130,12 +155,14 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
   students: 'student-management.list-columns',
   ielts: 'ielts-tracking.list-columns',
   osslt: 'osslt-tracking.list-columns',
+  volunteer: 'volunteer-tracking.list-columns',
 };
 
 const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   students: '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406',
   ielts: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
   osslt: 'OSSLT \u8ddf\u8e2a',
+  volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
@@ -159,6 +186,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   languageTracking: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
   ossltResult: 'OSSLT \u6210\u7ee9',
   ossltTracking: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
+  volunteerTracking: '\u4e49\u5de5\u8ddf\u8e2a',
   resetPassword: '\u91cd\u7f6e\u5bc6\u7801',
   archive: '\u5f52\u6863',
 };
@@ -166,6 +194,9 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
 const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v5';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
+const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
+  'student-management.student-list.filters';
+const STUDENT_LIST_FILTER_PREFERENCE_VERSION = 'v1';
 
 const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   {
@@ -361,6 +392,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: true,
     headerStyle:
       'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'volunteerTracking',
+    label: '义工跟踪',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:180px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -584,6 +625,88 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
               <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
             </datalist>
           </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            &#35821;&#35328;&#25104;&#32489;
+            <select
+              [(ngModel)]="languageScoreFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:220px;"
+            >
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let status of languageScoreStatusOptions" [ngValue]="status">
+                {{ resolveLanguageScoreFilterOptionLabel(status) }}
+              </option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            &#35821;&#35328;&#25104;&#32489;&#36319;&#36394;
+            <select
+              [(ngModel)]="languageScoreTrackingFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:220px;"
+            >
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let status of languageScoreTrackingStatusOptions" [ngValue]="status">
+                {{ resolveLanguageTrackingStatusOptionLabel(status) }}
+              </option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            OSSLT &#25104;&#32489;
+            <select
+              [(ngModel)]="ossltResultFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:180px;"
+            >
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let result of ossltResultStatusOptions" [ngValue]="result">
+                {{ resolveOssltResultFilterOptionLabel(result) }}
+              </option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            OSSLT &#36319;&#36827;&#29366;&#24577;
+            <select
+              [(ngModel)]="ossltTrackingFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:220px;"
+            >
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let status of ossltTrackingStatusOptions" [ngValue]="status">
+                {{ resolveOssltTrackingStatusOptionLabel(status) }}
+              </option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            <input
+              type="checkbox"
+              [(ngModel)]="volunteerCompletedFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList || !volunteerCompletedFilterAvailable"
+              [attr.title]="
+                volunteerCompletedFilterAvailable
+                  ? null
+                  : (volunteerCompletedFilterError || 'Volunteer completed filter data unavailable')
+              "
+            />
+            义工完成
+          </label>
+
+          <span
+            *ngIf="!volunteerCompletedFilterAvailable && volunteerCompletedFilterError"
+            style="font-size:12px;color:#b00020;"
+          >
+            {{ volunteerCompletedFilterError }}
+          </span>
 
           <button
             type="button"
@@ -828,6 +951,20 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                         {{ resolveOssltTrackingStatusOptionLabel(status) }}
                       </option>
                     </select>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'volunteerTracking'">
+                    <button
+                      type="button"
+                      [routerLink]="volunteerRoute(student)"
+                      style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
+                      [style.background]="resolveVolunteerHoursBackground(student)"
+                      [style.color]="resolveVolunteerHoursTextColor(student)"
+                      [style.borderColor]="resolveVolunteerHoursBorderColor(student)"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      {{ resolveVolunteerHoursBadgeLabel(student) }}
+                    </button>
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'resetPassword'">
@@ -1089,12 +1226,18 @@ export class StudentManagementComponent implements OnInit {
   private readonly studentListColumnConfigByKey = new Map<StudentListColumnKey, StudentListColumnConfig>(
     this.studentListColumns.map((column) => [column.key, column])
   );
+  readonly languageScoreStatusOptions: readonly IeltsTrackingStatus[] = [
+    'GREEN_STRICT_PASS',
+    'GREEN_COMMON_PASS_WITH_WARNING',
+    'YELLOW_NEEDS_PREPARATION',
+  ];
   readonly languageScoreTrackingStatusOptions: readonly LanguageTrackingStatus[] = [
     'TEACHER_REVIEW_APPROVED',
     'AUTO_PASS_ALL_SCHOOLS',
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
   ];
+  readonly ossltResultStatusOptions: readonly OssltResult[] = ['PASS', 'FAIL', 'UNKNOWN'];
   readonly ossltTrackingStatusOptions: readonly OssltTrackingStatus[] = [
     'WAITING_UPDATE',
     'NEEDS_TRACKING',
@@ -1126,6 +1269,13 @@ export class StudentManagementComponent implements OnInit {
   schoolBoardFilter: string = '';
   graduationSeasonFilterInput = '';
   graduationSeasonFilter: string = '';
+  languageScoreFilter: IeltsTrackingStatus | '' = '';
+  languageScoreTrackingFilter: LanguageTrackingStatus | '' = '';
+  ossltResultFilter: OssltResult | '' = '';
+  ossltTrackingFilter: OssltTrackingStatus | '' = '';
+  volunteerCompletedFilter = false;
+  volunteerCompletedFilterAvailable = true;
+  volunteerCompletedFilterError = '';
   creatingInvite = false;
   inviteError = '';
   inviteLink = '';
@@ -1161,12 +1311,17 @@ export class StudentManagementComponent implements OnInit {
   private readonly ossltStatusLoadInFlight = new Set<number>();
   private readonly ossltStatusUnavailable = new Set<number>();
   private readonly ossltTrackingStatusSaveInFlight = new Set<number>();
+  private readonly volunteerHoursCache = new Map<number, number>();
+  private readonly volunteerCompletedCache = new Map<number, boolean>();
+  private readonly volunteerHoursLoadInFlight = new Set<number>();
+  private readonly volunteerHoursUnavailable = new Set<number>();
   private readonly teacherNoteProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
   >();
   private draggingColumnKey: StudentListColumnKey | null = null;
   private teacherNoteAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private statusFilterReapplyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private studentApi: StudentManagementService,
@@ -1176,12 +1331,14 @@ export class StudentManagementComponent implements OnInit {
     private router: Router,
     private ieltsApi: IeltsTrackingService,
     private ossltApi: OssltTrackingService,
+    private volunteerApi: VolunteerTrackingService,
     private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     this.initializeVisibleColumns();
+    this.initializeListControlsFromPreference();
     this.loadVisibleColumnsPreferenceFromServer();
     this.loadStudents();
   }
@@ -1271,17 +1428,6 @@ export class StudentManagementComponent implements OnInit {
   }
 
   resolveUnifiedStudentListColumnLabel(column: StudentListColumnConfig): string {
-    return STUDENT_LIST_COLUMN_LABEL_BY_KEY[column.key] || column.label;
-    const pageContext = this.resolvePageContext();
-    if (pageContext === 'osslt' && column.key === 'ielts') {
-      return 'OSSLT \u6210\u7ee9';
-    }
-    if (pageContext === 'osslt' && column.key === 'languageTracking') {
-      return 'OSSLT \u8ddf\u8fdb\u72b6\u6001';
-    }
-    if (pageContext === 'ielts' && column.key === 'languageTracking') {
-      return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
-    }
     return STUDENT_LIST_COLUMN_LABEL_BY_KEY[column.key] || column.label;
   }
 
@@ -1431,31 +1577,10 @@ export class StudentManagementComponent implements OnInit {
 
   get pageTitle(): string {
     return PAGE_TITLE_BY_CONTEXT[this.resolvePageContext()];
-    const pageContextForTitle = String(this.resolvePageContext());
-    if (pageContextForTitle === 'ielts') return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
-    if (pageContextForTitle === 'osslt') return 'OSSLT \u8ddf\u8e2a';
-    if (pageContextForTitle === 'students') return '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406';
-    const pageContext = String(this.resolvePageContext());
-    if (pageContext === 'ielts') return '语言成绩跟踪';
-    if (pageContext === 'osslt') return 'OSSLT 跟踪';
-    if (pageContext === 'students') return '学生账号管理';
-    return this.resolvePageContext() === 'ielts' ? '语言成绩跟踪' : '学生账号管理';
   }
 
   get resolvedPageTitle(): string {
     return this.pageTitle;
-    const pageContextForTitle = String(this.resolvePageContext());
-    if (pageContextForTitle === 'ielts') return '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a';
-    if (pageContextForTitle === 'osslt') return 'OSSLT \u8ddf\u8e2a';
-    if (pageContextForTitle === 'students') return '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406';
-    const pageContext = this.resolvePageContext();
-    const pageContextText = String(pageContext);
-    if (pageContextText === 'ielts') return '语言成绩跟踪';
-    if (pageContextText === 'osslt') return 'OSSLT 跟踪';
-    if (pageContextText === 'students') return '学生账号管理';
-    if (pageContext === 'ielts') return '语言成绩跟踪';
-    if (pageContext === 'osslt') return 'OSSLT 跟踪';
-    return '学生账号管理';
   }
 
   get languageTrackingStatusOptions(): readonly TrackingManualStatusOption[] {
@@ -2174,6 +2299,45 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'osslt'];
   }
 
+  volunteerRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/volunteer'];
+    }
+    return ['/teacher/students', String(studentId), 'volunteer'];
+  }
+
+  resolveVolunteerHoursLabel(student: StudentAccount): string {
+    const hours = this.resolveVolunteerHours(student);
+    if (hours === null) return '--';
+    if (Number.isInteger(hours)) return String(Math.trunc(hours));
+    return String(hours.toFixed(1)).replace(/\.0$/, '');
+  }
+
+  resolveVolunteerHoursBadgeLabel(student: StudentAccount): string {
+    const hoursLabel = this.resolveVolunteerHoursLabel(student);
+    if (hoursLabel === '--') return hoursLabel;
+    return `${hoursLabel} 小时`;
+  }
+
+  resolveVolunteerHoursBackground(student: StudentAccount): string {
+    const hours = this.resolveVolunteerHours(student);
+    if (hours === null) return '#f1f3f5';
+    return hours < 40 ? '#fff2d8' : '#e7f6ec';
+  }
+
+  resolveVolunteerHoursTextColor(student: StudentAccount): string {
+    const hours = this.resolveVolunteerHours(student);
+    if (hours === null) return '#6a7385';
+    return hours < 40 ? '#8a5a00' : '#2f6b43';
+  }
+
+  resolveVolunteerHoursBorderColor(student: StudentAccount): string {
+    const hours = this.resolveVolunteerHours(student);
+    if (hours === null) return '#c8cfda';
+    return hours < 40 ? '#e3c77a' : '#8fc8a3';
+  }
+
   resolveIeltsStatusLabel(student: StudentAccount): string {
     return this.resolveIeltsStatusDisplayModel(this.resolveStudentId(student)).label;
   }
@@ -2240,6 +2404,19 @@ export class StudentManagementComponent implements OnInit {
 
   resolveLanguageTrackingStatusOptionLabel(status: TrackingManualStatusOption): string {
     return resolveLanguageTrackingStatusDisplay({ status: status as LanguageTrackingStatus }).label;
+  }
+
+  resolveLanguageScoreFilterOptionLabel(status: IeltsTrackingStatus): string {
+    return resolveIeltsStatusDisplay({
+      trackingStatus: status,
+      shouldShowModule: true,
+    }).label;
+  }
+
+  resolveOssltResultFilterOptionLabel(result: OssltResult): string {
+    if (result === 'PASS') return '\u5df2\u901a\u8fc7';
+    if (result === 'FAIL') return '\u672a\u901a\u8fc7';
+    return '\u5f85\u66f4\u65b0';
   }
 
   resolveLanguageTrackingStatusSelection(student: StudentAccount): TrackingManualStatusOption | '' {
@@ -2457,6 +2634,12 @@ export class StudentManagementComponent implements OnInit {
     this.ossltStatusLoadInFlight.clear();
     this.ossltStatusUnavailable.clear();
     this.ossltTrackingStatusSaveInFlight.clear();
+    this.volunteerHoursCache.clear();
+    this.volunteerCompletedCache.clear();
+    this.volunteerHoursLoadInFlight.clear();
+    this.volunteerHoursUnavailable.clear();
+    this.volunteerCompletedFilterAvailable = true;
+    this.volunteerCompletedFilterError = '';
     this.cdr.detectChanges();
 
     this.studentApi
@@ -3024,18 +3207,151 @@ export class StudentManagementComponent implements OnInit {
   private resolveVisibleColumnsStorageKey(): string {
     const pageContext = this.resolvePageContext();
     const pageScope = `page-${pageContext}`;
+    const scope = this.resolvePreferenceStorageScope(pageScope);
+    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+  }
+
+  private resolveListControlsStorageKey(): string {
+    const pageContext = this.resolvePageContext();
+    const pageScope = `page-${pageContext}`;
+    const scope = this.resolvePreferenceStorageScope(pageScope);
+    return `${STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${STUDENT_LIST_FILTER_PREFERENCE_VERSION}`;
+  }
+
+  private resolvePreferenceStorageScope(pageScope: string): string {
     const session = this.auth.getSession();
     const teacherId = Number(session?.teacherId);
     if (Number.isFinite(teacherId) && teacherId > 0) {
-      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.teacher-${Math.trunc(teacherId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+      return `${pageScope}.teacher-${Math.trunc(teacherId)}`;
     }
 
     const userId = this.auth.getCurrentUserId();
     if (userId && userId > 0) {
-      return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.user-${Math.trunc(userId)}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+      return `${pageScope}.user-${Math.trunc(userId)}`;
     }
 
-    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${pageScope}.anonymous.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+    return `${pageScope}.anonymous`;
+  }
+
+  private initializeListControlsFromPreference(): void {
+    const persisted = this.readListControlsPreference();
+    if (!persisted) return;
+
+    this.listLimit = this.normalizeListLimitPreference(persisted.listLimit);
+    this.showInactive = this.normalizePreferenceBoolean(persisted.showInactive);
+    this.searchKeyword = String(persisted.searchKeyword ?? '').trim();
+
+    const countrySource = String(
+      persisted.countryFilterInput ?? persisted.countryFilter ?? ''
+    ).trim();
+    const resolvedCountry = this.resolveCountryFilterSelection(countrySource);
+    this.countryFilter = resolvedCountry;
+    this.countryFilterInput = resolvedCountry === 'ALL' ? '' : resolvedCountry;
+
+    const provinceSource = String(
+      persisted.provinceFilterInput ?? persisted.provinceFilter ?? ''
+    ).trim();
+    const resolvedProvince = provinceSource
+      ? this.resolveProvinceFilterSelection(provinceSource, this.provinceFilterCountry)
+      : '';
+    this.provinceFilter = resolvedProvince;
+    this.provinceFilterInput = resolvedProvince;
+
+    const citySource = String(persisted.cityFilterInput ?? persisted.cityFilter ?? '').trim();
+    const resolvedCity = citySource
+      ? this.resolveCityFilterSelection(citySource, this.cityFilterCountry)
+      : '';
+    this.cityFilter = resolvedCity;
+    this.cityFilterInput = resolvedCity;
+
+    const schoolBoardSource = String(
+      persisted.schoolBoardFilterInput ?? persisted.schoolBoardFilter ?? ''
+    ).trim();
+    const resolvedSchoolBoard = schoolBoardSource
+      ? this.resolveSchoolBoardFilterSelection(schoolBoardSource)
+      : '';
+    this.schoolBoardFilter = resolvedSchoolBoard;
+    this.schoolBoardFilterInput = resolvedSchoolBoard;
+
+    const graduationSeasonSource = String(
+      persisted.graduationSeasonFilterInput ?? persisted.graduationSeasonFilter ?? ''
+    ).trim();
+    const resolvedGraduationSeason = graduationSeasonSource
+      ? this.resolveGraduationSeasonFilterSelection(graduationSeasonSource)
+      : '';
+    this.graduationSeasonFilter = resolvedGraduationSeason;
+    this.graduationSeasonFilterInput = resolvedGraduationSeason;
+
+    this.languageScoreFilter =
+      this.normalizeIeltsTrackingStatusValue(persisted.languageScoreFilter) ?? '';
+    this.languageScoreTrackingFilter =
+      this.normalizeLanguageTrackingStatusValue(persisted.languageScoreTrackingFilter) ?? '';
+    this.ossltResultFilter = this.normalizeOssltResultValue(persisted.ossltResultFilter) ?? '';
+    this.ossltTrackingFilter =
+      this.normalizeOssltTrackingStatusValue(persisted.ossltTrackingFilter) ?? '';
+    this.volunteerCompletedFilter = this.normalizePreferenceBoolean(
+      persisted.volunteerCompletedFilter
+    );
+  }
+
+  private persistListControlsPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const payload: StudentListFilterPreferenceVm = {
+        listLimit: this.listLimit,
+        showInactive: this.showInactive,
+        searchKeyword: this.searchKeyword,
+        countryFilterInput: this.countryFilterInput,
+        countryFilter: this.countryFilter,
+        provinceFilterInput: this.provinceFilterInput,
+        provinceFilter: this.provinceFilter,
+        cityFilterInput: this.cityFilterInput,
+        cityFilter: this.cityFilter,
+        schoolBoardFilterInput: this.schoolBoardFilterInput,
+        schoolBoardFilter: this.schoolBoardFilter,
+        graduationSeasonFilterInput: this.graduationSeasonFilterInput,
+        graduationSeasonFilter: this.graduationSeasonFilter,
+        languageScoreFilter: this.languageScoreFilter,
+        languageScoreTrackingFilter: this.languageScoreTrackingFilter,
+        ossltResultFilter: this.ossltResultFilter,
+        ossltTrackingFilter: this.ossltTrackingFilter,
+        volunteerCompletedFilter: this.volunteerCompletedFilter,
+      };
+      storage.setItem(this.resolveListControlsStorageKey(), JSON.stringify(payload));
+    } catch {}
+  }
+
+  private readListControlsPreference(): StudentListFilterPreferenceVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveListControlsStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed as StudentListFilterPreferenceVm;
+    } catch {
+      return null;
+    }
+  }
+
+  private normalizeListLimitPreference(value: unknown): number {
+    const numeric = Math.trunc(Number(value));
+    if (!Number.isFinite(numeric)) {
+      return 20;
+    }
+    return this.limitOptions.includes(numeric) ? numeric : 20;
+  }
+
+  private normalizePreferenceBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value) && value > 0;
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase();
+    if (!normalized) return false;
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
   }
 
   private resolvePageContext(): StudentManagementPageContext {
@@ -3047,6 +3363,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (url.startsWith('/teacher/osslt')) {
       return 'osslt';
+    }
+    if (url.startsWith('/teacher/volunteer')) {
+      return 'volunteer';
     }
     return 'students';
   }
@@ -3202,7 +3521,12 @@ export class StudentManagementComponent implements OnInit {
       !this.provinceFilterInput.trim() &&
       !this.cityFilterInput.trim() &&
       !this.schoolBoardFilterInput.trim() &&
-      !this.graduationSeasonFilterInput.trim()
+      !this.graduationSeasonFilterInput.trim() &&
+      !this.languageScoreFilter &&
+      !this.languageScoreTrackingFilter &&
+      !this.ossltResultFilter &&
+      !this.ossltTrackingFilter &&
+      !this.volunteerCompletedFilter
     );
   }
 
@@ -3220,6 +3544,11 @@ export class StudentManagementComponent implements OnInit {
     this.schoolBoardFilter = '';
     this.graduationSeasonFilterInput = '';
     this.graduationSeasonFilter = '';
+    this.languageScoreFilter = '';
+    this.languageScoreTrackingFilter = '';
+    this.ossltResultFilter = '';
+    this.ossltTrackingFilter = '';
+    this.volunteerCompletedFilter = false;
     this.applyListView();
   }
 
@@ -3229,10 +3558,12 @@ export class StudentManagementComponent implements OnInit {
   }
 
   applyListView(): void {
+    this.prefetchStatusDataForActiveFilters();
     const filtered = this.students.filter((student) => this.matchesListFilters(student));
 
     this.filteredCount = filtered.length;
     this.visibleStudents = filtered.slice(0, this.listLimit);
+    this.persistListControlsPreference();
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
     }
@@ -3241,6 +3572,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (this.visibleColumnKeys.has('ossltResult') || this.visibleColumnKeys.has('ossltTracking')) {
       this.prefetchVisibleOssltStatuses();
+    }
+    if (this.visibleColumnKeys.has('volunteerTracking')) {
+      this.prefetchVisibleVolunteerHours();
     }
   }
 
@@ -3319,6 +3653,47 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
+    if (this.languageScoreFilter) {
+      const studentLanguageScoreStatus = this.resolveIeltsTrackingStatusForFilter(student);
+      if (studentLanguageScoreStatus !== this.languageScoreFilter) {
+        return false;
+      }
+    }
+
+    if (this.languageScoreTrackingFilter) {
+      const studentLanguageTrackingStatus = this.resolveLanguageTrackingStatusForFilter(student);
+      if (studentLanguageTrackingStatus !== this.languageScoreTrackingFilter) {
+        return false;
+      }
+    }
+
+    if (this.ossltResultFilter) {
+      const studentOssltResult = this.resolveOssltResultForFilter(student);
+      if (studentOssltResult !== this.ossltResultFilter) {
+        return false;
+      }
+    }
+
+    if (this.ossltTrackingFilter) {
+      const studentOssltTrackingStatus = this.resolveOssltTrackingStatusForFilter(student);
+      if (studentOssltTrackingStatus !== this.ossltTrackingFilter) {
+        return false;
+      }
+    }
+
+    if (this.volunteerCompletedFilter) {
+      const volunteerCompleted = this.resolveVolunteerCompletedForFilter(student);
+      if (volunteerCompleted === false) {
+        return false;
+      }
+      if (volunteerCompleted === null) {
+        const volunteerHours = this.resolveVolunteerHours(student);
+        if (volunteerHours === null || volunteerHours < 40) {
+          return false;
+        }
+      }
+    }
+
     const keyword = this.searchKeyword.trim().toLowerCase();
     if (!keyword) {
       return true;
@@ -3344,6 +3719,427 @@ export class StudentManagementComponent implements OnInit {
     ];
 
     return searchFields.some((field) => field.toLowerCase().includes(keyword));
+  }
+
+  private prefetchStatusDataForActiveFilters(): void {
+    if (this.languageScoreFilter || this.languageScoreTrackingFilter) {
+      this.prefetchIeltsStatusesForStudents(this.students, true);
+    }
+    if (this.ossltResultFilter || this.ossltTrackingFilter) {
+      this.prefetchOssltStatusesForStudents(this.students, true);
+    }
+    if (this.volunteerCompletedFilter && this.volunteerCompletedFilterAvailable) {
+      if (!this.hasVolunteerSummaryForAllStudents()) {
+        this.prefetchVolunteerHoursForStudents(this.students, true);
+      }
+    }
+  }
+
+  private hasVolunteerSummaryForAllStudents(): boolean {
+    if (this.students.length <= 0) {
+      return false;
+    }
+    for (const student of this.students) {
+      const studentId = this.resolveStudentId(student);
+      if (studentId && this.volunteerCompletedCache.has(studentId)) {
+        continue;
+      }
+      if (this.resolveVolunteerHours(student) !== null) {
+        continue;
+      }
+      if (this.extractVolunteerCompletedFromStudent(student) !== null) {
+        continue;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  private resolveIeltsTrackingStatusForFilter(student: StudentAccount): IeltsTrackingStatus | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId) {
+      const cached = this.ieltsStatusCache.get(studentId);
+      if (cached) return cached;
+    }
+
+    const statusFromRow = this.extractIeltsTrackingStatusFromStudent(student);
+    if (studentId && statusFromRow) {
+      this.ieltsStatusCache.set(studentId, statusFromRow);
+      this.ieltsStatusUnavailable.delete(studentId);
+    }
+    return statusFromRow;
+  }
+
+  private resolveLanguageTrackingStatusForFilter(student: StudentAccount): LanguageTrackingStatus | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId) {
+      const cached = this.languageTrackingStatusCache.get(studentId);
+      if (cached) return cached;
+    }
+
+    const statusFromRow = this.extractLanguageTrackingStatusFromStudent(student);
+    if (studentId && statusFromRow) {
+      this.languageTrackingStatusCache.set(studentId, statusFromRow);
+      this.ieltsStatusUnavailable.delete(studentId);
+    }
+    return statusFromRow;
+  }
+
+  private resolveOssltResultForFilter(student: StudentAccount): OssltResult | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId) {
+      const cached = this.ossltResultCache.get(studentId);
+      if (cached) return cached;
+    }
+
+    const resultFromRow = this.extractOssltResultFromStudent(student);
+    if (studentId && resultFromRow) {
+      this.ossltResultCache.set(studentId, resultFromRow);
+      this.ossltStatusUnavailable.delete(studentId);
+    }
+    return resultFromRow;
+  }
+
+  private resolveOssltTrackingStatusForFilter(student: StudentAccount): OssltTrackingStatus | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId) {
+      const cached = this.ossltTrackingStatusCache.get(studentId);
+      if (cached) return cached;
+    }
+
+    const statusFromRow = this.extractOssltTrackingStatusFromStudent(student);
+    if (studentId && statusFromRow) {
+      this.ossltTrackingStatusCache.set(studentId, statusFromRow);
+      this.ossltStatusUnavailable.delete(studentId);
+    }
+    return statusFromRow;
+  }
+
+  private resolveVolunteerHours(student: StudentAccount): number | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId && this.volunteerHoursCache.has(studentId)) {
+      return this.volunteerHoursCache.get(studentId) ?? null;
+    }
+
+    const hours = this.extractVolunteerHoursFromStudent(student);
+    if (hours === null) return null;
+
+    const normalizedHours = Math.round(hours * 100) / 100;
+    if (studentId) {
+      this.volunteerHoursCache.set(studentId, normalizedHours);
+      this.volunteerHoursUnavailable.delete(studentId);
+    }
+    return normalizedHours;
+  }
+
+  private resolveVolunteerCompletedForFilter(student: StudentAccount): boolean | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId && this.volunteerCompletedCache.has(studentId)) {
+      return this.volunteerCompletedCache.get(studentId) ?? null;
+    }
+
+    const completed = this.extractVolunteerCompletedFromStudent(student);
+    if (completed !== null) {
+      if (studentId) {
+        this.volunteerCompletedCache.set(studentId, completed);
+      }
+      return completed;
+    }
+
+    const hours = this.resolveVolunteerHours(student);
+    if (hours === null) {
+      return null;
+    }
+    const derived = hours >= 40;
+    if (studentId) {
+      this.volunteerCompletedCache.set(studentId, derived);
+    }
+    return derived;
+  }
+
+  private extractVolunteerCompletedFromStudent(student: StudentAccount): boolean | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const volunteerNode =
+      this.asObjectRecord(row['volunteerTracking']) ||
+      this.asObjectRecord(row['volunteer']) ||
+      this.asObjectRecord(row['volunteerModule']) ||
+      this.asObjectRecord(row['volunteerSummary']);
+    const summaryNode =
+      this.asObjectRecord(volunteerNode?.['summary']) || this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['volunteerCompleted'],
+      row['volunteer_completed'],
+      volunteerNode?.['volunteerCompleted'],
+      volunteerNode?.['volunteer_completed'],
+      summaryNode?.['volunteerCompleted'],
+      summaryNode?.['volunteer_completed'],
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.parseVolunteerCompletedCandidate(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  private parseVolunteerCompletedCandidate(value: unknown): boolean | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return null;
+      return value > 0;
+    }
+
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    return null;
+  }
+
+  private extractVolunteerHoursFromStudent(student: StudentAccount): number | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const volunteerNode =
+      this.asObjectRecord(row['volunteerTracking']) ||
+      this.asObjectRecord(row['volunteer']) ||
+      this.asObjectRecord(row['volunteerModule']) ||
+      this.asObjectRecord(row['volunteerSummary']);
+    const summaryNode =
+      this.asObjectRecord(volunteerNode?.['summary']) || this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['volunteerHours'],
+      row['volunteer_hours'],
+      row['totalVolunteerHours'],
+      row['total_volunteer_hours'],
+      row['volunteerDurationHours'],
+      row['volunteer_duration_hours'],
+      row['volunteerTotalHours'],
+      row['volunteer_total_hours'],
+      row['volunteerTrackingHours'],
+      row['volunteer_tracking_hours'],
+      row['hours'],
+      row['totalHours'],
+      row['total_hours'],
+      volunteerNode?.['volunteerHours'],
+      volunteerNode?.['volunteer_hours'],
+      volunteerNode?.['totalVolunteerHours'],
+      volunteerNode?.['total_volunteer_hours'],
+      volunteerNode?.['totalHours'],
+      volunteerNode?.['total_hours'],
+      volunteerNode?.['hours'],
+      summaryNode?.['volunteerHours'],
+      summaryNode?.['volunteer_hours'],
+      summaryNode?.['totalVolunteerHours'],
+      summaryNode?.['total_volunteer_hours'],
+      summaryNode?.['totalHours'],
+      summaryNode?.['total_hours'],
+      summaryNode?.['hours'],
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.parseVolunteerHoursCandidate(candidate);
+      if (parsed !== null) return parsed;
+    }
+    return null;
+  }
+
+  private parseVolunteerHoursCandidate(value: unknown): number | null {
+    if (value === null || value === undefined) return null;
+
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || value < 0) return null;
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const rawText = value.trim();
+      if (!rawText) return null;
+      const matched = rawText.match(/-?\d+(?:\.\d+)?/);
+      if (!matched) return null;
+      const parsed = Number(matched[0]);
+      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      return parsed;
+    }
+
+    const node = this.asObjectRecord(value);
+    if (!node) return null;
+
+    const objectCandidates: unknown[] = [
+      node['value'],
+      node['hours'],
+      node['totalHours'],
+      node['total_hours'],
+      node['volunteerHours'],
+      node['volunteer_hours'],
+      node['totalVolunteerHours'],
+      node['total_volunteer_hours'],
+      node['durationHours'],
+      node['duration_hours'],
+    ];
+    for (const candidate of objectCandidates) {
+      const parsed = this.parseVolunteerHoursCandidate(candidate);
+      if (parsed !== null) return parsed;
+    }
+    return null;
+  }
+
+  private extractIeltsTrackingStatusFromStudent(student: StudentAccount): IeltsTrackingStatus | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const ieltsNode =
+      this.asObjectRecord(row['ieltsModule']) ||
+      this.asObjectRecord(row['ielts']) ||
+      this.asObjectRecord(row['ieltsData']);
+    const summaryNode =
+      this.asObjectRecord(row['ieltsSummary']) ||
+      this.asObjectRecord(ieltsNode?.['summary']) ||
+      this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['ieltsTrackingStatus'],
+      row['ielts_tracking_status'],
+      row['trackingStatus'],
+      row['tracking_status'],
+      ieltsNode?.['trackingStatus'],
+      ieltsNode?.['tracking_status'],
+      summaryNode?.['trackingStatus'],
+      summaryNode?.['tracking_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeIeltsTrackingStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  private extractLanguageTrackingStatusFromStudent(
+    student: StudentAccount
+  ): LanguageTrackingStatus | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const ieltsNode =
+      this.asObjectRecord(row['ieltsModule']) ||
+      this.asObjectRecord(row['ielts']) ||
+      this.asObjectRecord(row['ieltsData']);
+    const summaryNode =
+      this.asObjectRecord(row['ieltsSummary']) ||
+      this.asObjectRecord(ieltsNode?.['summary']) ||
+      this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['languageScoreTrackingStatus'],
+      row['language_score_tracking_status'],
+      row['languageTrackingStatus'],
+      row['language_tracking_status'],
+      row['languageScoreTrackingManualStatus'],
+      row['language_score_tracking_manual_status'],
+      row['languageTrackingManualStatus'],
+      row['language_tracking_manual_status'],
+      ieltsNode?.['languageScoreTrackingStatus'],
+      ieltsNode?.['language_score_tracking_status'],
+      ieltsNode?.['languageTrackingStatus'],
+      ieltsNode?.['language_tracking_status'],
+      ieltsNode?.['languageScoreTrackingManualStatus'],
+      ieltsNode?.['language_score_tracking_manual_status'],
+      ieltsNode?.['languageTrackingManualStatus'],
+      ieltsNode?.['language_tracking_manual_status'],
+      summaryNode?.['languageScoreTrackingStatus'],
+      summaryNode?.['language_score_tracking_status'],
+      summaryNode?.['languageTrackingStatus'],
+      summaryNode?.['language_tracking_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeLanguageTrackingStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  private extractOssltResultFromStudent(student: StudentAccount): OssltResult | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const ossltNode =
+      this.asObjectRecord(row['ossltModule']) ||
+      this.asObjectRecord(row['osslt']) ||
+      this.asObjectRecord(row['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(row['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['latestOssltResult'],
+      row['latest_osslt_result'],
+      row['ossltResult'],
+      row['osslt_result'],
+      row['result'],
+      ossltNode?.['latestOssltResult'],
+      ossltNode?.['latest_osslt_result'],
+      ossltNode?.['ossltResult'],
+      ossltNode?.['osslt_result'],
+      summaryNode?.['latestOssltResult'],
+      summaryNode?.['latest_osslt_result'],
+      summaryNode?.['latestOssltResultStatus'],
+      summaryNode?.['latest_osslt_result_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltResultValue(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  private extractOssltTrackingStatusFromStudent(student: StudentAccount): OssltTrackingStatus | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const ossltNode =
+      this.asObjectRecord(row['ossltModule']) ||
+      this.asObjectRecord(row['osslt']) ||
+      this.asObjectRecord(row['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(row['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['ossltTrackingStatus'],
+      row['osslt_tracking_status'],
+      row['ossltTrackingManualStatus'],
+      row['osslt_tracking_manual_status'],
+      row['trackingStatus'],
+      row['tracking_status'],
+      ossltNode?.['ossltTrackingStatus'],
+      ossltNode?.['osslt_tracking_status'],
+      ossltNode?.['ossltTrackingManualStatus'],
+      ossltNode?.['osslt_tracking_manual_status'],
+      ossltNode?.['trackingStatus'],
+      ossltNode?.['tracking_status'],
+      summaryNode?.['ossltTrackingStatus'],
+      summaryNode?.['osslt_tracking_status'],
+      summaryNode?.['trackingStatus'],
+      summaryNode?.['tracking_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltTrackingStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  private asObjectRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   }
 
   isArchived(student: StudentAccount): boolean {
@@ -3695,6 +4491,14 @@ export class StudentManagementComponent implements OnInit {
     return resolveOssltStatusDisplay({ isLoading: true }) as unknown as LanguageTrackingStatusDisplay;
   }
 
+  private normalizeIeltsTrackingStatusValue(value: unknown): IeltsTrackingStatus | null {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return 'YELLOW_NEEDS_PREPARATION';
+    return null;
+  }
+
   private normalizeLanguageTrackingStatusValue(value: unknown): LanguageTrackingStatus | null {
     const normalized = String(value ?? '').trim().toUpperCase();
     if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
@@ -3704,12 +4508,42 @@ export class StudentManagementComponent implements OnInit {
     return null;
   }
 
+  private normalizeOssltResultValue(value: unknown): OssltResult | null {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'PASS') return 'PASS';
+    if (normalized === 'FAIL') return 'FAIL';
+    if (normalized === 'UNKNOWN') return 'UNKNOWN';
+    return null;
+  }
+
   private normalizeOssltTrackingStatusValue(value: unknown): OssltTrackingStatus | null {
     const normalized = String(value ?? '').trim().toUpperCase();
     if (normalized === 'WAITING_UPDATE') return 'WAITING_UPDATE';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
     if (normalized === 'PASSED') return 'PASSED';
     return null;
+  }
+
+  private scheduleStatusFilterReapply(): void {
+    if (
+      !this.languageScoreFilter &&
+      !this.languageScoreTrackingFilter &&
+      !this.ossltResultFilter &&
+      !this.ossltTrackingFilter &&
+      !this.volunteerCompletedFilter
+    ) {
+      return;
+    }
+
+    if (this.statusFilterReapplyTimer) {
+      return;
+    }
+
+    this.statusFilterReapplyTimer = setTimeout(() => {
+      this.statusFilterReapplyTimer = null;
+      this.applyListView();
+      this.cdr.detectChanges();
+    }, 0);
   }
 
   private shouldRetryLanguageTrackingSave(err: HttpErrorResponse): boolean {
@@ -3779,16 +4613,190 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private prefetchVisibleIeltsStatuses(): void {
-    for (const student of this.visibleStudents) {
+    this.prefetchIeltsStatusesForStudents(this.visibleStudents);
+  }
+
+  private prefetchVisibleOssltStatuses(): void {
+    this.prefetchOssltStatusesForStudents(this.visibleStudents);
+  }
+
+  private prefetchVisibleVolunteerHours(): void {
+    this.prefetchVolunteerHoursForStudents(this.visibleStudents);
+  }
+
+  private prefetchVolunteerHoursForStudents(
+    students: readonly StudentAccount[],
+    reapplyOnUpdate = false
+  ): void {
+    if (!this.volunteerCompletedFilterAvailable) {
+      return;
+    }
+
+    const missingStudentIds: number[] = [];
+    for (const student of students) {
       const studentId = this.resolveStudentId(student);
       if (!studentId) continue;
-      if (
-        this.ieltsNoRequirement.has(studentId) ||
-        this.ieltsStatusCache.has(studentId) ||
-        this.ieltsStatusUnavailable.has(studentId)
-      ) {
+
+      const rowHours = this.extractVolunteerHoursFromStudent(student);
+      if (rowHours !== null) {
+        this.volunteerHoursCache.set(studentId, Math.round(rowHours * 100) / 100);
+        this.volunteerHoursUnavailable.delete(studentId);
+      }
+
+      const rowCompleted = this.extractVolunteerCompletedFromStudent(student);
+      if (rowCompleted !== null) {
+        this.volunteerCompletedCache.set(studentId, rowCompleted);
+        this.volunteerHoursUnavailable.delete(studentId);
+      }
+
+      const hasSummaryData =
+        rowHours !== null ||
+        rowCompleted !== null ||
+        this.volunteerHoursCache.has(studentId) ||
+        this.volunteerCompletedCache.has(studentId);
+      if (hasSummaryData) {
         continue;
       }
+
+      if (this.volunteerHoursUnavailable.has(studentId)) {
+        continue;
+      }
+
+      if (this.volunteerHoursLoadInFlight.has(studentId)) {
+        continue;
+      }
+
+      this.volunteerHoursLoadInFlight.add(studentId);
+      missingStudentIds.push(studentId);
+    }
+
+    if (missingStudentIds.length <= 0) {
+      return;
+    }
+
+    const batches = this.chunkStudentIds(missingStudentIds, 100);
+    for (const batchStudentIds of batches) {
+      this.volunteerApi
+        .getTeacherStudentsVolunteerBatchSummary(batchStudentIds)
+        .pipe(
+          finalize(() => {
+            for (const studentId of batchStudentIds) {
+              this.volunteerHoursLoadInFlight.delete(studentId);
+            }
+          })
+        )
+        .subscribe({
+          next: (summaries) => {
+            this.applyVolunteerBatchSummaryToCache(batchStudentIds, summaries);
+            this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
+          },
+          error: (error: unknown) => {
+            for (const studentId of batchStudentIds) {
+              this.volunteerHoursCache.delete(studentId);
+              this.volunteerCompletedCache.delete(studentId);
+              this.volunteerHoursUnavailable.add(studentId);
+            }
+            this.degradeVolunteerCompletedFilter(error, reapplyOnUpdate);
+          },
+        });
+    }
+  }
+
+  private applyVolunteerBatchSummaryToCache(
+    studentIds: readonly number[],
+    summaries: readonly VolunteerTrackingBatchSummaryItemVm[]
+  ): void {
+    const byStudentId = new Map<number, VolunteerTrackingBatchSummaryItemVm>();
+    for (const summary of summaries) {
+      const studentId = Math.trunc(Number(summary?.studentId ?? 0));
+      if (!Number.isFinite(studentId) || studentId <= 0) continue;
+      byStudentId.set(studentId, summary);
+    }
+
+    for (const studentId of studentIds) {
+      const summary = byStudentId.get(studentId);
+      if (!summary) {
+        this.volunteerHoursCache.delete(studentId);
+        this.volunteerCompletedCache.delete(studentId);
+        this.volunteerHoursUnavailable.add(studentId);
+        continue;
+      }
+
+      const totalHours = Math.round(Number(summary.totalVolunteerHours || 0) * 100) / 100;
+      this.volunteerHoursCache.set(studentId, totalHours >= 0 ? totalHours : 0);
+      this.volunteerCompletedCache.set(studentId, Boolean(summary.volunteerCompleted));
+      this.volunteerHoursUnavailable.delete(studentId);
+    }
+  }
+
+  private degradeVolunteerCompletedFilter(error: unknown, reapplyOnUpdate: boolean): void {
+    this.volunteerCompletedFilterAvailable = false;
+    this.volunteerCompletedFilterError = this.resolveVolunteerBatchSummaryErrorMessage(error);
+    const wasEnabled = this.volunteerCompletedFilter;
+    if (wasEnabled) {
+      this.volunteerCompletedFilter = false;
+    }
+    this.cdr.detectChanges();
+    if (reapplyOnUpdate || wasEnabled) {
+      this.scheduleStatusFilterReapply();
+    }
+  }
+
+  private resolveVolunteerBatchSummaryErrorMessage(error: unknown): string {
+    const statusFromHttp = error instanceof HttpErrorResponse ? error.status : 0;
+    const fallbackStatus = Number(this.asObjectRecord(error)?.['status']);
+    const status =
+      Number.isFinite(statusFromHttp) && statusFromHttp > 0
+        ? statusFromHttp
+        : Number.isFinite(fallbackStatus) && fallbackStatus > 0
+          ? Math.trunc(fallbackStatus)
+          : 0;
+
+    if (status === 400) {
+      return '\u4e49\u5de5\u5b8c\u6210\u6570\u636e\u83b7\u53d6\u5931\u8d25\uff1a\u5b66\u751f ID \u53c2\u6570\u65e0\u6548\u3002';
+    }
+    if (status === 403) {
+      return '\u4e49\u5de5\u5b8c\u6210\u6570\u636e\u83b7\u53d6\u5931\u8d25\uff1a\u65e0\u6743\u9650\u8bbf\u95ee\u90e8\u5206\u5b66\u751f\u3002';
+    }
+    return '\u4e49\u5de5\u5b8c\u6210\u6570\u636e\u83b7\u53d6\u5931\u8d25\uff0c\u8be5\u7b5b\u9009\u5df2\u7981\u7528\u3002';
+  }
+
+  private chunkStudentIds(studentIds: readonly number[], size: number): number[][] {
+    const chunkSize = Math.max(1, Math.trunc(Number(size) || 1));
+    const chunks: number[][] = [];
+    for (let start = 0; start < studentIds.length; start += chunkSize) {
+      chunks.push(studentIds.slice(start, start + chunkSize));
+    }
+    return chunks;
+  }
+
+  private prefetchIeltsStatusesForStudents(
+    students: readonly StudentAccount[],
+    reapplyOnUpdate = false
+  ): void {
+    for (const student of students) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId) continue;
+
+      const hasIeltsStatus = !!this.resolveIeltsTrackingStatusForFilter(student);
+      const hasLanguageTrackingStatus = !!this.resolveLanguageTrackingStatusForFilter(student);
+      const hasUnavailableOrNoRequirement =
+        this.ieltsNoRequirement.has(studentId) || this.ieltsStatusUnavailable.has(studentId);
+
+      if (reapplyOnUpdate) {
+        const hasNeededIeltsStatus = !this.languageScoreFilter || hasIeltsStatus || hasUnavailableOrNoRequirement;
+        const hasNeededLanguageTrackingStatus =
+          !this.languageScoreTrackingFilter || hasLanguageTrackingStatus || hasUnavailableOrNoRequirement;
+        if (hasNeededIeltsStatus && hasNeededLanguageTrackingStatus) {
+          continue;
+        }
+      } else if (hasUnavailableOrNoRequirement || this.ieltsStatusCache.has(studentId)) {
+        continue;
+      }
+
       if (this.ieltsStatusLoadInFlight.has(studentId)) continue;
 
       this.ieltsStatusLoadInFlight.add(studentId);
@@ -3823,6 +4831,9 @@ export class StudentManagementComponent implements OnInit {
               this.ieltsStatusUnavailable.delete(studentId);
             }
             this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
           },
           error: () => {
             this.ieltsStatusCache.delete(studentId);
@@ -3830,18 +4841,37 @@ export class StudentManagementComponent implements OnInit {
             this.ieltsStatusColorTokenCache.delete(studentId);
             this.ieltsStatusUnavailable.add(studentId);
             this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
           },
         });
     }
   }
 
-  private prefetchVisibleOssltStatuses(): void {
-    for (const student of this.visibleStudents) {
+  private prefetchOssltStatusesForStudents(
+    students: readonly StudentAccount[],
+    reapplyOnUpdate = false
+  ): void {
+    for (const student of students) {
       const studentId = this.resolveStudentId(student);
       if (!studentId) continue;
-      if (this.ossltTrackingStatusCache.has(studentId) || this.ossltStatusUnavailable.has(studentId)) {
+
+      const hasOssltResult = !!this.resolveOssltResultForFilter(student);
+      const hasOssltTrackingStatus = !!this.resolveOssltTrackingStatusForFilter(student);
+
+      if (reapplyOnUpdate) {
+        const hasNeededResult =
+          !this.ossltResultFilter || hasOssltResult || this.ossltStatusUnavailable.has(studentId);
+        const hasNeededTracking =
+          !this.ossltTrackingFilter || hasOssltTrackingStatus || this.ossltStatusUnavailable.has(studentId);
+        if (hasNeededResult && hasNeededTracking) {
+          continue;
+        }
+      } else if (this.ossltTrackingStatusCache.has(studentId) || this.ossltStatusUnavailable.has(studentId)) {
         continue;
       }
+
       if (this.ossltStatusLoadInFlight.has(studentId)) continue;
 
       this.ossltStatusLoadInFlight.add(studentId);
@@ -3859,12 +4889,18 @@ export class StudentManagementComponent implements OnInit {
             this.ossltResultCache.set(studentId, moduleState.latestOssltResult);
             this.ossltStatusUnavailable.delete(studentId);
             this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
           },
           error: () => {
             this.ossltTrackingStatusCache.delete(studentId);
             this.ossltResultCache.delete(studentId);
             this.ossltStatusUnavailable.add(studentId);
             this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
           },
         });
     }

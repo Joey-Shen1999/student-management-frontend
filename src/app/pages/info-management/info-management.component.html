@@ -1,4 +1,8 @@
 <div class="page">
+  <div *ngIf="showVolunteerDurationBadge" class="volunteer-total-badge">
+    总义工时长：{{ volunteerTotalDurationLabel }} 小时
+  </div>
+
   <div class="header">
     <h2>通知发布与管理</h2>
     <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
@@ -80,17 +84,90 @@
           ></app-student-selector-panel>
 
           <div class="form">
-            <select [(ngModel)]="createInfoCategory" [disabled]="creatingInfo">
+            <select
+              [(ngModel)]="createInfoCategory"
+              (ngModelChange)="onCreateInfoCategoryChange($event)"
+              [disabled]="creatingInfo"
+            >
               <option value="ACTIVITY">活动</option>
               <option value="VOLUNTEER">义工</option>
             </select>
             <input [(ngModel)]="createInfoTags" [disabled]="creatingInfo" placeholder="标签：A,B,C" />
             <input [(ngModel)]="createInfoTitle" [disabled]="creatingInfo" placeholder="通知标题" />
+            <section *ngIf="showVolunteerCollection" class="volunteer-collection">
+              <div class="volunteer-collection-head">
+                <strong>义工任务明细</strong>
+                <button type="button" (click)="addVolunteerTask()" [disabled]="creatingInfo">
+                  添加任务
+                </button>
+              </div>
+
+              <article
+                *ngFor="let task of volunteerTasks; let index = index; trackBy: trackVolunteerTask"
+                class="volunteer-task-item"
+              >
+                <div class="volunteer-task-head">
+                  <strong>任务 {{ index + 1 }}</strong>
+                  <button
+                    type="button"
+                    (click)="removeVolunteerTask(index)"
+                    [disabled]="creatingInfo || volunteerTasks.length <= 1"
+                  >
+                    删除
+                  </button>
+                </div>
+
+                <div class="volunteer-task-grid">
+                  <input
+                    [(ngModel)]="task.taskName"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    placeholder="义工任务名称"
+                  />
+                  <input
+                    [(ngModel)]="task.durationHours"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    placeholder="义工时长（小时）"
+                  />
+                  <input
+                    [(ngModel)]="task.startDate"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    type="date"
+                  />
+                  <input
+                    [(ngModel)]="task.endDate"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    type="date"
+                  />
+                  <input
+                    [(ngModel)]="task.verifierContact"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    placeholder="证明人联系方式"
+                    class="volunteer-task-span-2"
+                  />
+                  <textarea
+                    [(ngModel)]="task.description"
+                    [ngModelOptions]="{ standalone: true }"
+                    [disabled]="creatingInfo"
+                    rows="2"
+                    placeholder="义工任务描述（做了什么）"
+                    class="volunteer-task-span-2"
+                  ></textarea>
+                </div>
+              </article>
+            </section>
             <textarea
               [(ngModel)]="createInfoContent"
               [disabled]="creatingInfo"
-              rows="4"
-              placeholder="通知内容"
+              [rows]="showVolunteerCollection ? 3 : 4"
+              [placeholder]="showVolunteerCollection ? '补充说明（可选）' : '通知内容'"
             ></textarea>
           </div>
 

@@ -16,13 +16,17 @@ import {
   type StudentAccount,
   StudentManagementService,
 } from '../../services/student-management.service';
+import { AuthService } from '../../services/auth.service';
 import { EDUCATION_BOARD_LIBRARY_OPTIONS } from '../../services/student-profile.service';
 import {
   buildGoalStudentSelectorColumns,
   type GoalStudentSelectorColumnConfig,
   type GoalStudentSelectorColumnKey,
 } from '../../shared/student-columns/goal-student-selector-columns';
-import { buildPresetVisibleColumnKeys } from '../../shared/student-columns/student-column-visibility.util';
+import {
+  buildPresetVisibleColumnKeys,
+  normalizeVisibleColumnKeys,
+} from '../../shared/student-columns/student-column-visibility.util';
 import {
   STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT,
   STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
@@ -57,8 +61,56 @@ interface StudentDetailVm {
   country: string;
   schoolBoard: string;
   graduationSeason: string;
+  ossltResult: 'PASS' | 'FAIL' | 'UNKNOWN' | '';
+  ossltTracking: 'PASSED' | 'WAITING_UPDATE' | 'NEEDS_TRACKING' | '';
   status: 'ACTIVE' | 'ARCHIVED' | '';
 }
+
+interface VolunteerTaskDraft {
+  taskName: string;
+  description: string;
+  durationHours: string;
+  startDate: string;
+  endDate: string;
+  verifierContact: string;
+}
+
+interface VolunteerTaskNormalized {
+  taskName: string;
+  description: string;
+  durationHours: number;
+  startDate: string;
+  endDate: string;
+  verifierContact: string;
+}
+
+interface CreateStudentColumnPreferenceVm {
+  visibleColumnKeys?: string[];
+  orderedColumnKeys?: string[];
+}
+
+interface CreateStudentFilterPreferenceVm {
+  countryFilterInput?: string;
+  countryFilter?: string;
+  provinceFilterInput?: string;
+  provinceFilter?: string;
+  cityFilterInput?: string;
+  cityFilter?: string;
+  schoolBoardFilterInput?: string;
+  schoolBoardFilter?: string;
+  graduationSeasonFilterInput?: string;
+  graduationSeasonFilter?: string;
+  keyword?: string;
+}
+
+const VOLUNTEER_TOTAL_HOURS_PREFIX = '义工总时长：';
+const VOLUNTEER_TASK_COLLECTION_PREFIX = '义工任务明细：';
+const INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
+  'info-management.create-info.student-selector.visible-columns';
+const INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v3';
+const INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
+  'info-management.create-info.student-selector.filters';
+const INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v2';
 
 const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   Record<ProvinceFilterCountry, Record<string, string>>
@@ -103,6 +155,7 @@ export class InfoManagementComponent implements OnInit {
   studentsError = '';
   private readonly studentDetails = new Map<number, StudentDetailVm>();
   private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
+  private skipDependentFilterValidationOnce = false;
 
   countryFilterOptions: string[] = this.buildCountryFilterOptions();
   schoolBoardFilterOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
@@ -143,6 +196,7 @@ export class InfoManagementComponent implements OnInit {
   creatingInfo = false;
   createInfoError = '';
   createInfoSuccess = '';
+  volunteerTasks: VolunteerTaskDraft[] = [this.createEmptyVolunteerTask()];
   editingInfoId: number | null = null;
   editingInfoTaskGroupId: string | null = null;
 
@@ -174,11 +228,14 @@ export class InfoManagementComponent implements OnInit {
   constructor(
     private taskCenter: TaskCenterService,
     private studentManagement: StudentManagementService,
+    private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.initializeCreateStudentVisibleColumns();
+    this.initializeCreateStudentFiltersFromPreference();
     this.loadAssignableStudents();
     this.loadInfos();
   }
@@ -236,6 +293,25 @@ export class InfoManagementComponent implements OnInit {
     return this.editingInfoId !== null && !!this.editingInfoTaskGroupId;
   }
 
+  get showVolunteerCollection(): boolean {
+    return this.createInfoCategory === 'VOLUNTEER';
+  }
+
+  get showVolunteerDurationBadge(): boolean {
+    return this.createPanelExpanded && this.showVolunteerCollection;
+  }
+
+  get volunteerTotalDurationHours(): number {
+    return this.normalizeVolunteerTasks(this.volunteerTasks).reduce(
+      (sum, task) => sum + task.durationHours,
+      0
+    );
+  }
+
+  get volunteerTotalDurationLabel(): string {
+    return this.formatVolunteerHours(this.volunteerTotalDurationHours);
+  }
+
   goDashboard(): void {
     this.router.navigate(['/teacher/dashboard']);
   }
@@ -265,9 +341,9 @@ export class InfoManagementComponent implements OnInit {
     this.studentPanelExpanded = true;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
-    this.createInfoCategory = info.category;
+    this.onCreateInfoCategoryChange(info.category);
     this.createInfoTitle = info.title;
-    this.createInfoContent = info.content;
+    this.hydrateVolunteerTasksFromContent(info.content);
     this.createInfoTags = (info.tags || []).join(',');
     const selectedIds = this.resolveInfoRecipientStudentIds(info.id);
     this.selectedCreateStudentIds = new Set<number>(selectedIds);
@@ -326,10 +402,38 @@ export class InfoManagementComponent implements OnInit {
     this.loadInfos();
   }
 
+  onCreateInfoCategoryChange(value: InfoTaskCategory | string): void {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    this.createInfoCategory = normalized === 'VOLUNTEER' ? 'VOLUNTEER' : 'ACTIVITY';
+    if (this.createInfoCategory === 'VOLUNTEER') {
+      this.ensureVolunteerTaskExists();
+      return;
+    }
+    this.resetVolunteerTasks();
+  }
+
+  addVolunteerTask(): void {
+    if (this.creatingInfo) return;
+    this.volunteerTasks = [...this.volunteerTasks, this.createEmptyVolunteerTask()];
+  }
+
+  removeVolunteerTask(index: number): void {
+    if (this.creatingInfo) return;
+    if (index < 0 || index >= this.volunteerTasks.length) return;
+    if (this.volunteerTasks.length <= 1) {
+      this.resetVolunteerTasks();
+      return;
+    }
+    this.volunteerTasks = this.volunteerTasks.filter((_, rowIndex) => rowIndex !== index);
+  }
+
+  trackVolunteerTask = (index: number): number => index;
+
   onStudentKeywordChange(value?: string): void {
     if (typeof value === 'string') {
       this.createStudentKeyword = value;
     }
+    this.persistCreateStudentFiltersPreference();
   }
 
   onCountryFilterInputChange(value: string): void {
@@ -342,6 +446,7 @@ export class InfoManagementComponent implements OnInit {
     this.syncCityFilterSelection();
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
+    this.persistCreateStudentFiltersPreference();
   }
 
   onProvinceFilterInputChange(value: string): void {
@@ -349,6 +454,7 @@ export class InfoManagementComponent implements OnInit {
     this.createProvinceFilterInput = input;
     const country = this.provinceFilterCountry;
     this.createProvinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
+    this.persistCreateStudentFiltersPreference();
   }
 
   onCityFilterInputChange(value: string): void {
@@ -356,6 +462,7 @@ export class InfoManagementComponent implements OnInit {
     this.createCityFilterInput = input;
     const country = this.cityFilterCountry;
     this.createCityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
+    this.persistCreateStudentFiltersPreference();
   }
 
   onSchoolBoardFilterInputChange(value: string): void {
@@ -365,6 +472,7 @@ export class InfoManagementComponent implements OnInit {
       ? this.resolveSchoolBoardFilterSelection(input)
       : COUNTRY_FILTER_ALL_OPTION;
     this.syncGraduationSeasonFilterSelection();
+    this.persistCreateStudentFiltersPreference();
   }
 
   onGraduationSeasonFilterInputChange(value: string): void {
@@ -373,6 +481,7 @@ export class InfoManagementComponent implements OnInit {
     this.createGraduationSeasonFilter = input
       ? this.resolveGraduationSeasonFilterSelection(input)
       : COUNTRY_FILTER_ALL_OPTION;
+    this.persistCreateStudentFiltersPreference();
   }
 
   resetStudentMetaFilters(): void {
@@ -387,13 +496,15 @@ export class InfoManagementComponent implements OnInit {
     this.createGraduationSeasonFilterInput = '';
     this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createStudentKeyword = '';
+    this.persistCreateStudentFiltersPreference();
   }
 
   resetCreateInfoForm(): void {
-    this.createInfoCategory = 'ACTIVITY';
+    this.onCreateInfoCategoryChange('ACTIVITY');
     this.createInfoTitle = '';
     this.createInfoContent = '';
     this.createInfoTags = '';
+    this.resetVolunteerTasks();
     this.resetStudentMetaFilters();
     this.selectedCreateStudentIds.clear();
     this.createInfoError = '';
@@ -482,6 +593,7 @@ export class InfoManagementComponent implements OnInit {
       this.createStudentColumnOrderKeys = normalizedOrder.map((key) =>
         visibleSet.has(key) ? normalizedVisibleOrder[visibleIndex++] : key
       );
+      this.persistCreateStudentVisibleColumnsPreference();
     }
   }
 
@@ -508,11 +620,13 @@ export class InfoManagementComponent implements OnInit {
     }
 
     this.visibleCreateStudentColumnKeys = next;
+    this.persistCreateStudentVisibleColumnsPreference();
   }
 
   resetCreateStudentVisibleColumns(): void {
     this.createStudentColumnOrderKeys = this.createStudentColumns.map((column) => column.key);
     this.visibleCreateStudentColumnKeys = this.buildCreateStudentDefaultVisibleColumnKeys();
+    this.persistCreateStudentVisibleColumnsPreference();
   }
 
   isCreateStudentColumnSelectionAtDefault(): boolean {
@@ -535,6 +649,183 @@ export class InfoManagementComponent implements OnInit {
   private buildCreateStudentDefaultVisibleColumnKeys(): Set<GoalStudentSelectorColumnKey> {
     const presetKeys = STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT[this.selectorContext];
     return buildPresetVisibleColumnKeys(this.createStudentColumns, presetKeys);
+  }
+
+  private initializeCreateStudentVisibleColumns(): void {
+    const defaults = this.buildCreateStudentDefaultVisibleColumnKeys();
+    const defaultOrder = this.createStudentColumns.map((column) => column.key);
+    const persisted = this.readCreateStudentVisibleColumnsPreference();
+    this.createStudentColumnOrderKeys = defaultOrder;
+    if (!persisted) {
+      this.visibleCreateStudentColumnKeys = defaults;
+      return;
+    }
+
+    if (Array.isArray(persisted.orderedColumnKeys) && persisted.orderedColumnKeys.length > 0) {
+      this.createStudentColumnOrderKeys =
+        this.normalizeCreateStudentColumnOrderKeys(persisted.orderedColumnKeys);
+    }
+
+    const normalized = normalizeVisibleColumnKeys(
+      this.createStudentColumns,
+      persisted.visibleColumnKeys || []
+    );
+    this.visibleCreateStudentColumnKeys = normalized.size > 0 ? normalized : defaults;
+  }
+
+  private persistCreateStudentVisibleColumnsPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const payload: CreateStudentColumnPreferenceVm = {
+        visibleColumnKeys: Array.from(this.visibleCreateStudentColumnKeys.values()),
+        orderedColumnKeys: this.normalizeCreateStudentColumnOrderKeys(
+          this.createStudentColumnOrderKeys
+        ),
+      };
+      storage.setItem(this.resolveCreateStudentVisibleColumnsStorageKey(), JSON.stringify(payload));
+    } catch {}
+  }
+
+  private readCreateStudentVisibleColumnsPreference(): CreateStudentColumnPreferenceVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCreateStudentVisibleColumnsStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return {
+          visibleColumnKeys: parsed.map((value) => String(value ?? '').trim()).filter(Boolean),
+        };
+      }
+      if (!parsed || typeof parsed !== 'object') return null;
+      const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown };
+      return {
+        visibleColumnKeys: Array.isArray(node.visibleColumnKeys)
+          ? node.visibleColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+        orderedColumnKeys: Array.isArray(node.orderedColumnKeys)
+          ? node.orderedColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
+          : [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCreateStudentVisibleColumnsStorageKey(): string {
+    const scope = this.resolveCreateStudentPreferenceScope();
+    return `${INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION}`;
+  }
+
+  private initializeCreateStudentFiltersFromPreference(): void {
+    const persisted = this.readCreateStudentFiltersPreference();
+    if (!persisted) return;
+    this.skipDependentFilterValidationOnce = true;
+
+    const countrySource = String(
+      persisted.countryFilterInput ?? persisted.countryFilter ?? ''
+    ).trim();
+    const resolvedCountry = countrySource
+      ? this.resolveCountryFilterInputSelection(countrySource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createCountryFilter = resolvedCountry;
+    this.createCountryFilterInput =
+      resolvedCountry === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedCountry;
+
+    const provinceSource = String(
+      persisted.provinceFilterInput ?? persisted.provinceFilter ?? ''
+    ).trim();
+    const resolvedProvince = provinceSource
+      ? this.resolveProvinceFilterSelection(provinceSource, this.provinceFilterCountry)
+      : '';
+    this.createProvinceFilter = resolvedProvince;
+    this.createProvinceFilterInput = resolvedProvince;
+
+    const citySource = String(persisted.cityFilterInput ?? persisted.cityFilter ?? '').trim();
+    const resolvedCity = citySource
+      ? this.resolveCityFilterSelection(citySource, this.cityFilterCountry)
+      : '';
+    this.createCityFilter = resolvedCity;
+    this.createCityFilterInput = resolvedCity;
+
+    const schoolBoardSource = String(
+      persisted.schoolBoardFilterInput ?? persisted.schoolBoardFilter ?? ''
+    ).trim();
+    const resolvedSchoolBoard = schoolBoardSource
+      ? this.resolveSchoolBoardFilterSelection(schoolBoardSource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createSchoolBoardFilter = resolvedSchoolBoard;
+    this.createSchoolBoardFilterInput =
+      resolvedSchoolBoard === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedSchoolBoard;
+
+    const graduationSeasonSource = String(
+      persisted.graduationSeasonFilterInput ?? persisted.graduationSeasonFilter ?? ''
+    ).trim();
+    const resolvedGraduationSeason = graduationSeasonSource
+      ? this.resolveGraduationSeasonFilterSelection(graduationSeasonSource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createGraduationSeasonFilter = resolvedGraduationSeason;
+    this.createGraduationSeasonFilterInput =
+      resolvedGraduationSeason === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedGraduationSeason;
+
+    this.createStudentKeyword = String(persisted.keyword ?? '').trim();
+  }
+
+  private persistCreateStudentFiltersPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const payload: CreateStudentFilterPreferenceVm = {
+        countryFilterInput: this.createCountryFilterInput,
+        countryFilter: this.createCountryFilter,
+        provinceFilterInput: this.createProvinceFilterInput,
+        provinceFilter: this.createProvinceFilter,
+        cityFilterInput: this.createCityFilterInput,
+        cityFilter: this.createCityFilter,
+        schoolBoardFilterInput: this.createSchoolBoardFilterInput,
+        schoolBoardFilter: this.createSchoolBoardFilter,
+        graduationSeasonFilterInput: this.createGraduationSeasonFilterInput,
+        graduationSeasonFilter: this.createGraduationSeasonFilter,
+        keyword: this.createStudentKeyword,
+      };
+      storage.setItem(this.resolveCreateStudentFiltersStorageKey(), JSON.stringify(payload));
+    } catch {}
+  }
+
+  private readCreateStudentFiltersPreference(): CreateStudentFilterPreferenceVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCreateStudentFiltersStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed as CreateStudentFilterPreferenceVm;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCreateStudentFiltersStorageKey(): string {
+    const scope = this.resolveCreateStudentPreferenceScope();
+    return `${INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION}`;
+  }
+
+  private resolveCreateStudentPreferenceScope(): string {
+    const session = this.auth.getSession();
+    const teacherId = Number(session?.teacherId);
+    if (Number.isFinite(teacherId) && teacherId > 0) {
+      return `teacher-${Math.trunc(teacherId)}`;
+    }
+
+    const userId = this.auth.getCurrentUserId();
+    if (userId && userId > 0) {
+      return `user-${Math.trunc(userId)}`;
+    }
+
+    return 'anonymous';
   }
 
   onCreateStudentCheckboxChange(studentId: number, event: Event | boolean): void {
@@ -660,6 +951,24 @@ export class InfoManagementComponent implements OnInit {
     return this.studentDetails.get(studentId)?.city || '-';
   }
 
+  detailOssltResult(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.ossltResult || '';
+    if (cached) return this.resolveOssltResultLabel(cached);
+    const fallback = this.extractOssltResultFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveOssltResultLabel(fallback);
+  }
+
+  detailOssltTracking(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.ossltTracking || '';
+    if (cached) return this.resolveOssltTrackingStatusLabel(cached);
+    const fallback = this.extractOssltTrackingStatusFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveOssltTrackingStatusLabel(fallback);
+  }
+
   detailStatus(studentId: number): string {
     return this.resolveArchiveStatusLabel(this.studentDetails.get(studentId)?.status || '');
   }
@@ -705,6 +1014,10 @@ export class InfoManagementComponent implements OnInit {
         return this.detailProvince(student.studentId);
       case 'city':
         return this.detailCity(student.studentId);
+      case 'ossltResult':
+        return this.detailOssltResult(student);
+      case 'ossltTracking':
+        return this.detailOssltTracking(student);
       case 'teacherNote':
         return this.detailTeacherNote(student.studentId) || '-';
       case 'status':
@@ -760,7 +1073,14 @@ export class InfoManagementComponent implements OnInit {
       return;
     }
 
-    const content = this.createInfoContent.trim();
+    const volunteerValidationError = this.validateVolunteerTasks();
+    if (volunteerValidationError) {
+      this.createInfoError = volunteerValidationError;
+      this.createInfoSuccess = '';
+      return;
+    }
+
+    const content = this.resolveCreateInfoContent();
     if (!content) {
       this.createInfoError = '请填写通知内容。';
       this.createInfoSuccess = '';
@@ -806,6 +1126,7 @@ export class InfoManagementComponent implements OnInit {
           this.createInfoTitle = '';
           this.createInfoContent = '';
           this.createInfoTags = '';
+          this.resetVolunteerTasks();
           this.resetStudentMetaFilters();
           this.selectedCreateStudentIds.clear();
           this.loadInfos();
@@ -1013,6 +1334,10 @@ export class InfoManagementComponent implements OnInit {
       detail?.country || '',
       detail?.schoolBoard || '',
       detail?.graduationSeason || '',
+      this.detailOssltResult(student),
+      this.detailOssltTracking(student),
+      detail?.ossltResult || '',
+      detail?.ossltTracking || '',
       this.resolveArchiveStatusLabel(status),
       status,
       this.isCreateStudentSelectable(student.studentId) ? '可选 selectable' : '不可选 not selectable',
@@ -1176,6 +1501,8 @@ export class InfoManagementComponent implements OnInit {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ossltResult: '',
+      ossltTracking: '',
       status: '',
     };
     const graduation = patch.graduation?.trim() || current.graduation;
@@ -1196,6 +1523,8 @@ export class InfoManagementComponent implements OnInit {
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
       graduationSeason,
+      ossltResult: patch.ossltResult || current.ossltResult,
+      ossltTracking: patch.ossltTracking || current.ossltTracking,
       status: patch.status || current.status,
     });
   }
@@ -1217,6 +1546,8 @@ export class InfoManagementComponent implements OnInit {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ossltResult: '',
+      ossltTracking: '',
       status: '',
     };
     this.studentDetails.set(studentId, {
@@ -1226,9 +1557,10 @@ export class InfoManagementComponent implements OnInit {
   }
 
   private buildFromAccount(student: StudentAccount): Partial<StudentDetailVm> {
+    const root = (student ?? {}) as Record<string, unknown>;
     const profile =
-      student?.['profile'] && typeof student['profile'] === 'object'
-        ? (student['profile'] as Record<string, unknown>)
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
         : {};
     const graduation = this.formatGraduation(
       this.pick([
@@ -1306,6 +1638,8 @@ export class InfoManagementComponent implements OnInit {
         profile['currentSchoolBoard'],
       ]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      ossltResult: this.extractOssltResultFromRecord(root, profile),
+      ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
       status: this.normalizeAccountStatus(student.status),
     };
   }
@@ -1338,8 +1672,13 @@ export class InfoManagementComponent implements OnInit {
     this.syncCountryFilterSelection();
     this.syncProvinceFilterSelection();
     this.syncCityFilterSelection();
-    this.syncSchoolBoardFilterSelection();
-    this.syncGraduationSeasonFilterSelection();
+    if (this.skipDependentFilterValidationOnce) {
+      this.skipDependentFilterValidationOnce = false;
+    } else {
+      this.syncSchoolBoardFilterSelection();
+      this.syncGraduationSeasonFilterSelection();
+    }
+    this.persistCreateStudentFiltersPreference();
   }
 
   private collectProvinceFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
@@ -1394,6 +1733,124 @@ export class InfoManagementComponent implements OnInit {
     country: ProvinceFilterCountry | '' = ''
   ): string {
     return this.normalizeCityFilterValue(value, country);
+  }
+
+  private resolveOssltResultLabel(value: StudentDetailVm['ossltResult']): string {
+    if (value === 'PASS') return '\u5df2\u901a\u8fc7';
+    if (value === 'FAIL') return '\u672a\u901a\u8fc7';
+    return '\u5f85\u66f4\u65b0';
+  }
+
+  private resolveOssltTrackingStatusLabel(value: StudentDetailVm['ossltTracking']): string {
+    if (value === 'PASSED') return '\u5df2\u901a\u8fc7';
+    if (value === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
+    if (value === 'WAITING_UPDATE') return '\u7b49\u5f85\u66f4\u65b0';
+    return '\u5f85\u66f4\u65b0';
+  }
+
+  private extractOssltResultFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['ossltResult'] {
+    const ossltNode =
+      this.asObjectRecord(source['ossltModule']) ||
+      this.asObjectRecord(source['osslt']) ||
+      this.asObjectRecord(source['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(source['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(source['summary']);
+
+    const candidates: unknown[] = [
+      source['latestOssltResult'],
+      source['latest_osslt_result'],
+      source['ossltResult'],
+      source['osslt_result'],
+      source['result'],
+      ossltNode?.['latestOssltResult'],
+      ossltNode?.['latest_osslt_result'],
+      ossltNode?.['ossltResult'],
+      ossltNode?.['osslt_result'],
+      summaryNode?.['latestOssltResult'],
+      summaryNode?.['latest_osslt_result'],
+      summaryNode?.['latestOssltResultStatus'],
+      summaryNode?.['latest_osslt_result_status'],
+      profileSource?.['latestOssltResult'],
+      profileSource?.['latest_osslt_result'],
+      profileSource?.['ossltResult'],
+      profileSource?.['osslt_result'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltResultValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private extractOssltTrackingStatusFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['ossltTracking'] {
+    const ossltNode =
+      this.asObjectRecord(source['ossltModule']) ||
+      this.asObjectRecord(source['osslt']) ||
+      this.asObjectRecord(source['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(source['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(source['summary']);
+
+    const candidates: unknown[] = [
+      source['ossltTrackingStatus'],
+      source['osslt_tracking_status'],
+      source['ossltTrackingManualStatus'],
+      source['osslt_tracking_manual_status'],
+      source['trackingStatus'],
+      source['tracking_status'],
+      ossltNode?.['ossltTrackingStatus'],
+      ossltNode?.['osslt_tracking_status'],
+      ossltNode?.['ossltTrackingManualStatus'],
+      ossltNode?.['osslt_tracking_manual_status'],
+      ossltNode?.['trackingStatus'],
+      ossltNode?.['tracking_status'],
+      summaryNode?.['ossltTrackingStatus'],
+      summaryNode?.['osslt_tracking_status'],
+      summaryNode?.['trackingStatus'],
+      summaryNode?.['tracking_status'],
+      profileSource?.['ossltTrackingStatus'],
+      profileSource?.['osslt_tracking_status'],
+      profileSource?.['ossltTrackingManualStatus'],
+      profileSource?.['osslt_tracking_manual_status'],
+      profileSource?.['trackingStatus'],
+      profileSource?.['tracking_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltTrackingStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private normalizeOssltResultValue(value: unknown): StudentDetailVm['ossltResult'] {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'PASS') return 'PASS';
+    if (normalized === 'FAIL') return 'FAIL';
+    if (normalized === 'UNKNOWN') return 'UNKNOWN';
+    return '';
+  }
+
+  private normalizeOssltTrackingStatusValue(value: unknown): StudentDetailVm['ossltTracking'] {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'PASSED') return 'PASSED';
+    if (normalized === 'WAITING_UPDATE') return 'WAITING_UPDATE';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return '';
+  }
+
+  private asObjectRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   }
 
   private syncCountryFilterSelection(): void {
@@ -1978,6 +2435,241 @@ export class InfoManagementComponent implements OnInit {
           .filter(Boolean)
       )
     );
+  }
+
+  private resolveCreateInfoContent(): string {
+    const content = this.createInfoContent.trim();
+    if (this.createInfoCategory !== 'VOLUNTEER') {
+      return content;
+    }
+
+    const tasks = this.normalizeVolunteerTasks(this.volunteerTasks);
+    if (tasks.length === 0) {
+      return content;
+    }
+
+    return this.buildVolunteerTaskContent(content, tasks);
+  }
+
+  private validateVolunteerTasks(): string {
+    if (this.createInfoCategory !== 'VOLUNTEER') {
+      return '';
+    }
+
+    const activeTaskRows = this.collectActiveVolunteerTaskRows();
+    if (activeTaskRows.length === 0) {
+      if (this.isEditMode && this.createInfoContent.trim()) {
+        return '';
+      }
+      return '请至少填写 1 条义工任务。';
+    }
+
+    for (const row of activeTaskRows) {
+      const taskLabel = `第 ${row.index + 1} 条义工任务`;
+      const taskName = row.task.taskName.trim();
+      const description = row.task.description.trim();
+      const durationHours = this.parseVolunteerDurationHours(row.task.durationHours);
+      const startDate = row.task.startDate.trim();
+      const endDate = row.task.endDate.trim();
+      const verifierContact = row.task.verifierContact.trim();
+
+      if (!taskName) {
+        return `${taskLabel}缺少任务名称。`;
+      }
+      if (!description) {
+        return `${taskLabel}缺少任务描述。`;
+      }
+      if (durationHours <= 0) {
+        return `${taskLabel}时长必须大于 0。`;
+      }
+      if (!startDate) {
+        return `${taskLabel}缺少开始日期。`;
+      }
+      if (!endDate) {
+        return `${taskLabel}缺少结束日期。`;
+      }
+      if (!verifierContact) {
+        return `${taskLabel}缺少证明人联系方式。`;
+      }
+
+      const startAt = Date.parse(startDate);
+      const endAt = Date.parse(endDate);
+      if (Number.isFinite(startAt) && Number.isFinite(endAt) && endAt < startAt) {
+        return `${taskLabel}结束日期不能早于开始日期。`;
+      }
+    }
+
+    return '';
+  }
+
+  private collectActiveVolunteerTaskRows(): Array<{ index: number; task: VolunteerTaskDraft }> {
+    const rows: Array<{ index: number; task: VolunteerTaskDraft }> = [];
+    for (let index = 0; index < this.volunteerTasks.length; index += 1) {
+      const task = this.volunteerTasks[index];
+      if (!task || this.isVolunteerTaskDraftEmpty(task)) continue;
+      rows.push({ index, task });
+    }
+    return rows;
+  }
+
+  private isVolunteerTaskDraftEmpty(task: VolunteerTaskDraft | null | undefined): boolean {
+    if (!task) return true;
+    return (
+      !task.taskName.trim() &&
+      !task.description.trim() &&
+      !String(task.durationHours ?? '').trim() &&
+      !task.startDate.trim() &&
+      !task.endDate.trim() &&
+      !task.verifierContact.trim()
+    );
+  }
+
+  private normalizeVolunteerTasks(tasks: readonly VolunteerTaskDraft[]): VolunteerTaskNormalized[] {
+    return tasks
+      .map((task) => ({
+        taskName: String(task.taskName ?? '').trim(),
+        description: String(task.description ?? '').trim(),
+        durationHours: this.parseVolunteerDurationHours(task.durationHours),
+        startDate: String(task.startDate ?? '').trim(),
+        endDate: String(task.endDate ?? '').trim(),
+        verifierContact: String(task.verifierContact ?? '').trim(),
+      }))
+      .filter(
+        (task) =>
+          task.taskName ||
+          task.description ||
+          task.durationHours > 0 ||
+          task.startDate ||
+          task.endDate ||
+          task.verifierContact
+      );
+  }
+
+  private parseVolunteerDurationHours(value: unknown): number {
+    const parsed = Number(String(value ?? '').trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 0;
+    }
+    return Math.round(parsed * 100) / 100;
+  }
+
+  private formatVolunteerHours(hours: number): string {
+    const normalized = Math.round(Number(hours || 0) * 100) / 100;
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      return '0';
+    }
+    return Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2);
+  }
+
+  private buildVolunteerTaskContent(
+    note: string,
+    tasks: readonly VolunteerTaskNormalized[]
+  ): string {
+    const taskLines = tasks
+      .map((task, index) =>
+        [
+          `${index + 1}. 任务名称：${task.taskName}`,
+          `   任务描述：${task.description}`,
+          `   任务时长：${this.formatVolunteerHours(task.durationHours)} 小时`,
+          `   开始日期：${task.startDate}`,
+          `   结束日期：${task.endDate}`,
+          `   证明人联系方式：${task.verifierContact}`,
+        ].join('\n')
+      )
+      .join('\n');
+
+    const totalHours = tasks.reduce((sum, task) => sum + task.durationHours, 0);
+    const detail = [
+      `${VOLUNTEER_TOTAL_HOURS_PREFIX}${this.formatVolunteerHours(totalHours)} 小时`,
+      VOLUNTEER_TASK_COLLECTION_PREFIX,
+      taskLines,
+    ].join('\n');
+
+    return note ? `${note}\n\n${detail}` : detail;
+  }
+
+  private hydrateVolunteerTasksFromContent(content: string): void {
+    const rawContent = String(content ?? '').trim();
+    if (this.createInfoCategory !== 'VOLUNTEER') {
+      this.createInfoContent = rawContent;
+      this.resetVolunteerTasks();
+      return;
+    }
+
+    const parsed = this.parseVolunteerTaskContent(rawContent);
+    if (!parsed) {
+      this.createInfoContent = rawContent;
+      this.ensureVolunteerTaskExists();
+      return;
+    }
+
+    this.createInfoContent = parsed.note;
+    this.volunteerTasks = parsed.tasks.length > 0 ? parsed.tasks : [this.createEmptyVolunteerTask()];
+  }
+
+  private parseVolunteerTaskContent(
+    content: string
+  ): { note: string; tasks: VolunteerTaskDraft[] } | null {
+    const normalizedContent = String(content ?? '').trim();
+    const detailHeaderIndex = normalizedContent.indexOf(VOLUNTEER_TASK_COLLECTION_PREFIX);
+    if (detailHeaderIndex < 0) {
+      return null;
+    }
+
+    const totalHeaderIndex = normalizedContent.indexOf(VOLUNTEER_TOTAL_HOURS_PREFIX);
+    const noteEndIndex = totalHeaderIndex >= 0 ? totalHeaderIndex : detailHeaderIndex;
+    const note = normalizedContent.slice(0, noteEndIndex).trim();
+    const detailBlock = normalizedContent
+      .slice(detailHeaderIndex + VOLUNTEER_TASK_COLLECTION_PREFIX.length)
+      .trim();
+    if (!detailBlock) {
+      return null;
+    }
+
+    const taskPattern =
+      /(?:^|\n)\s*\d+\.\s*任务名称：([^\n]*)\n\s*任务描述：([^\n]*)\n\s*任务时长：([0-9]+(?:\.[0-9]+)?)\s*小时\n\s*开始日期：([0-9]{4}-[0-9]{2}-[0-9]{2})\n\s*结束日期：([0-9]{4}-[0-9]{2}-[0-9]{2})\n\s*证明人联系方式：([^\n]*)/g;
+
+    const tasks: VolunteerTaskDraft[] = [];
+    let matched: RegExpExecArray | null = taskPattern.exec(detailBlock);
+    while (matched) {
+      tasks.push({
+        taskName: String(matched[1] ?? '').trim(),
+        description: String(matched[2] ?? '').trim(),
+        durationHours: String(matched[3] ?? '').trim(),
+        startDate: String(matched[4] ?? '').trim(),
+        endDate: String(matched[5] ?? '').trim(),
+        verifierContact: String(matched[6] ?? '').trim(),
+      });
+      matched = taskPattern.exec(detailBlock);
+    }
+
+    if (tasks.length <= 0) {
+      return null;
+    }
+
+    return { note, tasks };
+  }
+
+  private ensureVolunteerTaskExists(): void {
+    if (this.volunteerTasks.length > 0) {
+      return;
+    }
+    this.resetVolunteerTasks();
+  }
+
+  private resetVolunteerTasks(): void {
+    this.volunteerTasks = [this.createEmptyVolunteerTask()];
+  }
+
+  private createEmptyVolunteerTask(): VolunteerTaskDraft {
+    return {
+      taskName: '',
+      description: '',
+      durationHours: '',
+      startDate: '',
+      endDate: '',
+      verifierContact: '',
+    };
   }
 
   private extractErrorMessage(error: unknown): string {

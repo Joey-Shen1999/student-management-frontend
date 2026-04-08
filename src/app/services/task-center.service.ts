@@ -82,6 +82,31 @@ export interface AssignableStudentOptionVm {
   studentId: number;
   studentName: string;
   username?: string;
+  email?: string;
+  phone?: string;
+  graduation?: string;
+  schoolName?: string;
+  canadaIdentity?: string;
+  gender?: string;
+  nationality?: string;
+  firstLanguage?: string;
+  motherLanguage?: string;
+  schoolBoard?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  teacherNote?: string;
+  status?: 'ACTIVE' | 'ARCHIVED' | string;
+  selectable?: boolean;
+}
+
+export interface AssignableStudentQueryVm {
+  country?: string;
+  province?: string;
+  city?: string;
+  schoolBoard?: string;
+  graduationSeason?: string;
+  keyword?: string;
 }
 
 export interface InfoTaskVm {
@@ -400,15 +425,38 @@ export class TaskCenterService {
     );
   }
 
-  listAssignableStudents(): Observable<AssignableStudentOptionVm[]> {
+  listAssignableStudents(query: AssignableStudentQueryVm = {}): Observable<AssignableStudentOptionVm[]> {
     if (this.useMock) {
-      return this.listAssignableStudentsFromMock();
+      return this.listAssignableStudentsFromMock(query);
+    }
+
+    let params = new HttpParams();
+    if (query.country?.trim()) {
+      params = params.set('country', query.country.trim());
+    }
+    if (query.province?.trim()) {
+      params = params.set('province', query.province.trim());
+    }
+    if (query.city?.trim()) {
+      params = params.set('city', query.city.trim());
+    }
+    if (query.schoolBoard?.trim()) {
+      params = params.set('schoolBoard', query.schoolBoard.trim());
+    }
+    if (query.graduationSeason?.trim()) {
+      params = params.set('graduationSeason', query.graduationSeason.trim());
+    }
+    if (query.keyword?.trim()) {
+      params = params.set('keyword', query.keyword.trim());
     }
 
     return this.withRequestTimeout(
       this.http.get<AssignableStudentOptionVm[]>(
         `${this.teacherBaseUrl}/assignable-students`,
-        this.withAuthHeaderIfAvailable()
+        {
+          params,
+          ...this.withAuthHeaderIfAvailable(),
+        }
       )
     );
   }
@@ -885,7 +933,7 @@ export class TaskCenterService {
     return of({ ...updatedGoal }).pipe(delay(120));
   }
 
-  private listAssignableStudentsFromMock(): Observable<AssignableStudentOptionVm[]> {
+  private listAssignableStudentsFromMock(_query: AssignableStudentQueryVm): Observable<AssignableStudentOptionVm[]> {
     const options = new Map<number, AssignableStudentOptionVm>();
 
     for (const student of MOCK_ASSIGNABLE_STUDENTS) {

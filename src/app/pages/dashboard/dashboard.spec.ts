@@ -210,6 +210,11 @@ describe('DashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/student/profile']);
   });
 
+  it('goVolunteerRecords should navigate to student volunteer page', () => {
+    component.goVolunteerRecords();
+    expect(router.navigate).toHaveBeenCalledWith(['/student/volunteer']);
+  });
+
   it('goAccount should navigate to account settings page', () => {
     component.goAccount();
     expect(router.navigate).toHaveBeenCalledWith(['/account']);

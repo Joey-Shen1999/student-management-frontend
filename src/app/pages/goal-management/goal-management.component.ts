@@ -64,6 +64,8 @@ interface StudentDetailVm {
   country: string;
   schoolBoard: string;
   graduationSeason: string;
+  ossltResult: 'PASS' | 'FAIL' | 'UNKNOWN' | '';
+  ossltTracking: 'PASSED' | 'WAITING_UPDATE' | 'NEEDS_TRACKING' | '';
   status: 'ACTIVE' | 'ARCHIVED' | '';
 }
 
@@ -82,6 +84,20 @@ interface GoalGroupRowVm {
 interface CreateStudentColumnPreferenceVm {
   visibleColumnKeys?: string[];
   orderedColumnKeys?: string[];
+}
+
+interface CreateStudentFilterPreferenceVm {
+  countryFilterInput?: string;
+  countryFilter?: string;
+  provinceFilterInput?: string;
+  provinceFilter?: string;
+  cityFilterInput?: string;
+  cityFilter?: string;
+  schoolBoardFilterInput?: string;
+  schoolBoardFilter?: string;
+  graduationSeasonFilterInput?: string;
+  graduationSeasonFilter?: string;
+  keyword?: string;
 }
 
 const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
@@ -107,7 +123,10 @@ const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'goal-management.create-goal.student-selector.visible-columns';
 const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_PAGE_KEY =
   'goal-management.create-goal.student-selector-columns';
-const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v2';
+const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v4';
+const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
+  'goal-management.create-goal.student-selector.filters';
+const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v2';
 
 @Component({
   selector: 'app-goal-management',
@@ -134,6 +153,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   private readonly studentDetails = new Map<number, StudentDetailVm>();
   private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
   private readonly profileLoadInFlight = new Set<number>();
+  private skipDependentFilterValidationOnce = false;
   private readonly teacherNoteProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
@@ -196,6 +216,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.initializeCreateStudentVisibleColumns();
+    this.initializeCreateStudentFiltersFromPreference();
     this.loadCreateStudentVisibleColumnsPreferenceFromServer();
     this.loadAssignableStudents();
     this.loadGoals();
@@ -561,6 +582,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (typeof value === 'string') {
       this.createStudentKeyword = value;
     }
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   onCountryFilterInputChange(value: string): void {
@@ -573,6 +595,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.syncCityFilterSelection();
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   onProvinceFilterInputChange(value: string): void {
@@ -580,6 +603,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createProvinceFilterInput = input;
     const country = this.provinceFilterCountry;
     this.createProvinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   onCityFilterInputChange(value: string): void {
@@ -587,6 +611,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createCityFilterInput = input;
     const country = this.cityFilterCountry;
     this.createCityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   onSchoolBoardFilterInputChange(value: string): void {
@@ -596,6 +621,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       ? this.resolveSchoolBoardFilterSelection(input)
       : COUNTRY_FILTER_ALL_OPTION;
     this.syncGraduationSeasonFilterSelection();
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   onGraduationSeasonFilterInputChange(value: string): void {
@@ -604,6 +630,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createGraduationSeasonFilter = input
       ? this.resolveGraduationSeasonFilterSelection(input)
       : COUNTRY_FILTER_ALL_OPTION;
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
   refreshAssignableStudents(): void { this.loadAssignableStudents(); }
@@ -623,6 +650,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createGraduationSeasonFilterInput = '';
     this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createStudentKeyword = '';
+    this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
 
@@ -721,6 +749,22 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   detailCountry(studentId: number): string { return this.studentDetails.get(studentId)?.country || '-'; }
   detailProvince(studentId: number): string { return this.studentDetails.get(studentId)?.province || '-'; }
   detailCity(studentId: number): string { return this.studentDetails.get(studentId)?.city || '-'; }
+  detailOssltResult(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.ossltResult || '';
+    if (cached) return this.resolveOssltResultLabel(cached);
+    const fallback = this.extractOssltResultFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveOssltResultLabel(fallback);
+  }
+  detailOssltTracking(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.ossltTracking || '';
+    if (cached) return this.resolveOssltTrackingStatusLabel(cached);
+    const fallback = this.extractOssltTrackingStatusFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveOssltTrackingStatusLabel(fallback);
+  }
   detailStatus(studentId: number): string {
     return this.resolveArchiveStatusLabel(this.studentDetails.get(studentId)?.status || '');
   }
@@ -761,6 +805,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         return this.detailProvince(student.studentId);
       case 'city':
         return this.detailCity(student.studentId);
+      case 'ossltResult':
+        return this.detailOssltResult(student);
+      case 'ossltTracking':
+        return this.detailOssltTracking(student);
       case 'status':
         return this.detailStatus(student.studentId);
       case 'selectable':
@@ -1267,6 +1315,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ossltResult: '',
+      ossltTracking: '',
       status: '',
     };
     const graduation = patch.graduation?.trim() || current.graduation;
@@ -1287,6 +1337,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
       graduationSeason,
+      ossltResult: patch.ossltResult || current.ossltResult,
+      ossltTracking: patch.ossltTracking || current.ossltTracking,
       status: patch.status || current.status,
     });
   }
@@ -1308,6 +1360,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ossltResult: '',
+      ossltTracking: '',
       status: '',
     };
     this.studentDetails.set(studentId, {
@@ -1317,7 +1371,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   private buildFromAccount(student: StudentAccount): Partial<StudentDetailVm> {
-    const profile = student?.['profile'] && typeof student['profile'] === 'object' ? (student['profile'] as Record<string, unknown>) : {};
+    const root = (student ?? {}) as Record<string, unknown>;
+    const profile =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : {};
     const graduation = this.formatGraduation(this.pick([
       student['currentSchoolExpectedGraduation'], student['expectedGraduationTime'], student['expectedGraduationDate'],
       profile['currentSchoolExpectedGraduation'], profile['expectedGraduationTime'], profile['expectedGraduationDate'],
@@ -1387,6 +1445,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: this.pick([student['currentSchoolCountry'], student['schoolCountry'], student['country'], profile['currentSchoolCountry'], profile['country']]),
       schoolBoard: this.pick([student['currentSchoolBoard'], student['schoolBoard'], student['educationBoard'], profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      ossltResult: this.extractOssltResultFromRecord(root, profile),
+      ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
       status: this.normalizeAccountStatus(student.status),
     };
   }
@@ -1465,6 +1525,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: this.pick([profile['currentSchoolCountry'], profile['country'], school['country'], root['currentSchoolCountry']]),
       schoolBoard: this.pick([profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard'], school['schoolBoard'], school['educationBoard'], root['currentSchoolBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      ossltResult: this.extractOssltResultFromRecord(root, profile),
+      ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
       status: this.normalizeAccountStatus(root['status']),
     };
   }
@@ -1497,8 +1559,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.syncCountryFilterSelection();
     this.syncProvinceFilterSelection();
     this.syncCityFilterSelection();
-    this.syncSchoolBoardFilterSelection();
-    this.syncGraduationSeasonFilterSelection();
+    if (this.skipDependentFilterValidationOnce) {
+      this.skipDependentFilterValidationOnce = false;
+    } else {
+      this.syncSchoolBoardFilterSelection();
+      this.syncGraduationSeasonFilterSelection();
+    }
+    this.persistCreateStudentFiltersPreference();
   }
 
   private collectProvinceFilterOptions(country: ProvinceFilterCountry | '' = ''): string[] {
@@ -1550,6 +1617,124 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   private normalizeCityValueForDetail(value: unknown, country: ProvinceFilterCountry | '' = ''): string {
     return this.normalizeCityFilterValue(value, country);
+  }
+
+  private resolveOssltResultLabel(value: StudentDetailVm['ossltResult']): string {
+    if (value === 'PASS') return '\u5df2\u901a\u8fc7';
+    if (value === 'FAIL') return '\u672a\u901a\u8fc7';
+    return '\u5f85\u66f4\u65b0';
+  }
+
+  private resolveOssltTrackingStatusLabel(value: StudentDetailVm['ossltTracking']): string {
+    if (value === 'PASSED') return '\u5df2\u901a\u8fc7';
+    if (value === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
+    if (value === 'WAITING_UPDATE') return '\u7b49\u5f85\u66f4\u65b0';
+    return '\u5f85\u66f4\u65b0';
+  }
+
+  private extractOssltResultFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['ossltResult'] {
+    const ossltNode =
+      this.asObjectRecord(source['ossltModule']) ||
+      this.asObjectRecord(source['osslt']) ||
+      this.asObjectRecord(source['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(source['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(source['summary']);
+
+    const candidates: unknown[] = [
+      source['latestOssltResult'],
+      source['latest_osslt_result'],
+      source['ossltResult'],
+      source['osslt_result'],
+      source['result'],
+      ossltNode?.['latestOssltResult'],
+      ossltNode?.['latest_osslt_result'],
+      ossltNode?.['ossltResult'],
+      ossltNode?.['osslt_result'],
+      summaryNode?.['latestOssltResult'],
+      summaryNode?.['latest_osslt_result'],
+      summaryNode?.['latestOssltResultStatus'],
+      summaryNode?.['latest_osslt_result_status'],
+      profileSource?.['latestOssltResult'],
+      profileSource?.['latest_osslt_result'],
+      profileSource?.['ossltResult'],
+      profileSource?.['osslt_result'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltResultValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private extractOssltTrackingStatusFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['ossltTracking'] {
+    const ossltNode =
+      this.asObjectRecord(source['ossltModule']) ||
+      this.asObjectRecord(source['osslt']) ||
+      this.asObjectRecord(source['ossltData']);
+    const summaryNode =
+      this.asObjectRecord(source['ossltSummary']) ||
+      this.asObjectRecord(ossltNode?.['summary']) ||
+      this.asObjectRecord(source['summary']);
+
+    const candidates: unknown[] = [
+      source['ossltTrackingStatus'],
+      source['osslt_tracking_status'],
+      source['ossltTrackingManualStatus'],
+      source['osslt_tracking_manual_status'],
+      source['trackingStatus'],
+      source['tracking_status'],
+      ossltNode?.['ossltTrackingStatus'],
+      ossltNode?.['osslt_tracking_status'],
+      ossltNode?.['ossltTrackingManualStatus'],
+      ossltNode?.['osslt_tracking_manual_status'],
+      ossltNode?.['trackingStatus'],
+      ossltNode?.['tracking_status'],
+      summaryNode?.['ossltTrackingStatus'],
+      summaryNode?.['osslt_tracking_status'],
+      summaryNode?.['trackingStatus'],
+      summaryNode?.['tracking_status'],
+      profileSource?.['ossltTrackingStatus'],
+      profileSource?.['osslt_tracking_status'],
+      profileSource?.['ossltTrackingManualStatus'],
+      profileSource?.['osslt_tracking_manual_status'],
+      profileSource?.['trackingStatus'],
+      profileSource?.['tracking_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeOssltTrackingStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private normalizeOssltResultValue(value: unknown): StudentDetailVm['ossltResult'] {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'PASS') return 'PASS';
+    if (normalized === 'FAIL') return 'FAIL';
+    if (normalized === 'UNKNOWN') return 'UNKNOWN';
+    return '';
+  }
+
+  private normalizeOssltTrackingStatusValue(value: unknown): StudentDetailVm['ossltTracking'] {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'PASSED') return 'PASSED';
+    if (normalized === 'WAITING_UPDATE') return 'WAITING_UPDATE';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return '';
+  }
+
+  private asObjectRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   }
 
   private pick(candidates: unknown[]): string {
@@ -1693,6 +1878,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       detail?.country || '',
       detail?.schoolBoard || '',
       detail?.graduationSeason || '',
+      this.detailOssltResult(student),
+      this.detailOssltTracking(student),
+      detail?.ossltResult || '',
+      detail?.ossltTracking || '',
       this.resolveArchiveStatusLabel(status),
       status,
       this.isCreateStudentSelectable(student.studentId) ? '可选 selectable' : '不可选 not selectable',
@@ -1935,6 +2124,110 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         next: () => {},
         error: () => {},
       });
+  }
+
+  private initializeCreateStudentFiltersFromPreference(): void {
+    const persisted = this.readCreateStudentFiltersPreference();
+    if (!persisted) return;
+    this.skipDependentFilterValidationOnce = true;
+
+    const countrySource = String(
+      persisted.countryFilterInput ?? persisted.countryFilter ?? ''
+    ).trim();
+    const resolvedCountry = countrySource
+      ? this.resolveCountryFilterInputSelection(countrySource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createCountryFilter = resolvedCountry;
+    this.createCountryFilterInput =
+      resolvedCountry === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedCountry;
+
+    const provinceSource = String(
+      persisted.provinceFilterInput ?? persisted.provinceFilter ?? ''
+    ).trim();
+    const resolvedProvince = provinceSource
+      ? this.resolveProvinceFilterSelection(provinceSource, this.provinceFilterCountry)
+      : '';
+    this.createProvinceFilter = resolvedProvince;
+    this.createProvinceFilterInput = resolvedProvince;
+
+    const citySource = String(persisted.cityFilterInput ?? persisted.cityFilter ?? '').trim();
+    const resolvedCity = citySource
+      ? this.resolveCityFilterSelection(citySource, this.cityFilterCountry)
+      : '';
+    this.createCityFilter = resolvedCity;
+    this.createCityFilterInput = resolvedCity;
+
+    const schoolBoardSource = String(
+      persisted.schoolBoardFilterInput ?? persisted.schoolBoardFilter ?? ''
+    ).trim();
+    const resolvedSchoolBoard = schoolBoardSource
+      ? this.resolveSchoolBoardFilterSelection(schoolBoardSource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createSchoolBoardFilter = resolvedSchoolBoard;
+    this.createSchoolBoardFilterInput =
+      resolvedSchoolBoard === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedSchoolBoard;
+
+    const graduationSeasonSource = String(
+      persisted.graduationSeasonFilterInput ?? persisted.graduationSeasonFilter ?? ''
+    ).trim();
+    const resolvedGraduationSeason = graduationSeasonSource
+      ? this.resolveGraduationSeasonFilterSelection(graduationSeasonSource)
+      : COUNTRY_FILTER_ALL_OPTION;
+    this.createGraduationSeasonFilter = resolvedGraduationSeason;
+    this.createGraduationSeasonFilterInput =
+      resolvedGraduationSeason === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedGraduationSeason;
+
+    this.createStudentKeyword = String(persisted.keyword ?? '').trim();
+  }
+
+  private persistCreateStudentFiltersPreference(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      const payload: CreateStudentFilterPreferenceVm = {
+        countryFilterInput: this.createCountryFilterInput,
+        countryFilter: this.createCountryFilter,
+        provinceFilterInput: this.createProvinceFilterInput,
+        provinceFilter: this.createProvinceFilter,
+        cityFilterInput: this.createCityFilterInput,
+        cityFilter: this.createCityFilter,
+        schoolBoardFilterInput: this.createSchoolBoardFilterInput,
+        schoolBoardFilter: this.createSchoolBoardFilter,
+        graduationSeasonFilterInput: this.createGraduationSeasonFilterInput,
+        graduationSeasonFilter: this.createGraduationSeasonFilter,
+        keyword: this.createStudentKeyword,
+      };
+      storage.setItem(this.resolveCreateStudentFiltersStorageKey(), JSON.stringify(payload));
+    } catch {}
+  }
+
+  private readCreateStudentFiltersPreference(): CreateStudentFilterPreferenceVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCreateStudentFiltersStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed as CreateStudentFilterPreferenceVm;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCreateStudentFiltersStorageKey(): string {
+    const session = this.auth.getSession();
+    const teacherId = Number(session?.teacherId);
+    if (Number.isFinite(teacherId) && teacherId > 0) {
+      return `${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.teacher-${Math.trunc(teacherId)}.${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION}`;
+    }
+
+    const userId = this.auth.getCurrentUserId();
+    if (userId && userId > 0) {
+      return `${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.user-${Math.trunc(userId)}.${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION}`;
+    }
+
+    return `${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.anonymous.${GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION}`;
   }
 
   private syncCountryFilterSelection(): void {

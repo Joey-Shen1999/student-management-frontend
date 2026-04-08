@@ -207,6 +207,9 @@ import {
             <button type="button" class="action-btn primary" (click)="goOssltTracking()">
               OSSLT 登记
             </button>
+            <button type="button" class="action-btn primary" (click)="goVolunteerRecords()">
+              义工记录
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
               姓名设置
             </button>
@@ -278,6 +281,10 @@ export class DashboardComponent implements OnInit {
 
   goOssltTracking() {
     this.router.navigate(['/student/osslt']);
+  }
+
+  goVolunteerRecords() {
+    this.router.navigate(['/student/volunteer']);
   }
 
   goAccountProfile() {

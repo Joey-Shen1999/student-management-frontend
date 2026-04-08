@@ -1,6 +1,6 @@
 import type { GoalStudentSelectorColumnKey } from '../student-columns/goal-student-selector-columns';
 
-export type StudentManagementPageContext = 'students' | 'ielts' | 'osslt';
+export type StudentManagementPageContext = 'students' | 'ielts' | 'osslt' | 'volunteer';
 
 export type StudentListColumnKey =
   | 'name'
@@ -23,6 +23,7 @@ export type StudentListColumnKey =
   | 'languageTracking'
   | 'ossltResult'
   | 'ossltTracking'
+  | 'volunteerTracking'
   | 'resetPassword'
   | 'archive';
 
@@ -58,6 +59,16 @@ export const OSSLT_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[]
   'ossltTracking',
 ];
 
+export const VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
+  'name',
+  'graduation',
+  'schoolName',
+  'schoolBoard',
+  'city',
+  'teacherNote',
+  'volunteerTracking',
+];
+
 export const STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   StudentManagementPageContext,
   readonly StudentListColumnKey[]
@@ -65,6 +76,7 @@ export const STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   students: STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS,
   ielts: LANGUAGE_SCORE_TRACKING_DEFAULT_COLUMN_KEYS,
   osslt: OSSLT_TRACKING_DEFAULT_COLUMN_KEYS,
+  volunteer: VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS,
 };
 
 export type StudentSelectorContext = 'goal-create' | 'info-create';
@@ -92,6 +104,26 @@ export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColu
   'province',
   'city',
   'teacherNote',
+  'ossltResult',
+  'ossltTracking',
+  'status',
+  'selectable',
+];
+
+const UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS: readonly GoalStudentSelectorColumnKey[] = [
+  'name',
+  'email',
+  'phone',
+  'graduation',
+  'schoolName',
+  'canadaIdentity',
+  'schoolBoard',
+  'country',
+  'province',
+  'city',
+  'teacherNote',
+  'ossltResult',
+  'ossltTracking',
   'status',
   'selectable',
 ];
@@ -100,28 +132,8 @@ export const STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   StudentSelectorContext,
   readonly GoalStudentSelectorColumnKey[]
 > = {
-  'goal-create': [
-    'name',
-    'email',
-    'phone',
-    'graduation',
-    'schoolBoard',
-    'city',
-    'teacherNote',
-    'status',
-    'selectable',
-  ],
-  'info-create': [
-    'name',
-    'email',
-    'phone',
-    'graduation',
-    'schoolBoard',
-    'city',
-    'teacherNote',
-    'status',
-    'selectable',
-  ],
+  'goal-create': UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS,
+  'info-create': UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS,
 };
 
 export const STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT: Record<
