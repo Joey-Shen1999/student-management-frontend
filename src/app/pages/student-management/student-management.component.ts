@@ -34,6 +34,7 @@ import { TeacherPreferenceService } from '../../services/teacher-preference.serv
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
   IeltsRecordFormValue,
+  LanguageCourseStatus,
   IeltsTrackingStatus,
   LanguageTrackingStatus,
   StudentIeltsModuleState,
@@ -143,6 +144,7 @@ interface StudentListFilterPreferenceVm {
   graduationSeasonFilter?: string;
   languageScoreFilter?: string;
   languageScoreTrackingFilter?: string;
+  languageCourseStatusFilter?: string;
   ossltResultFilter?: string;
   ossltTrackingFilter?: string;
   volunteerCompletedFilter?: boolean;
@@ -186,14 +188,17 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   profile: '\u6863\u6848',
   ielts: '\u8bed\u8a00\u6210\u7ee9',
   languageTracking: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
+  languageCourseStatus: '\u8bed\u8a00\u62a5\u8bfe\u60c5\u51b5',
   ossltResult: 'OSSLT \u6210\u7ee9',
   ossltTracking: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
   volunteerTracking: '\u4e49\u5de5\u8ddf\u8e2a',
   resetPassword: '\u91cd\u7f6e\u5bc6\u7801',
   archive: '\u5f52\u6863',
+  status: '\u5f52\u6863\u72b6\u6001',
+  selectable: '\u53ef\u9009\u62e9',
 };
 
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v5';
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v9';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -377,6 +382,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
+    key: 'languageCourseStatus',
+    label: '语言报课情况',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
     key: 'ossltResult',
     label: 'OSSLT 成绩',
     defaultVisible: false,
@@ -424,6 +439,26 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: false,
     headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'status',
+    label: '归档状态',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'selectable',
+    label: '可选择',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
 ];
 
@@ -597,6 +632,21 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
               <option [ngValue]="''">All</option>
               <option *ngFor="let status of languageScoreTrackingStatusOptions" [ngValue]="status">
                 {{ resolveLanguageTrackingStatusOptionLabel(status) }}
+              </option>
+            </select>
+          </label>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            语言报课情况
+            <select
+              [(ngModel)]="languageCourseStatusFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:240px;"
+            >
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let status of languageCourseStatusOptions" [ngValue]="status">
+                {{ resolveLanguageCourseStatusLabel(status) }}
               </option>
             </select>
           </label>
@@ -843,6 +893,23 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                         [ngValue]="status"
                       >
                         {{ resolveLanguageTrackingStatusOptionLabel(status) }}
+                      </option>
+                    </select>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'languageCourseStatus'">
+                    <select
+                      [ngModel]="resolveLanguageCourseStatusSelection(student)"
+                      (ngModelChange)="onLanguageCourseStatusSelectionChange(student, $event)"
+                      style="min-width:240px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;"
+                      [disabled]="!resolveStudentId(student) || isLanguageCourseStatusSaving(student)"
+                    >
+                      <option [ngValue]="''">待更新</option>
+                      <option
+                        *ngFor="let status of languageCourseStatusOptions"
+                        [ngValue]="status"
+                      >
+                        {{ resolveLanguageCourseStatusLabel(status) }}
                       </option>
                     </select>
                   </ng-container>
@@ -1167,6 +1234,14 @@ export class StudentManagementComponent implements OnInit {
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
   ];
+  readonly languageCourseStatusOptions: readonly LanguageCourseStatus[] = [
+    'NOT_RECEIVED_TRAINING',
+    'ENROLLED_GLOBAL_IELTS',
+    'ENROLLED_OTHER_IELTS',
+    'COURSE_COMPLETED_NOT_EXAMINED',
+    'EXAM_REGISTERED',
+    'SCORE_RELEASED',
+  ];
   readonly ossltResultStatusOptions: readonly OssltResult[] = ['PASS', 'FAIL', 'UNKNOWN'];
   readonly ossltTrackingStatusOptions: readonly OssltTrackingStatus[] = [
     'WAITING_UPDATE',
@@ -1210,6 +1285,7 @@ export class StudentManagementComponent implements OnInit {
   graduationSeasonFilter: string = '';
   languageScoreFilter: IeltsTrackingStatus | '' = '';
   languageScoreTrackingFilter: LanguageTrackingStatus | '' = '';
+  languageCourseStatusFilter: LanguageCourseStatus | '' = '';
   ossltResultFilter: OssltResult | '' = '';
   ossltTrackingFilter: OssltTrackingStatus | '' = '';
   volunteerCompletedFilter = false;
@@ -1240,11 +1316,13 @@ export class StudentManagementComponent implements OnInit {
   private readonly teacherNoteLoadInFlight = new Set<number>();
   private readonly ieltsStatusCache = new Map<number, IeltsTrackingStatus>();
   private readonly languageTrackingStatusCache = new Map<number, LanguageTrackingStatus>();
+  private readonly languageCourseStatusCache = new Map<number, LanguageCourseStatus>();
   private readonly ieltsStatusColorTokenCache = new Map<number, string>();
   private readonly ieltsStatusLoadInFlight = new Set<number>();
   private readonly ieltsNoRequirement = new Set<number>();
   private readonly ieltsStatusUnavailable = new Set<number>();
   private readonly languageTrackingStatusSaveInFlight = new Set<number>();
+  private readonly languageCourseStatusSaveInFlight = new Set<number>();
   private readonly ossltResultCache = new Map<number, OssltResult>();
   private readonly ossltTrackingStatusCache = new Map<number, OssltTrackingStatus>();
   private readonly ossltStatusLoadInFlight = new Set<number>();
@@ -1479,6 +1557,11 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveCurrentSchoolCityValue(student) || '-';
   }
 
+  resolveStudentLanguageCourseStatus(student: StudentAccount): string {
+    const status = this.resolveLanguageCourseStatusForFilter(student);
+    return this.resolveLanguageCourseStatusLabel(status);
+  }
+
   resolveStudentColumnValue(student: StudentAccount, columnKey: StudentListColumnKey): string {
     switch (columnKey) {
       case 'name':
@@ -1509,6 +1592,12 @@ export class StudentManagementComponent implements OnInit {
         return this.resolveStudentProvince(student);
       case 'city':
         return this.resolveStudentCity(student);
+      case 'languageCourseStatus':
+        return this.resolveStudentLanguageCourseStatus(student);
+      case 'status':
+        return this.isArchived(student) ? '已归档' : '已启用';
+      case 'selectable':
+        return this.isArchived(student) ? '已锁定' : '可选';
       default:
         return '-';
     }
@@ -2362,6 +2451,16 @@ export class StudentManagementComponent implements OnInit {
     }).label;
   }
 
+  resolveLanguageCourseStatusLabel(status: LanguageCourseStatus | null): string {
+    if (status === 'NOT_RECEIVED_TRAINING') return '未接收培训';
+    if (status === 'ENROLLED_GLOBAL_IELTS') return '已报名环球雅思课程';
+    if (status === 'ENROLLED_OTHER_IELTS') return '已报名其他机构雅思课程';
+    if (status === 'COURSE_COMPLETED_NOT_EXAMINED') return '已结课，未考试';
+    if (status === 'EXAM_REGISTERED') return '已报名考试';
+    if (status === 'SCORE_RELEASED') return '已出分';
+    return '待更新';
+  }
+
   resolveOssltResultFilterOptionLabel(result: OssltResult): string {
     if (result === 'PASS') return '\u5df2\u901a\u8fc7';
     if (result === 'FAIL') return '\u672a\u901a\u8fc7';
@@ -2451,8 +2550,14 @@ export class StudentManagementComponent implements OnInit {
         next: (moduleState) => {
           const summary = deriveStudentIeltsModuleState(moduleState).summary;
           const statusColorToken = String(summary.colorToken || '').trim();
+          const languageCourseStatus = this.extractLanguageCourseStatusFromModuleState(moduleState);
 
           this.languageTrackingStatusCache.set(studentId, summary.languageTrackingStatus);
+          if (languageCourseStatus) {
+            this.languageCourseStatusCache.set(studentId, languageCourseStatus);
+          } else {
+            this.languageCourseStatusCache.delete(studentId);
+          }
           if (summary.shouldShowModule === false) {
             this.ieltsNoRequirement.add(studentId);
             this.ieltsStatusCache.delete(studentId);
@@ -2477,6 +2582,106 @@ export class StudentManagementComponent implements OnInit {
             this.languageTrackingStatusCache.delete(studentId);
           }
           this.actionError = this.extractErrorMessage(err) || '保存语言跟踪状态失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  resolveLanguageCourseStatusSelection(student: StudentAccount): LanguageCourseStatus | '' {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return '';
+    }
+
+    if (this.languageCourseStatusCache.has(studentId)) {
+      return this.languageCourseStatusCache.get(studentId) || '';
+    }
+    const extracted = this.extractLanguageCourseStatusFromStudent(student);
+    if (extracted) {
+      this.languageCourseStatusCache.set(studentId, extracted);
+      return extracted;
+    }
+    return '';
+  }
+
+  isLanguageCourseStatusSaving(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+    return this.languageCourseStatusSaveInFlight.has(studentId);
+  }
+
+  onLanguageCourseStatusSelectionChange(student: StudentAccount, rawValue: unknown): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return;
+    }
+
+    const nextStatus = this.normalizeLanguageCourseStatusValue(rawValue);
+    if (!nextStatus) {
+      return;
+    }
+
+    const previousStatus = this.resolveLanguageCourseStatusForFilter(student);
+    if (previousStatus === nextStatus) {
+      return;
+    }
+    if (this.languageCourseStatusSaveInFlight.has(studentId)) {
+      return;
+    }
+
+    this.languageCourseStatusCache.set(studentId, nextStatus);
+    this.languageCourseStatusSaveInFlight.add(studentId);
+    this.actionError = '';
+    this.cdr.detectChanges();
+
+    this.ieltsApi
+      .updateTeacherStudentIeltsData(studentId, {
+        languageCourseStatus: nextStatus,
+      })
+      .pipe(
+        finalize(() => {
+          this.languageCourseStatusSaveInFlight.delete(studentId);
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (moduleState) => {
+          const normalizedFromState = this.extractLanguageCourseStatusFromModuleState(moduleState);
+          if (normalizedFromState) {
+            this.languageCourseStatusCache.set(studentId, normalizedFromState);
+          } else {
+            this.languageCourseStatusCache.set(studentId, nextStatus);
+          }
+          const summary = deriveStudentIeltsModuleState(moduleState).summary;
+          const statusColorToken = String(summary.colorToken || '').trim();
+          this.languageTrackingStatusCache.set(studentId, summary.languageTrackingStatus);
+          if (summary.shouldShowModule === false) {
+            this.ieltsNoRequirement.add(studentId);
+            this.ieltsStatusCache.delete(studentId);
+            this.ieltsStatusColorTokenCache.delete(studentId);
+            this.ieltsStatusUnavailable.delete(studentId);
+          } else {
+            this.ieltsStatusCache.set(studentId, summary.trackingStatus);
+            if (statusColorToken) {
+              this.ieltsStatusColorTokenCache.set(studentId, statusColorToken);
+            } else {
+              this.ieltsStatusColorTokenCache.delete(studentId);
+            }
+            this.ieltsNoRequirement.delete(studentId);
+            this.ieltsStatusUnavailable.delete(studentId);
+          }
+          this.scheduleStatusFilterReapply();
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          if (previousStatus) {
+            this.languageCourseStatusCache.set(studentId, previousStatus);
+          } else {
+            this.languageCourseStatusCache.delete(studentId);
+          }
+          this.actionError = this.extractErrorMessage(err) || '保存语言报课情况失败。';
           this.cdr.detectChanges();
         },
       });
@@ -2573,11 +2778,13 @@ export class StudentManagementComponent implements OnInit {
     this.listError = '';
     this.ieltsStatusCache.clear();
     this.languageTrackingStatusCache.clear();
+    this.languageCourseStatusCache.clear();
     this.ieltsStatusColorTokenCache.clear();
     this.ieltsStatusLoadInFlight.clear();
     this.ieltsNoRequirement.clear();
     this.ieltsStatusUnavailable.clear();
     this.languageTrackingStatusSaveInFlight.clear();
+    this.languageCourseStatusSaveInFlight.clear();
     this.ossltResultCache.clear();
     this.ossltTrackingStatusCache.clear();
     this.ossltStatusLoadInFlight.clear();
@@ -3235,6 +3442,8 @@ export class StudentManagementComponent implements OnInit {
       this.normalizeIeltsTrackingStatusValue(persisted.languageScoreFilter) ?? '';
     this.languageScoreTrackingFilter =
       this.normalizeLanguageTrackingStatusValue(persisted.languageScoreTrackingFilter) ?? '';
+    this.languageCourseStatusFilter =
+      this.normalizeLanguageCourseStatusValue(persisted.languageCourseStatusFilter) ?? '';
     this.ossltResultFilter = this.normalizeOssltResultValue(persisted.ossltResultFilter) ?? '';
     this.ossltTrackingFilter =
       this.normalizeOssltTrackingStatusValue(persisted.ossltTrackingFilter) ?? '';
@@ -3263,6 +3472,7 @@ export class StudentManagementComponent implements OnInit {
         graduationSeasonFilter: this.graduationSeasonFilter,
         languageScoreFilter: this.languageScoreFilter,
         languageScoreTrackingFilter: this.languageScoreTrackingFilter,
+        languageCourseStatusFilter: this.languageCourseStatusFilter,
         ossltResultFilter: this.ossltResultFilter,
         ossltTrackingFilter: this.ossltTrackingFilter,
         volunteerCompletedFilter: this.volunteerCompletedFilter,
@@ -3473,6 +3683,7 @@ export class StudentManagementComponent implements OnInit {
       !this.graduationSeasonFilterInput.trim() &&
       !this.languageScoreFilter &&
       !this.languageScoreTrackingFilter &&
+      !this.languageCourseStatusFilter &&
       !this.ossltResultFilter &&
       !this.ossltTrackingFilter &&
       !this.volunteerCompletedFilter
@@ -3495,6 +3706,7 @@ export class StudentManagementComponent implements OnInit {
     this.graduationSeasonFilter = '';
     this.languageScoreFilter = '';
     this.languageScoreTrackingFilter = '';
+    this.languageCourseStatusFilter = '';
     this.ossltResultFilter = '';
     this.ossltTrackingFilter = '';
     this.volunteerCompletedFilter = false;
@@ -3616,6 +3828,13 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
+    if (this.languageCourseStatusFilter) {
+      const studentLanguageCourseStatus = this.resolveLanguageCourseStatusForFilter(student);
+      if (studentLanguageCourseStatus !== this.languageCourseStatusFilter) {
+        return false;
+      }
+    }
+
     if (this.ossltResultFilter) {
       const studentOssltResult = this.resolveOssltResultForFilter(student);
       if (studentOssltResult !== this.ossltResultFilter) {
@@ -3665,13 +3884,18 @@ export class StudentManagementComponent implements OnInit {
       this.resolveCurrentSchoolCountryValue(student),
       this.resolveCurrentSchoolProvinceValue(student),
       this.resolveCurrentSchoolCityValue(student),
+      this.resolveStudentLanguageCourseStatus(student),
     ];
 
     return searchFields.some((field) => field.toLowerCase().includes(keyword));
   }
 
   private prefetchStatusDataForActiveFilters(): void {
-    if (this.languageScoreFilter || this.languageScoreTrackingFilter) {
+    if (
+      this.languageScoreFilter ||
+      this.languageScoreTrackingFilter ||
+      this.languageCourseStatusFilter
+    ) {
       this.prefetchIeltsStatusesForStudents(this.students, true);
     }
     if (this.ossltResultFilter || this.ossltTrackingFilter) {
@@ -3729,6 +3953,21 @@ export class StudentManagementComponent implements OnInit {
     const statusFromRow = this.extractLanguageTrackingStatusFromStudent(student);
     if (studentId && statusFromRow) {
       this.languageTrackingStatusCache.set(studentId, statusFromRow);
+      this.ieltsStatusUnavailable.delete(studentId);
+    }
+    return statusFromRow;
+  }
+
+  private resolveLanguageCourseStatusForFilter(student: StudentAccount): LanguageCourseStatus | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId) {
+      const cached = this.languageCourseStatusCache.get(studentId);
+      if (cached) return cached;
+    }
+
+    const statusFromRow = this.extractLanguageCourseStatusFromStudent(student);
+    if (studentId && statusFromRow) {
+      this.languageCourseStatusCache.set(studentId, statusFromRow);
       this.ieltsStatusUnavailable.delete(studentId);
     }
     return statusFromRow;
@@ -4014,6 +4253,50 @@ export class StudentManagementComponent implements OnInit {
       if (normalized) return normalized;
     }
     return null;
+  }
+
+  private extractLanguageCourseStatusFromStudent(
+    student: StudentAccount
+  ): LanguageCourseStatus | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const ieltsNode =
+      this.asObjectRecord(row['ieltsModule']) ||
+      this.asObjectRecord(row['ielts']) ||
+      this.asObjectRecord(row['ieltsData']);
+    const summaryNode =
+      this.asObjectRecord(row['ieltsSummary']) ||
+      this.asObjectRecord(ieltsNode?.['summary']) ||
+      this.asObjectRecord(row['summary']);
+
+    const candidates: unknown[] = [
+      row['languageCourseStatus'],
+      row['language_course_status'],
+      row['languageCourseEnrollmentStatus'],
+      row['language_course_enrollment_status'],
+      ieltsNode?.['languageCourseStatus'],
+      ieltsNode?.['language_course_status'],
+      ieltsNode?.['languageCourseEnrollmentStatus'],
+      ieltsNode?.['language_course_enrollment_status'],
+      summaryNode?.['languageCourseStatus'],
+      summaryNode?.['language_course_status'],
+      summaryNode?.['languageCourseEnrollmentStatus'],
+      summaryNode?.['language_course_enrollment_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeLanguageCourseStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  private extractLanguageCourseStatusFromModuleState(
+    moduleState: StudentIeltsModuleState
+  ): LanguageCourseStatus | null {
+    const state = (moduleState ?? {}) as unknown as Record<string, unknown>;
+    return this.normalizeLanguageCourseStatusValue(
+      state['languageCourseStatus'] ?? state['languageCourseEnrollmentStatus']
+    );
   }
 
   private extractOssltResultFromStudent(student: StudentAccount): OssltResult | null {
@@ -4457,6 +4740,29 @@ export class StudentManagementComponent implements OnInit {
     return null;
   }
 
+  private normalizeLanguageCourseStatusValue(value: unknown): LanguageCourseStatus | null {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'NOT_RECEIVED_TRAINING' || normalized === '1') {
+      return 'NOT_RECEIVED_TRAINING';
+    }
+    if (normalized === 'ENROLLED_GLOBAL_IELTS' || normalized === '2') {
+      return 'ENROLLED_GLOBAL_IELTS';
+    }
+    if (normalized === 'ENROLLED_OTHER_IELTS' || normalized === '3') {
+      return 'ENROLLED_OTHER_IELTS';
+    }
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED' || normalized === '4') {
+      return 'COURSE_COMPLETED_NOT_EXAMINED';
+    }
+    if (normalized === 'EXAM_REGISTERED' || normalized === '5') {
+      return 'EXAM_REGISTERED';
+    }
+    if (normalized === 'SCORE_RELEASED' || normalized === '6') {
+      return 'SCORE_RELEASED';
+    }
+    return null;
+  }
+
   private normalizeOssltResultValue(value: unknown): OssltResult | null {
     const normalized = String(value ?? '').trim().toUpperCase();
     if (normalized === 'PASS') return 'PASS';
@@ -4477,6 +4783,7 @@ export class StudentManagementComponent implements OnInit {
     if (
       !this.languageScoreFilter &&
       !this.languageScoreTrackingFilter &&
+      !this.languageCourseStatusFilter &&
       !this.ossltResultFilter &&
       !this.ossltTrackingFilter &&
       !this.volunteerCompletedFilter
@@ -4739,7 +5046,14 @@ export class StudentManagementComponent implements OnInit {
         const hasNeededIeltsStatus = !this.languageScoreFilter || hasIeltsStatus || hasUnavailableOrNoRequirement;
         const hasNeededLanguageTrackingStatus =
           !this.languageScoreTrackingFilter || hasLanguageTrackingStatus || hasUnavailableOrNoRequirement;
-        if (hasNeededIeltsStatus && hasNeededLanguageTrackingStatus) {
+        const hasLanguageCourseStatus = !!this.resolveLanguageCourseStatusForFilter(student);
+        const hasNeededLanguageCourseStatus =
+          !this.languageCourseStatusFilter || hasLanguageCourseStatus || hasUnavailableOrNoRequirement;
+        if (
+          hasNeededIeltsStatus &&
+          hasNeededLanguageTrackingStatus &&
+          hasNeededLanguageCourseStatus
+        ) {
           continue;
         }
       } else if (hasUnavailableOrNoRequirement || this.ieltsStatusCache.has(studentId)) {
@@ -4762,7 +5076,13 @@ export class StudentManagementComponent implements OnInit {
             const trackingStatus = summary.trackingStatus;
             const languageTrackingStatus = summary.languageTrackingStatus;
             const statusColorToken = String(summary.colorToken || '').trim();
+            const languageCourseStatus = this.extractLanguageCourseStatusFromModuleState(moduleState);
             this.languageTrackingStatusCache.set(studentId, languageTrackingStatus);
+            if (languageCourseStatus) {
+              this.languageCourseStatusCache.set(studentId, languageCourseStatus);
+            } else {
+              this.languageCourseStatusCache.delete(studentId);
+            }
 
             if (summary.shouldShowModule === false) {
               this.ieltsNoRequirement.add(studentId);
@@ -4787,6 +5107,7 @@ export class StudentManagementComponent implements OnInit {
           error: () => {
             this.ieltsStatusCache.delete(studentId);
             this.languageTrackingStatusCache.delete(studentId);
+            this.languageCourseStatusCache.delete(studentId);
             this.ieltsStatusColorTokenCache.delete(studentId);
             this.ieltsStatusUnavailable.add(studentId);
             this.cdr.detectChanges();

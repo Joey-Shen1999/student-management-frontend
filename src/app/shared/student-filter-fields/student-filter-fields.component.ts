@@ -20,6 +20,7 @@ export class StudentFilterFieldsComponent {
     'graduationSeason',
     'languageScore',
     'languageTracking',
+    'languageCourseStatus',
     'ossltResult',
     'ossltTracking',
     'volunteerCompleted',
@@ -36,6 +37,14 @@ export class StudentFilterFieldsComponent {
     'AUTO_PASS_ALL_SCHOOLS',
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
+  ];
+  readonly defaultLanguageCourseStatusFilterOptions: readonly string[] = [
+    'NOT_RECEIVED_TRAINING',
+    'ENROLLED_GLOBAL_IELTS',
+    'ENROLLED_OTHER_IELTS',
+    'COURSE_COMPLETED_NOT_EXAMINED',
+    'EXAM_REGISTERED',
+    'SCORE_RELEASED',
   ];
   readonly defaultOssltResultFilterOptions: readonly string[] = ['PASS', 'FAIL', 'UNKNOWN'];
   readonly defaultOssltTrackingFilterOptions: readonly string[] = [
@@ -61,11 +70,14 @@ export class StudentFilterFieldsComponent {
   @Input() graduationSeasonFilterInput = '';
   @Input() languageScoreFilter = '';
   @Input() languageTrackingFilter = '';
+  @Input() languageCourseStatusFilter = '';
   @Input() ossltResultFilter = '';
   @Input() ossltTrackingFilter = '';
   @Input() languageScoreFilterOptions: readonly string[] = this.defaultLanguageScoreFilterOptions;
   @Input() languageTrackingFilterOptions: readonly string[] =
     this.defaultLanguageTrackingFilterOptions;
+  @Input() languageCourseStatusFilterOptions: readonly string[] =
+    this.defaultLanguageCourseStatusFilterOptions;
   @Input() ossltResultFilterOptions: readonly string[] = this.defaultOssltResultFilterOptions;
   @Input() ossltTrackingFilterOptions: readonly string[] = this.defaultOssltTrackingFilterOptions;
   @Input() volunteerCompletedFilter = false;
@@ -81,6 +93,7 @@ export class StudentFilterFieldsComponent {
   @Output() graduationSeasonFilterInputChange = new EventEmitter<string>();
   @Output() languageScoreFilterChange = new EventEmitter<string>();
   @Output() languageTrackingFilterChange = new EventEmitter<string>();
+  @Output() languageCourseStatusFilterChange = new EventEmitter<string>();
   @Output() ossltResultFilterChange = new EventEmitter<string>();
   @Output() ossltTrackingFilterChange = new EventEmitter<string>();
   @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();
@@ -101,6 +114,10 @@ export class StudentFilterFieldsComponent {
 
   onLanguageTrackingFilterSelect(value: unknown): void {
     this.languageTrackingFilterChange.emit(String(value ?? '').trim());
+  }
+
+  onLanguageCourseStatusFilterSelect(value: unknown): void {
+    this.languageCourseStatusFilterChange.emit(String(value ?? '').trim());
   }
 
   onOssltResultFilterSelect(value: unknown): void {
@@ -126,6 +143,17 @@ export class StudentFilterFieldsComponent {
     if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return '\u5168\u90e8\u5b66\u6821\u8fbe\u6807';
     if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return '\u90e8\u5206\u5b66\u6821\u8fbe\u6807';
     if (normalized === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
+    return String(value ?? '').trim() || '-';
+  }
+
+  resolveLanguageCourseStatusFilterOptionLabel(value: string): string {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'NOT_RECEIVED_TRAINING') return '\u672a\u63a5\u6536\u57f9\u8bad';
+    if (normalized === 'ENROLLED_GLOBAL_IELTS') return '\u5df2\u62a5\u540d\u73af\u7403\u96c5\u601d\u8bfe\u7a0b';
+    if (normalized === 'ENROLLED_OTHER_IELTS') return '\u5df2\u62a5\u540d\u5176\u4ed6\u673a\u6784\u96c5\u601d\u8bfe\u7a0b';
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED') return '\u5df2\u7ed3\u8bfe\uff0c\u672a\u8003\u8bd5';
+    if (normalized === 'EXAM_REGISTERED') return '\u5df2\u62a5\u540d\u8003\u8bd5';
+    if (normalized === 'SCORE_RELEASED') return '\u5df2\u51fa\u5206';
     return String(value ?? '').trim() || '-';
   }
 

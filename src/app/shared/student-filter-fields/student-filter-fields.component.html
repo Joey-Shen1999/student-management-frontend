@@ -136,6 +136,27 @@
 </label>
 
 <label
+  *ngIf="shouldShowFilterField('languageCourseStatus')"
+  class="student-filter-item"
+>
+  语言报课情况
+  <select
+    class="student-filter-select language-course-status-filter-select"
+    [ngModel]="languageCourseStatusFilter"
+    (ngModelChange)="onLanguageCourseStatusFilterSelect($event)"
+    [disabled]="disabled"
+  >
+    <option [ngValue]="''">All</option>
+    <option
+      *ngFor="let option of languageCourseStatusFilterOptions"
+      [ngValue]="option"
+    >
+      {{ resolveLanguageCourseStatusFilterOptionLabel(option) }}
+    </option>
+  </select>
+</label>
+
+<label
   *ngIf="shouldShowFilterField('ossltResult')"
   class="student-filter-item"
 >

@@ -21,6 +21,14 @@ export type IeltsPreparationIntent = 'PREPARING' | 'NOT_PREPARING' | 'UNSET';
 
 export type LanguageScoreType = 'IELTS' | 'TOEFL' | 'DUOLINGO' | 'OTHER';
 
+export type LanguageCourseStatus =
+  | 'NOT_RECEIVED_TRAINING'
+  | 'ENROLLED_GLOBAL_IELTS'
+  | 'ENROLLED_OTHER_IELTS'
+  | 'COURSE_COMPLETED_NOT_EXAMINED'
+  | 'EXAM_REGISTERED'
+  | 'SCORE_RELEASED';
+
 export type DerivedValidityStatus =
   | 'VALID'
   | 'EXPIRED'
@@ -85,6 +93,7 @@ export interface StudentIeltsModuleState {
   languageTrackingStatus?: LanguageTrackingStatus | null;
   languageScoreTrackingManualStatus?: LanguageScoreTrackingManualStatus;
   languageTrackingManualStatus: LanguageTrackingManualStatus;
+  languageCourseStatus?: LanguageCourseStatus | null;
   records: IeltsRecordFormValue[];
   languageRisk: StudentLanguageRiskSnapshot;
   updatedAt: string | null;
@@ -104,6 +113,8 @@ export interface UpdateStudentIeltsPayload {
   preparationIntent?: IeltsPreparationIntent;
   languageScoreTrackingManualStatus?: LanguageScoreTrackingManualStatus;
   languageTrackingManualStatus?: LanguageTrackingManualStatus;
+  languageCourseStatus?: LanguageCourseStatus | null;
+  languageCourseEnrollmentStatus?: LanguageCourseStatus | null;
   records?: IeltsRecordFormValue[];
   toeflRecords?: IeltsRecordFormValue[];
   duolingoRecords?: IeltsRecordFormValue[];

@@ -43,6 +43,7 @@ export class StudentSelectorPanelComponent {
     'graduationSeason',
     'languageScore',
     'languageTracking',
+    'languageCourseStatus',
     'ossltResult',
     'ossltTracking',
     'volunteerCompleted',
@@ -74,10 +75,12 @@ export class StudentSelectorPanelComponent {
   @Input() graduationSeasonFilterInput = '';
   @Input() languageScoreFilter = '';
   @Input() languageTrackingFilter = '';
+  @Input() languageCourseStatusFilter = '';
   @Input() ossltResultFilter = '';
   @Input() ossltTrackingFilter = '';
   @Input() languageScoreFilterOptions: readonly string[] = [];
   @Input() languageTrackingFilterOptions: readonly string[] = [];
+  @Input() languageCourseStatusFilterOptions: readonly string[] = [];
   @Input() ossltResultFilterOptions: readonly string[] = [];
   @Input() ossltTrackingFilterOptions: readonly string[] = [];
   @Input() volunteerCompletedFilter = false;
@@ -118,6 +121,7 @@ export class StudentSelectorPanelComponent {
   @Output() graduationSeasonFilterInputChange = new EventEmitter<string>();
   @Output() languageScoreFilterChange = new EventEmitter<string>();
   @Output() languageTrackingFilterChange = new EventEmitter<string>();
+  @Output() languageCourseStatusFilterChange = new EventEmitter<string>();
   @Output() ossltResultFilterChange = new EventEmitter<string>();
   @Output() ossltTrackingFilterChange = new EventEmitter<string>();
   @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();

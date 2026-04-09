@@ -13,6 +13,7 @@ import {
 } from '../features/ielts/ielts-mock-data';
 import {
   IeltsPreparationIntent,
+  LanguageCourseStatus,
   IeltsRecordFormValue,
   IeltsSummaryViewModel,
   LanguageTrackingManualStatus,
@@ -87,6 +88,7 @@ export class IeltsTrackingService {
         languageTrackingStatus: null,
         languageScoreTrackingManualStatus: null,
         languageTrackingManualStatus: null,
+        languageCourseStatus: previous.languageCourseStatus ?? null,
         records: normalizedRecords,
         updatedAt: new Date().toISOString(),
       };
@@ -129,6 +131,7 @@ export class IeltsTrackingService {
         languageTrackingStatus: null,
         languageScoreTrackingManualStatus: null,
         languageTrackingManualStatus: null,
+        languageCourseStatus: previous.languageCourseStatus ?? null,
         records: [],
         updatedAt: new Date().toISOString(),
       };
@@ -200,6 +203,12 @@ export class IeltsTrackingService {
             : normalizedPayload.languageScoreTrackingManualStatus !== undefined
               ? normalizedPayload.languageScoreTrackingManualStatus
               : previous.languageTrackingManualStatus,
+        languageCourseStatus:
+          normalizedPayload.languageCourseStatus !== undefined
+            ? normalizedPayload.languageCourseStatus
+            : normalizedPayload.languageCourseEnrollmentStatus !== undefined
+              ? normalizedPayload.languageCourseEnrollmentStatus
+              : previous.languageCourseStatus ?? null,
         records: Array.isArray(normalizedPayload.records)
           ? this.normalizeRecords(normalizedPayload.records, effectiveScoreType)
           : previous.records.map((record) => ({ ...record })),
@@ -254,6 +263,7 @@ export class IeltsTrackingService {
       preparationIntent: 'UNSET',
       languageScoreTrackingManualStatus: null,
       languageTrackingManualStatus: null,
+      languageCourseStatus: null,
       records: [],
       languageRisk: {
         ...languageRisk,
@@ -410,6 +420,14 @@ export class IeltsTrackingService {
         'language_tracking_manual_status',
       ])
     );
+    const languageCourseStatus = this.normalizeLanguageCourseStatus(
+      this.readValue(source, [
+        'languageCourseStatus',
+        'language_course_status',
+        'languageCourseEnrollmentStatus',
+        'language_course_enrollment_status',
+      ])
+    );
     const languageRisk = this.normalizeLanguageRisk(this.readValue(source, ['languageRisk', 'language_risk']));
 
     return {
@@ -423,6 +441,7 @@ export class IeltsTrackingService {
       languageTrackingStatus,
       languageScoreTrackingManualStatus: languageTrackingManualStatus,
       languageTrackingManualStatus,
+      languageCourseStatus,
       records,
       languageRisk,
       updatedAt: this.toNullableText(this.readValue(source, ['updatedAt', 'updated_at'])),
@@ -489,6 +508,14 @@ export class IeltsTrackingService {
         manualStatusInput
       );
       normalized.languageScoreTrackingManualStatus = normalized.languageTrackingManualStatus;
+    }
+
+    const languageCourseStatusInput =
+      payload.languageCourseStatus !== undefined
+        ? payload.languageCourseStatus
+        : payload.languageCourseEnrollmentStatus;
+    if (languageCourseStatusInput !== undefined) {
+      normalized.languageCourseStatus = this.normalizeLanguageCourseStatus(languageCourseStatusInput);
     }
 
     const rawRecords = Array.isArray(payload.records)
@@ -658,6 +685,29 @@ export class IeltsTrackingService {
     if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
     if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return null;
+  }
+
+  private normalizeLanguageCourseStatus(value: unknown): LanguageCourseStatus | null {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'NOT_RECEIVED_TRAINING' || normalized === '1') {
+      return 'NOT_RECEIVED_TRAINING';
+    }
+    if (normalized === 'ENROLLED_GLOBAL_IELTS' || normalized === '2') {
+      return 'ENROLLED_GLOBAL_IELTS';
+    }
+    if (normalized === 'ENROLLED_OTHER_IELTS' || normalized === '3') {
+      return 'ENROLLED_OTHER_IELTS';
+    }
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED' || normalized === '4') {
+      return 'COURSE_COMPLETED_NOT_EXAMINED';
+    }
+    if (normalized === 'EXAM_REGISTERED' || normalized === '5') {
+      return 'EXAM_REGISTERED';
+    }
+    if (normalized === 'SCORE_RELEASED' || normalized === '6') {
+      return 'SCORE_RELEASED';
+    }
     return null;
   }
 

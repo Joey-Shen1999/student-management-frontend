@@ -18,6 +18,7 @@ export type GoalStudentSelectorColumnKey =
   | 'teacherNote'
   | 'ielts'
   | 'languageTracking'
+  | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
   | 'status'
@@ -142,6 +143,13 @@ export const GOAL_STUDENT_SELECTOR_COLUMNS: readonly GoalStudentSelectorColumnCo
   {
     key: 'languageTracking',
     label: '\u8ddf\u8fdb\u72b6\u6001',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: true,
+  },
+  {
+    key: 'languageCourseStatus',
+    label: '\u8bed\u8a00\u62a5\u8bfe\u60c5\u51b5',
     defaultVisible: true,
     hideable: true,
     backendDependent: true,

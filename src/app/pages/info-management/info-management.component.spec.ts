@@ -45,6 +45,7 @@ describe('InfoManagementComponent', () => {
       status: 'ACTIVE',
       languageScoreStatus: 'GREEN_STRICT_PASS',
       languageTrackingStatus: 'TEACHER_REVIEW_APPROVED',
+      languageCourseStatus: 'EXAM_REGISTERED',
       latestOssltResult: 'PASS',
       ossltTrackingStatus: 'PASSED',
       totalVolunteerHours: 39.9,
@@ -132,10 +133,14 @@ describe('InfoManagementComponent', () => {
   it('should expose language and OSSLT selector columns and resolve status values', () => {
     expect(component.createStudentColumns.some((column) => column.key === 'ielts')).toBe(true);
     expect(component.createStudentColumns.some((column) => column.key === 'languageTracking')).toBe(true);
+    expect(component.createStudentColumns.some((column) => column.key === 'languageCourseStatus')).toBe(
+      true
+    );
     expect(component.createStudentColumns.some((column) => column.key === 'ossltResult')).toBe(true);
     expect(component.createStudentColumns.some((column) => column.key === 'ossltTracking')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('ielts')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('languageTracking')).toBe(true);
+    expect(component.visibleCreateStudentColumnKeys.has('languageCourseStatus')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('ossltResult')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('ossltTracking')).toBe(true);
 
@@ -146,6 +151,9 @@ describe('InfoManagementComponent', () => {
     expect(component.resolveCreateStudentColumnValue(row, 'ielts')).toBe('\u5df2\u8fbe\u6807');
     expect(component.resolveCreateStudentColumnValue(row, 'languageTracking')).toBe(
       '\u6559\u5e08\u5df2\u786e\u8ba4'
+    );
+    expect(component.resolveCreateStudentColumnValue(row, 'languageCourseStatus')).toBe(
+      '\u5df2\u62a5\u540d\u8003\u8bd5'
     );
     expect(component.resolveCreateStudentColumnValue(row, 'ossltResult')).toBe('\u5df2\u901a\u8fc7');
     expect(component.resolveCreateStudentColumnValue(row, 'ossltTracking')).toBe('\u5df2\u901a\u8fc7');

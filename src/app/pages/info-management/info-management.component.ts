@@ -5,6 +5,7 @@ import { Router, RouterModule } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 
+import { type LanguageCourseStatus } from '../../features/ielts/ielts-types';
 import {
   type AssignableStudentOptionVm,
   type CreateInfoRequestVm,
@@ -63,6 +64,7 @@ interface StudentDetailVm {
   graduationSeason: string;
   ielts: string;
   languageTracking: string;
+  languageCourseStatus: LanguageCourseStatus | '';
   ossltResult: 'PASS' | 'FAIL' | 'UNKNOWN' | '';
   ossltTracking: 'PASSED' | 'WAITING_UPDATE' | 'NEEDS_TRACKING' | '';
   totalVolunteerHours: number | null;
@@ -106,6 +108,7 @@ interface CreateStudentFilterPreferenceVm {
   graduationSeasonFilter?: string;
   languageScoreFilter?: string;
   languageTrackingFilter?: string;
+  languageCourseStatusFilter?: string;
   ossltResultFilter?: string;
   ossltTrackingFilter?: string;
   volunteerCompleted?: boolean;
@@ -116,10 +119,10 @@ const VOLUNTEER_TOTAL_HOURS_PREFIX = '义工总时长：';
 const VOLUNTEER_TASK_COLLECTION_PREFIX = '义工任务明细：';
 const INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'info-management.create-info.student-selector.visible-columns';
-const INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v4';
+const INFO_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v7';
 const INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
   'info-management.create-info.student-selector.filters';
-const INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v2';
+const INFO_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v4';
 
 const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   Record<ProvinceFilterCountry, Record<string, string>>
@@ -181,6 +184,7 @@ export class InfoManagementComponent implements OnInit {
   createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
   createLanguageScoreFilter = '';
   createLanguageTrackingFilter = '';
+  createLanguageCourseStatusFilter = '';
   createOssltResultFilter = '';
   createOssltTrackingFilter = '';
   createVolunteerCompletedFilter = false;
@@ -195,6 +199,14 @@ export class InfoManagementComponent implements OnInit {
     'AUTO_PASS_ALL_SCHOOLS',
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
+  ];
+  readonly languageCourseStatusFilterOptions: readonly LanguageCourseStatus[] = [
+    'NOT_RECEIVED_TRAINING',
+    'ENROLLED_GLOBAL_IELTS',
+    'ENROLLED_OTHER_IELTS',
+    'COURSE_COMPLETED_NOT_EXAMINED',
+    'EXAM_REGISTERED',
+    'SCORE_RELEASED',
   ];
   readonly ossltResultFilterOptions: readonly string[] = ['PASS', 'FAIL', 'UNKNOWN'];
   readonly ossltTrackingFilterOptions: readonly string[] = [
@@ -526,6 +538,11 @@ export class InfoManagementComponent implements OnInit {
     this.persistCreateStudentFiltersPreference();
   }
 
+  onLanguageCourseStatusFilterChange(value: string): void {
+    this.createLanguageCourseStatusFilter = this.normalizeLanguageCourseStatusValue(value) || '';
+    this.persistCreateStudentFiltersPreference();
+  }
+
   onOssltResultFilterChange(value: string): void {
     this.createOssltResultFilter = this.normalizeOssltResultValue(value) || '';
     this.persistCreateStudentFiltersPreference();
@@ -554,6 +571,7 @@ export class InfoManagementComponent implements OnInit {
     this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createLanguageScoreFilter = '';
     this.createLanguageTrackingFilter = '';
+    this.createLanguageCourseStatusFilter = '';
     this.createOssltResultFilter = '';
     this.createOssltTrackingFilter = '';
     this.createVolunteerCompletedFilter = false;
@@ -838,6 +856,9 @@ export class InfoManagementComponent implements OnInit {
     this.createLanguageTrackingFilter = this.normalizeLanguageTrackingValue(
       persisted.languageTrackingFilter
     ) || '';
+    this.createLanguageCourseStatusFilter = this.normalizeLanguageCourseStatusValue(
+      persisted.languageCourseStatusFilter
+    ) || '';
     this.createOssltResultFilter = this.normalizeOssltResultValue(
       persisted.ossltResultFilter
     ) || '';
@@ -866,6 +887,7 @@ export class InfoManagementComponent implements OnInit {
         graduationSeasonFilter: this.createGraduationSeasonFilter,
         languageScoreFilter: this.createLanguageScoreFilter,
         languageTrackingFilter: this.createLanguageTrackingFilter,
+        languageCourseStatusFilter: this.createLanguageCourseStatusFilter,
         ossltResultFilter: this.createOssltResultFilter,
         ossltTrackingFilter: this.createOssltTrackingFilter,
         volunteerCompleted: this.createVolunteerCompletedFilter,
@@ -1050,6 +1072,15 @@ export class InfoManagementComponent implements OnInit {
     return this.resolveLanguageTrackingLabel(fallback);
   }
 
+  detailLanguageCourseStatus(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.languageCourseStatus || '';
+    if (cached) return this.resolveLanguageCourseStatusLabel(cached);
+    const fallback = this.extractLanguageCourseStatusFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveLanguageCourseStatusLabel(fallback);
+  }
+
   detailOssltResult(student: AssignableStudentOptionVm): string {
     const cached = this.studentDetails.get(student.studentId)?.ossltResult || '';
     if (cached) return this.resolveOssltResultLabel(cached);
@@ -1117,6 +1148,8 @@ export class InfoManagementComponent implements OnInit {
         return this.detailIelts(student);
       case 'languageTracking':
         return this.detailLanguageTracking(student);
+      case 'languageCourseStatus':
+        return this.detailLanguageCourseStatus(student);
       case 'ossltResult':
         return this.detailOssltResult(student);
       case 'ossltTracking':
@@ -1410,6 +1443,7 @@ export class InfoManagementComponent implements OnInit {
     if (!this.matchesGraduationSeasonFilter(detail)) return false;
     if (!this.matchesLanguageScoreFilter(student, detail)) return false;
     if (!this.matchesLanguageTrackingFilter(student, detail)) return false;
+    if (!this.matchesLanguageCourseStatusFilter(student, detail)) return false;
     if (!this.matchesOssltResultFilter(student, detail)) return false;
     if (!this.matchesOssltTrackingFilter(student, detail)) return false;
     if (!this.matchesVolunteerCompletedFilter(student, detail)) return false;
@@ -1444,8 +1478,10 @@ export class InfoManagementComponent implements OnInit {
       detail?.graduationSeason || '',
       this.detailIelts(student),
       this.detailLanguageTracking(student),
+      this.detailLanguageCourseStatus(student),
       detail?.ielts || '',
       detail?.languageTracking || '',
+      detail?.languageCourseStatus || '',
       this.detailOssltResult(student),
       this.detailOssltTracking(student),
       detail?.ossltResult || '',
@@ -1560,6 +1596,30 @@ export class InfoManagementComponent implements OnInit {
     return (
       this.resolveLanguageTrackingForFilter(student, detail) ===
       this.createLanguageTrackingFilter
+    );
+  }
+
+  private resolveLanguageCourseStatusForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): StudentDetailVm['languageCourseStatus'] {
+    const detailValue = this.normalizeLanguageCourseStatusValue(detail?.languageCourseStatus);
+    if (detailValue) return detailValue;
+    return this.extractLanguageCourseStatusFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+  }
+
+  private matchesLanguageCourseStatusFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createLanguageCourseStatusFilter) {
+      return true;
+    }
+    return (
+      this.resolveLanguageCourseStatusForFilter(student, detail) ===
+      this.createLanguageCourseStatusFilter
     );
   }
 
@@ -1730,6 +1790,7 @@ export class InfoManagementComponent implements OnInit {
       graduationSeason: '',
       ielts: '',
       languageTracking: '',
+      languageCourseStatus: '',
       ossltResult: '',
       ossltTracking: '',
       totalVolunteerHours: null,
@@ -1756,6 +1817,9 @@ export class InfoManagementComponent implements OnInit {
       graduationSeason,
       ielts: patch.ielts?.trim() || current.ielts,
       languageTracking: patch.languageTracking?.trim() || current.languageTracking,
+      languageCourseStatus:
+        this.normalizeLanguageCourseStatusValue(patch.languageCourseStatus) ||
+        current.languageCourseStatus,
       ossltResult: patch.ossltResult || current.ossltResult,
       ossltTracking: patch.ossltTracking || current.ossltTracking,
       totalVolunteerHours:
@@ -1789,6 +1853,7 @@ export class InfoManagementComponent implements OnInit {
       graduationSeason: '',
       ielts: '',
       languageTracking: '',
+      languageCourseStatus: '',
       ossltResult: '',
       ossltTracking: '',
       totalVolunteerHours: null,
@@ -1885,6 +1950,7 @@ export class InfoManagementComponent implements OnInit {
       graduationSeason: this.resolveGraduationSeason(graduation),
       ielts: this.extractIeltsFromRecord(root, profile),
       languageTracking: this.extractLanguageTrackingFromRecord(root, profile),
+      languageCourseStatus: this.extractLanguageCourseStatusFromRecord(root, profile),
       ossltResult: this.extractOssltResultFromRecord(root, profile),
       ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
       totalVolunteerHours: this.extractVolunteerHoursFromRecord(root, profile),
@@ -2002,6 +2068,17 @@ export class InfoManagementComponent implements OnInit {
     return String(value ?? '').trim() || '\u5f85\u66f4\u65b0';
   }
 
+  private resolveLanguageCourseStatusLabel(value: StudentDetailVm['languageCourseStatus']): string {
+    const normalized = this.normalizeLanguageCourseStatusValue(value);
+    if (normalized === 'NOT_RECEIVED_TRAINING') return '\u672a\u63a5\u6536\u57f9\u8bad';
+    if (normalized === 'ENROLLED_GLOBAL_IELTS') return '\u5df2\u62a5\u540d\u73af\u7403\u96c5\u601d\u8bfe\u7a0b';
+    if (normalized === 'ENROLLED_OTHER_IELTS') return '\u5df2\u62a5\u540d\u5176\u4ed6\u673a\u6784\u96c5\u601d\u8bfe\u7a0b';
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED') return '\u5df2\u7ed3\u8bfe\uff0c\u672a\u8003\u8bd5';
+    if (normalized === 'EXAM_REGISTERED') return '\u5df2\u62a5\u540d\u8003\u8bd5';
+    if (normalized === 'SCORE_RELEASED') return '\u5df2\u51fa\u5206';
+    return String(value ?? '').trim() || '\u5f85\u66f4\u65b0';
+  }
+
   private extractIeltsFromRecord(
     source: Record<string, unknown>,
     profileSource?: Record<string, unknown>
@@ -2076,6 +2153,45 @@ export class InfoManagementComponent implements OnInit {
     return '';
   }
 
+  private extractLanguageCourseStatusFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['languageCourseStatus'] {
+    const ieltsNode =
+      this.asObjectRecord(source['ieltsModule']) ||
+      this.asObjectRecord(source['ielts']) ||
+      this.asObjectRecord(source['languageModule']);
+    const profileIeltsNode =
+      this.asObjectRecord(profileSource?.['ieltsModule']) ||
+      this.asObjectRecord(profileSource?.['ielts']) ||
+      this.asObjectRecord(profileSource?.['languageModule']);
+
+    const candidates: unknown[] = [
+      source['languageCourseStatus'],
+      source['language_course_status'],
+      source['languageCourseEnrollmentStatus'],
+      source['language_course_enrollment_status'],
+      ieltsNode?.['languageCourseStatus'],
+      ieltsNode?.['language_course_status'],
+      ieltsNode?.['languageCourseEnrollmentStatus'],
+      ieltsNode?.['language_course_enrollment_status'],
+      profileSource?.['languageCourseStatus'],
+      profileSource?.['language_course_status'],
+      profileSource?.['languageCourseEnrollmentStatus'],
+      profileSource?.['language_course_enrollment_status'],
+      profileIeltsNode?.['languageCourseStatus'],
+      profileIeltsNode?.['language_course_status'],
+      profileIeltsNode?.['languageCourseEnrollmentStatus'],
+      profileIeltsNode?.['language_course_enrollment_status'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeLanguageCourseStatusValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
   private normalizeIeltsValue(value: unknown): StudentDetailVm['ielts'] {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
@@ -2096,6 +2212,23 @@ export class InfoManagementComponent implements OnInit {
     if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
     return raw;
+  }
+
+  private normalizeLanguageCourseStatusValue(
+    value: unknown
+  ): StudentDetailVm['languageCourseStatus'] {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const normalized = raw.toUpperCase();
+    if (normalized === 'NOT_RECEIVED_TRAINING' || normalized === '1') return 'NOT_RECEIVED_TRAINING';
+    if (normalized === 'ENROLLED_GLOBAL_IELTS' || normalized === '2') return 'ENROLLED_GLOBAL_IELTS';
+    if (normalized === 'ENROLLED_OTHER_IELTS' || normalized === '3') return 'ENROLLED_OTHER_IELTS';
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED' || normalized === '4') {
+      return 'COURSE_COMPLETED_NOT_EXAMINED';
+    }
+    if (normalized === 'EXAM_REGISTERED' || normalized === '5') return 'EXAM_REGISTERED';
+    if (normalized === 'SCORE_RELEASED' || normalized === '6') return 'SCORE_RELEASED';
+    return raw as StudentDetailVm['languageCourseStatus'];
   }
 
   private resolveOssltResultLabel(value: StudentDetailVm['ossltResult']): string {

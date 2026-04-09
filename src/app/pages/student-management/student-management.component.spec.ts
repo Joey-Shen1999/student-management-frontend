@@ -1299,7 +1299,7 @@ describe('StudentManagementComponent', () => {
   it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
     (preferenceApi.getPagePreference as any).mockReturnValue(
       of({
-        version: 'v5',
+        version: 'v9',
         visibleColumnKeys: [
           'name',
           'email',
@@ -1337,7 +1337,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v5',
+        version: 'v9',
         visibleColumnKeys: expect.any(Array),
         orderedColumnKeys: expect.any(Array),
       })
@@ -1407,7 +1407,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v5',
+        version: 'v9',
       })
     );
   });
@@ -1422,7 +1422,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'ielts-tracking.list-columns',
       expect.objectContaining({
-        version: 'v5',
+        version: 'v9',
       })
     );
   });
@@ -1443,11 +1443,11 @@ describe('StudentManagementComponent', () => {
       [
         'name',
         'graduation',
-        'schoolName',
-        'canadaIdentity',
+        'motherLanguage',
         'teacherNote',
         'ielts',
         'languageTracking',
+        'languageCourseStatus',
       ].sort()
     );
   });
@@ -1478,6 +1478,12 @@ describe('StudentManagementComponent', () => {
     const column = component.columnToggleOptions.find((item) => item.key === 'languageTracking');
     expect(column).toBeTruthy();
     expect(component.resolveUnifiedStudentListColumnLabel(column as any)).toBe('语言成绩跟踪');
+  });
+
+  it('column toggle options on /teacher/students should include languageCourseStatus', () => {
+    router.url = '/teacher/students';
+    const keys = component.columnToggleOptions.map((column) => column.key);
+    expect(keys).toContain('languageCourseStatus');
   });
 
   it('default columns on /teacher/osslt should match OSSLT tracking defaults', () => {

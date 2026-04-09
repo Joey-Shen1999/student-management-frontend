@@ -21,11 +21,14 @@ export type StudentListColumnKey =
   | 'profile'
   | 'ielts'
   | 'languageTracking'
+  | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
   | 'volunteerTracking'
   | 'resetPassword'
-  | 'archive';
+  | 'archive'
+  | 'status'
+  | 'selectable';
 
 export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
   'name',
@@ -41,11 +44,11 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
 export const LANGUAGE_SCORE_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
   'name',
   'graduation',
-  'schoolName',
-  'canadaIdentity',
+  'motherLanguage',
   'teacherNote',
   'ielts',
   'languageTracking',
+  'languageCourseStatus',
 ];
 
 export const OSSLT_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
@@ -88,6 +91,7 @@ export type StudentSelectorFilterFieldKey =
   | 'graduationSeason'
   | 'languageScore'
   | 'languageTracking'
+  | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
   | 'volunteerCompleted'
@@ -111,6 +115,7 @@ export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColu
   'teacherNote',
   'ielts',
   'languageTracking',
+  'languageCourseStatus',
   'ossltResult',
   'ossltTracking',
   'status',
@@ -131,6 +136,7 @@ const UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS: readonly GoalStude
   'teacherNote',
   'ielts',
   'languageTracking',
+  'languageCourseStatus',
   'ossltResult',
   'ossltTracking',
   'status',
@@ -165,6 +171,7 @@ export const STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT: Record<
     'graduationSeason',
     'languageScore',
     'languageTracking',
+    'languageCourseStatus',
     'ossltResult',
     'ossltTracking',
     'volunteerCompleted',
@@ -178,6 +185,7 @@ export const STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT: Record<
     'graduationSeason',
     'languageScore',
     'languageTracking',
+    'languageCourseStatus',
     'ossltResult',
     'ossltTracking',
     'volunteerCompleted',

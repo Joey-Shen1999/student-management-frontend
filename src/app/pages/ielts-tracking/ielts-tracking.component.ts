@@ -17,6 +17,7 @@ import { resolveLanguageTrackingRuleSet } from '../../features/ielts/ielts-rules
 import { resolveIeltsStatusDisplay } from '../../features/ielts/ielts-status-display';
 import {
   IeltsPreparationIntent,
+  LanguageCourseStatus,
   IeltsRecordFormValue,
   LanguageTrackingManualStatus,
   LanguageScoreType,
@@ -114,6 +115,24 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
                 </option>
               </select>
               <p class="summary-note">老师可直接选择该学生的跟进状态。</p>
+            </div>
+            <div class="field-row" *ngIf="managedMode">
+              <label>语言报课情况（老师）</label>
+              <select
+                class="field-input"
+                [ngModel]="languageCourseStatus"
+                (ngModelChange)="setLanguageCourseStatus($event)"
+                name="languageCourseStatus"
+              >
+                <option [ngValue]="null">未设置</option>
+                <option
+                  *ngFor="let status of languageCourseStatusOptions; trackBy: trackLanguageCourseStatusOption"
+                  [ngValue]="status"
+                >
+                  {{ resolveLanguageCourseStatusLabel(status) }}
+                </option>
+              </select>
+              <p class="summary-note">仅教师可编辑，用于记录学生当前语言报课/考试进度。</p>
             </div>
             <div class="field-row" *ngIf="false && managedMode">
               <label>语言跟踪审核（老师）</label>
@@ -315,6 +334,14 @@ export class IeltsTrackingComponent implements OnInit {
     'AUTO_PASS_PARTIAL_SCHOOLS',
     'NEEDS_TRACKING',
   ];
+  readonly languageCourseStatusOptions: readonly LanguageCourseStatus[] = [
+    'NOT_RECEIVED_TRAINING',
+    'ENROLLED_GLOBAL_IELTS',
+    'ENROLLED_OTHER_IELTS',
+    'COURSE_COMPLETED_NOT_EXAMINED',
+    'EXAM_REGISTERED',
+    'SCORE_RELEASED',
+  ];
   readonly languageScoreTypeOptions: readonly LanguageScoreType[] = [
     'IELTS',
     'TOEFL',
@@ -336,6 +363,7 @@ export class IeltsTrackingComponent implements OnInit {
   hasTakenIeltsAcademic: boolean | null = null;
   preparationIntent: IeltsPreparationIntent = 'UNSET';
   languageTrackingManualStatus: LanguageTrackingManualStatus = null;
+  languageCourseStatus: LanguageCourseStatus | null = null;
   records: IeltsRecordFormValue[] = [];
 
   private loadWatchdog: number | null = null;
@@ -403,6 +431,11 @@ export class IeltsTrackingComponent implements OnInit {
     this.savedMessage = '';
   }
 
+  setLanguageCourseStatus(value: LanguageCourseStatus | null): void {
+    this.languageCourseStatus = this.normalizeLanguageCourseStatus(value);
+    this.savedMessage = '';
+  }
+
   setLanguageScoreType(value: unknown): void {
     const normalized = this.normalizeLanguageScoreType(value);
     if (!normalized) return;
@@ -451,6 +484,7 @@ export class IeltsTrackingComponent implements OnInit {
             hasTakenIeltsAcademic: true,
             preparationIntent: 'UNSET',
             languageTrackingManualStatus: this.languageTrackingManualStatus,
+            languageCourseStatus: this.languageCourseStatus,
             records: payloadRecords,
           })
         : this.ieltsApi.saveStudentIeltsRecords(this.studentId, this.languageScoreType, {
@@ -490,6 +524,7 @@ export class IeltsTrackingComponent implements OnInit {
           hasTakenIeltsAcademic: false,
           preparationIntent: this.preparationIntent,
           languageTrackingManualStatus: this.languageTrackingManualStatus,
+          languageCourseStatus: this.languageCourseStatus,
           records: [],
         })
       : this.ieltsApi.saveStudentIeltsPreparationIntent(
@@ -522,6 +557,13 @@ export class IeltsTrackingComponent implements OnInit {
     _index: number,
     status: LanguageTrackingStatus
   ): LanguageTrackingStatus => {
+    return status;
+  };
+
+  trackLanguageCourseStatusOption = (
+    _index: number,
+    status: LanguageCourseStatus
+  ): LanguageCourseStatus => {
     return status;
   };
 
@@ -563,6 +605,15 @@ export class IeltsTrackingComponent implements OnInit {
     if (scoreType === 'TOEFL') return 'TOEFL iBT';
     if (scoreType === 'DUOLINGO') return 'Duolingo English Test';
     return 'Other';
+  }
+
+  resolveLanguageCourseStatusLabel(status: LanguageCourseStatus): string {
+    if (status === 'NOT_RECEIVED_TRAINING') return '1. 未接收培训';
+    if (status === 'ENROLLED_GLOBAL_IELTS') return '2. 已报名环球雅思课程';
+    if (status === 'ENROLLED_OTHER_IELTS') return '3. 已报名其他机构雅思课程';
+    if (status === 'COURSE_COMPLETED_NOT_EXAMINED') return '4. 已结课，未考试';
+    if (status === 'EXAM_REGISTERED') return '5. 已报名考试';
+    return '6. 已出分';
   }
 
   resolveHasTakenQuestionLabel(): string {
@@ -667,6 +718,7 @@ export class IeltsTrackingComponent implements OnInit {
     this.hasTakenIeltsAcademic = state.hasTakenIeltsAcademic;
     this.preparationIntent = state.preparationIntent || 'UNSET';
     this.languageTrackingManualStatus = state.languageTrackingManualStatus ?? null;
+    this.languageCourseStatus = this.normalizeLanguageCourseStatus(state.languageCourseStatus);
     this.records = normalizedRecords.map((record, index) => ({
       ...this.normalizeRecord(record),
       recordId: record.recordId || `record-${index + 1}`,
@@ -742,6 +794,19 @@ export class IeltsTrackingComponent implements OnInit {
     if (normalized === 'TOEFL') return 'TOEFL';
     if (normalized === 'DUOLINGO') return 'DUOLINGO';
     if (normalized === 'OTHER') return 'OTHER';
+    return null;
+  }
+
+  private normalizeLanguageCourseStatus(value: unknown): LanguageCourseStatus | null {
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    if (normalized === 'NOT_RECEIVED_TRAINING') return 'NOT_RECEIVED_TRAINING';
+    if (normalized === 'ENROLLED_GLOBAL_IELTS') return 'ENROLLED_GLOBAL_IELTS';
+    if (normalized === 'ENROLLED_OTHER_IELTS') return 'ENROLLED_OTHER_IELTS';
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED') return 'COURSE_COMPLETED_NOT_EXAMINED';
+    if (normalized === 'EXAM_REGISTERED') return 'EXAM_REGISTERED';
+    if (normalized === 'SCORE_RELEASED') return 'SCORE_RELEASED';
     return null;
   }
 
