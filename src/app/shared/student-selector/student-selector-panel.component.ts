@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import type { AssignableStudentOptionVm } from '../../services/task-center.service';
 import type { StudentSelectorFilterFieldKey } from '../student-fields/student-field-presets';
+import { StudentFilterFieldsComponent } from '../student-filter-fields/student-filter-fields.component';
 import type { StudentSelectorColumnConfig } from './student-selector.types';
 
 export interface StudentSelectionChangeEvent {
@@ -28,7 +29,7 @@ export interface StudentColumnOrderChangeEvent {
 @Component({
   selector: 'app-student-selector-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StudentFilterFieldsComponent],
   templateUrl: './student-selector-panel.component.html',
   styleUrl: './student-selector-panel.component.scss',
 })
@@ -40,6 +41,11 @@ export class StudentSelectorPanelComponent {
     'city',
     'schoolBoard',
     'graduationSeason',
+    'languageScore',
+    'languageTracking',
+    'ossltResult',
+    'ossltTracking',
+    'volunteerCompleted',
     'keyword',
   ];
 
@@ -66,6 +72,15 @@ export class StudentSelectorPanelComponent {
   @Input() cityFilterInput = '';
   @Input() schoolBoardFilterInput = '';
   @Input() graduationSeasonFilterInput = '';
+  @Input() languageScoreFilter = '';
+  @Input() languageTrackingFilter = '';
+  @Input() ossltResultFilter = '';
+  @Input() ossltTrackingFilter = '';
+  @Input() languageScoreFilterOptions: readonly string[] = [];
+  @Input() languageTrackingFilterOptions: readonly string[] = [];
+  @Input() ossltResultFilterOptions: readonly string[] = [];
+  @Input() ossltTrackingFilterOptions: readonly string[] = [];
+  @Input() volunteerCompletedFilter = false;
   @Input() studentKeyword = '';
   @Input() filterFields: readonly StudentSelectorFilterFieldKey[] = this.allFilterFields;
 
@@ -101,6 +116,11 @@ export class StudentSelectorPanelComponent {
   @Output() cityFilterInputChange = new EventEmitter<string>();
   @Output() schoolBoardFilterInputChange = new EventEmitter<string>();
   @Output() graduationSeasonFilterInputChange = new EventEmitter<string>();
+  @Output() languageScoreFilterChange = new EventEmitter<string>();
+  @Output() languageTrackingFilterChange = new EventEmitter<string>();
+  @Output() ossltResultFilterChange = new EventEmitter<string>();
+  @Output() ossltTrackingFilterChange = new EventEmitter<string>();
+  @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();
   @Output() studentKeywordChange = new EventEmitter<string>();
 
   @Output() selectAllToggle = new EventEmitter<boolean>();
@@ -138,6 +158,11 @@ export class StudentSelectorPanelComponent {
   onColumnVisibilityChange(columnKey: string, event: Event): void {
     const checked = (event.target as HTMLInputElement | null)?.checked === true;
     this.columnVisibilityChange.emit({ key: columnKey, checked });
+  }
+
+  onVolunteerCompletedFilterChange(event: Event): void {
+    const checked = (event.target as HTMLInputElement | null)?.checked === true;
+    this.volunteerCompletedFilterChange.emit(checked);
   }
 
   canDragColumnHeaders(): boolean {

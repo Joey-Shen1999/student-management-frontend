@@ -1,0 +1,202 @@
+<label
+  *ngIf="shouldShowFilterField('country')"
+  class="student-filter-item"
+>
+  &#22269;&#23478;
+  <input
+    class="student-filter-input country-filter-input"
+    [ngModel]="countryFilterInput"
+    (ngModelChange)="countryFilterInputChange.emit($event)"
+    [name]="idPrefix + '-country-filter'"
+    [attr.list]="idPrefix + '-country-options'"
+    placeholder="All"
+    [disabled]="disabled"
+  />
+  <datalist [attr.id]="idPrefix + '-country-options'">
+    <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
+  </datalist>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('province')"
+  class="student-filter-item"
+>
+  &#30465;&#20221;
+  <input
+    class="student-filter-input province-filter-input"
+    [ngModel]="provinceFilterInput"
+    (ngModelChange)="provinceFilterInputChange.emit($event)"
+    [name]="idPrefix + '-province-filter'"
+    [attr.list]="idPrefix + '-province-options'"
+    placeholder="All"
+    [disabled]="disabled"
+  />
+  <datalist [attr.id]="idPrefix + '-province-options'">
+    <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
+  </datalist>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('city')"
+  class="student-filter-item"
+>
+  &#22478;&#24066;
+  <input
+    class="student-filter-input city-filter-input"
+    [ngModel]="cityFilterInput"
+    (ngModelChange)="cityFilterInputChange.emit($event)"
+    [name]="idPrefix + '-city-filter'"
+    [attr.list]="idPrefix + '-city-options'"
+    placeholder="All"
+    [disabled]="disabled"
+  />
+  <datalist [attr.id]="idPrefix + '-city-options'">
+    <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
+  </datalist>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('schoolBoard')"
+  class="student-filter-item"
+>
+  &#25152;&#23646;&#25945;&#32946;&#23616;
+  <input
+    class="student-filter-input school-board-filter-input"
+    [ngModel]="schoolBoardFilterInput"
+    (ngModelChange)="schoolBoardFilterInputChange.emit($event)"
+    [name]="idPrefix + '-school-board-filter'"
+    [attr.list]="idPrefix + '-school-board-options'"
+    placeholder="All"
+    [disabled]="disabled"
+  />
+  <datalist [attr.id]="idPrefix + '-school-board-options'">
+    <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
+  </datalist>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('graduationSeason')"
+  class="student-filter-item"
+>
+  &#27605;&#19994;&#23395;
+  <input
+    class="student-filter-input graduation-season-filter-input"
+    [ngModel]="graduationSeasonFilterInput"
+    (ngModelChange)="graduationSeasonFilterInputChange.emit($event)"
+    [name]="idPrefix + '-graduation-season-filter'"
+    [attr.list]="idPrefix + '-graduation-season-options'"
+    placeholder="All"
+    [disabled]="disabled"
+  />
+  <datalist [attr.id]="idPrefix + '-graduation-season-options'">
+    <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
+  </datalist>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('languageScore')"
+  class="student-filter-item"
+>
+  &#35821;&#35328;&#25104;&#32489;
+  <select
+    class="student-filter-select language-score-filter-select"
+    [ngModel]="languageScoreFilter"
+    (ngModelChange)="onLanguageScoreFilterSelect($event)"
+    [disabled]="disabled"
+  >
+    <option [ngValue]="''">All</option>
+    <option
+      *ngFor="let option of languageScoreFilterOptions"
+      [ngValue]="option"
+    >
+      {{ resolveLanguageScoreFilterOptionLabel(option) }}
+    </option>
+  </select>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('languageTracking')"
+  class="student-filter-item"
+>
+  &#35821;&#35328;&#25104;&#32489;&#36319;&#36394;
+  <select
+    class="student-filter-select language-tracking-filter-select"
+    [ngModel]="languageTrackingFilter"
+    (ngModelChange)="onLanguageTrackingFilterSelect($event)"
+    [disabled]="disabled"
+  >
+    <option [ngValue]="''">All</option>
+    <option
+      *ngFor="let option of languageTrackingFilterOptions"
+      [ngValue]="option"
+    >
+      {{ resolveLanguageTrackingFilterOptionLabel(option) }}
+    </option>
+  </select>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('ossltResult')"
+  class="student-filter-item"
+>
+  OSSLT &#25104;&#32489;
+  <select
+    class="student-filter-select osslt-result-filter-select"
+    [ngModel]="ossltResultFilter"
+    (ngModelChange)="onOssltResultFilterSelect($event)"
+    [disabled]="disabled"
+  >
+    <option [ngValue]="''">All</option>
+    <option
+      *ngFor="let option of ossltResultFilterOptions"
+      [ngValue]="option"
+    >
+      {{ resolveOssltResultFilterOptionLabel(option) }}
+    </option>
+  </select>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('ossltTracking')"
+  class="student-filter-item"
+>
+  OSSLT &#36319;&#36827;&#29366;&#24577;
+  <select
+    class="student-filter-select osslt-tracking-filter-select"
+    [ngModel]="ossltTrackingFilter"
+    (ngModelChange)="onOssltTrackingFilterSelect($event)"
+    [disabled]="disabled"
+  >
+    <option [ngValue]="''">All</option>
+    <option
+      *ngFor="let option of ossltTrackingFilterOptions"
+      [ngValue]="option"
+    >
+      {{ resolveOssltTrackingFilterOptionLabel(option) }}
+    </option>
+  </select>
+</label>
+
+<label
+  *ngIf="shouldShowFilterField('volunteerCompleted')"
+  class="student-filter-item"
+>
+  <input
+    type="checkbox"
+    [checked]="volunteerCompletedFilter"
+    (change)="onVolunteerCompletedFilterToggle($event)"
+    [disabled]="disabled || volunteerCompletedDisabled"
+    [attr.title]="volunteerCompletedTitle"
+  />
+  &#20041;&#24037;&#23436;&#25104;
+</label>
+
+<input
+  *ngIf="shouldShowFilterField('keyword')"
+  class="student-filter-item student-filter-keyword"
+  type="search"
+  [ngModel]="studentKeyword"
+  (ngModelChange)="studentKeywordChange.emit($event)"
+  [disabled]="disabled"
+  [placeholder]="keywordPlaceholder"
+/>

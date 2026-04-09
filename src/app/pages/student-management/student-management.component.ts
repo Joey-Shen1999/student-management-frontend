@@ -68,7 +68,9 @@ import {
   STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
   type StudentListColumnKey,
   type StudentManagementPageContext,
+  type StudentSelectorFilterFieldKey,
 } from '../../shared/student-fields/student-field-presets';
+import { StudentFilterFieldsComponent } from '../../shared/student-filter-fields/student-filter-fields.component';
 
 interface PasswordResetResult {
   studentId: number;
@@ -450,7 +452,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
 @Component({
   selector: 'app-student-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent],
   template: `
     <div style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -537,94 +539,37 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             {{ showInactive ? '隐藏已归档' : '显示已归档' }}
           </button>
 
-          <input
-            type="search"
-            placeholder="按 ID、姓名、邮箱、电话、毕业季搜索"
-            [(ngModel)]="searchKeyword"
-            (ngModelChange)="applyListView()"
+          <app-student-filter-fields
+            [idPrefix]="'student-management-filters'"
             [disabled]="loadingList"
-            style="min-width:260px;max-width:360px;flex:1 1 300px;padding:6px 8px;"
-          />
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            国家
-            <input
-              [(ngModel)]="countryFilterInput"
-              (ngModelChange)="onCountryFilterInputChange($event)"
-              name="countryFilter"
-              list="countryFilterOptions"
-              placeholder="All"
-              [disabled]="loadingList"
-              style="padding:4px 6px;min-width:180px;"
-            />
-            <datalist id="countryFilterOptions">
-              <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
-            </datalist>
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            省份
-            <input
-              [(ngModel)]="provinceFilterInput"
-              (ngModelChange)="onProvinceFilterInputChange($event)"
-              name="provinceFilter"
-              list="provinceFilterOptions"
-              placeholder="All"
-              [disabled]="loadingList"
-              style="padding:4px 6px;min-width:180px;"
-            />
-            <datalist id="provinceFilterOptions">
-              <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
-            </datalist>
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            城市
-            <input
-              [(ngModel)]="cityFilterInput"
-              (ngModelChange)="onCityFilterInputChange($event)"
-              name="cityFilter"
-              list="cityFilterOptions"
-              placeholder="All"
-              [disabled]="loadingList"
-              style="padding:4px 6px;min-width:180px;"
-            />
-            <datalist id="cityFilterOptions">
-              <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
-            </datalist>
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            &#25152;&#23646;&#25945;&#32946;&#23616;
-            <input
-              [(ngModel)]="schoolBoardFilterInput"
-              (ngModelChange)="onSchoolBoardFilterInputChange($event)"
-              name="schoolBoardFilter"
-              list="schoolBoardFilterOptions"
-              placeholder="All"
-              [disabled]="loadingList"
-              style="padding:4px 6px;min-width:200px;"
-            />
-            <datalist id="schoolBoardFilterOptions">
-              <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
-            </datalist>
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            毕业季
-            <input
-              [(ngModel)]="graduationSeasonFilterInput"
-              (ngModelChange)="onGraduationSeasonFilterInputChange($event)"
-              name="graduationSeasonFilter"
-              list="graduationSeasonFilterOptions"
-              placeholder="All"
-              [disabled]="loadingList"
-              style="padding:4px 6px;min-width:170px;"
-            />
-            <datalist id="graduationSeasonFilterOptions">
-              <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
-            </datalist>
-          </label>
+            [filterFields]="studentManagementCommonFilterFields"
+            [countryFilterOptions]="countryFilterOptions"
+            [provinceFilterOptions]="provinceFilterOptions"
+            [cityFilterOptions]="cityFilterOptions"
+            [schoolBoardFilterOptions]="schoolBoardFilterOptions"
+            [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
+            [countryFilterInput]="countryFilterInput"
+            [provinceFilterInput]="provinceFilterInput"
+            [cityFilterInput]="cityFilterInput"
+            [schoolBoardFilterInput]="schoolBoardFilterInput"
+            [graduationSeasonFilterInput]="graduationSeasonFilterInput"
+            [volunteerCompletedFilter]="volunteerCompletedFilter"
+            [volunteerCompletedDisabled]="!volunteerCompletedFilterAvailable"
+            [volunteerCompletedTitle]="
+              volunteerCompletedFilterAvailable
+                ? null
+                : (volunteerCompletedFilterError || 'Volunteer completed filter data unavailable')
+            "
+            [studentKeyword]="searchKeyword"
+            [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、毕业季搜索'"
+            (countryFilterInputChange)="onCountryFilterInputChange($event)"
+            (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
+            (cityFilterInputChange)="onCityFilterInputChange($event)"
+            (schoolBoardFilterInputChange)="onSchoolBoardFilterInputChange($event)"
+            (graduationSeasonFilterInputChange)="onGraduationSeasonFilterInputChange($event)"
+            (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
+            (studentKeywordChange)="onSearchKeywordChange($event)"
+          ></app-student-filter-fields>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
             &#35821;&#35328;&#25104;&#32489;
@@ -684,21 +629,6 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                 {{ resolveOssltTrackingStatusOptionLabel(status) }}
               </option>
             </select>
-          </label>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            <input
-              type="checkbox"
-              [(ngModel)]="volunteerCompletedFilter"
-              (ngModelChange)="applyListView()"
-              [disabled]="loadingList || !volunteerCompletedFilterAvailable"
-              [attr.title]="
-                volunteerCompletedFilterAvailable
-                  ? null
-                  : (volunteerCompletedFilterError || 'Volunteer completed filter data unavailable')
-              "
-            />
-            义工完成
           </label>
 
           <span
@@ -1243,6 +1173,15 @@ export class StudentManagementComponent implements OnInit {
     'NEEDS_TRACKING',
     'PASSED',
   ];
+  readonly studentManagementCommonFilterFields: readonly StudentSelectorFilterFieldKey[] = [
+    'country',
+    'province',
+    'city',
+    'schoolBoard',
+    'graduationSeason',
+    'volunteerCompleted',
+    'keyword',
+  ];
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
   visibleColumnKeys = new Set<StudentListColumnKey>(
@@ -1744,6 +1683,16 @@ export class StudentManagementComponent implements OnInit {
     const input = String(value ?? '').trim();
     this.graduationSeasonFilterInput = input;
     this.graduationSeasonFilter = input ? this.resolveGraduationSeasonFilterSelection(input) : '';
+    this.applyListView();
+  }
+
+  onSearchKeywordChange(value: string): void {
+    this.searchKeyword = String(value ?? '');
+    this.applyListView();
+  }
+
+  onVolunteerCompletedFilterChange(value: boolean): void {
+    this.volunteerCompletedFilter = value === true;
     this.applyListView();
   }
 

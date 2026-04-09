@@ -43,8 +43,12 @@ describe('InfoManagementComponent', () => {
       studentId: 20001,
       username: 'zhangsan',
       status: 'ACTIVE',
+      languageScoreStatus: 'GREEN_STRICT_PASS',
+      languageTrackingStatus: 'TEACHER_REVIEW_APPROVED',
       latestOssltResult: 'PASS',
       ossltTrackingStatus: 'PASSED',
+      totalVolunteerHours: 39.9,
+      volunteerCompleted: false,
     },
     {
       studentId: 20002,
@@ -117,9 +121,21 @@ describe('InfoManagementComponent', () => {
     expect(component.isCreateStudentSelectableById(20002)).toBe(false);
   });
 
-  it('should expose OSSLT selector columns and resolve OSSLT status values', () => {
+  it('should apply volunteer completed filter in create selector', () => {
+    expect(component.filteredCreateStudentOptions.map((row) => row.studentId)).toEqual([20001]);
+
+    component.onVolunteerCompletedFilterChange(true);
+
+    expect(component.filteredCreateStudentOptions).toEqual([]);
+  });
+
+  it('should expose language and OSSLT selector columns and resolve status values', () => {
+    expect(component.createStudentColumns.some((column) => column.key === 'ielts')).toBe(true);
+    expect(component.createStudentColumns.some((column) => column.key === 'languageTracking')).toBe(true);
     expect(component.createStudentColumns.some((column) => column.key === 'ossltResult')).toBe(true);
     expect(component.createStudentColumns.some((column) => column.key === 'ossltTracking')).toBe(true);
+    expect(component.visibleCreateStudentColumnKeys.has('ielts')).toBe(true);
+    expect(component.visibleCreateStudentColumnKeys.has('languageTracking')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('ossltResult')).toBe(true);
     expect(component.visibleCreateStudentColumnKeys.has('ossltTracking')).toBe(true);
 
@@ -127,6 +143,10 @@ describe('InfoManagementComponent', () => {
     expect(row).toBeTruthy();
     if (!row) return;
 
+    expect(component.resolveCreateStudentColumnValue(row, 'ielts')).toBe('\u5df2\u8fbe\u6807');
+    expect(component.resolveCreateStudentColumnValue(row, 'languageTracking')).toBe(
+      '\u6559\u5e08\u5df2\u786e\u8ba4'
+    );
     expect(component.resolveCreateStudentColumnValue(row, 'ossltResult')).toBe('\u5df2\u901a\u8fc7');
     expect(component.resolveCreateStudentColumnValue(row, 'ossltTracking')).toBe('\u5df2\u901a\u8fc7');
   });
@@ -285,6 +305,7 @@ describe('InfoManagementComponent', () => {
     first.onCityFilterInputChange('Toronto');
     first.onSchoolBoardFilterInputChange('Toronto District School Board');
     first.onGraduationSeasonFilterInputChange('2026 Fall');
+    first.onVolunteerCompletedFilterChange(true);
     first.onStudentKeywordChange('alice');
 
     const second = new InfoManagementComponent(
@@ -300,6 +321,7 @@ describe('InfoManagementComponent', () => {
     expect(second.createCityFilter).toBe('Toronto');
     expect(second.createSchoolBoardFilter).toBe('Toronto District School Board');
     expect(second.createGraduationSeasonFilter).toBe('2026 Fall');
+    expect(second.createVolunteerCompletedFilter).toBe(true);
     expect(second.createStudentKeyword).toBe('alice');
   });
 });

@@ -1,0 +1,50 @@
+:host {
+  display: contents;
+}
+
+.student-filter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #444;
+}
+
+.student-filter-input {
+  padding: 4px 6px;
+}
+
+.student-filter-select {
+  padding: 4px 6px;
+}
+
+.country-filter-input,
+.province-filter-input,
+.city-filter-input {
+  min-width: 180px;
+}
+
+.school-board-filter-input {
+  min-width: 200px;
+}
+
+.graduation-season-filter-input {
+  min-width: 170px;
+}
+
+.language-score-filter-select,
+.language-tracking-filter-select,
+.osslt-tracking-filter-select {
+  min-width: 210px;
+}
+
+.osslt-result-filter-select {
+  min-width: 170px;
+}
+
+.student-filter-keyword {
+  min-width: 260px;
+  max-width: 360px;
+  flex: 1 1 300px;
+  padding: 6px 8px;
+}

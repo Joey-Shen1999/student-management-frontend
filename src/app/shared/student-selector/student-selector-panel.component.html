@@ -31,105 +31,45 @@
       {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
     </button>
 
-    <label
-      *ngIf="shouldShowFilterField('country')"
-      class="student-filter-item"
-    >
-      国家
-      <input
-        [ngModel]="countryFilterInput"
-        (ngModelChange)="countryFilterInputChange.emit($event)"
-        [name]="idPrefix + '-country-filter'"
-        [attr.list]="idPrefix + '-country-options'"
-        placeholder="All"
+    <div class="student-filter-item student-filter-fields-wrap">
+      <app-student-filter-fields
+        [idPrefix]="idPrefix"
         [disabled]="studentsLoading || disabled"
-      />
-      <datalist [attr.id]="idPrefix + '-country-options'">
-        <option *ngFor="let option of countryFilterOptions" [value]="option"></option>
-      </datalist>
-    </label>
-
-    <label
-      *ngIf="shouldShowFilterField('province')"
-      class="student-filter-item"
-    >
-      省份
-      <input
-        [ngModel]="provinceFilterInput"
-        (ngModelChange)="provinceFilterInputChange.emit($event)"
-        [name]="idPrefix + '-province-filter'"
-        [attr.list]="idPrefix + '-province-options'"
-        placeholder="All"
-        [disabled]="studentsLoading || disabled"
-      />
-      <datalist [attr.id]="idPrefix + '-province-options'">
-        <option *ngFor="let option of provinceFilterOptions" [value]="option"></option>
-      </datalist>
-    </label>
-
-    <label
-      *ngIf="shouldShowFilterField('city')"
-      class="student-filter-item"
-    >
-      城市
-      <input
-        [ngModel]="cityFilterInput"
-        (ngModelChange)="cityFilterInputChange.emit($event)"
-        [name]="idPrefix + '-city-filter'"
-        [attr.list]="idPrefix + '-city-options'"
-        placeholder="All"
-        [disabled]="studentsLoading || disabled"
-      />
-      <datalist [attr.id]="idPrefix + '-city-options'">
-        <option *ngFor="let option of cityFilterOptions" [value]="option"></option>
-      </datalist>
-    </label>
-
-    <label
-      *ngIf="shouldShowFilterField('schoolBoard')"
-      class="student-filter-item"
-    >
-      所属教育局
-      <input
-        [ngModel]="schoolBoardFilterInput"
-        (ngModelChange)="schoolBoardFilterInputChange.emit($event)"
-        [name]="idPrefix + '-school-board-filter'"
-        [attr.list]="idPrefix + '-school-board-options'"
-        placeholder="All"
-        [disabled]="studentsLoading || disabled"
-      />
-      <datalist [attr.id]="idPrefix + '-school-board-options'">
-        <option *ngFor="let option of schoolBoardFilterOptions" [value]="option"></option>
-      </datalist>
-    </label>
-
-    <label
-      *ngIf="shouldShowFilterField('graduationSeason')"
-      class="student-filter-item"
-    >
-      毕业季
-      <input
-        [ngModel]="graduationSeasonFilterInput"
-        (ngModelChange)="graduationSeasonFilterInputChange.emit($event)"
-        [name]="idPrefix + '-graduation-season-filter'"
-        [attr.list]="idPrefix + '-graduation-season-options'"
-        placeholder="All"
-        [disabled]="studentsLoading || disabled"
-      />
-      <datalist [attr.id]="idPrefix + '-graduation-season-options'">
-        <option *ngFor="let option of graduationSeasonFilterOptions" [value]="option"></option>
-      </datalist>
-    </label>
-
-    <input
-      *ngIf="shouldShowFilterField('keyword')"
-      class="student-filter-item"
-      type="search"
-      [ngModel]="studentKeyword"
-      (ngModelChange)="studentKeywordChange.emit($event)"
-      [disabled]="studentsLoading || disabled"
-      placeholder="按 ID、姓名、邮箱、电话、学校等搜索"
-    />
+        [filterFields]="filterFields"
+        [countryFilterOptions]="countryFilterOptions"
+        [provinceFilterOptions]="provinceFilterOptions"
+        [cityFilterOptions]="cityFilterOptions"
+        [schoolBoardFilterOptions]="schoolBoardFilterOptions"
+        [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
+        [countryFilterInput]="countryFilterInput"
+        [provinceFilterInput]="provinceFilterInput"
+        [cityFilterInput]="cityFilterInput"
+        [schoolBoardFilterInput]="schoolBoardFilterInput"
+        [graduationSeasonFilterInput]="graduationSeasonFilterInput"
+        [languageScoreFilter]="languageScoreFilter"
+        [languageTrackingFilter]="languageTrackingFilter"
+        [ossltResultFilter]="ossltResultFilter"
+        [ossltTrackingFilter]="ossltTrackingFilter"
+        [languageScoreFilterOptions]="languageScoreFilterOptions"
+        [languageTrackingFilterOptions]="languageTrackingFilterOptions"
+        [ossltResultFilterOptions]="ossltResultFilterOptions"
+        [ossltTrackingFilterOptions]="ossltTrackingFilterOptions"
+        [volunteerCompletedFilter]="volunteerCompletedFilter"
+        [studentKeyword]="studentKeyword"
+        [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、学校等搜索'"
+        (countryFilterInputChange)="countryFilterInputChange.emit($event)"
+        (provinceFilterInputChange)="provinceFilterInputChange.emit($event)"
+        (cityFilterInputChange)="cityFilterInputChange.emit($event)"
+        (schoolBoardFilterInputChange)="schoolBoardFilterInputChange.emit($event)"
+        (graduationSeasonFilterInputChange)="graduationSeasonFilterInputChange.emit($event)"
+        (languageScoreFilterChange)="languageScoreFilterChange.emit($event)"
+        (languageTrackingFilterChange)="languageTrackingFilterChange.emit($event)"
+        (ossltResultFilterChange)="ossltResultFilterChange.emit($event)"
+        (ossltTrackingFilterChange)="ossltTrackingFilterChange.emit($event)"
+        (volunteerCompletedFilterChange)="volunteerCompletedFilterChange.emit($event)"
+        (studentKeywordChange)="studentKeywordChange.emit($event)"
+      ></app-student-filter-fields>
+    </div>
 
     <button
       class="student-filter-item"

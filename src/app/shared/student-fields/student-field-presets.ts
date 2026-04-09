@@ -86,6 +86,11 @@ export type StudentSelectorFilterFieldKey =
   | 'city'
   | 'schoolBoard'
   | 'graduationSeason'
+  | 'languageScore'
+  | 'languageTracking'
+  | 'ossltResult'
+  | 'ossltTracking'
+  | 'volunteerCompleted'
   | 'keyword';
 
 export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColumnKey[] = [
@@ -104,6 +109,8 @@ export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColu
   'province',
   'city',
   'teacherNote',
+  'ielts',
+  'languageTracking',
   'ossltResult',
   'ossltTracking',
   'status',
@@ -122,6 +129,8 @@ const UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS: readonly GoalStude
   'province',
   'city',
   'teacherNote',
+  'ielts',
+  'languageTracking',
   'ossltResult',
   'ossltTracking',
   'status',
@@ -148,6 +157,30 @@ export const STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT: Record<
   StudentSelectorContext,
   readonly StudentSelectorFilterFieldKey[]
 > = {
-  'goal-create': ['country', 'province', 'city', 'schoolBoard', 'graduationSeason', 'keyword'],
-  'info-create': ['country', 'province', 'city', 'schoolBoard', 'graduationSeason', 'keyword'],
+  'goal-create': [
+    'country',
+    'province',
+    'city',
+    'schoolBoard',
+    'graduationSeason',
+    'languageScore',
+    'languageTracking',
+    'ossltResult',
+    'ossltTracking',
+    'volunteerCompleted',
+    'keyword',
+  ],
+  'info-create': [
+    'country',
+    'province',
+    'city',
+    'schoolBoard',
+    'graduationSeason',
+    'languageScore',
+    'languageTracking',
+    'ossltResult',
+    'ossltTracking',
+    'volunteerCompleted',
+    'keyword',
+  ],
 };

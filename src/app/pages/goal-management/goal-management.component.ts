@@ -64,8 +64,12 @@ interface StudentDetailVm {
   country: string;
   schoolBoard: string;
   graduationSeason: string;
+  ielts: string;
+  languageTracking: string;
   ossltResult: 'PASS' | 'FAIL' | 'UNKNOWN' | '';
   ossltTracking: 'PASSED' | 'WAITING_UPDATE' | 'NEEDS_TRACKING' | '';
+  totalVolunteerHours: number | null;
+  volunteerCompleted: boolean | null;
   status: 'ACTIVE' | 'ARCHIVED' | '';
 }
 
@@ -97,6 +101,11 @@ interface CreateStudentFilterPreferenceVm {
   schoolBoardFilter?: string;
   graduationSeasonFilterInput?: string;
   graduationSeasonFilter?: string;
+  languageScoreFilter?: string;
+  languageTrackingFilter?: string;
+  ossltResultFilter?: string;
+  ossltTrackingFilter?: string;
+  volunteerCompleted?: boolean;
   keyword?: string;
 }
 
@@ -174,6 +183,29 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
   createGraduationSeasonFilterInput = '';
   createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
+  createLanguageScoreFilter = '';
+  createLanguageTrackingFilter = '';
+  createOssltResultFilter = '';
+  createOssltTrackingFilter = '';
+  createVolunteerCompletedFilter = false;
+  readonly languageScoreFilterOptions: readonly string[] = [
+    'GREEN_STRICT_PASS',
+    'GREEN_COMMON_PASS_WITH_WARNING',
+    'YELLOW_NEEDS_PREPARATION',
+    'NO_REQUIREMENT',
+  ];
+  readonly languageTrackingFilterOptions: readonly string[] = [
+    'TEACHER_REVIEW_APPROVED',
+    'AUTO_PASS_ALL_SCHOOLS',
+    'AUTO_PASS_PARTIAL_SCHOOLS',
+    'NEEDS_TRACKING',
+  ];
+  readonly ossltResultFilterOptions: readonly string[] = ['PASS', 'FAIL', 'UNKNOWN'];
+  readonly ossltTrackingFilterOptions: readonly string[] = [
+    'WAITING_UPDATE',
+    'NEEDS_TRACKING',
+    'PASSED',
+  ];
 
   goals: GoalTaskVm[] = [];
   goalsLoading = false;
@@ -633,6 +665,31 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
   }
+  onLanguageScoreFilterChange(value: string): void {
+    this.createLanguageScoreFilter = this.normalizeIeltsValue(value) || '';
+    this.persistCreateStudentFiltersPreference();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onLanguageTrackingFilterChange(value: string): void {
+    this.createLanguageTrackingFilter = this.normalizeLanguageTrackingValue(value) || '';
+    this.persistCreateStudentFiltersPreference();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onOssltResultFilterChange(value: string): void {
+    this.createOssltResultFilter = this.normalizeOssltResultValue(value) || '';
+    this.persistCreateStudentFiltersPreference();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onOssltTrackingFilterChange(value: string): void {
+    this.createOssltTrackingFilter = this.normalizeOssltTrackingStatusValue(value) || '';
+    this.persistCreateStudentFiltersPreference();
+    this.loadMissingProfilesForVisibleRows();
+  }
+  onVolunteerCompletedFilterChange(value: boolean): void {
+    this.createVolunteerCompletedFilter = value === true;
+    this.persistCreateStudentFiltersPreference();
+    this.loadMissingProfilesForVisibleRows();
+  }
   refreshAssignableStudents(): void { this.loadAssignableStudents(); }
   refreshGoals(): void { this.loadGoals(); }
   applyFilters(): void { this.loadGoals(); }
@@ -649,6 +706,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createSchoolBoardFilter = COUNTRY_FILTER_ALL_OPTION;
     this.createGraduationSeasonFilterInput = '';
     this.createGraduationSeasonFilter = COUNTRY_FILTER_ALL_OPTION;
+    this.createLanguageScoreFilter = '';
+    this.createLanguageTrackingFilter = '';
+    this.createOssltResultFilter = '';
+    this.createOssltTrackingFilter = '';
+    this.createVolunteerCompletedFilter = false;
     this.createStudentKeyword = '';
     this.persistCreateStudentFiltersPreference();
     this.loadMissingProfilesForVisibleRows();
@@ -749,6 +811,22 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   detailCountry(studentId: number): string { return this.studentDetails.get(studentId)?.country || '-'; }
   detailProvince(studentId: number): string { return this.studentDetails.get(studentId)?.province || '-'; }
   detailCity(studentId: number): string { return this.studentDetails.get(studentId)?.city || '-'; }
+  detailIelts(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.ielts || '';
+    if (cached) return this.resolveIeltsLabel(cached);
+    const fallback = this.extractIeltsFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveIeltsLabel(fallback);
+  }
+  detailLanguageTracking(student: AssignableStudentOptionVm): string {
+    const cached = this.studentDetails.get(student.studentId)?.languageTracking || '';
+    if (cached) return this.resolveLanguageTrackingLabel(cached);
+    const fallback = this.extractLanguageTrackingFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+    return this.resolveLanguageTrackingLabel(fallback);
+  }
   detailOssltResult(student: AssignableStudentOptionVm): string {
     const cached = this.studentDetails.get(student.studentId)?.ossltResult || '';
     if (cached) return this.resolveOssltResultLabel(cached);
@@ -805,6 +883,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         return this.detailProvince(student.studentId);
       case 'city':
         return this.detailCity(student.studentId);
+      case 'ielts':
+        return this.detailIelts(student);
+      case 'languageTracking':
+        return this.detailLanguageTracking(student);
       case 'ossltResult':
         return this.detailOssltResult(student);
       case 'ossltTracking':
@@ -1315,8 +1397,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ielts: '',
+      languageTracking: '',
       ossltResult: '',
       ossltTracking: '',
+      totalVolunteerHours: null,
+      volunteerCompleted: null,
       status: '',
     };
     const graduation = patch.graduation?.trim() || current.graduation;
@@ -1337,8 +1423,18 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: patch.country?.trim() || current.country,
       schoolBoard: patch.schoolBoard?.trim() || current.schoolBoard,
       graduationSeason,
+      ielts: patch.ielts?.trim() || current.ielts,
+      languageTracking: patch.languageTracking?.trim() || current.languageTracking,
       ossltResult: patch.ossltResult || current.ossltResult,
       ossltTracking: patch.ossltTracking || current.ossltTracking,
+      totalVolunteerHours:
+        patch.totalVolunteerHours !== undefined
+          ? patch.totalVolunteerHours
+          : current.totalVolunteerHours,
+      volunteerCompleted:
+        patch.volunteerCompleted !== undefined
+          ? patch.volunteerCompleted
+          : current.volunteerCompleted,
       status: patch.status || current.status,
     });
   }
@@ -1360,8 +1456,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: '',
       schoolBoard: '',
       graduationSeason: '',
+      ielts: '',
+      languageTracking: '',
       ossltResult: '',
       ossltTracking: '',
+      totalVolunteerHours: null,
+      volunteerCompleted: null,
       status: '',
     };
     this.studentDetails.set(studentId, {
@@ -1445,8 +1545,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: this.pick([student['currentSchoolCountry'], student['schoolCountry'], student['country'], profile['currentSchoolCountry'], profile['country']]),
       schoolBoard: this.pick([student['currentSchoolBoard'], student['schoolBoard'], student['educationBoard'], profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      ielts: this.extractIeltsFromRecord(root, profile),
+      languageTracking: this.extractLanguageTrackingFromRecord(root, profile),
       ossltResult: this.extractOssltResultFromRecord(root, profile),
       ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
+      totalVolunteerHours: this.extractVolunteerHoursFromRecord(root, profile),
+      volunteerCompleted: this.extractVolunteerCompletedFromRecord(root, profile),
       status: this.normalizeAccountStatus(student.status),
     };
   }
@@ -1525,8 +1629,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       country: this.pick([profile['currentSchoolCountry'], profile['country'], school['country'], root['currentSchoolCountry']]),
       schoolBoard: this.pick([profile['currentSchoolBoard'], profile['schoolBoard'], profile['educationBoard'], school['schoolBoard'], school['educationBoard'], root['currentSchoolBoard']]),
       graduationSeason: this.resolveGraduationSeason(graduation),
+      ielts: this.extractIeltsFromRecord(root, profile),
+      languageTracking: this.extractLanguageTrackingFromRecord(root, profile),
       ossltResult: this.extractOssltResultFromRecord(root, profile),
       ossltTracking: this.extractOssltTrackingStatusFromRecord(root, profile),
+      totalVolunteerHours: this.extractVolunteerHoursFromRecord(root, profile),
+      volunteerCompleted: this.extractVolunteerCompletedFromRecord(root, profile),
       status: this.normalizeAccountStatus(root['status']),
     };
   }
@@ -1617,6 +1725,120 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   private normalizeCityValueForDetail(value: unknown, country: ProvinceFilterCountry | '' = ''): string {
     return this.normalizeCityFilterValue(value, country);
+  }
+
+  private resolveIeltsLabel(value: StudentDetailVm['ielts']): string {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'GREEN_STRICT_PASS') return '\u5df2\u8fbe\u6807';
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return '\u57fa\u672c\u8fbe\u6807';
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return '\u9700\u63d0\u5347';
+    if (normalized === 'NO_REQUIREMENT') return '\u65e0\u9700\u8981\u6c42';
+    return String(value ?? '').trim() || '\u5f85\u66f4\u65b0';
+  }
+
+  private resolveLanguageTrackingLabel(value: StudentDetailVm['languageTracking']): string {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return '\u6559\u5e08\u5df2\u786e\u8ba4';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return '\u5168\u90e8\u5b66\u6821\u8fbe\u6807';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return '\u90e8\u5206\u5b66\u6821\u8fbe\u6807';
+    if (normalized === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
+    return String(value ?? '').trim() || '\u5f85\u66f4\u65b0';
+  }
+
+  private extractIeltsFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['ielts'] {
+    const ieltsNode =
+      this.asObjectRecord(source['ieltsModule']) ||
+      this.asObjectRecord(source['ielts']) ||
+      this.asObjectRecord(source['languageModule']);
+    const profileIeltsNode =
+      this.asObjectRecord(profileSource?.['ieltsModule']) ||
+      this.asObjectRecord(profileSource?.['ielts']) ||
+      this.asObjectRecord(profileSource?.['languageModule']);
+
+    const candidates: unknown[] = [
+      source['languageScoreStatus'],
+      source['ieltsStatus'],
+      source['latestIeltsStatus'],
+      source['ielts_status'],
+      ieltsNode?.['languageScoreStatus'],
+      ieltsNode?.['ieltsStatus'],
+      ieltsNode?.['latestIeltsStatus'],
+      ieltsNode?.['ielts_status'],
+      profileSource?.['languageScoreStatus'],
+      profileSource?.['ieltsStatus'],
+      profileSource?.['latestIeltsStatus'],
+      profileIeltsNode?.['languageScoreStatus'],
+      profileIeltsNode?.['ieltsStatus'],
+      profileIeltsNode?.['latestIeltsStatus'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeIeltsValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private extractLanguageTrackingFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): StudentDetailVm['languageTracking'] {
+    const ieltsNode =
+      this.asObjectRecord(source['ieltsModule']) ||
+      this.asObjectRecord(source['ielts']) ||
+      this.asObjectRecord(source['languageModule']);
+    const profileIeltsNode =
+      this.asObjectRecord(profileSource?.['ieltsModule']) ||
+      this.asObjectRecord(profileSource?.['ielts']) ||
+      this.asObjectRecord(profileSource?.['languageModule']);
+
+    const candidates: unknown[] = [
+      source['languageTrackingStatus'],
+      source['ieltsTrackingStatus'],
+      source['trackingStatus'],
+      source['language_tracking_status'],
+      ieltsNode?.['languageTrackingStatus'],
+      ieltsNode?.['ieltsTrackingStatus'],
+      ieltsNode?.['trackingStatus'],
+      ieltsNode?.['language_tracking_status'],
+      profileSource?.['languageTrackingStatus'],
+      profileSource?.['ieltsTrackingStatus'],
+      profileSource?.['trackingStatus'],
+      profileIeltsNode?.['languageTrackingStatus'],
+      profileIeltsNode?.['ieltsTrackingStatus'],
+      profileIeltsNode?.['trackingStatus'],
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeLanguageTrackingValue(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
+  }
+
+  private normalizeIeltsValue(value: unknown): StudentDetailVm['ielts'] {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const normalized = raw.toUpperCase();
+    if (normalized === 'GREEN_STRICT_PASS') return 'GREEN_STRICT_PASS';
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return 'GREEN_COMMON_PASS_WITH_WARNING';
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return 'YELLOW_NEEDS_PREPARATION';
+    if (normalized === 'NO_REQUIREMENT') return 'NO_REQUIREMENT';
+    return raw;
+  }
+
+  private normalizeLanguageTrackingValue(value: unknown): StudentDetailVm['languageTracking'] {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const normalized = raw.toUpperCase();
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return 'TEACHER_REVIEW_APPROVED';
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return 'AUTO_PASS_ALL_SCHOOLS';
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return 'AUTO_PASS_PARTIAL_SCHOOLS';
+    if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
+    return raw;
   }
 
   private resolveOssltResultLabel(value: StudentDetailVm['ossltResult']): string {
@@ -1733,6 +1955,140 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  private extractVolunteerHoursFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): number | null {
+    const volunteerNode =
+      this.asObjectRecord(source['volunteerTracking']) ||
+      this.asObjectRecord(source['volunteer']) ||
+      this.asObjectRecord(source['volunteerSummary']);
+    const profileVolunteerNode =
+      this.asObjectRecord(profileSource?.['volunteerTracking']) ||
+      this.asObjectRecord(profileSource?.['volunteer']) ||
+      this.asObjectRecord(profileSource?.['volunteerSummary']);
+
+    const candidates: unknown[] = [
+      source['totalVolunteerHours'],
+      source['volunteerTotalHours'],
+      source['volunteerHours'],
+      source['totalHours'],
+      volunteerNode?.['totalVolunteerHours'],
+      volunteerNode?.['volunteerTotalHours'],
+      volunteerNode?.['totalHours'],
+      volunteerNode?.['hours'],
+      profileSource?.['totalVolunteerHours'],
+      profileSource?.['volunteerTotalHours'],
+      profileSource?.['volunteerHours'],
+      profileSource?.['totalHours'],
+      profileVolunteerNode?.['totalVolunteerHours'],
+      profileVolunteerNode?.['volunteerTotalHours'],
+      profileVolunteerNode?.['totalHours'],
+      profileVolunteerNode?.['hours'],
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.parseNumberValue(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  private extractVolunteerCompletedFromRecord(
+    source: Record<string, unknown>,
+    profileSource?: Record<string, unknown>
+  ): boolean | null {
+    const volunteerNode =
+      this.asObjectRecord(source['volunteerTracking']) ||
+      this.asObjectRecord(source['volunteer']) ||
+      this.asObjectRecord(source['volunteerSummary']);
+    const profileVolunteerNode =
+      this.asObjectRecord(profileSource?.['volunteerTracking']) ||
+      this.asObjectRecord(profileSource?.['volunteer']) ||
+      this.asObjectRecord(profileSource?.['volunteerSummary']);
+
+    const candidates: unknown[] = [
+      source['volunteerCompleted'],
+      source['isVolunteerCompleted'],
+      source['completedVolunteer'],
+      source['volunteer_completion'],
+      volunteerNode?.['volunteerCompleted'],
+      volunteerNode?.['isVolunteerCompleted'],
+      volunteerNode?.['completed'],
+      volunteerNode?.['completionStatus'],
+      profileSource?.['volunteerCompleted'],
+      profileSource?.['isVolunteerCompleted'],
+      profileVolunteerNode?.['volunteerCompleted'],
+      profileVolunteerNode?.['isVolunteerCompleted'],
+      profileVolunteerNode?.['completed'],
+      profileVolunteerNode?.['completionStatus'],
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.parseBooleanValue(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+
+    const totalHours = this.extractVolunteerHoursFromRecord(source, profileSource);
+    return totalHours === null ? null : totalHours >= 40;
+  }
+
+  private parseNumberValue(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private parseBooleanValue(value: unknown): boolean | null {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+      return null;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+    if (
+      normalized === 'true' ||
+      normalized === 'yes' ||
+      normalized === 'y' ||
+      normalized === '1' ||
+      normalized === 'completed'
+    ) {
+      return true;
+    }
+    if (
+      normalized === 'false' ||
+      normalized === 'no' ||
+      normalized === 'n' ||
+      normalized === '0' ||
+      normalized === 'incomplete'
+    ) {
+      return false;
+    }
+    return null;
+  }
+
   private asObjectRecord(value: unknown): Record<string, unknown> | null {
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   }
@@ -1838,6 +2194,121 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return !!selected && selected === student;
   }
 
+  private resolveLanguageScoreForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): string {
+    const detailValue = this.normalizeIeltsValue(detail?.ielts);
+    if (detailValue) return detailValue;
+    return this.extractIeltsFromRecord(student as unknown as Record<string, unknown>);
+  }
+
+  private matchesLanguageScoreFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createLanguageScoreFilter) {
+      return true;
+    }
+    return (
+      this.resolveLanguageScoreForFilter(student, detail) === this.createLanguageScoreFilter
+    );
+  }
+
+  private resolveLanguageTrackingForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): string {
+    const detailValue = this.normalizeLanguageTrackingValue(detail?.languageTracking);
+    if (detailValue) return detailValue;
+    return this.extractLanguageTrackingFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+  }
+
+  private matchesLanguageTrackingFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createLanguageTrackingFilter) {
+      return true;
+    }
+    return (
+      this.resolveLanguageTrackingForFilter(student, detail) ===
+      this.createLanguageTrackingFilter
+    );
+  }
+
+  private resolveOssltResultForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): string {
+    const detailValue = this.normalizeOssltResultValue(detail?.ossltResult);
+    if (detailValue) return detailValue;
+    return this.extractOssltResultFromRecord(student as unknown as Record<string, unknown>);
+  }
+
+  private matchesOssltResultFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createOssltResultFilter) {
+      return true;
+    }
+    return this.resolveOssltResultForFilter(student, detail) === this.createOssltResultFilter;
+  }
+
+  private resolveOssltTrackingForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): string {
+    const detailValue = this.normalizeOssltTrackingStatusValue(detail?.ossltTracking);
+    if (detailValue) return detailValue;
+    return this.extractOssltTrackingStatusFromRecord(
+      student as unknown as Record<string, unknown>
+    );
+  }
+
+  private matchesOssltTrackingFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createOssltTrackingFilter) {
+      return true;
+    }
+    return (
+      this.resolveOssltTrackingForFilter(student, detail) === this.createOssltTrackingFilter
+    );
+  }
+
+  private matchesVolunteerCompletedFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean {
+    if (!this.createVolunteerCompletedFilter) {
+      return true;
+    }
+    if (detail?.volunteerCompleted === true) {
+      return true;
+    }
+    const totalHours = detail?.totalVolunteerHours;
+    if (typeof totalHours === 'number' && Number.isFinite(totalHours)) {
+      return totalHours >= 40;
+    }
+
+    const row = (student ?? {}) as unknown as Record<string, unknown>;
+    const completed = this.parseBooleanValue(
+      row['volunteerCompleted'] ?? row['isVolunteerCompleted']
+    );
+    if (completed !== null) {
+      return completed;
+    }
+    const rowHours = this.parseNumberValue(
+      row['totalVolunteerHours'] ?? row['volunteerTotalHours'] ?? row['totalHours']
+    );
+    return rowHours !== null && rowHours >= 40;
+  }
+
   private matchesCreateStudentFilters(
     student: AssignableStudentOptionVm,
     keyword: string
@@ -1849,6 +2320,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (!this.matchesCityFilter(detail)) return false;
     if (!this.matchesSchoolBoardFilter(detail)) return false;
     if (!this.matchesGraduationSeasonFilter(detail)) return false;
+    if (!this.matchesLanguageScoreFilter(student, detail)) return false;
+    if (!this.matchesLanguageTrackingFilter(student, detail)) return false;
+    if (!this.matchesOssltResultFilter(student, detail)) return false;
+    if (!this.matchesOssltTrackingFilter(student, detail)) return false;
+    if (!this.matchesVolunteerCompletedFilter(student, detail)) return false;
     if (!keyword) return true;
 
     return this.buildCreateStudentSearchText(student, detail).includes(keyword);
@@ -1878,6 +2354,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       detail?.country || '',
       detail?.schoolBoard || '',
       detail?.graduationSeason || '',
+      this.detailIelts(student),
+      this.detailLanguageTracking(student),
+      detail?.ielts || '',
+      detail?.languageTracking || '',
       this.detailOssltResult(student),
       this.detailOssltTracking(student),
       detail?.ossltResult || '',
@@ -2177,6 +2657,20 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createGraduationSeasonFilterInput =
       resolvedGraduationSeason === COUNTRY_FILTER_ALL_OPTION ? '' : resolvedGraduationSeason;
 
+    this.createLanguageScoreFilter = this.normalizeIeltsValue(
+      persisted.languageScoreFilter
+    ) || '';
+    this.createLanguageTrackingFilter = this.normalizeLanguageTrackingValue(
+      persisted.languageTrackingFilter
+    ) || '';
+    this.createOssltResultFilter = this.normalizeOssltResultValue(
+      persisted.ossltResultFilter
+    ) || '';
+    this.createOssltTrackingFilter = this.normalizeOssltTrackingStatusValue(
+      persisted.ossltTrackingFilter
+    ) || '';
+    this.createVolunteerCompletedFilter =
+      this.parseBooleanValue(persisted.volunteerCompleted) === true;
     this.createStudentKeyword = String(persisted.keyword ?? '').trim();
   }
 
@@ -2195,6 +2689,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         schoolBoardFilter: this.createSchoolBoardFilter,
         graduationSeasonFilterInput: this.createGraduationSeasonFilterInput,
         graduationSeasonFilter: this.createGraduationSeasonFilter,
+        languageScoreFilter: this.createLanguageScoreFilter,
+        languageTrackingFilter: this.createLanguageTrackingFilter,
+        ossltResultFilter: this.createOssltResultFilter,
+        ossltTrackingFilter: this.createOssltTrackingFilter,
+        volunteerCompleted: this.createVolunteerCompletedFilter,
         keyword: this.createStudentKeyword,
       };
       storage.setItem(this.resolveCreateStudentFiltersStorageKey(), JSON.stringify(payload));
