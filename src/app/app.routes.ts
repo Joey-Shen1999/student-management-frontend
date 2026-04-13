@@ -55,6 +55,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/course-plan',
+    loadComponent: () =>
+      import('./pages/student-course-plan/student-course-plan.component').then(
+        (m) => m.StudentCoursePlanComponent
+      ),
+  },
+
+  {
     path: 'student/ielts',
     loadComponent: () =>
       import('./pages/ielts-tracking/ielts-tracking.component').then((m) => m.IeltsTrackingComponent),

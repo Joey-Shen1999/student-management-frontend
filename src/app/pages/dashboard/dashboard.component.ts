@@ -201,6 +201,9 @@ import {
           <h3>快捷操作</h3>
           <div class="quick-actions">
             <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
+            <button type="button" class="action-btn primary" (click)="goCoursePlanner()">
+              课程规划
+            </button>
             <button type="button" class="action-btn primary" (click)="goIeltsTracking()">
               语言成绩跟踪
             </button>
@@ -273,6 +276,10 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goCoursePlanner() {
+    this.router.navigate(['/student/course-plan']);
   }
 
   goIeltsTracking() {

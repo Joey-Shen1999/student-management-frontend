@@ -1,0 +1,201 @@
+:host {
+  display: block;
+}
+
+.course-plan-page {
+  min-height: 100%;
+  padding: 20px;
+  background: linear-gradient(180deg, #f6f9ff 0, #eef4ff 100%);
+}
+
+.course-plan-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-head,
+.page-title,
+.page-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.page-head {
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.page-title {
+  align-items: center;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  color: #152033;
+}
+
+.page-actions {
+  flex-wrap: wrap;
+}
+
+.ghost-btn,
+.primary-btn {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ghost-btn {
+  background: #fff;
+  color: #24476d;
+  box-shadow: inset 0 0 0 1px rgba(36, 71, 109, 0.14);
+}
+
+.primary-btn {
+  background: #1d5ea8;
+  color: #fff;
+}
+
+:host ::ng-deep app-course-plan-prototype .semester-stack {
+  display: grid;
+  gap: 12px;
+}
+
+:host ::ng-deep app-course-plan-prototype .semester-section {
+  display: grid;
+  gap: 8px;
+}
+
+:host ::ng-deep app-course-plan-prototype .semester-section + .semester-section {
+  padding-top: 12px;
+  border-top: 1px solid rgba(84, 112, 160, 0.18);
+}
+
+:host ::ng-deep app-course-plan-prototype .semester-inline-label {
+  color: #627089;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-drop-zone {
+  min-height: 120px;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-drop-zone.semester-lane {
+  padding: 0 2px;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-box.dragging {
+  opacity: 0.6;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-drag-handle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #e9eff8;
+  color: #507097;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: grab;
+  flex: 0 0 auto;
+}
+
+:host ::ng-deep app-course-plan-prototype .code-field {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-suggestion-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(84, 112, 160, 0.18);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(21, 32, 51, 0.12);
+}
+
+:host ::ng-deep app-course-plan-prototype .course-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #152033;
+  text-align: left;
+  cursor: pointer;
+}
+
+:host ::ng-deep app-course-plan-prototype .course-suggestion-item.active,
+:host ::ng-deep app-course-plan-prototype .course-suggestion-item:hover {
+  background: #eef4ff;
+}
+
+:host ::ng-deep app-course-plan-prototype .suggestion-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+:host ::ng-deep app-course-plan-prototype .suggestion-code {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+:host ::ng-deep app-course-plan-prototype .suggestion-title {
+  color: #627089;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+:host ::ng-deep app-course-plan-prototype .suggestion-grade {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: #285ca8;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+:host ::ng-deep app-course-plan-prototype .empty-column.semester-empty {
+  min-height: 120px;
+}
+
+@media (max-width: 860px) {
+  .course-plan-page {
+    padding: 16px;
+  }
+
+  .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .page-head h2 {
+    font-size: 24px;
+  }
+}
