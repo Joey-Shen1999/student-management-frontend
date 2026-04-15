@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -847,10 +847,10 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'serviceItems'">
-                    <div style="display:inline-grid;gap:6px;min-width:0;width:auto;justify-items:start;">
+                    <div class="service-items-container" style="position:relative;display:inline-grid;gap:6px;min-width:0;width:auto;justify-items:start;">
                       <button
                         type="button"
-                        (click)="toggleServiceItemsPanel(student)"
+                        (click)="toggleServiceItemsPanel(student); $event.stopPropagation()"
                         [disabled]="
                           !resolveStudentId(student) ||
                           isServiceItemsLoading(student) ||
@@ -863,7 +863,11 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       </button>
                       <div
                         *ngIf="isServiceItemsPanelOpen(student)"
-                        style="position:absolute;top:calc(100% + 6px);left:8px;z-index:20;width:156px;max-width:min(156px,calc(100vw - 48px));padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#fff;box-shadow:0 14px 28px rgba(15,23,42,0.16);display:grid;gap:10px;"
+                        (click)="$event.stopPropagation()"
+                        style="position:absolute;z-index:100;width:156px;max-width:min(156px,calc(100vw - 48px));padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#fff;box-shadow:0 14px 28px rgba(15,23,42,0.16);display:grid;gap:10px;"
+                        [style.top]="shouldServiceItemsPanelOpenUpward(student) ? 'auto' : 'calc(100% + 6px)'"
+                        [style.bottom]="shouldServiceItemsPanelOpenUpward(student) ? 'calc(100% + 6px)' : 'auto'"
+                        [style.left]="'0'"
                       >
                         <div
                           style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#52607a;"
@@ -883,11 +887,12 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                           <label
                             *ngFor="let option of serviceItemOptions"
                             style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
+                            (click)="$event.stopPropagation()"
                           >
                             <input
                               type="checkbox"
-                              [checked]="isServiceItemSelectedForStudent(student, option)"
-                              (change)="onServiceItemSelectionChange(student, option, $any($event.target).checked)"
+                              [ngModel]="isServiceItemSelectedForStudent(student, option)"
+                              (ngModelChange)="onServiceItemSelectionChange(student, option, $event)"
                               [disabled]="
                                 !resolveStudentId(student) ||
                                 isServiceItemsLoading(student) ||
@@ -3223,6 +3228,36 @@ export class StudentManagementComponent implements OnInit {
     return !!studentId && this.serviceItemsPanelStudentId === studentId;
   }
 
+  shouldServiceItemsPanelOpenUpward(student: StudentAccount): boolean {
+    const index = this.visibleStudents.findIndex(
+      (s) => this.resolveStudentId(s) === this.resolveStudentId(student)
+    );
+    if (index === -1) {
+      return false;
+    }
+    // If it's one of the last 3 students, open upward to avoid clipping
+    return index >= this.visibleStudents.length - 3 && this.visibleStudents.length > 5;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (this.serviceItemsPanelStudentId === null) {
+      return;
+    }
+
+    const targetElement = event.target as HTMLElement;
+    const isInsideServiceItems = !!targetElement.closest('.service-items-container');
+
+    // Also check if clicking on elements that might be logically part of the panel but physically outside
+    // (e.g. some tooltips or dynamic elements if any).
+    // For now, closest('.service-items-container') is the primary check.
+
+    if (!isInsideServiceItems) {
+      this.serviceItemsPanelStudentId = null;
+      this.cdr.detectChanges();
+    }
+  }
+
   toggleServiceItemsPanel(student: StudentAccount): void {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
@@ -3251,7 +3286,7 @@ export class StudentManagementComponent implements OnInit {
     const cachedSelection = this.serviceItemsCache.get(studentId);
     const inlineSelection = cachedSelection ?? this.extractServiceItemsFromStudent(student);
 
-    if (!cachedProfile && !cachedSelection && inlineSelection.length === 0) {
+    if (!cachedProfile && !cachedSelection && inlineSelection.length === 0 && checked) {
       this.persistServiceItemsSelection(studentId, item, checked, null, null);
       return;
     }
@@ -5928,13 +5963,9 @@ export class StudentManagementComponent implements OnInit {
       .subscribe({
         next: (savedPayload) => {
           this.cacheStudentProfilePayload(studentId, savedPayload);
-          const savedServiceItems = this.extractServiceItemsFromProfile(savedPayload);
-          this.serviceItemsCache.set(
-            studentId,
-            savedServiceItems.length > 0 || serviceItems.length === 0
-              ? savedServiceItems
-              : this.normalizeServiceItems(serviceItems)
-          );
+          // Always trust the local serviceItems after a successful save
+          // to prevent UI reverting if the backend returns a stale or incomplete profile.
+          this.serviceItemsCache.set(studentId, this.normalizeServiceItems(serviceItems));
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {

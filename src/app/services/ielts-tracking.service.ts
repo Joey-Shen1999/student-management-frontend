@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, delay, map, of, timeout } from 'rxjs';
 
@@ -170,6 +170,34 @@ export class IeltsTrackingService {
     );
   }
 
+  getTeacherStudentsIeltsSummary(studentIds?: readonly number[]): Observable<TeacherStudentIeltsSummary[]> {
+    const normalizedStudentIds = this.normalizeStudentIds(studentIds);
+    if (this.useMock) {
+      const results = normalizedStudentIds.map((id) => {
+        const state = this.readMockState(id);
+        const derived = deriveStudentIeltsModuleState(state);
+        return {
+          studentId: id,
+          studentName: MOCK_TEACHER_STUDENT_NAMES[id] || `Student #${id}`,
+          summary: derived.summary,
+        };
+      });
+      return of(results).pipe(delay(this.mockLatencyMs));
+    }
+
+    let params = new HttpParams();
+    if (normalizedStudentIds.length > 0) {
+      params = params.set('studentIds', normalizedStudentIds.join(','));
+    }
+
+    return this.http
+      .get<unknown>(`${this.teacherStudentsBaseUrl}/ielts-summary`, { params })
+      .pipe(
+        timeout({ first: this.requestTimeoutMs }),
+        map((response) => this.normalizeTeacherSummaryList(response, normalizedStudentIds))
+      );
+  }
+
   updateTeacherStudentIeltsData(
     studentId: number,
     payload: UpdateStudentIeltsPayload
@@ -271,6 +299,21 @@ export class IeltsTrackingService {
       },
       updatedAt: null,
     };
+  }
+
+  private normalizeTeacherSummaryList(
+    raw: unknown,
+    fallbackStudentIds: readonly number[]
+  ): TeacherStudentIeltsSummary[] {
+    const rows = this.unwrapArrayPayload(raw);
+    if (rows.length > 0) {
+      return rows.map((item, index) =>
+        this.normalizeTeacherSummary(item, fallbackStudentIds[index] ?? 0)
+      );
+    }
+
+    if (fallbackStudentIds.length <= 0) return [];
+    return fallbackStudentIds.map((studentId) => this.normalizeTeacherSummary({ studentId }, studentId));
   }
 
   private normalizeTeacherSummary(raw: unknown, fallbackStudentId: number): TeacherStudentIeltsSummary {
