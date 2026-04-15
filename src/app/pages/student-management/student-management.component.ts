@@ -200,16 +200,16 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
 };
 
 const SERVICE_ITEM_OPTIONS = [
-  'A: 面试辅导',
-  'B: 雅思A类全科班',
-  'C: SAT全科班',
-  'D: 数学竞赛类班课',
-  'E: 3U&4U阅写及文学素养',
-  'F: 雅思VIP 20小时包',
-  'G: 雅思VIP 50小时包',
-  'H: 学科VIP 20小时包',
-  'I: 学科VIP 50小时包',
-  'J: AP/IB/数学竞赛VIP 50小时包',
+  '面试辅导',
+  '雅思A类全科班',
+  'SAT全科班',
+  '数学竞赛类班课',
+  '3U&4U阅写及文学素养',
+  '雅思VIP 20小时包',
+  '雅思VIP 50小时包',
+  '学科VIP 20小时包',
+  '学科VIP 50小时包',
+  'AP/IB/数学竞赛VIP 50小时包',
   '一对一辅导',
 ] as const;
 
@@ -264,8 +264,8 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     defaultVisible: true,
     hideable: true,
     backendDependent: true,
-    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:320px;',
-    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;',
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:88px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;position:relative;',
   },
   {
     key: 'schoolName',
@@ -847,26 +847,56 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'serviceItems'">
-                    <div style="display:grid;gap:6px;min-width:320px;">
-                      <div
-                        style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;"
+                    <div style="display:inline-grid;gap:6px;min-width:0;width:auto;justify-items:start;">
+                      <button
+                        type="button"
+                        (click)="toggleServiceItemsPanel(student)"
+                        [disabled]="
+                          !resolveStudentId(student) ||
+                          isServiceItemsLoading(student) ||
+                          isServiceItemsSaving(student)
+                        "
+                        [attr.title]="resolveServiceItemsPanelTitle(student)"
+                        style="display:inline-flex;align-items:center;justify-content:center;gap:2px;padding:3px 6px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1f2f47;font-weight:600;font-size:12px;line-height:1.1;white-space:nowrap;"
                       >
-                        <label
-                          *ngFor="let option of serviceItemOptions"
-                          style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
+                        {{ resolveServiceItemsCountLabel(student) }}
+                      </button>
+                      <div
+                        *ngIf="isServiceItemsPanelOpen(student)"
+                        style="position:absolute;top:calc(100% + 6px);left:8px;z-index:20;width:156px;max-width:min(156px,calc(100vw - 48px));padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#fff;box-shadow:0 14px 28px rgba(15,23,42,0.16);display:grid;gap:10px;"
+                      >
+                        <div
+                          style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#52607a;"
                         >
-                          <input
-                            type="checkbox"
-                            [checked]="isServiceItemSelectedForStudent(student, option)"
-                            (change)="onServiceItemSelectionChange(student, option, $any($event.target).checked)"
-                            [disabled]="
-                              !resolveStudentId(student) ||
-                              isServiceItemsLoading(student) ||
-                              isServiceItemsSaving(student)
-                            "
-                          />
-                          <span>{{ option }}</span>
-                        </label>
+                          <span>逐项勾选服务项目</span>
+                          <button
+                            type="button"
+                            (click)="toggleServiceItemsPanel(student)"
+                            style="border:none;background:transparent;color:#7f8a9e;padding:0;font-size:12px;cursor:pointer;"
+                          >
+                            收起
+                          </button>
+                        </div>
+                        <div
+                          style="display:grid;grid-template-columns:minmax(0,1fr);gap:8px;"
+                        >
+                          <label
+                            *ngFor="let option of serviceItemOptions"
+                            style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
+                          >
+                            <input
+                              type="checkbox"
+                              [checked]="isServiceItemSelectedForStudent(student, option)"
+                              (change)="onServiceItemSelectionChange(student, option, $any($event.target).checked)"
+                              [disabled]="
+                                !resolveStudentId(student) ||
+                                isServiceItemsLoading(student) ||
+                                isServiceItemsSaving(student)
+                              "
+                            />
+                            <span>{{ option }}</span>
+                          </label>
+                        </div>
                       </div>
                       <small *ngIf="isServiceItemsLoading(student)" style="color:#7f8a9e;">
                         加载中...
@@ -1366,6 +1396,7 @@ export class StudentManagementComponent implements OnInit {
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   statusResult: StatusUpdateResult | null = null;
+  serviceItemsPanelStudentId: number | null = null;
   private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
   private readonly teacherNoteCache = new Map<number, string>();
@@ -1578,6 +1609,19 @@ export class StudentManagementComponent implements OnInit {
   resolveStudentServiceItems(student: StudentAccount): string {
     const selectedItems = this.resolveServiceItemsSelection(student);
     return selectedItems.length > 0 ? selectedItems.join('、') : '-';
+  }
+
+  resolveServiceItemsCountLabel(student: StudentAccount): string {
+    if (this.isServiceItemsLoading(student)) {
+      return '加载中...';
+    }
+
+    return `${this.resolveServiceItemsSelection(student).length}项`;
+  }
+
+  resolveServiceItemsPanelTitle(student: StudentAccount): string | null {
+    const selectedItemsText = this.resolveStudentServiceItems(student);
+    return selectedItemsText !== '-' ? selectedItemsText : '点击选择服务项目';
   }
 
   resolveStudentSchoolName(student: StudentAccount): string {
@@ -3172,6 +3216,22 @@ export class StudentManagementComponent implements OnInit {
   isServiceItemsSaving(student: StudentAccount): boolean {
     const studentId = this.resolveStudentId(student);
     return !!studentId && this.serviceItemsSaveInFlight.has(studentId);
+  }
+
+  isServiceItemsPanelOpen(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && this.serviceItemsPanelStudentId === studentId;
+  }
+
+  toggleServiceItemsPanel(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return;
+    }
+
+    this.serviceItemsPanelStudentId =
+      this.serviceItemsPanelStudentId === studentId ? null : studentId;
+    this.cdr.detectChanges();
   }
 
   isServiceItemSelectedForStudent(student: StudentAccount, item: string): boolean {

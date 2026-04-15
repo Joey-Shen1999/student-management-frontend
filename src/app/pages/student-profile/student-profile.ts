@@ -407,16 +407,16 @@ const COUNTRY_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
 ] as const;
 
 const SERVICE_ITEM_OPTIONS = [
-  'A: 面试辅导',
-  'B: 雅思A类全科班',
-  'C: SAT全科班',
-  'D: 数学竞赛类班课',
-  'E: 3U&4U阅写及文学素养',
-  'F: 雅思VIP 20小时包',
-  'G: 雅思VIP 50小时包',
-  'H: 学科VIP 20小时包',
-  'I: 学科VIP 50小时包',
-  'J: AP/IB/数学竞赛VIP 50小时包',
+  '面试辅导',
+  '雅思A类全科班',
+  'SAT全科班',
+  '数学竞赛类班课',
+  '3U&4U阅写及文学素养',
+  '雅思VIP 20小时包',
+  '雅思VIP 50小时包',
+  '学科VIP 20小时包',
+  '学科VIP 50小时包',
+  'AP/IB/数学竞赛VIP 50小时包',
   '一对一辅导',
 ] as const;
 

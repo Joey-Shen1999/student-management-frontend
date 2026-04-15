@@ -317,7 +317,7 @@ describe('StudentManagementComponent', () => {
     (profileApi.saveStudentProfileForTeacher as any).mockReturnValue(
       of({
         profile: {
-          serviceItems: ['A: 面试辅导', '一对一辅导'],
+          serviceItems: ['面试辅导', '一对一辅导'],
         },
       })
     );
@@ -328,11 +328,12 @@ describe('StudentManagementComponent', () => {
     expect(profileApi.saveStudentProfileForTeacher).toHaveBeenCalledWith(
       54,
       expect.objectContaining({
-        serviceItems: ['A: 面试辅导', '一对一辅导'],
-        serviceProjects: ['A: 面试辅导', '一对一辅导'],
+        serviceItems: ['面试辅导', '一对一辅导'],
+        serviceProjects: ['面试辅导', '一对一辅导'],
       })
     );
-    expect(component.resolveStudentServiceItems(student)).toBe('A: 面试辅导、一对一辅导');
+    expect(component.resolveStudentServiceItems(student)).toBe('面试辅导、一对一辅导');
+    expect(component.resolveServiceItemsCountLabel(student)).toBe('2项');
   });
 
   it('loadStudents should show backend error message on failure', () => {
