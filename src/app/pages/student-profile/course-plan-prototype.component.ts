@@ -1,19 +1,32 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, ParamMap } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { finalize } from 'rxjs/operators';
 
+import { AuthService } from '../../services/auth.service';
+import {
+  CoursePlanCoursePayload,
+  CoursePlanPayload,
+  CoursePlanSemester,
+  CoursePlanService,
+  CoursePlanStatus,
+  CoursePlanYearStructure,
+} from '../../services/course-plan.service';
 import { CourseCatalogEntry, COURSE_PLAN_CATALOG } from './course-plan-course-catalog';
 
-type CourseStatus = 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED';
-type YearStructure = 'SEMESTER' | 'FULL_YEAR';
-type SemesterSlot = 'S1' | 'S2' | null;
+type CourseStatus = CoursePlanStatus;
+type YearStructure = CoursePlanYearStructure;
+type SemesterSlot = CoursePlanSemester;
 
 interface CourseDraft {
-  id: number;
+  id: string;
   status: CourseStatus;
   courseCode: string;
   mark: string;
   semester: SemesterSlot;
+  sortOrder: number;
 }
 
 interface GradePlanDraft {
@@ -24,7 +37,7 @@ interface GradePlanDraft {
 }
 
 interface DragState {
-  courseId: number;
+  courseId: string;
   sourceGradeId: number;
 }
 
@@ -35,50 +48,48 @@ interface DragState {
   templateUrl: './course-plan-prototype.component.html',
   styleUrl: './course-plan-prototype.component.scss',
 })
-export class CoursePlanPrototypeComponent {
+export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
   readonly statusOrder: readonly CourseStatus[] = ['COMPLETED', 'IN_PROGRESS', 'PLANNED'];
   readonly yearStructureOrder: readonly YearStructure[] = ['SEMESTER', 'FULL_YEAR'];
   readonly courseCatalog = COURSE_PLAN_CATALOG;
-  private nextCourseId = 1000;
-  private dragState: DragState | null = null;
-  private suggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
-  draggingCourseId: number | null = null;
-  activeSuggestionCourseId: number | null = null;
+
+  managedMode = false;
+  studentId = 0;
+
+  loading = false;
+  saving = false;
+  error = '';
+  savedMessage = '';
+
+  draggingCourseId: string | null = null;
+  activeSuggestionCourseId: string | null = null;
   highlightedSuggestionIndex = 0;
-  showGrade13 = true;
-  graduationGradeLevel = 12;
-  expectedGraduationDate = this.buildDefaultGraduationDate();
+  showGrade13 = false;
   manualCurrentGradeLevel: number | null = null;
 
-  grades: GradePlanDraft[] = [
-    this.createGrade(9, 'SEMESTER', [
-      this.createCourse('COMPLETED', 'ENG1D', '91'),
-      this.createCourse('COMPLETED', 'MPM1D', '94'),
-      this.createCourse('IN_PROGRESS', 'SNC1D', ''),
-      this.createCourse('PLANNED', 'FSF1D', ''),
-    ]),
-    this.createGrade(10, 'SEMESTER', [
-      this.createCourse('COMPLETED', 'ENG2D', '90'),
-      this.createCourse('COMPLETED', 'MPM2D', '93'),
-      this.createCourse('IN_PROGRESS', 'CHC2D', ''),
-      this.createCourse('PLANNED', 'GLC2O', ''),
-    ]),
-    this.createGrade(11, 'SEMESTER', [
-      this.createCourse('COMPLETED', 'BAF3M', '88', 'S1'),
-      this.createCourse('IN_PROGRESS', 'MCR3U', '', 'S2'),
-      this.createCourse('IN_PROGRESS', 'SCH3U', '', 'S2'),
-      this.createCourse('PLANNED', 'SPH3U', '', 'S2'),
-    ]),
-    this.createGrade(12, 'SEMESTER', [
-      this.createCourse('IN_PROGRESS', 'ENG4U', ''),
-      this.createCourse('PLANNED', 'MHF4U', ''),
-      this.createCourse('PLANNED', 'MCV4U', ''),
-    ]),
-    this.createGrade(13, 'FULL_YEAR', [this.createCourse('PLANNED', '', '')]),
-  ];
+  grades: GradePlanDraft[] = this.buildEmptyScaffold();
 
-  constructor() {
-    this.ensureSemesterAssignmentsForCurrentGrade();
+  private nextLocalCourseSeed = 1;
+  private dragState: DragState | null = null;
+  private suggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private routeSub: Subscription | null = null;
+
+  constructor(
+    private route: ActivatedRoute,
+    private auth: AuthService,
+    private coursePlanApi: CoursePlanService,
+    private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
+  ) {}
+
+  ngOnInit(): void {
+    this.routeSub = this.route.paramMap.subscribe((params) => {
+      this.applyRouteContext(params);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.routeSub?.unsubscribe();
+    this.clearCourseSuggestionCloseTimer();
   }
 
   get visibleGrades(): GradePlanDraft[] {
@@ -99,16 +110,55 @@ export class CoursePlanPrototypeComponent {
     return grade.courses.length;
   }
 
+  refresh(): void {
+    this.loadState();
+  }
+
+  save(): void {
+    if (!this.studentId || this.loading) return;
+
+    this.saving = true;
+    this.error = '';
+    this.savedMessage = '';
+    this.cdr.detectChanges();
+
+    const payload = this.buildPayloadForSave();
+    const request$ = this.managedMode
+      ? this.coursePlanApi.saveTeacherStudentCoursePlan(this.studentId, payload)
+      : this.coursePlanApi.saveStudentCoursePlan(payload);
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (savedPayload) => {
+          this.applyPayload(savedPayload || payload);
+          this.savedMessage = 'Course plan saved.';
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.error = this.extractErrorMessage(error, 'Failed to save course plan.');
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   toggleGrade13(): void {
     this.showGrade13 = !this.showGrade13;
     if (!this.showGrade13 && this.manualCurrentGradeLevel === 13) {
       this.manualCurrentGradeLevel = null;
     }
+    this.savedMessage = '';
     this.ensureSemesterAssignmentsForCurrentGrade();
   }
 
   toggleManualCurrentGrade(level: number): void {
     this.manualCurrentGradeLevel = this.manualCurrentGradeLevel === level ? null : level;
+    this.savedMessage = '';
     this.ensureSemesterAssignmentsForCurrentGrade();
   }
 
@@ -116,13 +166,25 @@ export class CoursePlanPrototypeComponent {
     const grade = this.grades.find((item) => item.id === gradeId);
     if (!grade) return;
     const status = this.defaultStatusForGrade(grade.level);
-    grade.courses.push(this.createCourse(status, '', '', this.defaultSemesterForGrade(grade, status)));
+    grade.courses.push(
+      this.createCourse(
+        grade.level,
+        status,
+        '',
+        '',
+        this.defaultSemesterForGrade(grade, status),
+        grade.courses.length
+      )
+    );
+    this.savedMessage = '';
   }
 
-  removeCourse(gradeId: number, courseId: number): void {
+  removeCourse(gradeId: number, courseId: string): void {
     const grade = this.grades.find((item) => item.id === gradeId);
     if (!grade) return;
     grade.courses = grade.courses.filter((course) => course.id !== courseId);
+    this.reindexGradeCourses(grade);
+    this.savedMessage = '';
     if (this.activeSuggestionCourseId === courseId) {
       this.closeCourseSuggestions();
     }
@@ -133,6 +195,7 @@ export class CoursePlanPrototypeComponent {
     if (status === 'PLANNED') {
       course.mark = '';
     }
+    this.savedMessage = '';
   }
 
   setYearStructure(grade: GradePlanDraft, yearStructure: YearStructure): void {
@@ -141,12 +204,14 @@ export class CoursePlanPrototypeComponent {
       grade.courses.forEach((course) => {
         course.semester = null;
       });
+      this.savedMessage = '';
       return;
     }
 
     if (this.isCurrentGrade(grade)) {
       this.assignSemesterSlots(grade);
     }
+    this.savedMessage = '';
   }
 
   isCurrentGrade(grade: GradePlanDraft): boolean {
@@ -186,7 +251,7 @@ export class CoursePlanPrototypeComponent {
     return `Start adding Grade ${grade.level} courses here.`;
   }
 
-  openCourseSuggestions(courseId: number): void {
+  openCourseSuggestions(courseId: string): void {
     this.clearCourseSuggestionCloseTimer();
     if (this.activeSuggestionCourseId !== courseId) {
       this.highlightedSuggestionIndex = 0;
@@ -212,6 +277,7 @@ export class CoursePlanPrototypeComponent {
   onCourseCodeInput(course: CourseDraft): void {
     this.openCourseSuggestions(course.id);
     this.highlightedSuggestionIndex = 0;
+    this.savedMessage = '';
   }
 
   onCourseCodeKeydown(event: KeyboardEvent, grade: GradePlanDraft, course: CourseDraft): void {
@@ -258,10 +324,12 @@ export class CoursePlanPrototypeComponent {
     this.applyCourseSuggestion(course, suggestion);
   }
 
-  startCourseDrag(event: DragEvent, gradeId: number, courseId: number): void {
+  startCourseDrag(event: DragEvent, gradeId: number, courseId: string): void {
     this.dragState = { sourceGradeId: gradeId, courseId };
     this.draggingCourseId = courseId;
-    event.dataTransfer?.setData('text/plain', `${gradeId}:${courseId}`);
+    const payload = JSON.stringify(this.dragState);
+    event.dataTransfer?.setData('application/json', payload);
+    event.dataTransfer?.setData('text/plain', payload);
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
     }
@@ -302,14 +370,17 @@ export class CoursePlanPrototypeComponent {
     }
 
     sourceGrade.courses.splice(courseIndex, 1);
+    this.reindexGradeCourses(sourceGrade);
     course.semester = resolvedSemester;
     targetGrade.courses.push(course);
+    this.reindexGradeCourses(targetGrade);
+    this.savedMessage = '';
     this.endCourseDrag();
   }
 
   trackGrade = (_index: number, grade: GradePlanDraft): number => grade.id;
   trackStatus = (_index: number, status: CourseStatus): CourseStatus => status;
-  trackCourse = (_index: number, course: CourseDraft): number => course.id;
+  trackCourse = (_index: number, course: CourseDraft): string => course.id;
   trackSuggestion = (_index: number, suggestion: CourseCatalogEntry): string => suggestion.code;
 
   statusLabel(status: CourseStatus): string {
@@ -323,13 +394,204 @@ export class CoursePlanPrototypeComponent {
   }
 
   semesterLabel(semester: Exclude<SemesterSlot, null>): string {
-    return semester === 'S1' ? '上学期' : '下学期';
+    return semester === 'S1' ? 'Semester 1' : 'Semester 2';
   }
 
   statusClass(status: CourseStatus): string {
     if (status === 'COMPLETED') return 'completed';
     if (status === 'IN_PROGRESS') return 'in-progress';
     return 'planned';
+  }
+
+  private loadState(): void {
+    if (!this.studentId) return;
+
+    this.loading = true;
+    this.error = '';
+    this.savedMessage = '';
+    this.cdr.detectChanges();
+
+    const request$ = this.managedMode
+      ? this.coursePlanApi.getTeacherStudentCoursePlan(this.studentId)
+      : this.coursePlanApi.getStudentCoursePlan();
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (payload) => {
+          this.applyPayload(payload);
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.error = this.extractErrorMessage(error, 'Failed to load course plan.');
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private applyPayload(payload: CoursePlanPayload | null | undefined): void {
+    const normalized = this.normalizePayload(payload);
+    this.showGrade13 = normalized.grade13Enabled;
+    this.manualCurrentGradeLevel =
+      !normalized.grade13Enabled && normalized.currentGradeLevel === 13
+        ? null
+        : normalized.currentGradeLevel;
+    this.grades = normalized.grades;
+    this.closeCourseSuggestions();
+    this.endCourseDrag();
+    this.ensureSemesterAssignmentsForCurrentGrade();
+  }
+
+  private normalizePayload(payload: CoursePlanPayload | null | undefined): {
+    currentGradeLevel: number | null;
+    grade13Enabled: boolean;
+    grades: GradePlanDraft[];
+  } {
+    const levels: readonly number[] = [9, 10, 11, 12, 13];
+    const gradeMap = new Map<number, GradePlanDraft>();
+
+    for (const grade of payload?.grades || []) {
+      const normalizedGrade = this.normalizeGrade(grade);
+      if (!normalizedGrade) continue;
+      gradeMap.set(normalizedGrade.level, normalizedGrade);
+    }
+
+    const grades = levels.map((level) => {
+      const found = gradeMap.get(level);
+      if (found) return found;
+      return this.createGrade(level, 'FULL_YEAR', []);
+    });
+
+    const grade13 = gradeMap.get(13);
+    const hasGrade13Data = !!grade13 && grade13.courses.length > 0;
+    const grade13Enabled = !!payload?.grade13Enabled || hasGrade13Data;
+
+    const currentGradeLevel = this.normalizeCurrentGradeLevel(payload?.currentGradeLevel);
+    return { currentGradeLevel, grade13Enabled, grades };
+  }
+
+  private normalizeGrade(grade: CoursePlanPayload['grades'][number] | null | undefined): GradePlanDraft | null {
+    const level = Number(grade?.gradeLevel);
+    if (!Number.isFinite(level)) return null;
+    const normalizedLevel = Math.trunc(level);
+    if (normalizedLevel < 9 || normalizedLevel > 13) return null;
+
+    const yearStructure: YearStructure = grade?.yearStructure === 'SEMESTER' ? 'SEMESTER' : 'FULL_YEAR';
+    const rows = Array.isArray(grade?.courses) ? grade.courses : [];
+    const courses = rows
+      .map((row, index) => this.normalizeCourse(row, normalizedLevel, yearStructure, index))
+      .filter((row): row is CourseDraft => row !== null)
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((course, index) => ({
+        ...course,
+        sortOrder: index,
+      }));
+
+    return this.createGrade(normalizedLevel, yearStructure, courses);
+  }
+
+  private normalizeCourse(
+    course: CoursePlanCoursePayload | null | undefined,
+    gradeLevel: number,
+    yearStructure: YearStructure,
+    fallbackSortOrder: number
+  ): CourseDraft | null {
+    if (!course || typeof course !== 'object') return null;
+
+    const status = this.normalizeStatus(course.status);
+    const normalizedId = this.normalizeCourseId(course.id, gradeLevel);
+    const normalizedCode = this.trimCourseCode(course.courseCode);
+    const normalizedSortOrder = this.normalizeSortOrder(course.sortOrder, fallbackSortOrder);
+    const normalizedMark = status === 'PLANNED' ? '' : this.normalizeMarkText(course.mark);
+    const normalizedSemester =
+      yearStructure === 'FULL_YEAR' ? null : this.normalizeSemester(course.semester);
+
+    return {
+      id: normalizedId,
+      status,
+      courseCode: normalizedCode,
+      mark: normalizedMark,
+      semester: normalizedSemester,
+      sortOrder: normalizedSortOrder,
+    };
+  }
+
+  private buildPayloadForSave(): CoursePlanPayload {
+    const gradeLevels: readonly number[] = [9, 10, 11, 12];
+    const shouldIncludeGrade13 = this.showGrade13;
+    const payloadGrades = this.grades
+      .filter((grade) => {
+        if (gradeLevels.includes(grade.level)) return true;
+        return shouldIncludeGrade13 && grade.level === 13;
+      })
+      .map((grade) => this.buildGradePayload(grade));
+
+    return {
+      currentGradeLevel: this.normalizeCurrentGradeLevel(this.manualCurrentGradeLevel),
+      grade13Enabled: this.showGrade13,
+      grades: payloadGrades,
+    };
+  }
+
+  private buildGradePayload(grade: GradePlanDraft): CoursePlanPayload['grades'][number] {
+    return {
+      gradeLevel: grade.level,
+      yearStructure: grade.yearStructure,
+      courses: grade.courses.map((course, index) => this.buildCoursePayload(grade, course, index)),
+    };
+  }
+
+  private buildCoursePayload(
+    grade: GradePlanDraft,
+    course: CourseDraft,
+    sortOrder: number
+  ): CoursePlanCoursePayload {
+    const status = this.normalizeStatus(course.status);
+    return {
+      id: this.normalizeCourseId(course.id, grade.level),
+      courseCode: this.trimCourseCode(course.courseCode),
+      status,
+      mark: this.normalizeMarkForSave(course.mark, status),
+      semester: grade.yearStructure === 'FULL_YEAR' ? null : this.normalizeSemester(course.semester),
+      sortOrder,
+    };
+  }
+
+  private applyRouteContext(params: ParamMap): void {
+    const routeStudentId = params.get('studentId');
+    if (routeStudentId !== null) {
+      const parsed = Number(routeStudentId);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        this.loading = false;
+        this.error = 'Invalid student id in route.';
+        this.studentId = 0;
+        this.cdr.detectChanges();
+        return;
+      }
+
+      this.managedMode = true;
+      this.studentId = Math.trunc(parsed);
+      this.loadState();
+      return;
+    }
+
+    this.managedMode = false;
+    const sessionStudentId = Number(this.auth.getSession()?.studentId);
+    if (!Number.isFinite(sessionStudentId) || sessionStudentId <= 0) {
+      this.loading = false;
+      this.error = 'Current student id is missing from session.';
+      this.studentId = 0;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.studentId = Math.trunc(sessionStudentId);
+    this.loadState();
   }
 
   private defaultStatusForGrade(level: number): CourseStatus {
@@ -341,6 +603,7 @@ export class CoursePlanPrototypeComponent {
 
   private applyCourseSuggestion(course: CourseDraft, suggestion: CourseCatalogEntry): void {
     course.courseCode = suggestion.code;
+    this.savedMessage = '';
     this.closeCourseSuggestions();
   }
 
@@ -423,83 +686,233 @@ export class CoursePlanPrototypeComponent {
   }
 
   private parseDragState(event: DragEvent): DragState | null {
-    const payload = event.dataTransfer?.getData('text/plain')?.trim();
-    if (!payload) return null;
-    const [gradeText, courseText] = payload.split(':');
-    const sourceGradeId = Number(gradeText);
-    const courseId = Number(courseText);
-    if (!Number.isInteger(sourceGradeId) || !Number.isInteger(courseId)) return null;
-    return { sourceGradeId, courseId };
+    const payload =
+      event.dataTransfer?.getData('application/json') || event.dataTransfer?.getData('text/plain') || '';
+    const text = String(payload || '').trim();
+    if (!text) return null;
+
+    try {
+      const parsed = JSON.parse(text) as DragState;
+      const sourceGradeId = Number(parsed?.sourceGradeId);
+      const courseId = String(parsed?.courseId || '').trim();
+      if (!Number.isFinite(sourceGradeId) || !courseId) return null;
+      return { sourceGradeId: Math.trunc(sourceGradeId), courseId };
+    } catch {
+      const [gradeText, courseId] = text.split(':');
+      const sourceGradeId = Number(gradeText);
+      if (!Number.isFinite(sourceGradeId) || !courseId) return null;
+      return {
+        sourceGradeId: Math.trunc(sourceGradeId),
+        courseId: courseId.trim(),
+      };
+    }
   }
 
   private inferCurrentGradeLevel(): number {
-    const graduationDate = this.parseDate(this.expectedGraduationDate);
-    if (!graduationDate) {
-      return this.graduationGradeLevel;
-    }
-
-    const now = new Date();
-    const graduationSchoolYear = this.resolveAcademicYearStart(graduationDate);
-    const currentSchoolYear = this.resolveAcademicYearStart(now);
-    const yearDelta = graduationSchoolYear - currentSchoolYear;
-    const inferredGrade = this.graduationGradeLevel - yearDelta;
-
-    return this.clampGradeLevel(inferredGrade);
-  }
-
-  private resolveAcademicYearStart(value: Date): number {
-    const month = value.getMonth();
-    const year = value.getFullYear();
-    return month >= 8 ? year : year - 1;
-  }
-
-  private clampGradeLevel(level: number): number {
-    const allLevels = this.grades.map((grade) => grade.level);
-    const min = Math.min(...allLevels);
-    const max = Math.max(...allLevels);
-    return Math.min(max, Math.max(min, Math.trunc(level)));
+    const inProgressGrade = this.grades.find((grade) =>
+      grade.courses.some((course) => course.status === 'IN_PROGRESS')
+    );
+    if (inProgressGrade) return inProgressGrade.level;
+    return 12;
   }
 
   private clampToVisibleGrade(level: number): number {
     const visibleLevels = this.visibleGrades.map((grade) => grade.level);
+    if (visibleLevels.length <= 0) return 12;
     const min = Math.min(...visibleLevels);
     const max = Math.max(...visibleLevels);
     return Math.min(max, Math.max(min, Math.trunc(level)));
   }
 
-  private buildDefaultGraduationDate(): string {
-    const now = new Date();
-    const graduationYear = now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear() + 1;
-    return `${graduationYear}-06-30`;
+  private normalizeCurrentGradeLevel(value: unknown): number | null {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    const normalized = Math.trunc(parsed);
+    if (normalized < 9 || normalized > 13) return null;
+    return normalized;
   }
 
-  private parseDate(value: string): Date | null {
+  private normalizeStatus(status: unknown): CourseStatus {
+    const text = String(status || '')
+      .trim()
+      .toUpperCase();
+    if (text === 'COMPLETED') return 'COMPLETED';
+    if (text === 'IN_PROGRESS') return 'IN_PROGRESS';
+    return 'PLANNED';
+  }
+
+  private normalizeSemester(value: unknown): SemesterSlot {
+    const text = String(value || '')
+      .trim()
+      .toUpperCase();
+    if (text === 'S1') return 'S1';
+    if (text === 'S2') return 'S2';
+    return null;
+  }
+
+  private normalizeSortOrder(value: unknown, fallback: number): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, Math.trunc(parsed));
+  }
+
+  private normalizeMarkText(value: unknown): string {
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+    const parsed = Number(text);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return '';
+    const rounded = Math.round(parsed * 100) / 100;
+    return String(rounded);
+  }
+
+  private normalizeMarkForSave(value: unknown, status: CourseStatus): number | null {
+    if (status === 'PLANNED') return null;
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const parsed = Number(text);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
+    return Math.round(parsed * 100) / 100;
+  }
+
+  private trimCourseCode(value: unknown): string {
     const text = String(value || '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-    const parsed = new Date(`${text}T00:00:00`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    return text.slice(0, 64);
   }
 
-  private createGrade(
-    level: number,
-    yearStructure: YearStructure,
-    courses: CourseDraft[]
-  ): GradePlanDraft {
+  private normalizeCourseId(value: unknown, gradeLevel: number): string {
+    const raw = String(value || '').trim();
+    if (raw) return raw.slice(0, 128);
+    return this.createLocalCourseId(gradeLevel);
+  }
+
+  private createLocalCourseId(gradeLevel: number): string {
+    const timestamp = Date.now();
+    const id = `g${Math.trunc(gradeLevel)}-local-${timestamp}-${this.nextLocalCourseSeed++}`;
+    return id.slice(0, 128);
+  }
+
+  private buildEmptyScaffold(): GradePlanDraft[] {
+    return [9, 10, 11, 12, 13].map((level) => this.createGrade(level, 'FULL_YEAR', []));
+  }
+
+  private createGrade(level: number, yearStructure: YearStructure, courses: CourseDraft[]): GradePlanDraft {
     return { id: level, level, yearStructure, courses: [...courses] };
   }
 
   private createCourse(
+    gradeLevel: number,
     status: CourseStatus,
     courseCode: string,
     mark: string,
-    semester: SemesterSlot = null
+    semester: SemesterSlot = null,
+    sortOrder = 0,
+    id: string | null = null
   ): CourseDraft {
     return {
-      id: this.nextCourseId++,
+      id: this.normalizeCourseId(id, gradeLevel),
       status,
-      courseCode,
-      mark,
+      courseCode: this.trimCourseCode(courseCode),
+      mark: status === 'PLANNED' ? '' : this.normalizeMarkText(mark),
       semester,
+      sortOrder,
     };
+  }
+
+  private reindexGradeCourses(grade: GradePlanDraft): void {
+    grade.courses.forEach((course, index) => {
+      course.sortOrder = index;
+    });
+  }
+
+  private extractErrorMessage(error: unknown, fallback: string): string {
+    if (!error || typeof error !== 'object') return fallback;
+
+    const obj = error as {
+      name?: unknown;
+      status?: unknown;
+      message?: unknown;
+      error?: unknown;
+    };
+
+    const errorName = String(obj.name || '').trim().toLowerCase();
+    if (errorName === 'timeouterror') {
+      return 'Request timed out. Please retry.';
+    }
+
+    const payloadMessage = this.extractPayloadErrorMessage(obj.error);
+    if (payloadMessage) return payloadMessage;
+
+    const message = String(obj.message || '').trim();
+    if (message) return message;
+
+    const status = Number(obj.status);
+    if (Number.isFinite(status) && status > 0) {
+      return `Request failed (HTTP ${status}).`;
+    }
+
+    return fallback;
+  }
+
+  private extractPayloadErrorMessage(payload: unknown): string {
+    if (!payload) return '';
+
+    if (typeof payload === 'string') {
+      const rawText = payload.trim();
+      if (!rawText) return '';
+      try {
+        const parsed = JSON.parse(rawText) as {
+          message?: unknown;
+          error?: unknown;
+          details?: unknown;
+        };
+        const parsedMessage = this.composeErrorMessage(parsed.message, parsed.error, parsed.details);
+        return parsedMessage || rawText;
+      } catch {
+        return rawText;
+      }
+    }
+
+    if (typeof payload !== 'object') return '';
+    const obj = payload as {
+      message?: unknown;
+      error?: unknown;
+      details?: unknown;
+    };
+    return this.composeErrorMessage(obj.message, obj.error, obj.details);
+  }
+
+  private composeErrorMessage(message: unknown, error: unknown, details: unknown): string {
+    const baseMessage = String(message || error || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const detailText = this.extractErrorDetails(details);
+
+    if (baseMessage && detailText) return `${baseMessage} ${detailText}`;
+    if (detailText) return detailText;
+    return baseMessage;
+  }
+
+  private extractErrorDetails(details: unknown): string {
+    if (!Array.isArray(details)) return '';
+
+    const detailRows = details
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return entry.trim();
+        }
+        if (!entry || typeof entry !== 'object') {
+          return '';
+        }
+
+        const item = entry as { field?: unknown; message?: unknown };
+        const field = String(item.field || '').trim();
+        const message = String(item.message || '').trim();
+        if (field && message) return `${field} ${message}`;
+        return message || field;
+      })
+      .filter((value) => value.length > 0);
+
+    if (detailRows.length <= 0) return '';
+    return `Details: ${detailRows.join('; ')}`;
   }
 }

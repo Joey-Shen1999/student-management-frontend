@@ -1,130 +1,152 @@
 <section class="course-plan-prototype">
-  <div class="board-scroll">
-    <div class="grade-board" [style.gridTemplateColumns]="gridTemplateColumns()">
-      <div
-        class="grade-column-wrap"
-        [class.with-grade-add]="grade.level === 12 && !showGrade13"
-        *ngFor="let grade of visibleGrades; trackBy: trackGrade"
-      >
-        <section class="grade-column" [class.current-grade]="isCurrentGrade(grade)">
-          <button
-            type="button"
-            class="current-grade-toggle"
-            [class.active]="isManualCurrentGrade(grade)"
-            (click)="toggleManualCurrentGrade(grade.level)"
-          >
-            {{ isManualCurrentGrade(grade) ? 'Clear Current Year' : 'Set Current Year' }}
-          </button>
+  <div class="plan-head">
+    <div class="plan-meta">
+      <h3>Academic Course Plan</h3>
+      <p *ngIf="managedMode">Teacher mode - Student #{{ studentId }}</p>
+    </div>
 
-          <div class="grade-column-head">
-            <div class="grade-title-row">
-              <h4>
-                Grade {{ grade.level }}
-                <span class="current-year-label" *ngIf="isCurrentGrade(grade)">(Current Year)</span>
-              </h4>
-            </div>
-
-            <div class="grade-meta">
-              <button
-                *ngIf="grade.level === 13"
-                type="button"
-                class="grade-remove-btn"
-                (click)="toggleGrade13()"
-                aria-label="Remove Grade 13"
-              >
-                Remove Grade 13
-              </button>
-              <div class="grade-badges">
-                <span class="grade-total">{{ countGradeCourses(grade) }} courses</span>
-                <span class="grade-chip" *ngIf="grade.level === 13">Optional</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="year-structure-panel" *ngIf="isCurrentGrade(grade)">
-            <span class="year-structure-label">Year Structure</span>
-            <div class="year-structure-picker">
-              <button
-                type="button"
-                *ngFor="let yearStructure of yearStructureOrder"
-                class="year-pill"
-                [ngClass]="grade.yearStructure === yearStructure ? 'active' : ''"
-                (click)="setYearStructure(grade, yearStructure)"
-              >
-                {{ yearStructureLabel(yearStructure) }}
-              </button>
-            </div>
-          </div>
-
-          <button type="button" class="add-course-btn" (click)="addCourse(grade.id)">+ Add Course</button>
-
-          <ng-container *ngIf="isSemesterSplit(grade); else fullYearLane">
-            <div class="semester-stack">
-              <section class="semester-section">
-                <div class="semester-inline-label">{{ semesterLabel('S1') }}</div>
-                <ng-container
-                  *ngTemplateOutlet="
-                    courseLane;
-                    context: {
-                      grade: grade,
-                      courses: semesterCourses(grade, 'S1'),
-                      targetSemester: 'S1',
-                      emptyTitle: semesterLabel('S1'),
-                      emptyCopy: '拖动课程到这里',
-                      semesterMode: true,
-                    }
-                  "
-                ></ng-container>
-              </section>
-
-              <section class="semester-section">
-                <div class="semester-inline-label">{{ semesterLabel('S2') }}</div>
-                <ng-container
-                  *ngTemplateOutlet="
-                    courseLane;
-                    context: {
-                      grade: grade,
-                      courses: semesterCourses(grade, 'S2'),
-                      targetSemester: 'S2',
-                      emptyTitle: semesterLabel('S2'),
-                      emptyCopy: '拖动课程到这里',
-                      semesterMode: true,
-                    }
-                  "
-                ></ng-container>
-              </section>
-            </div>
-          </ng-container>
-
-          <ng-template #fullYearLane>
-            <ng-container
-              *ngTemplateOutlet="
-                courseLane;
-                context: {
-                  grade: grade,
-                  courses: grade.courses,
-                  targetSemester: null,
-                  emptyTitle: 'Empty grade column',
-                  emptyCopy: emptyCopyForGrade(grade),
-                  semesterMode: false,
-                }
-              "
-            ></ng-container>
-          </ng-template>
-        </section>
-
-        <button
-          *ngIf="grade.level === 12 && !showGrade13"
-          type="button"
-          class="grade-add-float"
-          (click)="toggleGrade13()"
-          aria-label="Add Grade 13"
-        >
-          +
-        </button>
-      </div>
+    <div class="plan-actions">
+      <button type="button" class="ghost-btn" (click)="refresh()" [disabled]="loading || saving">
+        Reload
+      </button>
+      <button type="button" class="primary-btn" (click)="save()" [disabled]="loading || saving">
+        {{ saving ? 'Saving...' : 'Save Course Plan' }}
+      </button>
     </div>
   </div>
+
+  <div class="state-text" *ngIf="loading">Loading course plan...</div>
+  <div class="error-banner" *ngIf="!loading && error">{{ error }}</div>
+  <div class="success-banner" *ngIf="!loading && !error && savedMessage">{{ savedMessage }}</div>
+
+  <ng-container *ngIf="!loading">
+    <div class="board-scroll">
+      <div class="grade-board" [style.gridTemplateColumns]="gridTemplateColumns()">
+        <div
+          class="grade-column-wrap"
+          [class.with-grade-add]="grade.level === 12 && !showGrade13"
+          *ngFor="let grade of visibleGrades; trackBy: trackGrade"
+        >
+          <section class="grade-column" [class.current-grade]="isCurrentGrade(grade)">
+            <button
+              type="button"
+              class="current-grade-toggle"
+              [class.active]="isManualCurrentGrade(grade)"
+              (click)="toggleManualCurrentGrade(grade.level)"
+            >
+              {{ isManualCurrentGrade(grade) ? 'Clear Current Year' : 'Set Current Year' }}
+            </button>
+
+            <div class="grade-column-head">
+              <div class="grade-title-row">
+                <h4>
+                  Grade {{ grade.level }}
+                  <span class="current-year-label" *ngIf="isCurrentGrade(grade)">(Current Year)</span>
+                </h4>
+              </div>
+
+              <div class="grade-meta">
+                <button
+                  *ngIf="grade.level === 13"
+                  type="button"
+                  class="grade-remove-btn"
+                  (click)="toggleGrade13()"
+                  aria-label="Remove Grade 13"
+                >
+                  Remove Grade 13
+                </button>
+                <div class="grade-badges">
+                  <span class="grade-total">{{ countGradeCourses(grade) }} courses</span>
+                  <span class="grade-chip" *ngIf="grade.level === 13">Optional</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="year-structure-panel" *ngIf="isCurrentGrade(grade)">
+              <span class="year-structure-label">Year Structure</span>
+              <div class="year-structure-picker">
+                <button
+                  type="button"
+                  *ngFor="let yearStructure of yearStructureOrder"
+                  class="year-pill"
+                  [ngClass]="grade.yearStructure === yearStructure ? 'active' : ''"
+                  (click)="setYearStructure(grade, yearStructure)"
+                >
+                  {{ yearStructureLabel(yearStructure) }}
+                </button>
+              </div>
+            </div>
+
+            <button type="button" class="add-course-btn" (click)="addCourse(grade.id)">+ Add Course</button>
+
+            <ng-container *ngIf="isSemesterSplit(grade); else fullYearLane">
+              <div class="semester-stack">
+                <section class="semester-section">
+                  <div class="semester-inline-label">{{ semesterLabel('S1') }}</div>
+                  <ng-container
+                    *ngTemplateOutlet="
+                      courseLane;
+                      context: {
+                        grade: grade,
+                        courses: semesterCourses(grade, 'S1'),
+                        targetSemester: 'S1',
+                        emptyTitle: semesterLabel('S1'),
+                        emptyCopy: 'Drag courses here',
+                        semesterMode: true,
+                      }
+                    "
+                  ></ng-container>
+                </section>
+
+                <section class="semester-section">
+                  <div class="semester-inline-label">{{ semesterLabel('S2') }}</div>
+                  <ng-container
+                    *ngTemplateOutlet="
+                      courseLane;
+                      context: {
+                        grade: grade,
+                        courses: semesterCourses(grade, 'S2'),
+                        targetSemester: 'S2',
+                        emptyTitle: semesterLabel('S2'),
+                        emptyCopy: 'Drag courses here',
+                        semesterMode: true,
+                      }
+                    "
+                  ></ng-container>
+                </section>
+              </div>
+            </ng-container>
+
+            <ng-template #fullYearLane>
+              <ng-container
+                *ngTemplateOutlet="
+                  courseLane;
+                  context: {
+                    grade: grade,
+                    courses: grade.courses,
+                    targetSemester: null,
+                    emptyTitle: 'No courses',
+                    emptyCopy: emptyCopyForGrade(grade),
+                    semesterMode: false,
+                  }
+                "
+              ></ng-container>
+            </ng-template>
+          </section>
+
+          <button
+            *ngIf="grade.level === 12 && !showGrade13"
+            type="button"
+            class="grade-add-float"
+            (click)="toggleGrade13()"
+            aria-label="Add Grade 13"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    </div>
+  </ng-container>
 
   <ng-template
     #courseLane

@@ -2,12 +2,15 @@
   <div class="course-plan-shell">
     <div class="page-head">
       <div class="page-title">
-        <h2>课程规划</h2>
+        <h2>Course Plan</h2>
+        <p class="page-subtitle" *ngIf="managedMode">Teacher mode - Student #{{ studentId }}</p>
       </div>
 
       <div class="page-actions">
-        <button type="button" class="ghost-btn" (click)="goProfile()">学生档案</button>
-        <button type="button" class="primary-btn" (click)="backToDashboard()">返回工作台</button>
+        <button type="button" class="ghost-btn" (click)="goProfile()">Student Profile</button>
+        <button type="button" class="primary-btn" (click)="backToDashboard()">
+          {{ managedMode ? 'Back to Teacher Dashboard' : 'Back to Dashboard' }}
+        </button>
       </div>
     </div>
 

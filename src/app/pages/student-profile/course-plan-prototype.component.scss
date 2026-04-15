@@ -1,1 +1,328 @@
-:host{display:block}.course-plan-prototype{--ink:#152033;--muted:#627089;margin-top:0;padding:20px;border:1px solid #d6deef;border-radius:22px;background:linear-gradient(180deg,#fbfdff 0,#f3f8ff 100%)}.grade-column-head,.course-box-top,.year-structure-picker,.grade-title-row{display:flex;justify-content:space-between;gap:12px}.year-structure-label{margin:0;color:#3868a8;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.grade-column-head h4{margin:0;color:var(--ink)}.grade-title-row{align-items:center}.grade-meta,.empty-column{color:var(--muted);line-height:1.5}.grade-total,.grade-chip,.status-pill,.year-pill{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700}.add-course-btn,.remove-course-btn,.status-pill,.year-pill,.current-grade-toggle,.grade-add-float,.grade-remove-btn{border:none;cursor:pointer}.board-scroll{overflow-x:auto}.grade-board{display:grid;gap:12px;align-items:start;min-width:1040px;padding-right:20px;padding-top:8px}.grade-column-wrap{position:relative}.grade-column-wrap.with-grade-add{padding-right:54px}.grade-column,.empty-column{border:1px solid rgba(84,112,160,.14);border-radius:18px;background:rgba(255,255,255,.94)}.grade-column{display:grid;gap:12px;padding:14px}.grade-column.current-grade{box-shadow:0 0 0 2px rgba(37,84,138,.18)}.current-grade-toggle{padding:9px 12px;border-radius:12px;background:#f2f6fd;color:#2f4f77;font-weight:700;text-align:center}.current-grade-toggle.active{background:#dfeaff;color:#285ca8}.grade-add-float{position:absolute;top:16px;right:8px;z-index:2;width:34px;height:34px;padding:0;border-radius:999px;background:#1d5ea8;color:#fff;font-size:22px;line-height:1;box-shadow:0 8px 16px rgba(29,94,168,.18)}.grade-remove-btn{padding:6px 10px;border-radius:999px;background:#f6f8fc;color:#6c7a90;box-shadow:inset 0 0 0 1px rgba(108,122,144,.16);font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap}.grade-meta{display:grid;justify-items:end;gap:6px}.grade-badges{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;white-space:nowrap}.grade-badges .grade-total,.grade-badges .grade-chip{padding:6px 8px;font-size:11px}.grade-total{background:#edf3ff;color:#2c4f81}.grade-chip{background:#fff0d9;color:#9a6400}.current-year-label{color:#285ca8;font-size:14px}.year-structure-panel{display:grid;gap:8px;padding:10px 12px;border:1px solid rgba(84,112,160,.12);border-radius:14px;background:#f7faff}.year-structure-picker{justify-content:flex-start;flex-wrap:wrap}.year-pill{padding:6px 10px;background:rgba(21,32,51,.06);color:#5f708a}.year-pill.active{background:#dfeaff;color:#285ca8}.add-course-btn{padding:10px 12px;border-radius:12px;background:#eef4ff;color:#25548a;font-weight:700}.course-stack{display:grid;gap:10px}.course-box{display:grid;gap:6px;padding:10px;border:1px solid rgba(84,112,160,.12);border-radius:14px;background:#fff}.course-box.completed{background:#eef8f1;border-color:#d3ead8}.course-box.in-progress{background:#eef5ff;border-color:#d3dff9}.course-box.planned{background:#fff6e8;border-color:#efdcb2}.code-input,.mark-input{width:100%;padding:8px 10px;border:1px solid #ccd6e8;border-radius:10px;box-sizing:border-box;background:#fff;color:var(--ink)}.mark-input.na-state::placeholder{color:#9aa7ba;font-style:italic}.code-input{font-weight:700}.remove-course-btn{width:28px;height:28px;border-radius:999px;background:rgba(21,32,51,.08);color:var(--ink);font-size:18px;line-height:1;flex:0 0 auto}.status-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.status-pill{min-width:0;padding:6px 4px;background:rgba(21,32,51,.06);color:#5f708a;font-size:11px}.status-pill.completed.active{background:#dff3e4;color:#1e6a39}.status-pill.in-progress.active{background:#dfeaff;color:#285ca8}.status-pill.planned.active{background:#ffe9c7;color:#9a6400}.empty-column{display:grid;gap:6px;place-items:center;min-height:180px;padding:14px;border-style:dashed}.empty-column strong{color:var(--ink)}
+:host {
+  display: block;
+}
+
+.course-plan-prototype {
+  --ink: #152033;
+  --muted: #627089;
+  padding: 18px;
+  border: 1px solid #d6deef;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fbfdff 0, #f3f8ff 100%);
+}
+
+.plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.plan-meta h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ghost-btn,
+.primary-btn,
+.current-grade-toggle,
+.add-course-btn,
+.grade-add-float,
+.grade-remove-btn,
+.remove-course-btn,
+.status-pill,
+.year-pill {
+  border: none;
+  cursor: pointer;
+}
+
+.ghost-btn,
+.primary-btn {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.ghost-btn {
+  background: #fff;
+  color: #2f4f77;
+  box-shadow: inset 0 0 0 1px rgba(47, 79, 119, 0.18);
+}
+
+.primary-btn {
+  background: #1d5ea8;
+  color: #fff;
+}
+
+.ghost-btn:disabled,
+.primary-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.state-text {
+  margin-bottom: 10px;
+  color: #4f617f;
+  font-size: 13px;
+}
+
+.error-banner,
+.success-banner {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.error-banner {
+  background: #ffe9e9;
+  color: #902d2d;
+  border: 1px solid #f5b8b8;
+}
+
+.success-banner {
+  background: #e7f7eb;
+  color: #1b6b35;
+  border: 1px solid #b9e2c4;
+}
+
+.board-scroll {
+  overflow-x: auto;
+}
+
+.grade-board {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+  min-width: 1040px;
+  padding-right: 20px;
+}
+
+.grade-column-wrap {
+  position: relative;
+}
+
+.grade-column-wrap.with-grade-add {
+  padding-right: 54px;
+}
+
+.grade-column,
+.empty-column {
+  border: 1px solid rgba(84, 112, 160, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.grade-column {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.grade-column.current-grade {
+  box-shadow: 0 0 0 2px rgba(37, 84, 138, 0.18);
+}
+
+.current-grade-toggle {
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #f2f6fd;
+  color: #2f4f77;
+  font-weight: 700;
+}
+
+.current-grade-toggle.active {
+  background: #dfeaff;
+  color: #285ca8;
+}
+
+.grade-column-head,
+.course-box-top,
+.grade-title-row,
+.year-structure-picker {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grade-column-head h4 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.grade-meta {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.grade-badges {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.grade-total,
+.grade-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.grade-total {
+  background: #edf3ff;
+  color: #2c4f81;
+}
+
+.year-structure-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(84, 112, 160, 0.12);
+  border-radius: 14px;
+  background: #f7faff;
+}
+
+.year-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(21, 32, 51, 0.06);
+  color: #5f708a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.year-pill.active {
+  background: #dfeaff;
+  color: #285ca8;
+}
+
+.add-course-btn {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #eef4ff;
+  color: #25548a;
+  font-weight: 700;
+}
+
+.grade-add-float {
+  position: absolute;
+  top: 16px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #1d5ea8;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.course-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.course-box {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(84, 112, 160, 0.12);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.course-box.completed {
+  background: #eef8f1;
+  border-color: #d3ead8;
+}
+
+.course-box.in-progress {
+  background: #eef5ff;
+  border-color: #d3dff9;
+}
+
+.course-box.planned {
+  background: #fff6e8;
+  border-color: #efdcb2;
+}
+
+.code-input,
+.mark-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #ccd6e8;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.code-input {
+  font-weight: 700;
+}
+
+.mark-input.na-state::placeholder {
+  color: #9aa7ba;
+  font-style: italic;
+}
+
+.remove-course-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(21, 32, 51, 0.08);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.status-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 6px 4px;
+  background: rgba(21, 32, 51, 0.06);
+  color: #5f708a;
+  font-size: 11px;
+}
+
+.empty-column {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  min-height: 180px;
+  padding: 14px;
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.empty-column strong {
+  color: var(--ink);
+}
+
+@media (max-width: 860px) {
+  .course-plan-prototype {
+    padding: 14px;
+  }
+
+  .plan-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -27,7 +27,15 @@
 }
 
 .page-title {
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.page-subtitle {
+  margin: 0;
+  color: #5d6f8a;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .page-head h2 {
@@ -197,5 +205,9 @@
 
   .page-head h2 {
     font-size: 24px;
+  }
+
+  .page-title {
+    align-items: flex-start;
   }
 }
