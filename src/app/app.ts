@@ -3,11 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, finalize } from 'rxjs/operators';
 
+import { AppLanguageService } from './services/app-language.service';
 import { AuthService } from './services/auth.service';
+import { LegacyUiTranslationService } from './shared/i18n/legacy-ui-translation.service';
+import { LanguageToggleComponent } from './shared/language-toggle/language-toggle.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, LanguageToggleComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -16,11 +19,14 @@ export class App {
   signingOut = false;
 
   private readonly auth = inject(AuthService);
+  private readonly language = inject(AppLanguageService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly legacyUiTranslation = inject(LegacyUiTranslationService);
 
   constructor() {
     this.refreshSignOutVisibility(this.router.url);
+    void this.legacyUiTranslation;
 
     this.router.events
       .pipe(
@@ -50,6 +56,10 @@ export class App {
           this.router.navigate(['/login']);
         },
       });
+  }
+
+  get globalSignOutLabel(): string {
+    return this.language.translate(this.signingOut ? '退出中...' : '退出登录');
   }
 
   private refreshSignOutVisibility(url: string): void {

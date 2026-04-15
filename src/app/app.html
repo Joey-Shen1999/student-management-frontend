@@ -1,4 +1,6 @@
 <div class="app-shell">
+  <app-language-toggle></app-language-toggle>
+
   @if (showGlobalSignOut) {
     <button
       type="button"
@@ -6,7 +8,7 @@
       [disabled]="signingOut"
       (click)="signOut()"
     >
-      {{ signingOut ? 'Signing out...' : 'Sign Out' }}
+      {{ globalSignOutLabel }}
     </button>
   }
 
