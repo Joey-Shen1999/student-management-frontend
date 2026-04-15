@@ -83,6 +83,16 @@ export class VolunteerTrackingService {
     );
   }
 
+  updateMyVolunteerTracking(
+    request: UpdateVolunteerTrackingRequestVm
+  ): Observable<VolunteerTrackingStateVm> {
+    const normalizedRequest = this.normalizeUpdateRequest(request);
+    return this.http.put<unknown>(this.studentVolunteerTrackingUrl, normalizedRequest).pipe(
+      timeout({ first: this.requestTimeoutMs }),
+      map((response) => this.normalizeTrackingState(response, 0))
+    );
+  }
+
   getTeacherStudentsVolunteerBatchSummary(
     studentIds: readonly number[]
   ): Observable<VolunteerTrackingBatchSummaryItemVm[]> {

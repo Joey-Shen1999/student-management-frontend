@@ -9,7 +9,10 @@ import { StudentVolunteerComponent } from './student-volunteer.component';
 describe('StudentVolunteerComponent', () => {
   let component: StudentVolunteerComponent;
   let router: Pick<Router, 'navigate'>;
-  let volunteerTracking: Pick<VolunteerTrackingService, 'getMyVolunteerTracking'>;
+  let volunteerTracking: Pick<
+    VolunteerTrackingService,
+    'getMyVolunteerTracking' | 'updateMyVolunteerTracking'
+  >;
   let taskCenter: Pick<TaskCenterService, 'listMyInfos'>;
 
   const volunteerInfos: InfoTaskVm[] = [
@@ -64,6 +67,12 @@ describe('StudentVolunteerComponent', () => {
           ],
         })
       ),
+      updateMyVolunteerTracking: vi.fn().mockReturnValue(
+        of({
+          studentId: 20001,
+          records: [],
+        })
+      ),
     };
 
     taskCenter = {
@@ -91,6 +100,38 @@ describe('StudentVolunteerComponent', () => {
     expect(component.records.length).toBe(1);
     expect(component.records[0].tasks.length).toBe(1);
     expect(component.totalVolunteerHoursLabel).toBe('3.50');
+    expect(component.editorTasks.length).toBe(1);
+  });
+
+  it('should save volunteer tracking for the current student', () => {
+    component.editorTasks = [
+      {
+        taskName: '社区活动协助',
+        description: '现场签到和秩序维护',
+        durationHours: '2.5',
+        startDate: '2026-04-05',
+        endDate: '2026-04-05',
+        verifierContact: 'community@example.com',
+      },
+    ];
+
+    component.saveTracking();
+
+    expect(volunteerTracking.updateMyVolunteerTracking).toHaveBeenCalledWith({
+      note: '',
+      totalHours: 2.5,
+      tasks: [
+        {
+          taskName: '社区活动协助',
+          description: '现场签到和秩序维护',
+          durationHours: 2.5,
+          startDate: '2026-04-05',
+          endDate: '2026-04-05',
+          verifierContact: 'community@example.com',
+        },
+      ],
+    });
+    expect(component.successMessage).toBe('义工记录已保存。');
   });
 
   it('goBack should navigate to dashboard', () => {

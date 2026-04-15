@@ -122,6 +122,8 @@ export interface StudentProfilePayload {
   oenNumber?: string;
   ib?: string;
   ap?: boolean;
+  serviceItems?: string[];
+  serviceProjects?: string[];
   identityFileNote?: string;
   identityFiles?: StudentIdentityFilePayload[];
   schools?: StudentProfileSchoolPayload[];

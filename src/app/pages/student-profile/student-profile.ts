@@ -87,6 +87,7 @@ interface StudentProfileModel {
   oenNumber: string;
   ib: string;
   ap: boolean;
+  serviceItems: string[];
   identityFiles: IdentityFileModel[];
 
   highSchools: HighSchoolModel[];
@@ -405,6 +406,20 @@ const COUNTRY_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['u s', 'United States'],
 ] as const;
 
+const SERVICE_ITEM_OPTIONS = [
+  'A: 面试辅导',
+  'B: 雅思A类全科班',
+  'C: SAT全科班',
+  'D: 数学竞赛类班课',
+  'E: 3U&4U阅写及文学素养',
+  'F: 雅思VIP 20小时包',
+  'G: 雅思VIP 50小时包',
+  'H: 学科VIP 20小时包',
+  'I: 学科VIP 50小时包',
+  'J: AP/IB/数学竞赛VIP 50小时包',
+  '一对一辅导',
+] as const;
+
 const VALIDATION_COLLECTION_LABELS: Record<string, string> = {
   schools: '高中学校',
   schoolRecords: '高中学校',
@@ -430,6 +445,7 @@ const VALIDATION_FIELD_LABELS: Record<string, string> = {
   oenNumber: 'OEN',
   ib: 'IB',
   ap: 'AP',
+  serviceItems: '服务项目',
   address: '联系地址',
   streetAddress: '街道地址',
   streetAddressLine2: '地址第二行',
@@ -484,6 +500,7 @@ export class StudentProfile implements OnInit {
   readonly provinceOptions: string[] = this.buildProvinceOptions();
   readonly countryOptions: string[] = this.buildCountryOptions();
   readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
+  readonly serviceItemOptions: readonly string[] = [...SERVICE_ITEM_OPTIONS];
 
   statusInCanadaSelection = '';
   statusInCanadaOtherText = '';
@@ -605,6 +622,14 @@ export class StudentProfile implements OnInit {
   onOenInputChange(value: string): void {
     this.model.oenNumber = this.normalizeOenNumber(value);
     this.validateOenNumber();
+  }
+
+  onServiceItemSelectionChange(item: string, checked: boolean): void {
+    const nextItems = checked
+      ? [...this.model.serviceItems, item]
+      : this.model.serviceItems.filter((selected) => selected !== item);
+    this.model.serviceItems = this.normalizeServiceItems(nextItems);
+    this.triggerAutoSave();
   }
 
   onHighSchoolNameInputChange(index: number, value: string): void {
@@ -864,6 +889,16 @@ export class StudentProfile implements OnInit {
 
   displayBoolean(value: boolean): string {
     return value ? '是' : '否';
+  }
+
+  displayServiceItems(): string {
+    return this.model.serviceItems.length > 0 ? this.model.serviceItems.join('、') : '-';
+  }
+
+  isServiceItemSelected(item: string): boolean {
+    return this.model.serviceItems.some(
+      (selected) => this.normalizeTextKey(selected) === this.normalizeTextKey(item)
+    );
   }
 
   displayGender(): string {
@@ -2066,6 +2101,7 @@ export class StudentProfile implements OnInit {
       oenNumber: '',
       ib: '',
       ap: false,
+      serviceItems: [],
       identityFiles: [],
       highSchools: [this.createCurrentHighSchool()],
       externalCourses: [],
@@ -2122,6 +2158,7 @@ export class StudentProfile implements OnInit {
       oenNumber: this.normalizeOenNumber(source.oenNumber),
       ib: this.toText(source.ib),
       ap: this.toBoolean(source.ap),
+      serviceItems: this.normalizeServiceItems(this.extractServiceItems(source)),
       identityFiles: this.normalizeIdentityFiles(this.extractIdentityFiles(source)),
 
       highSchools: this.normalizeHighSchools(rawSchools.map((school: unknown) => this.normalizeHighSchool(school))),
@@ -2288,6 +2325,7 @@ export class StudentProfile implements OnInit {
   private toPayload(model: StudentProfileModel): StudentProfilePayload {
     const firstEntryDateInCanada = this.normalizeDate(model.firstBoardingDate);
     const normalizedCountry = this.normalizeCountryToStandardEnglish(model.address.country);
+    const normalizedServiceItems = this.normalizeServiceItems(model.serviceItems);
 
     return {
       legalFirstName: this.toText(model.legalFirstName),
@@ -2314,6 +2352,8 @@ export class StudentProfile implements OnInit {
       oenNumber: this.normalizeOenNumber(model.oenNumber),
       ib: this.toText(model.ib),
       ap: !!model.ap,
+      serviceItems: normalizedServiceItems,
+      serviceProjects: normalizedServiceItems,
       identityFiles: this.normalizeIdentityFiles(model.identityFiles).map((file) => ({
         identityFileId: this.toOptionalNumber(file.identityFileId),
         id: this.toOptionalNumber(file.identityFileId),
@@ -2755,6 +2795,77 @@ export class StudentProfile implements OnInit {
     return String(value ?? '')
       .replace(/\D/g, '')
       .slice(0, 9);
+  }
+
+  private extractServiceItems(source: any): unknown {
+    return (
+      source?.serviceItems ??
+      source?.serviceProjects ??
+      source?.services ??
+      source?.serviceOptions ??
+      source?.selectedServices
+    );
+  }
+
+  private normalizeServiceItems(value: unknown): string[] {
+    const knownOptions = [...this.serviceItemOptions];
+    const optionByKey = new Map<string, string>(
+      knownOptions.map((option) => [this.normalizeTextKey(option), option])
+    );
+    const selected: string[] = [];
+    const seen = new Set<string>();
+
+    const append = (candidate: unknown): void => {
+      const raw = this.toText(candidate);
+      if (!raw) return;
+
+      const normalizedRaw = this.normalizeTextKey(raw);
+      const strippedRaw = raw.replace(/^[A-Za-z]\s*[:：]\s*/, '');
+      const normalizedStripped = this.normalizeTextKey(strippedRaw);
+      const matched =
+        optionByKey.get(normalizedRaw) ||
+        optionByKey.get(normalizedStripped) ||
+        raw;
+      const key = this.normalizeTextKey(matched);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      selected.push(matched);
+    };
+
+    if (Array.isArray(value)) {
+      value.forEach(append);
+    } else if (value && typeof value === 'object') {
+      const node = value as Record<string, unknown>;
+      const nestedArrayCandidate = [node['items'], node['data'], node['values'], node['selected']].find(
+        Array.isArray
+      );
+
+      if (Array.isArray(nestedArrayCandidate)) {
+        nestedArrayCandidate.forEach(append);
+      } else {
+        Object.entries(node).forEach(([key, raw]) => {
+          if (this.toBoolean(raw)) {
+            append(key);
+          }
+        });
+      }
+    } else {
+      const rawText = this.toText(value);
+      if (!rawText) return [];
+      rawText.split(/[\n,;；、|]+/).forEach(append);
+    }
+
+    const orderedKnownOptions = knownOptions.filter((option) =>
+      seen.has(this.normalizeTextKey(option))
+    );
+    const extraOptions = selected.filter(
+      (option) =>
+        !orderedKnownOptions.some(
+          (knownOption) => this.normalizeTextKey(knownOption) === this.normalizeTextKey(option)
+        )
+    );
+
+    return [...orderedKnownOptions, ...extraOptions];
   }
 
   private validateOenNumber(): boolean {

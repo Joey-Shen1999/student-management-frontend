@@ -7,6 +7,7 @@ export type StudentListColumnKey =
   | 'email'
   | 'phone'
   | 'graduation'
+  | 'serviceItems'
   | 'schoolName'
   | 'canadaIdentity'
   | 'gender'
@@ -35,6 +36,7 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'email',
   'phone',
   'graduation',
+  'serviceItems',
   'teacherNote',
   'profile',
   'resetPassword',

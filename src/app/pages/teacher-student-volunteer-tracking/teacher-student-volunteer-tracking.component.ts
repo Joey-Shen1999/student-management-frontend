@@ -88,11 +88,6 @@ const VOLUNTEER_TASK_COLLECTION_PREFIX = '义工任务明细：';
             </div>
           </div>
 
-          <label class="field-label">
-            补充说明（可选）
-            <textarea [(ngModel)]="editorNote" [disabled]="saving" rows="2" placeholder="补充说明"></textarea>
-          </label>
-
           <article class="task-card" *ngFor="let task of editorTasks; let index = index; trackBy: trackTask">
             <div class="task-head">
               <strong>任务 {{ index + 1 }}</strong>
@@ -170,7 +165,6 @@ export class TeacherStudentVolunteerTrackingComponent implements OnInit {
   successMessage = '';
   records: VolunteerRecordVm[] = [];
 
-  editorNote = '';
   editorTasks: VolunteerTaskDraft[] = [this.createEmptyTask()];
 
   constructor(
@@ -224,14 +218,12 @@ export class TeacherStudentVolunteerTrackingComponent implements OnInit {
 
   resetEditor(): void {
     if (this.saving) return;
-    this.editorNote = '';
     this.editorTasks = [this.createEmptyTask()];
     this.error = '';
     this.successMessage = '';
   }
 
   loadRecordToEditor(record: VolunteerRecordVm): void {
-    this.editorNote = record.note;
     this.editorTasks =
       record.tasks.length > 0
         ? record.tasks.map((task) => ({
@@ -259,7 +251,7 @@ export class TeacherStudentVolunteerTrackingComponent implements OnInit {
 
     const tasks = this.normalizeTasks(this.editorTasks);
     const request: UpdateVolunteerTrackingRequestVm = {
-      note: this.editorNote.trim(),
+      note: '',
       totalHours: Math.round(tasks.reduce((sum, task) => sum + task.durationHours, 0) * 100) / 100,
       tasks,
     };
@@ -364,7 +356,6 @@ export class TeacherStudentVolunteerTrackingComponent implements OnInit {
           if (rows.length > 0) {
             this.loadRecordToEditor(rows[0]);
           } else {
-            this.editorNote = '';
             this.editorTasks = [this.createEmptyTask()];
           }
           this.cdr.detectChanges();

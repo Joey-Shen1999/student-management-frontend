@@ -184,6 +184,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   country: '\u56fd\u5bb6',
   province: '\u7701\u4efd',
   city: '\u57ce\u5e02\uff08\u5728\u8bfb\u5b66\u6821\uff09',
+  serviceItems: '\u670d\u52a1\u9879\u76ee',
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
   ielts: '\u8bed\u8a00\u6210\u7ee9',
@@ -198,7 +199,21 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   selectable: '\u53ef\u9009\u62e9',
 };
 
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v9';
+const SERVICE_ITEM_OPTIONS = [
+  'A: 面试辅导',
+  'B: 雅思A类全科班',
+  'C: SAT全科班',
+  'D: 数学竞赛类班课',
+  'E: 3U&4U阅写及文学素养',
+  'F: 雅思VIP 20小时包',
+  'G: 雅思VIP 50小时包',
+  'H: 学科VIP 20小时包',
+  'I: 学科VIP 50小时包',
+  'J: AP/IB/数学竞赛VIP 50小时包',
+  '一对一辅导',
+] as const;
+
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v10';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -242,6 +257,15 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     headerStyle:
       'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'serviceItems',
+    label: '服务项目',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: true,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;min-width:320px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;',
   },
   {
     key: 'schoolName',
@@ -822,6 +846,37 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     ></textarea>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'serviceItems'">
+                    <div style="display:grid;gap:6px;min-width:320px;">
+                      <div
+                        style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;"
+                      >
+                        <label
+                          *ngFor="let option of serviceItemOptions"
+                          style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
+                        >
+                          <input
+                            type="checkbox"
+                            [checked]="isServiceItemSelectedForStudent(student, option)"
+                            (change)="onServiceItemSelectionChange(student, option, $any($event.target).checked)"
+                            [disabled]="
+                              !resolveStudentId(student) ||
+                              isServiceItemsLoading(student) ||
+                              isServiceItemsSaving(student)
+                            "
+                          />
+                          <span>{{ option }}</span>
+                        </label>
+                      </div>
+                      <small *ngIf="isServiceItemsLoading(student)" style="color:#7f8a9e;">
+                        加载中...
+                      </small>
+                      <small *ngIf="isServiceItemsSaving(student)" style="color:#7f8a9e;">
+                        保存中...
+                      </small>
+                    </div>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'profile'">
                     <button
                       type="button"
@@ -1219,6 +1274,7 @@ export class StudentManagementComponent implements OnInit {
   readonly limitOptions: number[] = [20, 50, 100];
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
+  readonly serviceItemOptions: readonly string[] = SERVICE_ITEM_OPTIONS;
   readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
   private readonly studentListColumnConfigByKey = new Map<StudentListColumnKey, StudentListColumnConfig>(
     this.studentListColumns.map((column) => [column.key, column])
@@ -1313,7 +1369,8 @@ export class StudentManagementComponent implements OnInit {
   private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
   private readonly teacherNoteCache = new Map<number, string>();
-  private readonly teacherNoteLoadInFlight = new Set<number>();
+  private readonly serviceItemsCache = new Map<number, string[]>();
+  private readonly studentProfileLoadInFlight = new Set<number>();
   private readonly ieltsStatusCache = new Map<number, IeltsTrackingStatus>();
   private readonly languageTrackingStatusCache = new Map<number, LanguageTrackingStatus>();
   private readonly languageCourseStatusCache = new Map<number, LanguageCourseStatus>();
@@ -1332,7 +1389,8 @@ export class StudentManagementComponent implements OnInit {
   private readonly volunteerCompletedCache = new Map<number, boolean>();
   private readonly volunteerHoursLoadInFlight = new Set<number>();
   private readonly volunteerHoursUnavailable = new Set<number>();
-  private readonly teacherNoteProfileCache = new Map<
+  private readonly serviceItemsSaveInFlight = new Set<number>();
+  private readonly studentProfileCache = new Map<
     number,
     StudentProfilePayload | StudentProfileResponse
   >();
@@ -1517,6 +1575,11 @@ export class StudentManagementComponent implements OnInit {
     return this.formatGraduationYearMonth(this.resolveCurrentSchoolExpectedGraduationValue(student));
   }
 
+  resolveStudentServiceItems(student: StudentAccount): string {
+    const selectedItems = this.resolveServiceItemsSelection(student);
+    return selectedItems.length > 0 ? selectedItems.join('、') : '-';
+  }
+
   resolveStudentSchoolName(student: StudentAccount): string {
     return this.resolveCurrentSchoolNameValue(student) || '-';
   }
@@ -1572,6 +1635,8 @@ export class StudentManagementComponent implements OnInit {
         return this.resolveStudentPhone(student);
       case 'graduation':
         return this.resolveStudentGraduation(student);
+      case 'serviceItems':
+        return this.resolveStudentServiceItems(student);
       case 'schoolName':
         return this.resolveStudentSchoolName(student);
       case 'canadaIdentity':
@@ -2963,7 +3028,7 @@ export class StudentManagementComponent implements OnInit {
     this.teacherNoteSuccess = '';
     this.teacherNoteDraft = this.teacherNoteCache.get(studentId) ?? '';
 
-    const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+    const cachedProfile = this.studentProfileCache.get(studentId);
     if (cachedProfile) {
       if (!this.teacherNoteDraft) {
         const cachedNote = this.extractTeacherNoteFromProfile(cachedProfile);
@@ -2986,7 +3051,7 @@ export class StudentManagementComponent implements OnInit {
       )
       .subscribe({
         next: (payload) => {
-          this.teacherNoteProfileCache.set(studentId, payload);
+          this.cacheStudentProfilePayload(studentId, payload);
           const note = this.extractTeacherNoteFromProfile(payload);
           this.teacherNoteDraft = note;
           this.teacherNoteCache.set(studentId, note);
@@ -3013,7 +3078,7 @@ export class StudentManagementComponent implements OnInit {
     this.teacherNoteSuccess = '';
     this.cdr.detectChanges();
 
-    const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+    const cachedProfile = this.studentProfileCache.get(studentId);
     if (cachedProfile) {
       this.saveTeacherNoteWithProfile(studentId, cachedProfile, noteText);
       return;
@@ -3021,7 +3086,7 @@ export class StudentManagementComponent implements OnInit {
 
     this.studentProfileApi.getStudentProfileForTeacher(studentId).subscribe({
       next: (payload) => {
-        this.teacherNoteProfileCache.set(studentId, payload);
+        this.cacheStudentProfilePayload(studentId, payload);
         this.saveTeacherNoteWithProfile(studentId, payload, noteText);
       },
       error: (err: HttpErrorResponse) => {
@@ -3086,7 +3151,7 @@ export class StudentManagementComponent implements OnInit {
       )
       .subscribe({
         next: (savedPayload) => {
-          this.teacherNoteProfileCache.set(studentId, savedPayload);
+          this.cacheStudentProfilePayload(studentId, savedPayload);
           this.teacherNoteCache.set(studentId, noteText);
           this.teacherNoteDraft = noteText;
           this.teacherNoteSuccess = '备注已保存。';
@@ -3097,6 +3162,43 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  isServiceItemsLoading(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && !this.serviceItemsCache.has(studentId) && this.studentProfileLoadInFlight.has(studentId);
+  }
+
+  isServiceItemsSaving(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && this.serviceItemsSaveInFlight.has(studentId);
+  }
+
+  isServiceItemSelectedForStudent(student: StudentAccount, item: string): boolean {
+    return this.resolveServiceItemsSelection(student).some(
+      (selectedItem) => this.normalizeServiceItemKey(selectedItem) === this.normalizeServiceItemKey(item)
+    );
+  }
+
+  onServiceItemSelectionChange(student: StudentAccount, item: string, checked: boolean): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId || this.serviceItemsSaveInFlight.has(studentId)) {
+      return;
+    }
+
+    this.actionError = '';
+    const cachedProfile = this.studentProfileCache.get(studentId);
+    const cachedSelection = this.serviceItemsCache.get(studentId);
+    const inlineSelection = cachedSelection ?? this.extractServiceItemsFromStudent(student);
+
+    if (!cachedProfile && !cachedSelection && inlineSelection.length === 0) {
+      this.persistServiceItemsSelection(studentId, item, checked, null, null);
+      return;
+    }
+
+    const nextSelection = this.toggleServiceItemsSelection(inlineSelection, item, checked);
+    this.serviceItemsCache.set(studentId, nextSelection);
+    this.persistServiceItemsSelection(studentId, item, checked, nextSelection, cachedProfile);
   }
 
   resetPassword(student: StudentAccount): void {
@@ -3229,6 +3331,10 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleTeacherNotes();
       this.cdr.detectChanges();
     }
+    if (columnKey === 'serviceItems' && checked) {
+      this.prefetchVisibleServiceItems();
+      this.cdr.detectChanges();
+    }
 
     if ((columnKey === 'ielts' || columnKey === 'languageTracking') && checked) {
       this.prefetchVisibleIeltsStatuses();
@@ -3249,6 +3355,10 @@ export class StudentManagementComponent implements OnInit {
     this.hydrateStudentMetadata(this.students);
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
+      this.cdr.detectChanges();
+    }
+    if (this.visibleColumnKeys.has('serviceItems')) {
+      this.prefetchVisibleServiceItems();
       this.cdr.detectChanges();
     }
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
@@ -3591,6 +3701,9 @@ export class StudentManagementComponent implements OnInit {
         if (this.visibleColumnKeys.has('teacherNote')) {
           this.prefetchVisibleTeacherNotes();
         }
+        if (this.visibleColumnKeys.has('serviceItems')) {
+          this.prefetchVisibleServiceItems();
+        }
         this.cdr.detectChanges();
       },
       error: () => {},
@@ -3727,6 +3840,9 @@ export class StudentManagementComponent implements OnInit {
     this.persistListControlsPreference();
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
+    }
+    if (this.visibleColumnKeys.has('serviceItems')) {
+      this.prefetchVisibleServiceItems();
     }
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
@@ -4522,6 +4638,31 @@ export class StudentManagementComponent implements OnInit {
         continue;
       }
 
+      const cachedProfile = this.studentProfileCache.get(studentId);
+      if (cachedProfile) {
+        this.cacheStudentProfilePayload(studentId, cachedProfile);
+        const metadata = this.extractStudentMetadataFromProfile(cachedProfile);
+        if (
+          metadata.email ||
+          metadata.phone ||
+          metadata.schoolName ||
+          metadata.canadaIdentity ||
+          metadata.gender ||
+          metadata.nationality ||
+          metadata.firstLanguage ||
+          metadata.motherLanguage ||
+          metadata.currentSchoolCountry ||
+          metadata.currentSchoolProvince ||
+          metadata.currentSchoolCity ||
+          metadata.currentSchoolBoard ||
+          metadata.currentSchoolExpectedGraduation
+        ) {
+          this.studentContactCache.set(studentId, metadata);
+          this.applyStudentMetadata(student, metadata);
+        }
+        continue;
+      }
+
       if (this.studentContactLoadInFlight.has(studentId)) {
         continue;
       }
@@ -4537,8 +4678,7 @@ export class StudentManagementComponent implements OnInit {
         .subscribe({
           next: (payload) => {
             const metadata = this.extractStudentMetadataFromProfile(payload);
-            this.teacherNoteProfileCache.set(studentId, payload);
-            this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(payload));
+            this.cacheStudentProfilePayload(studentId, payload);
             if (
               !metadata.email &&
               !metadata.phone &&
@@ -5183,33 +5323,86 @@ export class StudentManagementComponent implements OnInit {
         continue;
       }
 
-      const cachedProfile = this.teacherNoteProfileCache.get(studentId);
+      const cachedProfile = this.studentProfileCache.get(studentId);
       if (cachedProfile) {
-        this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(cachedProfile));
+        this.cacheStudentProfilePayload(studentId, cachedProfile);
         continue;
       }
 
-      if (this.teacherNoteLoadInFlight.has(studentId)) {
+      if (this.studentProfileLoadInFlight.has(studentId)) {
         continue;
       }
 
-      this.teacherNoteLoadInFlight.add(studentId);
+      this.studentProfileLoadInFlight.add(studentId);
       this.studentProfileApi
         .getStudentProfileForTeacher(studentId)
         .pipe(
           finalize(() => {
-            this.teacherNoteLoadInFlight.delete(studentId);
+            this.studentProfileLoadInFlight.delete(studentId);
           })
         )
         .subscribe({
           next: (payload) => {
-            this.teacherNoteProfileCache.set(studentId, payload);
-            this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(payload));
+            this.cacheStudentProfilePayload(studentId, payload);
             this.cdr.detectChanges();
           },
           error: () => {},
         });
     }
+  }
+
+  private prefetchVisibleServiceItems(): void {
+    for (const student of this.visibleStudents) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId || this.serviceItemsCache.has(studentId)) {
+        continue;
+      }
+
+      const inlineSelection = this.extractServiceItemsFromStudent(student);
+      if (inlineSelection.length > 0) {
+        this.serviceItemsCache.set(studentId, inlineSelection);
+        continue;
+      }
+
+      const cachedProfile = this.studentProfileCache.get(studentId);
+      if (cachedProfile) {
+        this.cacheStudentProfilePayload(studentId, cachedProfile);
+        continue;
+      }
+
+      if (this.studentProfileLoadInFlight.has(studentId)) {
+        continue;
+      }
+
+      this.studentProfileLoadInFlight.add(studentId);
+      this.studentProfileApi
+        .getStudentProfileForTeacher(studentId)
+        .pipe(
+          finalize(() => {
+            this.studentProfileLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (payload) => {
+            this.cacheStudentProfilePayload(studentId, payload);
+            this.cdr.detectChanges();
+          },
+          error: () => {},
+        });
+    }
+  }
+
+  private cacheStudentProfilePayload(
+    studentId: number,
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): void {
+    if (!payload) {
+      return;
+    }
+
+    this.studentProfileCache.set(studentId, payload);
+    this.teacherNoteCache.set(studentId, this.extractTeacherNoteFromProfile(payload));
+    this.serviceItemsCache.set(studentId, this.extractServiceItemsFromProfile(payload));
   }
 
   private extractStudentMetadataFromProfile(
@@ -5532,6 +5725,265 @@ export class StudentManagementComponent implements OnInit {
       ...(profileNode as StudentProfilePayload),
       teacherNote: normalizedNote,
     };
+  }
+
+  private extractServiceItemsFromProfile(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): string[] {
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const profileNode =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : root;
+
+    return this.normalizeServiceItems(
+      profileNode['serviceItems'] ??
+        profileNode['serviceProjects'] ??
+        profileNode['services'] ??
+        profileNode['serviceOptions'] ??
+        profileNode['selectedServices'] ??
+        root['serviceItems'] ??
+        root['serviceProjects'] ??
+        root['services'] ??
+        root['serviceOptions'] ??
+        root['selectedServices']
+    );
+  }
+
+  private buildTeacherProfilePayloadWithServiceItems(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined,
+    serviceItems: string[]
+  ): StudentProfilePayload {
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const profileNode =
+      root['profile'] && typeof root['profile'] === 'object'
+        ? (root['profile'] as Record<string, unknown>)
+        : root;
+    const normalizedServiceItems = this.normalizeServiceItems(serviceItems);
+
+    return {
+      ...(profileNode as StudentProfilePayload),
+      serviceItems: normalizedServiceItems,
+      serviceProjects: normalizedServiceItems,
+    };
+  }
+
+  private resolveServiceItemsSelection(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (studentId && this.serviceItemsCache.has(studentId)) {
+      return this.serviceItemsCache.get(studentId) ?? [];
+    }
+
+    const inlineSelection = this.extractServiceItemsFromStudent(student);
+    if (studentId && inlineSelection.length > 0) {
+      this.serviceItemsCache.set(studentId, inlineSelection);
+    }
+    return inlineSelection;
+  }
+
+  private extractServiceItemsFromStudent(student: StudentAccount): string[] {
+    const profile =
+      student?.['profile'] && typeof student['profile'] === 'object'
+        ? (student['profile'] as Record<string, unknown>)
+        : {};
+
+    return this.normalizeServiceItems(
+      student?.['serviceItems'] ??
+        student?.['serviceProjects'] ??
+        student?.['services'] ??
+        student?.['serviceOptions'] ??
+        student?.['selectedServices'] ??
+        profile['serviceItems'] ??
+        profile['serviceProjects'] ??
+        profile['services'] ??
+        profile['serviceOptions'] ??
+        profile['selectedServices']
+    );
+  }
+
+  private toggleServiceItemsSelection(
+    currentItems: readonly string[],
+    item: string,
+    checked: boolean
+  ): string[] {
+    const nextItems = checked
+      ? [...currentItems, item]
+      : currentItems.filter(
+          (currentItem) =>
+            this.normalizeServiceItemKey(currentItem) !== this.normalizeServiceItemKey(item)
+        );
+    return this.normalizeServiceItems(nextItems);
+  }
+
+  private persistServiceItemsSelection(
+    studentId: number,
+    item: string,
+    checked: boolean,
+    nextSelection: string[] | null,
+    profilePayload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): void {
+    this.serviceItemsSaveInFlight.add(studentId);
+    this.actionError = '';
+    this.cdr.detectChanges();
+
+    if (profilePayload) {
+      const resolvedSelection =
+        nextSelection ?? this.toggleServiceItemsSelection(this.extractServiceItemsFromProfile(profilePayload), item, checked);
+      this.saveServiceItemsWithProfile(studentId, profilePayload, resolvedSelection);
+      return;
+    }
+
+    this.studentProfileApi.getStudentProfileForTeacher(studentId).subscribe({
+      next: (payload) => {
+        this.cacheStudentProfilePayload(studentId, payload);
+        const resolvedSelection =
+          nextSelection ?? this.toggleServiceItemsSelection(this.extractServiceItemsFromProfile(payload), item, checked);
+        this.serviceItemsCache.set(studentId, resolvedSelection);
+        this.saveServiceItemsWithProfile(studentId, payload, resolvedSelection);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.serviceItemsSaveInFlight.delete(studentId);
+        this.actionError = this.extractErrorMessage(err) || '保存服务项目失败。';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private saveServiceItemsWithProfile(
+    studentId: number,
+    profilePayload: StudentProfilePayload | StudentProfileResponse | null | undefined,
+    serviceItems: string[]
+  ): void {
+    const requestPayload = this.buildTeacherProfilePayloadWithServiceItems(profilePayload, serviceItems);
+    this.studentProfileApi
+      .saveStudentProfileForTeacher(studentId, requestPayload)
+      .pipe(
+        finalize(() => {
+          this.serviceItemsSaveInFlight.delete(studentId);
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (savedPayload) => {
+          this.cacheStudentProfilePayload(studentId, savedPayload);
+          const savedServiceItems = this.extractServiceItemsFromProfile(savedPayload);
+          this.serviceItemsCache.set(
+            studentId,
+            savedServiceItems.length > 0 || serviceItems.length === 0
+              ? savedServiceItems
+              : this.normalizeServiceItems(serviceItems)
+          );
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.actionError = this.extractErrorMessage(err) || '保存服务项目失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private normalizeServiceItems(value: unknown): string[] {
+    const knownOptions = [...this.serviceItemOptions];
+    const optionByKey = new Map<string, string>(
+      knownOptions.map((option) => [this.normalizeServiceItemKey(option), option])
+    );
+    const selected: string[] = [];
+    const seen = new Set<string>();
+
+    const append = (candidate: unknown): void => {
+      const raw = this.toServiceItemText(candidate);
+      if (!raw) {
+        return;
+      }
+
+      const normalizedRaw = this.normalizeServiceItemKey(raw);
+      const strippedRaw = raw.replace(/^[A-Za-z]\s*[:：]\s*/, '');
+      const normalizedStripped = this.normalizeServiceItemKey(strippedRaw);
+      const matched =
+        optionByKey.get(normalizedRaw) ??
+        optionByKey.get(normalizedStripped) ??
+        raw;
+      const key = this.normalizeServiceItemKey(matched);
+      if (!key || seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      selected.push(matched);
+    };
+
+    if (Array.isArray(value)) {
+      value.forEach(append);
+    } else if (value && typeof value === 'object') {
+      const node = value as Record<string, unknown>;
+      const nestedArrayCandidate = [node['items'], node['data'], node['values'], node['selected']].find(
+        Array.isArray
+      );
+
+      if (Array.isArray(nestedArrayCandidate)) {
+        nestedArrayCandidate.forEach(append);
+      } else {
+        Object.entries(node).forEach(([key, raw]) => {
+          if (this.isTruthyServiceItemValue(raw)) {
+            append(key);
+          }
+        });
+      }
+    } else {
+      const rawText = this.toServiceItemText(value);
+      if (!rawText) {
+        return [];
+      }
+      rawText.split(/[\n,;；、|]+/).forEach(append);
+    }
+
+    const orderedKnownOptions = knownOptions.filter((option) =>
+      seen.has(this.normalizeServiceItemKey(option))
+    );
+    const extraOptions = selected.filter(
+      (option) =>
+        !orderedKnownOptions.some(
+          (knownOption) =>
+            this.normalizeServiceItemKey(knownOption) === this.normalizeServiceItemKey(option)
+        )
+    );
+
+    return [...orderedKnownOptions, ...extraOptions];
+  }
+
+  private normalizeServiceItemKey(value: unknown): string {
+    return String(value ?? '').trim().toLocaleLowerCase().replace(/\s+/g, '');
+  }
+
+  private toServiceItemText(value: unknown): string {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return String(value).trim();
+    }
+
+    if (!value || typeof value !== 'object') {
+      return '';
+    }
+
+    const node = value as Record<string, unknown>;
+    return this.pickFirstText([node['label'], node['name'], node['value'], node['title']]);
+  }
+
+  private isTruthyServiceItemValue(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    const normalized = String(value ?? '').trim().toLocaleLowerCase();
+    return (
+      normalized === '1' ||
+      normalized === 'true' ||
+      normalized === 'yes' ||
+      normalized === 'y' ||
+      normalized === 'selected' ||
+      normalized === 'checked'
+    );
   }
 
   private applyStudentMetadata(

@@ -305,6 +305,36 @@ describe('StudentManagementComponent', () => {
     expect(component.teacherNoteSuccess).toBe('备注已保存。');
   });
 
+  it('onServiceItemSelectionChange should persist service items via teacher profile API', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          legalFirstName: 'Demo',
+          serviceItems: ['A: 面试辅导'],
+        },
+      })
+    );
+    (profileApi.saveStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          serviceItems: ['A: 面试辅导', '一对一辅导'],
+        },
+      })
+    );
+
+    const student = { studentId: 54, username: 'student54', status: 'ACTIVE' } as any;
+    component.onServiceItemSelectionChange(student, '一对一辅导', true);
+
+    expect(profileApi.saveStudentProfileForTeacher).toHaveBeenCalledWith(
+      54,
+      expect.objectContaining({
+        serviceItems: ['A: 面试辅导', '一对一辅导'],
+        serviceProjects: ['A: 面试辅导', '一对一辅导'],
+      })
+    );
+    expect(component.resolveStudentServiceItems(student)).toBe('A: 面试辅导、一对一辅导');
+  });
+
   it('loadStudents should show backend error message on failure', () => {
     (api.listStudents as any).mockReturnValue(
       throwError(
@@ -1299,7 +1329,7 @@ describe('StudentManagementComponent', () => {
   it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
     (preferenceApi.getPagePreference as any).mockReturnValue(
       of({
-        version: 'v9',
+        version: 'v10',
         visibleColumnKeys: [
           'name',
           'email',
@@ -1337,7 +1367,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v9',
+        version: 'v10',
         visibleColumnKeys: expect.any(Array),
         orderedColumnKeys: expect.any(Array),
       })
@@ -1407,7 +1437,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v9',
+        version: 'v10',
       })
     );
   });
@@ -1422,7 +1452,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'ielts-tracking.list-columns',
       expect.objectContaining({
-        version: 'v9',
+        version: 'v10',
       })
     );
   });
@@ -1465,6 +1495,7 @@ describe('StudentManagementComponent', () => {
         'email',
         'phone',
         'graduation',
+        'serviceItems',
         'teacherNote',
         'profile',
         'resetPassword',

@@ -61,6 +61,7 @@
     <div><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
     <div><strong>IB：</strong>{{ displayText(model.ib) }}</div>
     <div><strong>AP：</strong>{{ displayBoolean(model.ap) }}</div>
+    <div><strong>服务项目：</strong>{{ displayServiceItems() }}</div>
     <div><strong>身份证明文件：</strong>{{ displayIdentityFilesSummary() }}</div>
     <div *ngIf="model.identityFiles.length > 0" style="margin-top: 6px;">
       <div><strong>已上传文件：</strong></div>
@@ -336,6 +337,27 @@
         <div>
           <label>AP：</label>
           <input type="checkbox" [(ngModel)]="model.ap" name="ap" />
+        </div>
+
+        <div>
+          <label>服务项目：</label>
+          <div style="display: grid; gap: 8px; margin: 6px 0 0;">
+            <label
+              *ngFor="let option of serviceItemOptions; let optionIndex = index"
+              style="display: flex; align-items: flex-start; gap: 8px; font-weight: 400;"
+            >
+              <input
+                type="checkbox"
+                [checked]="isServiceItemSelected(option)"
+                (change)="onServiceItemSelectionChange(option, $any($event.target).checked)"
+                [name]="'serviceItem_' + optionIndex"
+              />
+              <span>{{ option }}</span>
+            </label>
+          </div>
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            可多选；如学生同时参加多个项目，可全部勾选。
+          </div>
         </div>
 
         <div>
