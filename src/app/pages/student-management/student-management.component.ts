@@ -595,7 +595,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;"
         >
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? '隐藏已归档' : '显示已归档' }}
+            {{ showInactive ? '隐藏已' : '显示已' }}
           </button>
 
           <app-student-filter-fields
@@ -850,7 +850,8 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     <div class="service-items-container" style="position:relative;display:inline-grid;gap:6px;min-width:0;width:auto;justify-items:start;">
                       <button
                         type="button"
-                        (click)="toggleServiceItemsPanel(student); $event.stopPropagation()"
+                        (click)="toggleServiceItemsPanel(student, $event); $event.stopPropagation()"
+                        [attr.data-service-items-trigger-id]="resolveStudentId(student) || null"
                         [disabled]="
                           !resolveStudentId(student) ||
                           isServiceItemsLoading(student) ||
@@ -861,48 +862,6 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       >
                         {{ resolveServiceItemsCountLabel(student) }}
                       </button>
-                      <div
-                        *ngIf="isServiceItemsPanelOpen(student)"
-                        (click)="$event.stopPropagation()"
-                        style="position:absolute;z-index:100;width:156px;max-width:min(156px,calc(100vw - 48px));padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#fff;box-shadow:0 14px 28px rgba(15,23,42,0.16);display:grid;gap:10px;"
-                        [style.top]="shouldServiceItemsPanelOpenUpward(student) ? 'auto' : 'calc(100% + 6px)'"
-                        [style.bottom]="shouldServiceItemsPanelOpenUpward(student) ? 'calc(100% + 6px)' : 'auto'"
-                        [style.left]="'0'"
-                      >
-                        <div
-                          style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#52607a;"
-                        >
-                          <span>逐项勾选服务项目</span>
-                          <button
-                            type="button"
-                            (click)="toggleServiceItemsPanel(student)"
-                            style="border:none;background:transparent;color:#7f8a9e;padding:0;font-size:12px;cursor:pointer;"
-                          >
-                            收起
-                          </button>
-                        </div>
-                        <div
-                          style="display:grid;grid-template-columns:minmax(0,1fr);gap:8px;"
-                        >
-                          <label
-                            *ngFor="let option of serviceItemOptions"
-                            style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
-                            (click)="$event.stopPropagation()"
-                          >
-                            <input
-                              type="checkbox"
-                              [ngModel]="isServiceItemSelectedForStudent(student, option)"
-                              (ngModelChange)="onServiceItemSelectionChange(student, option, $event)"
-                              [disabled]="
-                                !resolveStudentId(student) ||
-                                isServiceItemsLoading(student) ||
-                                isServiceItemsSaving(student)
-                              "
-                            />
-                            <span>{{ option }}</span>
-                          </label>
-                        </div>
-                      </div>
                       <small *ngIf="isServiceItemsLoading(student)" style="color:#7f8a9e;">
                         加载中...
                       </small>
@@ -1204,6 +1163,51 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         </table>
       </div>
 
+      <ng-container *ngIf="resolveServiceItemsPanelStudent() as serviceItemsPanelStudent">
+        <div
+          class="service-items-container service-items-overlay"
+          (click)="$event.stopPropagation()"
+          style="position:fixed;z-index:2300;width:156px;max-width:min(156px,calc(100vw - 48px));max-height:min(360px,calc(100vh - 24px));overflow-y:auto;padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#fff;box-shadow:0 14px 28px rgba(15,23,42,0.16);display:grid;gap:10px;"
+          [style.top.px]="serviceItemsPanelTop"
+          [style.bottom.px]="serviceItemsPanelBottom"
+          [style.left.px]="serviceItemsPanelLeft"
+        >
+          <div
+            style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#52607a;"
+          >
+            <span>逐项勾选服务项目</span>
+            <button
+              type="button"
+              (click)="toggleServiceItemsPanel(serviceItemsPanelStudent)"
+              style="border:none;background:transparent;color:#7f8a9e;padding:0;font-size:12px;cursor:pointer;"
+            >
+              收起
+            </button>
+          </div>
+          <div
+            style="display:grid;grid-template-columns:minmax(0,1fr);gap:8px;"
+          >
+            <label
+              *ngFor="let option of serviceItemOptions"
+              style="display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;font-weight:400;"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [ngModel]="isServiceItemSelectedForStudent(serviceItemsPanelStudent, option)"
+                (ngModelChange)="onServiceItemSelectionChange(serviceItemsPanelStudent, option, $event)"
+                [disabled]="
+                  !resolveStudentId(serviceItemsPanelStudent) ||
+                  isServiceItemsLoading(serviceItemsPanelStudent) ||
+                  isServiceItemsSaving(serviceItemsPanelStudent)
+                "
+              />
+              <span>{{ option }}</span>
+            </label>
+          </div>
+        </div>
+      </ng-container>
+
       <div
         *ngIf="actionError"
         style="margin-top:14px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;"
@@ -1402,6 +1406,9 @@ export class StudentManagementComponent implements OnInit {
   resetResult: PasswordResetResult | null = null;
   statusResult: StatusUpdateResult | null = null;
   serviceItemsPanelStudentId: number | null = null;
+  serviceItemsPanelTop: number | null = null;
+  serviceItemsPanelBottom: number | null = null;
+  serviceItemsPanelLeft = 12;
   private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
   private readonly teacherNoteCache = new Map<number, string>();
@@ -2755,6 +2762,20 @@ export class StudentManagementComponent implements OnInit {
         languageCourseStatus: nextStatus,
       })
       .pipe(
+        catchError((err: HttpErrorResponse) => {
+          if (!this.shouldRetryLanguageTrackingSave(err)) {
+            return throwError(() => err);
+          }
+
+          return this.ieltsApi.getTeacherStudentIeltsModuleState(studentId).pipe(
+            switchMap((state) =>
+              this.ieltsApi.updateTeacherStudentIeltsData(
+                studentId,
+                this.buildLanguageCourseStatusRetryPayload(state, nextStatus)
+              )
+            )
+          );
+        }),
         finalize(() => {
           this.languageCourseStatusSaveInFlight.delete(studentId);
           this.cdr.detectChanges();
@@ -3228,15 +3249,22 @@ export class StudentManagementComponent implements OnInit {
     return !!studentId && this.serviceItemsPanelStudentId === studentId;
   }
 
-  shouldServiceItemsPanelOpenUpward(student: StudentAccount): boolean {
-    const index = this.visibleStudents.findIndex(
-      (s) => this.resolveStudentId(s) === this.resolveStudentId(student)
-    );
-    if (index === -1) {
-      return false;
+  resolveServiceItemsPanelStudent(): StudentAccount | null {
+    const studentId = this.serviceItemsPanelStudentId;
+    if (!studentId) {
+      return null;
     }
-    // If it's one of the last 3 students, open upward to avoid clipping
-    return index >= this.visibleStudents.length - 3 && this.visibleStudents.length > 5;
+
+    const visibleMatch = this.visibleStudents.find(
+      (student) => this.resolveStudentId(student) === studentId
+    );
+    if (visibleMatch) {
+      return visibleMatch;
+    }
+
+    return (
+      this.students.find((student) => this.resolveStudentId(student) === studentId) || null
+    );
   }
 
   @HostListener('document:click', ['$event'])
@@ -3253,20 +3281,82 @@ export class StudentManagementComponent implements OnInit {
     // For now, closest('.service-items-container') is the primary check.
 
     if (!isInsideServiceItems) {
-      this.serviceItemsPanelStudentId = null;
+      this.closeServiceItemsPanel();
       this.cdr.detectChanges();
     }
   }
 
-  toggleServiceItemsPanel(student: StudentAccount): void {
+  toggleServiceItemsPanel(student: StudentAccount, event?: MouseEvent): void {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
       return;
     }
 
-    this.serviceItemsPanelStudentId =
-      this.serviceItemsPanelStudentId === studentId ? null : studentId;
+    if (this.serviceItemsPanelStudentId === studentId) {
+      this.closeServiceItemsPanel();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.serviceItemsPanelStudentId = studentId;
+
+    const triggerElement =
+      event?.currentTarget instanceof HTMLElement
+        ? event.currentTarget
+        : this.findServiceItemsTriggerElement(studentId);
+    this.updateServiceItemsPanelPosition(triggerElement);
+
     this.cdr.detectChanges();
+  }
+
+  private closeServiceItemsPanel(): void {
+    this.serviceItemsPanelStudentId = null;
+    this.serviceItemsPanelTop = null;
+    this.serviceItemsPanelBottom = null;
+  }
+
+  private findServiceItemsTriggerElement(studentId: number): HTMLElement | null {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    return document.querySelector(`[data-service-items-trigger-id="${studentId}"]`) as HTMLElement | null;
+  }
+
+  private updateServiceItemsPanelPosition(triggerElement: HTMLElement | null): void {
+    if (!triggerElement || typeof window === 'undefined') {
+      this.serviceItemsPanelTop = null;
+      this.serviceItemsPanelBottom = null;
+      this.serviceItemsPanelLeft = 12;
+      return;
+    }
+
+    const rect = triggerElement.getBoundingClientRect();
+    const panelWidth = 156;
+    const panelEstimatedHeight = 320;
+    const gap = 6;
+    const viewportPadding = 12;
+    const viewportWidth = window.innerWidth || 0;
+    const viewportHeight = window.innerHeight || 0;
+
+    const maxLeft = Math.max(viewportPadding, viewportWidth - panelWidth - viewportPadding);
+    this.serviceItemsPanelLeft = Math.round(Math.min(Math.max(rect.left, viewportPadding), maxLeft));
+
+    const shouldOpenUpward =
+      rect.bottom + gap + panelEstimatedHeight > viewportHeight &&
+      rect.top - gap > panelEstimatedHeight;
+
+    if (shouldOpenUpward) {
+      this.serviceItemsPanelTop = null;
+      this.serviceItemsPanelBottom = Math.round(
+        Math.max(viewportPadding, viewportHeight - rect.top + gap)
+      );
+      return;
+    }
+
+    const maxTop = Math.max(viewportPadding, viewportHeight - viewportPadding - 40);
+    this.serviceItemsPanelTop = Math.round(Math.min(Math.max(rect.bottom + gap, viewportPadding), maxTop));
+    this.serviceItemsPanelBottom = null;
   }
 
   isServiceItemSelectedForStudent(student: StudentAccount, item: string): boolean {
@@ -4888,6 +4978,17 @@ export class StudentManagementComponent implements OnInit {
       };
     }
 
+    const trackingStatus = this.ossltTrackingStatusCache.get(studentId);
+    if (trackingStatus) {
+      const trackingDisplay = resolveOssltStatusDisplay({ status: trackingStatus });
+      return {
+        label: trackingDisplay.label,
+        background: trackingDisplay.background,
+        textColor: trackingDisplay.textColor,
+        borderColor: trackingDisplay.borderColor,
+      };
+    }
+
     if (this.ossltStatusLoadInFlight.has(studentId)) {
       return {
         label: '加载中...',
@@ -5101,6 +5202,70 @@ export class StudentManagementComponent implements OnInit {
       languageScoreType,
       languageTrackingManualStatus: nextStatus,
     };
+  }
+
+  private buildLanguageCourseStatusRetryPayload(
+    state: StudentIeltsModuleState,
+    nextStatus: LanguageCourseStatus
+  ): UpdateStudentIeltsPayload {
+    const hasTaken = state.hasTakenIeltsAcademic;
+    const languageScoreTypeText = String(state.languageScoreType ?? '')
+      .trim()
+      .toUpperCase();
+    const languageScoreType =
+      languageScoreTypeText === 'TOEFL'
+        ? 'TOEFL'
+        : languageScoreTypeText === 'DUOLINGO'
+          ? 'DUOLINGO'
+          : languageScoreTypeText === 'OTHER'
+            ? 'OTHER'
+            : 'IELTS';
+    const records: IeltsRecordFormValue[] = Array.isArray(state.records) ? state.records : [];
+    const prepText = String(state.preparationIntent ?? '').trim().toUpperCase();
+    const preparationIntent: 'PREPARING' | 'NOT_PREPARING' | 'UNSET' =
+      prepText === 'PREPARING' || prepText === 'NOT_PREPARING'
+        ? (prepText as 'PREPARING' | 'NOT_PREPARING')
+        : 'UNSET';
+    const fallbackTrackingStatus = this.normalizeLanguageTrackingStatusValue(
+      state.languageScoreTrackingManualStatus ?? state.languageTrackingManualStatus
+    );
+
+    if (hasTaken === true) {
+      const payload: UpdateStudentIeltsPayload = {
+        languageScoreType,
+        hasTakenIeltsAcademic: true,
+        languageCourseStatus: nextStatus,
+      };
+      if (fallbackTrackingStatus) {
+        payload.languageTrackingManualStatus = fallbackTrackingStatus;
+      }
+      if (records.length > 0) {
+        payload.records = records;
+      }
+      return payload;
+    }
+
+    if (hasTaken === false) {
+      const payload: UpdateStudentIeltsPayload = {
+        languageScoreType,
+        hasTakenIeltsAcademic: false,
+        preparationIntent: preparationIntent === 'UNSET' ? 'PREPARING' : preparationIntent,
+        languageCourseStatus: nextStatus,
+      };
+      if (fallbackTrackingStatus) {
+        payload.languageTrackingManualStatus = fallbackTrackingStatus;
+      }
+      return payload;
+    }
+
+    const payload: UpdateStudentIeltsPayload = {
+      languageScoreType,
+      languageCourseStatus: nextStatus,
+    };
+    if (fallbackTrackingStatus) {
+      payload.languageTrackingManualStatus = fallbackTrackingStatus;
+    }
+    return payload;
   }
 
   private prefetchVisibleIeltsStatuses(): void {

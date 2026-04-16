@@ -15,7 +15,6 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
         <div class="dashboard-header">
           <div>
             <h2>教师工作台</h2>
-            <p>当前工作区与快捷入口</p>
           </div>
           <button
             type="button"

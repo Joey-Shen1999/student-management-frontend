@@ -28,10 +28,6 @@ interface TeacherOssltListRow {
         <button type="button" [routerLink]="['/teacher/dashboard']">返回教师工作台</button>
       </div>
 
-      <p style="margin:0;color:#5a6578;">
-        教师跟踪仅包含 3 种状态：等待更新、需要跟进、已通过。
-      </p>
-
       <div *ngIf="loading" style="padding:12px;border:1px solid #d8e2f3;border-radius:8px;background:#f7fbff;">
         正在加载学生...
       </div>

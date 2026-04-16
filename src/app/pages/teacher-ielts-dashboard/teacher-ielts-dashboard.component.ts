@@ -18,6 +18,8 @@ interface TeacherIeltsListRow {
   displayName: string;
   email: string;
   trackingStatus: IeltsTrackingStatus | null;
+  shouldShowModule: boolean | null;
+  colorToken: string | null;
 }
 
 @Component({
@@ -30,10 +32,6 @@ interface TeacherIeltsListRow {
         <h2 style="margin:0;">语言成绩跟踪</h2>
         <button type="button" [routerLink]="['/teacher/dashboard']">返回教师工作台</button>
       </div>
-
-      <p style="margin:0;color:#5a6578;">
-        该页面用于快速进入学生的语言成绩详情，监控学生语言成绩合规性。
-      </p>
 
       <div *ngIf="loading" style="padding:12px;border:1px solid #d8e2f3;border-radius:8px;background:#f7fbff;">
         正在加载学生...
@@ -65,9 +63,9 @@ interface TeacherIeltsListRow {
               <td style="padding:10px;border-bottom:1px solid #f0f3f8;text-align:center;">
                 <span
                   style="display:inline-flex;align-items:center;justify-content:center;min-width:140px;padding:2px 8px;border-radius:999px;border:1px solid;font-size:12px;font-weight:600;"
-                  [ngStyle]="resolveStatusStyle(row.trackingStatus)"
+                  [ngStyle]="resolveStatusStyle(row)"
                 >
-                  {{ resolveStatusLabel(row.trackingStatus) }}
+                  {{ resolveStatusLabel(row) }}
                 </span>
               </td>
               <td style="padding:10px;border-bottom:1px solid #f0f3f8;text-align:center;">
@@ -102,12 +100,20 @@ export class TeacherIeltsDashboardComponent implements OnInit {
 
   trackRow = (_index: number, row: TeacherIeltsListRow): number => row.studentId;
 
-  resolveStatusLabel(status: IeltsTrackingStatus | null): string {
-    return resolveIeltsStatusDisplay({ status }).label;
+  resolveStatusLabel(row: TeacherIeltsListRow): string {
+    return resolveIeltsStatusDisplay({
+      trackingStatus: row.trackingStatus,
+      shouldShowModule: row.shouldShowModule,
+      colorToken: row.colorToken,
+    }).label;
   }
 
-  resolveStatusStyle(status: IeltsTrackingStatus | null): Record<string, string> {
-    const display = resolveIeltsStatusDisplay({ status });
+  resolveStatusStyle(row: TeacherIeltsListRow): Record<string, string> {
+    const display = resolveIeltsStatusDisplay({
+      trackingStatus: row.trackingStatus,
+      shouldShowModule: row.shouldShowModule,
+      colorToken: row.colorToken,
+    });
     return {
       color: display.textColor,
       background: display.background,
@@ -174,6 +180,8 @@ export class TeacherIeltsDashboardComponent implements OnInit {
       displayName: this.resolveDisplayName(student),
       email: String(student?.email || '').trim(),
       trackingStatus: null,
+      shouldShowModule: null,
+      colorToken: null,
     };
   }
 
@@ -183,19 +191,37 @@ export class TeacherIeltsDashboardComponent implements OnInit {
   ): TeacherIeltsListRow[] {
     if (rows.length <= 0 || summaries.length <= 0) return rows;
 
-    const trackingByStudentId = new Map<number, IeltsTrackingStatus>();
+    const summaryByStudentId = new Map<
+      number,
+      {
+        trackingStatus: IeltsTrackingStatus | null;
+        shouldShowModule: boolean | null;
+        colorToken: string | null;
+      }
+    >();
+
     for (const item of summaries) {
       const studentId = Number(item?.studentId);
       if (!Number.isFinite(studentId) || studentId <= 0) continue;
-      const status = item?.summary?.trackingStatus;
-      if (!status) continue;
-      trackingByStudentId.set(Math.trunc(studentId), status);
+      summaryByStudentId.set(Math.trunc(studentId), {
+        trackingStatus: item?.summary?.trackingStatus ?? null,
+        shouldShowModule:
+          typeof item?.summary?.shouldShowModule === 'boolean' ? item.summary.shouldShowModule : null,
+        colorToken: String(item?.summary?.colorToken || '').trim() || null,
+      });
     }
 
-    return rows.map((row) => ({
-      ...row,
-      trackingStatus: trackingByStudentId.get(row.studentId) ?? row.trackingStatus,
-    }));
+    return rows.map((row) => {
+      const summary = summaryByStudentId.get(row.studentId);
+      if (!summary) return row;
+
+      return {
+        ...row,
+        trackingStatus: summary.trackingStatus,
+        shouldShowModule: summary.shouldShowModule,
+        colorToken: summary.colorToken,
+      };
+    });
   }
 
   private resolveDisplayName(student: StudentAccount): string {

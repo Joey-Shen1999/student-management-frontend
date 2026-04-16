@@ -1,6 +1,6 @@
 <div class="page">
   <div class="header">
-    <h2>任务系统</h2>
+    <h2>Task系统</h2>
     <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
   </div>
 
@@ -11,7 +11,7 @@
       (click)="openCreatePanel()"
       [disabled]="creating"
     >
-      <span>新建任务</span>
+      <span>新建 Task</span>
     </button>
 
     <div
@@ -27,7 +27,7 @@
             </button>
             <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
           </div>
-          <strong class="create-modal-title">{{ isEditMode ? '编辑任务' : '新建任务' }}</strong>
+          <strong class="create-modal-title">{{ isEditMode ? '编辑 Task' : '新建 Task' }}</strong>
           <button
             type="button"
             class="modal-close-btn"
@@ -113,12 +113,12 @@
           ></app-student-selector-panel>
 
           <div class="form">
-            <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="任务标题" />
+            <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="Task标题" />
             <textarea
               [(ngModel)]="createDescription"
               [disabled]="creating"
               rows="3"
-              placeholder="任务描述"
+              placeholder="Task描述"
             ></textarea>
             <input type="date" [(ngModel)]="createDueAt" [disabled]="creating" />
           </div>
@@ -132,7 +132,7 @@
 
   <section class="card">
     <div class="tools">
-      <h3>已发布任务</h3>
+      <h3>已发布 Task</h3>
       <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
         <option [ngValue]="null">全部学生</option>
         <option
@@ -144,9 +144,9 @@
       </select>
       <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
         <option value="ALL">全部状态</option>
-        <option value="NOT_STARTED">未开始</option>
-        <option value="IN_PROGRESS">进行中</option>
-        <option value="COMPLETED">已完成</option>
+        <option value="NOT_STARTED">Not Started</option>
+        <option value="IN_PROGRESS">In Progress</option>
+        <option value="COMPLETED">Completed</option>
       </select>
       <input type="search" [(ngModel)]="filterKeyword" [disabled]="goalsLoading" placeholder="关键字" />
       <button type="button" (click)="applyFilters()" [disabled]="goalsLoading">查询</button>
@@ -154,9 +154,9 @@
       <button type="button" (click)="refreshGoals()" [disabled]="goalsLoading">刷新</button>
     </div>
 
-    <div *ngIf="goalsLoading" class="state-text">正在加载任务...</div>
+    <div *ngIf="goalsLoading" class="state-text">正在加载 Task...</div>
     <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
-    <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">暂无任务。</div>
+    <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">暂无 Task。</div>
 
     <article
       class="goal-item"
@@ -187,21 +187,21 @@
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
           [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'NOT_STARTED'"
         >
-          未开始
+          Not Started
         </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')"
           [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'IN_PROGRESS'"
         >
-          进行中
+          In Progress
         </button>
         <button
           type="button"
           (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')"
           [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'COMPLETED'"
         >
-          完成
+          Completed
         </button>
       </div>
     </article>

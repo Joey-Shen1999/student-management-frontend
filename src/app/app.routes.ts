@@ -155,16 +155,16 @@ export const routes: Routes = [
       {
         path: 'ielts',
         loadComponent: () =>
-          import('./pages/teacher-ielts-dashboard/teacher-ielts-dashboard.component').then(
-            (m) => m.TeacherIeltsDashboardComponent
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
           ),
       },
 
       {
         path: 'osslt',
         loadComponent: () =>
-          import('./pages/teacher-osslt-dashboard/teacher-osslt-dashboard.component').then(
-            (m) => m.TeacherOssltDashboardComponent
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
           ),
       },
 

@@ -37,7 +37,7 @@ import {
 
         <section class="dashboard-card">
           <div class="section-head">
-            <h3>近期任务</h3>
+            <h3>近期 Task</h3>
             <button
               type="button"
               class="action-btn ghost compact"
@@ -48,7 +48,7 @@ import {
             </button>
           </div>
 
-          <div *ngIf="goalLoading" class="state-text">正在加载目标任务...</div>
+          <div *ngIf="goalLoading" class="state-text">正在加载 Task...</div>
 
           <div *ngIf="!goalLoading && goalError" class="error-banner">
             <span>{{ goalError }}</span>
@@ -56,7 +56,7 @@ import {
           </div>
 
           <div *ngIf="!goalLoading && !goalError && goalItems.length === 0" class="state-text">
-            当前没有任务。
+            当前没有 Task。
           </div>
 
           <div *ngIf="!goalLoading && !goalError && goalItems.length > 0" class="goal-list">
@@ -82,7 +82,7 @@ import {
                   (click)="startGoal(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
-                  {{ updatingGoalId === goal.id ? '处理中...' : '开始任务' }}
+                  {{ updatingGoalId === goal.id ? '处理中...' : 'Start Task' }}
                 </button>
 
                 <button
@@ -92,7 +92,7 @@ import {
                   (click)="markGoalCompleted(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
-                  {{ updatingGoalId === goal.id ? '处理中...' : '标记完成' }}
+                  {{ updatingGoalId === goal.id ? '处理中...' : 'Mark Completed' }}
                 </button>
 
                 <button
@@ -102,7 +102,7 @@ import {
                   (click)="reopenGoal(goal)"
                   [disabled]="updatingGoalId === goal.id"
                 >
-                  {{ updatingGoalId === goal.id ? '处理中...' : '重新打开' }}
+                  {{ updatingGoalId === goal.id ? '处理中...' : 'Reopen' }}
                 </button>
               </div>
             </article>
@@ -400,9 +400,9 @@ export class DashboardComponent implements OnInit {
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
 
   goalStatusLabel(status: GoalTaskStatus): string {
-    if (status === 'NOT_STARTED') return '未开始';
-    if (status === 'IN_PROGRESS') return '进行中';
-    return '已完成';
+    if (status === 'NOT_STARTED') return 'Not Started';
+    if (status === 'IN_PROGRESS') return 'In Progress';
+    return 'Completed';
   }
 
   goalStatusClass(status: GoalTaskStatus): string {
@@ -496,7 +496,7 @@ export class DashboardComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.goalError = this.extractErrorMessage(error) || '加载目标任务失败。';
+          this.goalError = this.extractErrorMessage(error) || '加载 Task 失败。';
           this.goalItems = [];
           this.cdr.detectChanges();
         },
@@ -583,7 +583,7 @@ export class DashboardComponent implements OnInit {
     this.taskCenter
       .updateMyGoalStatus(goal.id, {
         status,
-        progressNote: status === 'COMPLETED' ? '学生已在主页面标记完成。' : goal.progressNote,
+        progressNote: status === 'COMPLETED' ? '学生已在主页面标记 Completed。' : goal.progressNote,
       })
       .pipe(
         finalize(() => {
@@ -600,7 +600,7 @@ export class DashboardComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.goalError = this.extractErrorMessage(error) || '更新任务状态失败。';
+          this.goalError = this.extractErrorMessage(error) || '更新 Task 状态失败。';
           this.cdr.detectChanges();
         },
       });

@@ -1,70 +1,74 @@
 <form (submit)="submit($event)" style="max-width:600px;margin:40px auto;font-family:Arial">
-  <h2>创建账号</h2>
+  <h2>{{ ui.title | appTranslate }}</h2>
 
   @if (inviteToken) {
     <div style="margin:12px 0;padding:12px;border:1px solid #d8e6ff;background:#f7faff;border-radius:8px;">
-      <div style="font-weight:bold;">邀请注册</div>
-      <div style="margin-top:6px;color:#555;">该链接仅可注册一个新的学生账号。</div>
+      <div style="font-weight:bold;">{{ ui.inviteTitle | appTranslate }}</div>
+      <div style="margin-top:6px;color:#555;">{{ ui.inviteDescription | appTranslate }}</div>
 
       @if (inviteValidationLoading) {
-        <div style="margin-top:6px;color:#555;">正在校验邀请链接...</div>
+        <div style="margin-top:6px;color:#555;">{{ ui.inviteValidating | appTranslate }}</div>
       }
 
       @if (!inviteValidationLoading && inviteValidationError) {
-        <div style="margin-top:6px;color:#b00020;">{{ inviteValidationError }}</div>
+        <div style="margin-top:6px;color:#b00020;">{{ inviteValidationError | appTranslate }}</div>
       }
 
       @if (!inviteValidationLoading && !inviteValidationError) {
         @if (invitePreview?.expiresAt) {
-          <div style="margin-top:6px;color:#555;"><b>过期时间：</b> {{ invitePreview?.expiresAt }}</div>
+          <div style="margin-top:6px;color:#555;">
+            <b>{{ ui.inviteExpiresAt | appTranslate }}:</b> {{ invitePreview?.expiresAt }}
+          </div>
         }
       }
     </div>
   }
   @if (!inviteToken) {
     <div style="margin:12px 0;padding:12px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;">
-      {{ inviteValidationError || inviteRequiredMessage }}
+      {{ (inviteValidationError || inviteRequiredMessage) | appTranslate }}
     </div>
   }
 
   <div style="margin:12px 0;">
-    <label>用户名</label>
+    <label>{{ ui.username | appTranslate }}</label>
     <input [(ngModel)]="username" name="username" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>密码</label>
+    <label>{{ ui.password | appTranslate }}</label>
     <input [(ngModel)]="password" name="password" type="password" style="width:100%; padding:8px;" />
     <div style="margin-top:8px; padding:10px; border:1px solid #e2e2e2; border-radius:6px; background:#fafafa;">
-      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">密码要求</div>
+      <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">
+        {{ ui.passwordPolicy | appTranslate }}
+      </div>
       <div *ngFor="let check of passwordChecks" style="font-size:13px; line-height:1.5;">
         <span [style.color]="check.pass ? '#0b6b0b' : '#b00020'">
           {{ check.pass ? '\u2713' : '\u2717' }}
         </span>
-        {{ check.label }}
+        {{ check.label | appTranslate }}
       </div>
     </div>
   </div>
 
   <div style="margin:12px 0;">
-    <label>确认密码</label>
+    <label>{{ ui.confirmPassword | appTranslate }}</label>
     <input [(ngModel)]="confirmPassword" name="confirmPassword" type="password" style="width:100%; padding:8px;" />
   </div>
 
-  <h3 style="margin-top:18px;">学生信息</h3>
+  <h3 style="margin-top:18px;">{{ ui.studentInfo | appTranslate }}</h3>
 
   <div style="margin:12px 0;">
-    <label>姓</label>
+    <label>{{ ui.lastName | appTranslate }}</label>
     <input [(ngModel)]="lastName" name="lastName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>名</label>
+    <label>{{ ui.firstName | appTranslate }}</label>
     <input [(ngModel)]="firstName" name="firstName" style="width:100%; padding:8px;" />
   </div>
 
   <div style="margin:12px 0;">
-    <label>常用名</label>
+    <label>{{ ui.preferredName | appTranslate }}</label>
     <input [(ngModel)]="preferredName" name="preferredName" style="width:100%; padding:8px;" />
   </div>
 
@@ -73,18 +77,18 @@
     [disabled]="loading || !inviteToken || inviteValidationLoading || !!inviteValidationError"
     style="padding:10px 14px; margin-top:12px;"
   >
-    {{ loading ? '注册中...' : '创建账号' }}
+    {{ (loading ? ui.creatingAccount : ui.createAccount) | appTranslate }}
   </button>
 
   @if (error) {
-    <p style="color:red; margin-top:12px;">{{ error }}</p>
+    <p style="color:red; margin-top:12px;">{{ error | appTranslate }}</p>
   }
   @if (success) {
-    <p style="color:green; margin-top:12px;">{{ success }}</p>
+    <p style="color:green; margin-top:12px;">{{ success | appTranslate }}</p>
   }
 
   <p style="margin-top:16px;">
-    已有账号？
-    <a routerLink="/login">去登录</a>
+    {{ ui.alreadyHaveAccount | appTranslate }}
+    <a routerLink="/login">{{ ui.goToLogin | appTranslate }}</a>
   </p>
 </form>

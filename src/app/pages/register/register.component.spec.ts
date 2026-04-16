@@ -1,6 +1,7 @@
+import '@angular/compiler';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
 import { RegisterComponent } from './register.component';
@@ -48,7 +49,10 @@ describe('RegisterComponent', () => {
 
     component.submit();
 
-    expect(component.error).toContain('密码不符合要求');
+    expect(component.error).toMatchObject({
+      zh: expect.stringContaining('密码不符合要求'),
+      en: expect.stringContaining('Password does not meet the requirements'),
+    });
     expect(auth.register).not.toHaveBeenCalled();
   });
 
@@ -59,7 +63,7 @@ describe('RegisterComponent', () => {
 
     component.submit();
 
-    expect(component.error).toBe('两次输入的密码不一致。');
+    expect(component.error).toEqual(component.ui.passwordMismatch);
     expect(auth.register).not.toHaveBeenCalled();
   });
 
@@ -91,7 +95,7 @@ describe('RegisterComponent', () => {
       lastName: 'Zhang',
       preferredName: 'Ali',
     });
-    expect(component.success).toBe('账号创建成功，正在跳转到登录页...');
+    expect(component.success).toEqual(component.ui.registrationSuccess);
 
     vi.advanceTimersByTime(600);
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
@@ -151,7 +155,7 @@ describe('RegisterComponent', () => {
     component.confirmPassword = 'Aa1!goodPass';
     component.submit();
 
-    expect(component.error).toBe('缺少邀请链接，无法注册。请联系老师获取邀请链接。');
+    expect(component.error).toEqual(component.ui.inviteRequiredMessage);
     expect(auth.register).not.toHaveBeenCalled();
   });
 });

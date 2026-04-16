@@ -1562,6 +1562,85 @@ describe('StudentManagementComponent', () => {
     expect(component.resolveLanguageTrackingStatusSelection(student)).toBe('AUTO_PASS_ALL_SCHOOLS');
   });
 
+  it('language course status column should allow teacher to save selected status', () => {
+    const student = { studentId: 302, username: 'student302', status: 'ACTIVE' } as any;
+    component.students = [student];
+    (component as any).languageCourseStatusCache.set(302, 'ENROLLED_GLOBAL_IELTS');
+
+    component.onLanguageCourseStatusSelectionChange(student, 'EXAM_REGISTERED');
+
+    expect(ieltsApi.updateTeacherStudentIeltsData).toHaveBeenCalledWith(
+      302,
+      expect.objectContaining({
+        languageCourseStatus: 'EXAM_REGISTERED',
+      })
+    );
+    expect(component.resolveLanguageCourseStatusSelection(student)).toBe('EXAM_REGISTERED');
+  });
+
+  it('language course status save should retry with expanded payload after validation failure', () => {
+    const student = { studentId: 303, username: 'student303', status: 'ACTIVE' } as any;
+    component.students = [student];
+    (component as any).languageCourseStatusCache.set(303, 'ENROLLED_GLOBAL_IELTS');
+
+    const validationError = new HttpErrorResponse({
+      status: 400,
+      error: { message: 'Validation failed.' },
+    });
+
+    (ieltsApi.getTeacherStudentIeltsModuleState as any).mockReturnValue(
+      of({
+        studentId: 303,
+        graduationYear: 2027,
+        languageScoreType: 'IELTS',
+        hasTakenIeltsAcademic: false,
+        preparationIntent: 'PREPARING',
+        languageTrackingManualStatus: 'NEEDS_TRACKING',
+        records: [],
+        languageRisk: { shouldShowIeltsModule: true },
+        updatedAt: null,
+      })
+    );
+
+    (ieltsApi.updateTeacherStudentIeltsData as any)
+      .mockImplementationOnce(() => throwError(() => validationError))
+      .mockImplementationOnce((studentId: number, payload: any) =>
+        of({
+          studentId,
+          graduationYear: 2027,
+          languageScoreType: payload?.languageScoreType ?? 'IELTS',
+          hasTakenIeltsAcademic: payload?.hasTakenIeltsAcademic ?? false,
+          preparationIntent: payload?.preparationIntent ?? 'PREPARING',
+          languageTrackingManualStatus: payload?.languageTrackingManualStatus ?? 'NEEDS_TRACKING',
+          languageCourseStatus: payload?.languageCourseStatus ?? 'EXAM_REGISTERED',
+          records: payload?.records ?? [],
+          languageRisk: { shouldShowIeltsModule: true },
+          updatedAt: null,
+        })
+      );
+
+    component.onLanguageCourseStatusSelectionChange(student, 'EXAM_REGISTERED');
+
+    expect(ieltsApi.getTeacherStudentIeltsModuleState).toHaveBeenCalledWith(303);
+    expect((ieltsApi.updateTeacherStudentIeltsData as any).mock.calls[0]).toEqual([
+      303,
+      expect.objectContaining({
+        languageCourseStatus: 'EXAM_REGISTERED',
+      }),
+    ]);
+    expect((ieltsApi.updateTeacherStudentIeltsData as any).mock.calls[1]).toEqual([
+      303,
+      expect.objectContaining({
+        languageScoreType: 'IELTS',
+        hasTakenIeltsAcademic: false,
+        preparationIntent: 'PREPARING',
+        languageTrackingManualStatus: 'NEEDS_TRACKING',
+        languageCourseStatus: 'EXAM_REGISTERED',
+      }),
+    ]);
+    expect(component.resolveLanguageCourseStatusSelection(student)).toBe('EXAM_REGISTERED');
+  });
+
   it('column visibility should keep IELTS independent when profile toggles', () => {
     component.onColumnVisibilityChange('profile', {
       target: { checked: false },

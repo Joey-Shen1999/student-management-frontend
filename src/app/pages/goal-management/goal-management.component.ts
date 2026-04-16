@@ -417,7 +417,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (this.creating) return;
     const taskGroupId = this.resolveGoalTaskGroupId(goal);
     if (!taskGroupId) {
-      this.createError = '当前任务缺少 taskGroupId，无法进入编辑模式。';
+      this.createError = '当前 Task 缺少 taskGroupId，无法进入编辑模式。';
       this.createSuccess = '';
       this.cdr.detectChanges();
       return;
@@ -968,9 +968,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
 
     const title = this.createTitle.trim();
-    if (!title) { this.createError = '请填写任务标题。'; this.createSuccess = ''; return; }
+    if (!title) { this.createError = '请填写 Task 标题。'; this.createSuccess = ''; return; }
     const description = this.createDescription.trim();
-    if (!description) { this.createError = '请填写任务描述。'; this.createSuccess = ''; return; }
+    if (!description) { this.createError = '请填写 Task 描述。'; this.createSuccess = ''; return; }
 
     const dueAt = this.createDueAt.trim() || null;
     if (this.isEditMode) {
@@ -1006,8 +1006,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         if (first) this.selectedGoalId = first.id;
         this.createSuccess =
           rows.length === 1
-            ? `任务已创建：#${first?.id || ''} ${first?.title || ''}`.trim()
-            : `任务已为 ${rows.length} 位学生发布。`;
+            ? `Task已创建：#${first?.id || ''} ${first?.title || ''}`.trim()
+            : `Task已为 ${rows.length} 位学生发布。`;
         this.createTitle = '';
         this.createDescription = '';
         this.createDueAt = '';
@@ -1016,7 +1016,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.loadGoals();
       },
       error: (error: unknown) => {
-        this.createError = this.extractErrorMessage(error) || '发布任务失败。';
+        this.createError = this.extractErrorMessage(error) || '发布 Task 失败。';
         this.cdr.detectChanges();
       },
     });
@@ -1033,9 +1033,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
     const infoRequest: CreateInfoRequestVm = {
       category: 'ACTIVITY',
-      title: `任务更新：${title}`,
+      title: `Task更新：${title}`,
       content: this.buildGoalUpdateInfoContent(title, description, dueAt),
-      tags: ['任务系统', '任务更新'],
+      tags: ['Task系统', 'Task更新'],
       studentIds: selectedIds,
       taskGroupId: editingTaskGroupId,
     };
@@ -1078,13 +1078,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
             this.selectedGoalId = selectedInGroup.id;
           }
           this.createSuccess = info
-            ? `任务已更新，并已覆盖通知：#${info.id}（覆盖 ${selectedIds.length} 人）`
-            : `任务已更新（覆盖 ${selectedIds.length} 人），但通知覆盖失败。`;
+            ? `Task已更新，并已覆盖通知：#${info.id}（覆盖 ${selectedIds.length} 人）`
+            : `Task已更新（覆盖 ${selectedIds.length} 人），但通知覆盖失败。`;
           this.createError = notifyError || '';
           this.loadGoals();
         },
         error: (error: unknown) => {
-          this.createError = this.extractErrorMessage(error) || '更新任务失败。';
+          this.createError = this.extractErrorMessage(error) || '更新 Task 失败。';
           this.cdr.detectChanges();
         },
       });
@@ -1096,7 +1096,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     dueAt: string | null
   ): string {
     const dueText = dueAt || '无截止日期';
-    return `任务《${title}》已更新。\n任务描述：${description}\n截止日期：${dueText}`;
+    return `Task《${title}》已更新。\nTask描述：${description}\n截止日期：${dueText}`;
   }
 
   private resolveGoalTaskGroupId(goal: GoalTaskVm | null | undefined): string {
@@ -1149,7 +1149,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (group.studentCount <= 1) {
       return baseStatus;
     }
-    return `${baseStatus}（${group.completedCount}/${group.studentCount} 完成）`;
+    return `${baseStatus}（${group.completedCount}/${group.studentCount} Completed）`;
   }
 
   goalGroupStudentLabel(group: GoalGroupRowVm): string {
@@ -1176,7 +1176,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         concatMap((goal) =>
           this.taskCenter.updateTeacherGoalStatus(goal.id, {
             status,
-            progressNote: status === 'COMPLETED' ? '老师已在任务系统页标记完成。' : goal.progressNote,
+            progressNote: status === 'COMPLETED' ? '老师已在 Task 系统页标记 Completed。' : goal.progressNote,
           })
         ),
         toArray(),
@@ -1197,7 +1197,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.updateError = this.extractErrorMessage(error) || '更新任务状态失败。';
+          this.updateError = this.extractErrorMessage(error) || '更新 Task 状态失败。';
           this.cdr.detectChanges();
         },
       });
@@ -1205,7 +1205,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   trackStudent = (_: number, student: AssignableStudentOptionVm): number => student.studentId;
   trackGoal = (_: number, group: GoalGroupRowVm): string => group.taskGroupKey;
-  goalStatusLabel(status: GoalTaskStatus): string { if (status === 'NOT_STARTED') return '未开始'; if (status === 'IN_PROGRESS') return '进行中'; return '已完成'; }
+  goalStatusLabel(status: GoalTaskStatus): string { if (status === 'NOT_STARTED') return 'Not Started'; if (status === 'IN_PROGRESS') return 'In Progress'; return 'Completed'; }
   displayDueAt(goal: GoalTaskVm): string { if (!goal.dueAt) return '无截止日期'; const ts = Date.parse(goal.dueAt); return Number.isFinite(ts) ? new Date(ts).toLocaleDateString() : goal.dueAt; }
   displayUpdatedAt(value: string): string { const ts = Date.parse(value); return Number.isFinite(ts) ? new Date(ts).toLocaleString() : value; }
 
@@ -1312,7 +1312,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }).pipe(finalize(() => { this.goalsLoading = false; this.cdr.detectChanges(); }))
       .subscribe({
         next: (resp) => { this.goals = this.sortGoals(resp.items || []); if (this.selectedGoalId && !this.goals.some((row) => row.id === this.selectedGoalId)) this.selectedGoalId = this.goals.length > 0 ? this.goals[0].id : null; if (!this.selectedGoalId && this.goals.length > 0) this.selectedGoalId = this.goals[0].id; this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || '加载任务列表失败。'; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || '加载 Task 列表失败。'; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
       });
   }
 

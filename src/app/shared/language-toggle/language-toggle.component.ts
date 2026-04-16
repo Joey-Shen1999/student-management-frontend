@@ -15,10 +15,11 @@ import { AppLanguage } from '../i18n/ui-translations';
         class="language-option"
         [class.active]="language.language() === 'zh'"
         [attr.aria-pressed]="language.language() === 'zh'"
-        title="切换到中文"
+        title="\u5207\u6362\u5230\u4e2d\u6587"
+        aria-label="\u5207\u6362\u5230\u4e2d\u6587"
         (click)="setLanguage('zh')"
       >
-        中文
+        \u4e2d\u6587
       </button>
       <button
         type="button"
@@ -26,9 +27,10 @@ import { AppLanguage } from '../i18n/ui-translations';
         [class.active]="language.language() === 'en'"
         [attr.aria-pressed]="language.language() === 'en'"
         title="Switch to English"
+        aria-label="Switch to English"
         (click)="setLanguage('en')"
       >
-        EN
+        English
       </button>
     </div>
   `,
@@ -55,6 +57,7 @@ import { AppLanguage } from '../i18n/ui-translations';
         border-radius: 999px;
         background: transparent;
         color: #5a677c;
+        min-width: 44px;
         padding: 6px 10px;
         font-size: 12px;
         font-weight: 700;

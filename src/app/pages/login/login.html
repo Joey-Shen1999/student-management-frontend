@@ -1,8 +1,10 @@
 <div style="max-width: 360px; margin: 60px auto; font-family: Arial">
-  <h2>登录</h2>
+  <h2>{{ ui.title | appTranslate }}</h2>
 
   <form (ngSubmit)="onSubmit()" autocomplete="on">
-    <label for="login-username" style="display: block; margin: 12px 0 6px">用户名</label>
+    <label for="login-username" style="display: block; margin: 12px 0 6px">
+      {{ ui.username | appTranslate }}
+    </label>
     <input
       id="login-username"
       [(ngModel)]="username"
@@ -14,7 +16,9 @@
       spellcheck="false"
     />
 
-    <label for="login-password" style="display: block; margin: 12px 0 6px">密码</label>
+    <label for="login-password" style="display: block; margin: 12px 0 6px">
+      {{ ui.password | appTranslate }}
+    </label>
     <input
       id="login-password"
       [(ngModel)]="password"
@@ -26,12 +30,12 @@
 
     <label style="display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px">
       <input [(ngModel)]="rememberUsername" name="rememberUsername" type="checkbox" />
-      记住用户名（30天）
+      {{ ui.rememberUsername | appTranslate }}
     </label>
 
     <label style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px">
       <input [(ngModel)]="rememberPassword" name="rememberPassword" type="checkbox" />
-      记住密码（30天）
+      {{ ui.rememberPassword | appTranslate }}
     </label>
 
     <button
@@ -39,13 +43,15 @@
       [disabled]="loading"
       style="margin-top: 14px; padding: 10px 14px; width: 100%"
     >
-      {{ loading ? '登录中...' : '登录' }}
+      {{ (loading ? ui.signingIn : ui.signIn) | appTranslate }}
     </button>
   </form>
 
-  <div *ngIf="loading" style="margin-top: 12px; color: #666">请求处理中...</div>
+  <div *ngIf="loading" style="margin-top: 12px; color: #666">
+    {{ ui.processing | appTranslate }}
+  </div>
 
   <p *ngIf="error" style="color: #b00020; margin-top: 12px">
-    {{ error }}
+    {{ error | appTranslate }}
   </p>
 </div>

@@ -40,7 +40,7 @@ interface StatusUpdateResult {
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">教师账号管理</h2>
+        <h2 style="margin:0;">Teacher账号管理</h2>
         <button type="button" routerLink="/teacher/dashboard" class="teacher-back-btn" style="margin-left:auto;">
           返回
         </button>
@@ -53,7 +53,7 @@ interface StatusUpdateResult {
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;">
           <span style="color:#666;font-size:13px;">总数：{{ teachers.length }}</span>
-          <button type="button" routerLink="/teacher/invites">新增教师</button>
+          <button type="button" routerLink="/teacher/invites">新增Teacher</button>
         </div>
       </div>
 
@@ -87,7 +87,7 @@ interface StatusUpdateResult {
           </label>
 
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? '隐藏已归档' : '显示已归档' }}
+            {{ showInactive ? '隐藏已' : '显示已' }}
           </button>
 
           <input

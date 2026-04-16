@@ -1,11 +1,48 @@
-import { ChangeDetectorRef } from '@angular/core';
+import '@angular/compiler';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import { vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthService } from '../../services/auth.service';
 import { Login } from './login';
+import { AuthService } from '../../services/auth.service';
+
+const cookieStore = new Map<string, string>();
+const originalDocument = globalThis.document;
+
+const documentMock = {};
+Object.defineProperty(documentMock, 'cookie', {
+  configurable: true,
+  get() {
+    return Array.from(cookieStore.entries())
+      .map(([name, value]) => `${name}=${value}`)
+      .join('; ');
+  },
+  set(value: string) {
+    const segments = String(value || '')
+      .split(';')
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const pair = segments[0] || '';
+    const separatorIndex = pair.indexOf('=');
+    if (separatorIndex <= 0) {
+      return;
+    }
+
+    const name = pair.slice(0, separatorIndex);
+    const cookieValue = pair.slice(separatorIndex + 1);
+    const expires = segments.find((segment) => segment.toLowerCase().startsWith('expires='));
+    const expired = expires?.toLowerCase().includes('1970') || cookieValue === '';
+
+    if (expired) {
+      cookieStore.delete(name);
+      return;
+    }
+
+    cookieStore.set(name, cookieValue);
+  },
+});
 
 function getCookie(name: string): string {
   const target = `${name}=`;
@@ -33,7 +70,15 @@ describe('Login', () => {
   let router: Pick<Router, 'navigate'>;
   let cdr: Pick<ChangeDetectorRef, 'detectChanges'>;
 
+  beforeAll(() => {
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: documentMock,
+    });
+  });
+
   beforeEach(() => {
+    cookieStore.clear();
     clearCookie('sm_remember_username');
     clearCookie('sm_remember_password');
 
@@ -53,8 +98,16 @@ describe('Login', () => {
   });
 
   afterEach(() => {
+    cookieStore.clear();
     clearCookie('sm_remember_username');
     clearCookie('sm_remember_password');
+  });
+
+  afterAll(() => {
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: originalDocument,
+    });
   });
 
   it('should enable remember options by default', () => {
@@ -86,7 +139,7 @@ describe('Login', () => {
 
     component.onSubmit();
 
-    expect(component.error).toBe('请输入用户名和密码。');
+    expect(component.error).toEqual(component.ui.emptyCredentials);
     expect(auth.login).not.toHaveBeenCalled();
   });
 
@@ -385,6 +438,6 @@ describe('Login', () => {
     component.password = 'Aa1!goodPass';
     component.onSubmit();
 
-    expect(component.error).toBe('该账号已归档，请联系管理员启用。');
+    expect(component.error).toEqual(component.ui.archivedAccount);
   });
 });

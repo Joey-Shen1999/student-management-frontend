@@ -6,6 +6,7 @@ import { filter, finalize } from 'rxjs/operators';
 import { AppLanguageService } from './services/app-language.service';
 import { AuthService } from './services/auth.service';
 import { LegacyUiTranslationService } from './shared/i18n/legacy-ui-translation.service';
+import { uiText } from './shared/i18n/ui-translations';
 import { LanguageToggleComponent } from './shared/language-toggle/language-toggle.component';
 
 @Component({
@@ -59,7 +60,9 @@ export class App {
   }
 
   get globalSignOutLabel(): string {
-    return this.language.translate(this.signingOut ? '退出中...' : '退出登录');
+    return this.language.translate(
+      this.signingOut ? uiText('退出中...', 'Signing out...') : uiText('退出登录', 'Sign Out')
+    );
   }
 
   private refreshSignOutVisibility(url: string): void {

@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { effect, Inject, Injectable, signal } from '@angular/core';
 
-import { AppLanguage, translateUiText } from '../shared/i18n/ui-translations';
+import { AppLanguage, LocalizedText, translateUiText } from '../shared/i18n/ui-translations';
 
 @Injectable({ providedIn: 'root' })
 export class AppLanguageService {
@@ -33,11 +33,11 @@ export class AppLanguageService {
   }
 
   toggleLanguage(): void {
-    this.language.update((current) => (current === 'en' ? 'zh' : 'en'));
+    this.language.update((current) => (current === 'zh' ? 'en' : 'zh'));
   }
 
-  translate(value: string | null | undefined): string {
-    return translateUiText(String(value ?? ''), this.language());
+  translate(value: string | LocalizedText | null | undefined): string {
+    return translateUiText(value, this.language());
   }
 
   locale(): string {
@@ -50,6 +50,15 @@ export class AppLanguageService {
     }
 
     const stored = String(localStorage.getItem(this.storageKey) || '').trim().toLowerCase();
-    return stored === 'en' ? 'en' : 'zh';
+    if (stored === 'zh' || stored === 'en') {
+      return stored;
+    }
+
+    // Migration: previous versions used "both" for bilingual mode.
+    if (stored === 'both') {
+      return 'zh';
+    }
+
+    return 'zh';
   }
 }

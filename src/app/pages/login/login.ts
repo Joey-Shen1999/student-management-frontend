@@ -1,23 +1,42 @@
 import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 
-import { AuthService } from '../../services/auth.service';
 import type { LoginResponse } from '../../services/auth.service';
+import { AuthService } from '../../services/auth.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './login.html',
 })
 export class Login implements OnInit {
+  readonly ui = {
+    title: uiText('登录', 'Log In'),
+    username: uiText('用户名', 'Username'),
+    password: uiText('密码', 'Password'),
+    rememberUsername: uiText('记住用户名（30天）', 'Remember Username (30 days)'),
+    rememberPassword: uiText('记住密码（30天）', 'Remember Password (30 days)'),
+    signIn: uiText('登录', 'Log In'),
+    signingIn: uiText('登录中...', 'Signing in...'),
+    processing: uiText('请求处理中...', 'Processing request...'),
+    emptyCredentials: uiText('请输入用户名和密码。', 'Please enter your username and password.'),
+    loginFailed: uiText('登录失败。', 'Log in failed.'),
+    archivedAccount: uiText(
+      '该账号已归档，请联系管理员启用。',
+      'This account has been archived. Please contact an administrator to reactivate it.'
+    ),
+  };
+
   username = '';
   password = '';
-  error = '';
+  error: string | LocalizedText = '';
   loading = false;
   rememberUsername = true;
   rememberPassword = true;
@@ -56,7 +75,7 @@ export class Login implements OnInit {
     const password = this.password || '';
 
     if (!username || !password) {
-      this.error = '请输入用户名和密码。';
+      this.error = this.ui.emptyCredentials;
       this.cdr.detectChanges();
       return;
     }
@@ -96,8 +115,8 @@ export class Login implements OnInit {
           }
         },
         error: (err: unknown) => {
-          const msg = this.extractErrorMessage(err);
-          this.error = msg || '登录失败。';
+          const message = this.extractErrorMessage(err);
+          this.error = message || this.ui.loginFailed;
           this.cdr.detectChanges();
         },
       });
@@ -121,54 +140,57 @@ export class Login implements OnInit {
     this.deleteCookie(this.rememberedPasswordCookieKey);
   }
 
-  private extractErrorMessage(err: unknown): string {
+  private extractErrorMessage(err: unknown): string | LocalizedText {
     const httpErr = err as HttpErrorResponse;
     const payload = httpErr?.error;
 
     if (payload && typeof payload === 'object') {
-      const code = String((payload as any).code || '').toUpperCase();
+      const code = String((payload as Record<string, unknown>)['code'] || '').toUpperCase();
       if (this.isArchivedAccountCode(code)) {
-        return '该账号已归档，请联系管理员启用。';
+        return this.ui.archivedAccount;
       }
 
-      const message = (payload as any).message || (payload as any).error || '';
+      const message =
+        (payload as Record<string, unknown>)['message'] ||
+        (payload as Record<string, unknown>)['error'] ||
+        '';
       if (this.looksLikeArchivedMessage(message)) {
-        return '该账号已归档，请联系管理员启用。';
+        return this.ui.archivedAccount;
       }
 
-      return message;
+      return String(message || '').trim();
     }
 
     if (typeof payload === 'string') {
       try {
-        const parsed = JSON.parse(payload);
-        const code = String(parsed?.code || '').toUpperCase();
+        const parsed = JSON.parse(payload) as Record<string, unknown>;
+        const code = String(parsed['code'] || '').toUpperCase();
         if (this.isArchivedAccountCode(code)) {
-          return '该账号已归档，请联系管理员启用。';
+          return this.ui.archivedAccount;
         }
 
-        const message = parsed?.message || parsed?.error || payload;
+        const message = parsed['message'] || parsed['error'] || payload;
         if (this.looksLikeArchivedMessage(message)) {
-          return '该账号已归档，请联系管理员启用。';
+          return this.ui.archivedAccount;
         }
 
-        return message;
+        return String(message || '').trim();
       } catch {
         if (this.looksLikeArchivedMessage(payload)) {
-          return '该账号已归档，请联系管理员启用。';
+          return this.ui.archivedAccount;
         }
         return payload;
       }
     }
 
-    return httpErr?.message || '';
+    return String(httpErr?.message || '').trim();
   }
 
   private isArchivedAccountCode(code: string): boolean {
     return code === 'ACCOUNT_ARCHIVED' || code === 'USER_ARCHIVED' || code === 'TEACHER_ARCHIVED';
   }
 
-  private looksLikeArchivedMessage(message: string): boolean {
+  private looksLikeArchivedMessage(message: unknown): boolean {
     return String(message || '').toLowerCase().includes('archived');
   }
 

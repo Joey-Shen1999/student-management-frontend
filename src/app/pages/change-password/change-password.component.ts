@@ -1,8 +1,8 @@
-import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 
 import {
@@ -11,6 +11,8 @@ import {
   ChangePasswordRequest,
   SetPasswordRequest,
 } from '../../services/auth.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/password-policy';
 
 type PasswordMode = 'set' | 'change';
@@ -18,11 +20,11 @@ type PasswordMode = 'set' | 'change';
 @Component({
   selector: 'app-change-password',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">{{ isSetMode ? 'Set New Password' : 'Account Settings' }}</h2>
+        <h2 style="margin:0;">{{ (isSetMode ? ui.setModeTitle : ui.changeModeTitle) | appTranslate }}</h2>
         <button
           *ngIf="!isSetMode"
           type="button"
@@ -30,22 +32,22 @@ type PasswordMode = 'set' | 'change';
           class="account-back-btn"
           style="margin-left:auto;"
         >
-          Back
+          {{ ui.back | appTranslate }}
         </button>
       </div>
 
       <p style="color:#666; line-height:1.6;">
         <ng-container *ngIf="isSetMode; else changeModeTip">
-          For security reasons, your first sign-in requires setting a new password before continuing.
+          {{ ui.setModeTip | appTranslate }}
         </ng-container>
         <ng-template #changeModeTip>
-          Use this page to securely update your account password.
+          {{ ui.changeModeTip | appTranslate }}
         </ng-template>
       </p>
 
       <div style="margin-top:14px; padding:12px; border:1px solid #ddd; border-radius:8px;">
         <div *ngIf="!isSetMode">
-          <label style="display:block;margin:12px 0 6px;">Current Password</label>
+          <label style="display:block;margin:12px 0 6px;">{{ ui.currentPassword | appTranslate }}</label>
           <input
             [(ngModel)]="oldPassword"
             type="password"
@@ -55,7 +57,7 @@ type PasswordMode = 'set' | 'change';
           />
         </div>
 
-        <label style="display:block;margin:12px 0 6px;">New Password</label>
+        <label style="display:block;margin:12px 0 6px;">{{ ui.newPassword | appTranslate }}</label>
         <input
           [(ngModel)]="newPassword"
           type="password"
@@ -67,16 +69,18 @@ type PasswordMode = 'set' | 'change';
         <div
           style="margin-top:8px; padding:10px; border:1px solid #e2e2e2; border-radius:6px; background:#fafafa;"
         >
-          <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">Password Policy</div>
+          <div style="font-size:13px; font-weight:bold; margin-bottom:6px;">
+            {{ ui.passwordPolicy | appTranslate }}
+          </div>
           <div *ngFor="let check of passwordChecks" style="font-size:13px; line-height:1.5;">
             <span [style.color]="check.pass ? '#0b6b0b' : '#b00020'">
               {{ check.pass ? '\u2713' : '\u2717' }}
             </span>
-            {{ check.label }}
+            {{ check.label | appTranslate }}
           </div>
         </div>
 
-        <label style="display:block;margin:12px 0 6px;">Confirm New Password</label>
+        <label style="display:block;margin:12px 0 6px;">{{ ui.confirmNewPassword | appTranslate }}</label>
         <input
           [(ngModel)]="confirmPassword"
           type="password"
@@ -87,12 +91,12 @@ type PasswordMode = 'set' | 'change';
 
         <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;">
           <button type="button" (click)="submit()" [disabled]="loading" style="padding:10px 12px;">
-            {{ loading ? 'Saving...' : submitLabel }}
+            {{ (loading ? ui.saving : submitLabel) | appTranslate }}
           </button>
         </div>
 
-        <p *ngIf="successMsg" style="color:#0b6b0b;margin:10px 0 0;">{{ successMsg }}</p>
-        <p *ngIf="error" style="color:#b00020;margin:10px 0 0;">{{ error }}</p>
+        <p *ngIf="successMsg" style="color:#0b6b0b;margin:10px 0 0;">{{ successMsg | appTranslate }}</p>
+        <p *ngIf="error" style="color:#b00020;margin:10px 0 0;">{{ error | appTranslate }}</p>
       </div>
     </div>
   `,
@@ -134,13 +138,45 @@ type PasswordMode = 'set' | 'change';
   ],
 })
 export class ChangePasswordComponent implements OnInit {
+  readonly ui = {
+    setModeTitle: uiText('设置新密码', 'Set New Password'),
+    changeModeTitle: uiText('账号设置', 'Account Settings'),
+    back: uiText('返回', 'Back'),
+    setModeTip: uiText(
+      '为了账号安全，首次登录后需要先设置新密码，才能继续使用系统。',
+      'For security reasons, your first sign-in requires setting a new password before continuing.'
+    ),
+    changeModeTip: uiText(
+      '你可以在这里安全地更新账号密码。',
+      'Use this page to securely update your account password.'
+    ),
+    currentPassword: uiText('当前密码', 'Current Password'),
+    newPassword: uiText('新密码', 'New Password'),
+    passwordPolicy: uiText('密码规则', 'Password Policy'),
+    confirmNewPassword: uiText('确认新密码', 'Confirm New Password'),
+    saving: uiText('保存中...', 'Saving...'),
+    setPassword: uiText('设置密码', 'Set Password'),
+    changePassword: uiText('修改密码', 'Change Password'),
+    sessionExpired: uiText('登录会话已过期，请重新登录。', 'Login session expired. Please sign in again.'),
+    requiredFields: uiText('请填写所有必填项。', 'Please complete all required fields.'),
+    currentPasswordRequired: uiText('请输入当前密码。', 'Current password is required.'),
+    confirmationMismatch: uiText('新密码确认不匹配。', 'The new password confirmation does not match.'),
+    newPasswordDifferent: uiText(
+      '新密码必须与当前密码不同。',
+      'New password must be different from current password.'
+    ),
+    updateFailed: uiText('密码更新失败。', 'Password update failed.'),
+    setSuccess: uiText('密码设置成功。', 'Password set successfully.'),
+    updateSuccess: uiText('密码已更新。', 'Password updated.'),
+  };
+
   mode: PasswordMode = 'set';
   oldPassword = '';
   newPassword = '';
   confirmPassword = '';
 
-  error = '';
-  successMsg = '';
+  error: string | LocalizedText = '';
+  successMsg: string | LocalizedText = '';
   loading = false;
 
   constructor(
@@ -153,8 +189,8 @@ export class ChangePasswordComponent implements OnInit {
     return this.mode === 'set';
   }
 
-  get submitLabel(): string {
-    return this.isSetMode ? 'Set Password' : 'Change Password';
+  get submitLabel(): LocalizedText {
+    return this.isSetMode ? this.ui.setPassword : this.ui.changePassword;
   }
 
   get backRoute(): string {
@@ -172,7 +208,7 @@ export class ChangePasswordComponent implements OnInit {
 
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
-      this.error = 'Login session expired. Please sign in again.';
+      this.error = this.ui.sessionExpired;
     }
   }
 
@@ -182,33 +218,33 @@ export class ChangePasswordComponent implements OnInit {
 
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
-      this.error = 'Login session expired. Please sign in again.';
+      this.error = this.ui.sessionExpired;
       return;
     }
 
     if (!this.newPassword || !this.confirmPassword) {
-      this.error = 'Please complete all required fields.';
+      this.error = this.ui.requiredFields;
       return;
     }
 
     if (!this.isSetMode && !this.oldPassword) {
-      this.error = 'Current password is required.';
+      this.error = this.ui.currentPasswordRequired;
       return;
     }
 
     if (this.newPassword !== this.confirmPassword) {
-      this.error = 'The new password confirmation does not match.';
+      this.error = this.ui.confirmationMismatch;
       return;
     }
 
     if (!this.isSetMode && this.oldPassword === this.newPassword) {
-      this.error = 'New password must be different from current password.';
+      this.error = this.ui.newPasswordDifferent;
       return;
     }
 
     const username = this.auth.getSession()?.username || '';
     const policy = evaluatePasswordPolicy(this.newPassword, username);
-    if (!policy.isValid) {
+    if (!policy.isValid && policy.message) {
       this.error = policy.message;
       return;
     }
@@ -231,13 +267,13 @@ export class ChangePasswordComponent implements OnInit {
           this.onSaveSuccess(res);
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Password update failed.';
+          this.error = this.extractErrorMessage(err) || this.ui.updateFailed;
         },
       });
   }
 
   private onSaveSuccess(res: ApiResponse): void {
-    this.successMsg = res?.message || (this.isSetMode ? 'Password set successfully.' : 'Password updated.');
+    this.successMsg = res?.message || (this.isSetMode ? this.ui.setSuccess : this.ui.updateSuccess);
 
     if (this.isSetMode) {
       this.auth.clearMustChangePasswordFlag();

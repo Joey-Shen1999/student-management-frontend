@@ -65,9 +65,9 @@ import {
           <h3 style="margin:0;">Goal 列表</h3>
           <select [(ngModel)]="filterStatus" [disabled]="goalsLoading" style="padding:6px 8px;">
             <option value="ALL">全部状态</option>
-            <option value="NOT_STARTED">未开始</option>
-            <option value="IN_PROGRESS">进行中</option>
-            <option value="COMPLETED">已完成</option>
+            <option value="NOT_STARTED">Not Started</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="COMPLETED">Completed</option>
           </select>
           <input type="search" [(ngModel)]="filterKeyword" [disabled]="goalsLoading" placeholder="关键字" style="padding:6px 8px;min-width:180px;" />
           <button type="button" (click)="applyFilters()" [disabled]="goalsLoading">查询</button>
@@ -76,9 +76,9 @@ import {
           <span style="margin-left:auto;color:#666;">{{ goals.length }} 条</span>
         </div>
 
-        <div *ngIf="goalsLoading" style="color:#666;">正在加载任务...</div>
+        <div *ngIf="goalsLoading" style="color:#666;">正在加载 Task...</div>
         <div *ngIf="!goalsLoading && goalsError" style="color:#b00020;">{{ goalsError }}</div>
-        <div *ngIf="!goalsLoading && !goalsError && goals.length === 0" style="color:#666;">暂无任务。</div>
+        <div *ngIf="!goalsLoading && !goalsError && goals.length === 0" style="color:#666;">暂无 Task。</div>
 
         <div *ngIf="!goalsLoading && !goalsError && goals.length > 0" style="display:grid;gap:8px;">
           <article
@@ -93,9 +93,9 @@ import {
             </div>
             <div style="color:#555;font-size:13px;">学生：{{ goal.assignedStudentName }} | 截止：{{ displayDueAt(goal) }}</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')" [disabled]="updatingGoalId === goal.id || goal.status === 'NOT_STARTED'">未开始</button>
-              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')" [disabled]="updatingGoalId === goal.id || goal.status === 'IN_PROGRESS'">进行中</button>
-              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')" [disabled]="updatingGoalId === goal.id || goal.status === 'COMPLETED'">完成</button>
+              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')" [disabled]="updatingGoalId === goal.id || goal.status === 'NOT_STARTED'">Not Started</button>
+              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')" [disabled]="updatingGoalId === goal.id || goal.status === 'IN_PROGRESS'">In Progress</button>
+              <button type="button" (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')" [disabled]="updatingGoalId === goal.id || goal.status === 'COMPLETED'">Completed</button>
             </div>
           </article>
         </div>
@@ -434,7 +434,7 @@ export class TaskManagementComponent implements OnInit {
     this.taskCenter
       .updateTeacherGoalStatus(goal.id, {
         status,
-        progressNote: status === 'COMPLETED' ? '老师已在任务管理页标记完成。' : goal.progressNote,
+        progressNote: status === 'COMPLETED' ? '老师已在 Task 管理页标记 Completed。' : goal.progressNote,
       })
       .pipe(
         finalize(() => {
@@ -461,9 +461,9 @@ export class TaskManagementComponent implements OnInit {
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
 
   goalStatusLabel(status: GoalTaskStatus): string {
-    if (status === 'NOT_STARTED') return '未开始';
-    if (status === 'IN_PROGRESS') return '进行中';
-    return '已完成';
+    if (status === 'NOT_STARTED') return 'Not Started';
+    if (status === 'IN_PROGRESS') return 'In Progress';
+    return 'Completed';
   }
 
   infoCategoryLabel(category: InfoTaskCategory): string {

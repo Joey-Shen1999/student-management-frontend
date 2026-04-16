@@ -1,6 +1,7 @@
+import '@angular/compiler';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
 import { ChangePasswordComponent } from './change-password.component';
@@ -56,7 +57,7 @@ describe('ChangePasswordComponent', () => {
 
     component.ngOnInit();
 
-    expect(component.error).toBe('Login session expired. Please sign in again.');
+    expect(component.error).toEqual(component.ui.sessionExpired);
   });
 
   it('submit should block weak password before API call in set mode', () => {
@@ -67,7 +68,10 @@ describe('ChangePasswordComponent', () => {
 
     component.submit();
 
-    expect(component.error).not.toBe('');
+    expect(component.error).toMatchObject({
+      zh: expect.stringContaining('密码不符合要求'),
+      en: expect.stringContaining('Password does not meet the requirements'),
+    });
     expect(auth.setPassword).not.toHaveBeenCalled();
   });
 
@@ -98,7 +102,7 @@ describe('ChangePasswordComponent', () => {
 
     component.submit();
 
-    expect(component.error).toBe('Current password is required.');
+    expect(component.error).toEqual(component.ui.currentPasswordRequired);
     expect(auth.changePassword).not.toHaveBeenCalled();
   });
 

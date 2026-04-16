@@ -791,6 +791,21 @@ export class IeltsTrackingService {
     return undefined;
   }
 
+  private normalizeStudentIds(studentIds?: readonly number[] | null): number[] {
+    if (!Array.isArray(studentIds)) return [];
+
+    const seen = new Set<number>();
+    const normalized: number[] = [];
+    for (const studentId of studentIds) {
+      const id = this.normalizeStudentId(studentId);
+      if (id <= 0 || seen.has(id)) continue;
+      seen.add(id);
+      normalized.push(id);
+    }
+
+    return normalized;
+  }
+
   private normalizeStudentId(value: number): number {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -848,5 +863,24 @@ export class IeltsTrackingService {
   private toRecord(value: unknown): Record<string, unknown> | null {
     if (!value || typeof value !== 'object') return null;
     return value as Record<string, unknown>;
+  }
+
+  private unwrapArrayPayload(value: unknown): unknown[] {
+    let current: unknown = value;
+    for (let depth = 0; depth < 3; depth += 1) {
+      if (Array.isArray(current)) return current;
+
+      const record = this.toRecord(current);
+      if (!record) break;
+      if (Array.isArray(record['items'])) return record['items'] as unknown[];
+      if (Array.isArray(record['records'])) return record['records'] as unknown[];
+      if (Array.isArray(record['rows'])) return record['rows'] as unknown[];
+      if (Array.isArray(record['data'])) return record['data'] as unknown[];
+      if (!record['data']) break;
+
+      current = record['data'];
+    }
+
+    return Array.isArray(current) ? current : [];
   }
 }

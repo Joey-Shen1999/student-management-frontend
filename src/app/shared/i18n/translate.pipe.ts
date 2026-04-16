@@ -1,6 +1,7 @@
 import { Pipe, PipeTransform } from '@angular/core';
 
 import { AppLanguageService } from '../../services/app-language.service';
+import { LocalizedText } from './ui-translations';
 
 @Pipe({
   name: 'appTranslate',
@@ -10,7 +11,7 @@ import { AppLanguageService } from '../../services/app-language.service';
 export class TranslatePipe implements PipeTransform {
   constructor(private readonly language: AppLanguageService) {}
 
-  transform(value: string | null | undefined): string {
+  transform(value: string | LocalizedText | null | undefined): string {
     return this.language.translate(value);
   }
 }
