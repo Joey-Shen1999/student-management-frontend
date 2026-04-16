@@ -5973,18 +5973,37 @@ export class StudentManagementComponent implements OnInit {
     payload: StudentProfilePayload | StudentProfileResponse | null | undefined,
     noteText: string
   ): StudentProfilePayload {
+    const normalizedNote = String(noteText ?? '').trim();
+
+    return {
+      ...this.buildTeacherProfileQuickUpdatePayload(payload),
+      teacherNote: normalizedNote,
+    };
+  }
+
+  private buildTeacherProfileQuickUpdatePayload(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined
+  ): StudentProfilePayload {
     const root =
       payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     const profileNode =
       root['profile'] && typeof root['profile'] === 'object'
         ? (root['profile'] as Record<string, unknown>)
         : root;
-    const normalizedNote = String(noteText ?? '').trim();
-
-    return {
+    const requestPayload: StudentProfilePayload = {
       ...(profileNode as StudentProfilePayload),
-      teacherNote: normalizedNote,
     };
+
+    this.removeProfileChildCollectionsForQuickUpdate(requestPayload);
+    return requestPayload;
+  }
+
+  private removeProfileChildCollectionsForQuickUpdate(payload: StudentProfilePayload): void {
+    // Omitting these collections tells the profile PUT to retain existing rows.
+    delete payload.schools;
+    delete payload.schoolRecords;
+    delete payload.identityFiles;
+    delete payload['highSchools'];
   }
 
   private extractServiceItemsFromProfile(
@@ -6015,16 +6034,10 @@ export class StudentManagementComponent implements OnInit {
     payload: StudentProfilePayload | StudentProfileResponse | null | undefined,
     serviceItems: string[]
   ): StudentProfilePayload {
-    const root =
-      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-    const profileNode =
-      root['profile'] && typeof root['profile'] === 'object'
-        ? (root['profile'] as Record<string, unknown>)
-        : root;
     const normalizedServiceItems = this.normalizeServiceItems(serviceItems);
 
     return {
-      ...(profileNode as StudentProfilePayload),
+      ...this.buildTeacherProfileQuickUpdatePayload(payload),
       serviceItems: normalizedServiceItems,
       serviceProjects: normalizedServiceItems,
     };

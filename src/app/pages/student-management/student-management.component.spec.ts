@@ -336,6 +336,62 @@ describe('StudentManagementComponent', () => {
     expect(component.resolveServiceItemsCountLabel(student)).toBe('2项');
   });
 
+  it('onServiceItemSelectionChange should omit school collections from quick service item save', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          legalFirstName: 'Demo',
+          legalLastName: 'Student',
+          ap: false,
+          serviceItems: ['Tutoring'],
+          schools: [
+            {
+              schoolRecordId: 101,
+              schoolType: 'MAIN',
+              schoolName: 'A High School',
+              startTime: '2023-09-01',
+            },
+            {
+              schoolRecordId: 102,
+              schoolType: 'MAIN',
+              schoolName: 'A High School',
+              startTime: '2023-09-01',
+            },
+          ],
+          schoolRecords: [
+            {
+              schoolRecordId: 101,
+              schoolType: 'MAIN',
+              schoolName: 'A High School',
+              startTime: '2023-09-01',
+            },
+          ],
+          highSchools: [
+            {
+              schoolRecordId: 103,
+              schoolType: 'OTHER',
+              schoolName: 'Legacy High School',
+            },
+          ],
+          identityFiles: [{ id: 7, identityFileName: 'passport.pdf' }],
+          otherCourses: [{ schoolName: 'Online Provider', courseCode: 'ENG4U' }],
+        },
+      })
+    );
+
+    const student = { studentId: 55, username: 'student55', status: 'ACTIVE' } as any;
+    component.onServiceItemSelectionChange(student, 'Planning', true);
+
+    const payload = (profileApi.saveStudentProfileForTeacher as any).mock.calls[0][1];
+    expect(payload.serviceItems).toEqual(['Tutoring', 'Planning']);
+    expect(payload.serviceProjects).toEqual(['Tutoring', 'Planning']);
+    expect(payload.schools).toBeUndefined();
+    expect(payload.schoolRecords).toBeUndefined();
+    expect(payload.highSchools).toBeUndefined();
+    expect(payload.identityFiles).toBeUndefined();
+    expect(payload.otherCourses).toEqual([{ schoolName: 'Online Provider', courseCode: 'ENG4U' }]);
+  });
+
   it('loadStudents should show backend error message on failure', () => {
     (api.listStudents as any).mockReturnValue(
       throwError(
