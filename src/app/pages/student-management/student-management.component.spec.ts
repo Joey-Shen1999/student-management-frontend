@@ -375,6 +375,13 @@ describe('StudentManagementComponent', () => {
           ],
           identityFiles: [{ id: 7, identityFileName: 'passport.pdf' }],
           otherCourses: [{ schoolName: 'Online Provider', courseCode: 'ENG4U' }],
+          serviceItemsOrEmpty: ['Tutoring'],
+          serviceProjectsOrEmpty: ['Tutoring'],
+          schoolsOrEmpty: [{ schoolRecordId: 101 }],
+          schoolRecordsOrEmpty: [{ schoolRecordId: 101 }],
+          identityFilesOrEmpty: [{ id: 7 }],
+          otherCoursesOrEmpty: [{ schoolName: 'Online Provider', courseCode: 'ENG4U' }],
+          externalCoursesOrEmpty: [{ schoolName: 'Online Provider', courseCode: 'ENG4U' }],
         },
       })
     );
@@ -389,7 +396,50 @@ describe('StudentManagementComponent', () => {
     expect(payload.schoolRecords).toBeUndefined();
     expect(payload.highSchools).toBeUndefined();
     expect(payload.identityFiles).toBeUndefined();
+    expect(payload.serviceItemsOrEmpty).toBeUndefined();
+    expect(payload.serviceProjectsOrEmpty).toBeUndefined();
+    expect(payload.schoolsOrEmpty).toBeUndefined();
+    expect(payload.schoolRecordsOrEmpty).toBeUndefined();
+    expect(payload.identityFilesOrEmpty).toBeUndefined();
+    expect(payload.otherCoursesOrEmpty).toBeUndefined();
+    expect(payload.externalCoursesOrEmpty).toBeUndefined();
     expect(payload.otherCourses).toEqual([{ schoolName: 'Online Provider', courseCode: 'ENG4U' }]);
+  });
+
+  it('onServiceItemSelectionChange should keep cached profile aligned when save response is stale', () => {
+    (profileApi.getStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          legalFirstName: 'Demo',
+          legalLastName: 'Student',
+          ap: false,
+          serviceItems: ['面试辅导'],
+        },
+      })
+    );
+    (profileApi.saveStudentProfileForTeacher as any).mockReturnValue(
+      of({
+        profile: {
+          legalFirstName: 'Demo',
+          legalLastName: 'Student',
+          ap: false,
+          serviceItems: ['面试辅导'],
+          serviceProjects: ['面试辅导'],
+        },
+      })
+    );
+
+    const student = { studentId: 56, username: 'student56', status: 'ACTIVE' } as any;
+    component.onServiceItemSelectionChange(student, '一对一辅导', true);
+
+    expect(component.resolveStudentServiceItems(student)).toBe('面试辅导、一对一辅导');
+
+    (api.listStudents as any).mockReturnValue(
+      of([{ studentId: 56, username: 'student56', status: 'ACTIVE' }])
+    );
+    component.loadStudents();
+
+    expect(component.resolveStudentServiceItems(component.students[0])).toBe('面试辅导、一对一辅导');
   });
 
   it('loadStudents should show backend error message on failure', () => {

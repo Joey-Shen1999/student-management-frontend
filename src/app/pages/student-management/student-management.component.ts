@@ -6004,6 +6004,13 @@ export class StudentManagementComponent implements OnInit {
     delete payload.schoolRecords;
     delete payload.identityFiles;
     delete payload['highSchools'];
+    delete payload['schoolsOrEmpty'];
+    delete payload['schoolRecordsOrEmpty'];
+    delete payload['identityFilesOrEmpty'];
+    delete payload['serviceItemsOrEmpty'];
+    delete payload['serviceProjectsOrEmpty'];
+    delete payload['otherCoursesOrEmpty'];
+    delete payload['externalCoursesOrEmpty'];
   }
 
   private extractServiceItemsFromProfile(
@@ -6140,10 +6147,14 @@ export class StudentManagementComponent implements OnInit {
       )
       .subscribe({
         next: (savedPayload) => {
-          this.cacheStudentProfilePayload(studentId, savedPayload);
-          // Always trust the local serviceItems after a successful save
-          // to prevent UI reverting if the backend returns a stale or incomplete profile.
-          this.serviceItemsCache.set(studentId, this.normalizeServiceItems(serviceItems));
+          const normalizedServiceItems = this.normalizeServiceItems(serviceItems);
+          // Keep the profile cache in sync with the confirmed local selection so later
+          // metadata hydration cannot restore stale serviceItems from a stale response.
+          this.cacheStudentProfilePayload(
+            studentId,
+            this.withServiceItemsInProfilePayload(savedPayload ?? profilePayload, normalizedServiceItems)
+          );
+          this.serviceItemsCache.set(studentId, normalizedServiceItems);
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
@@ -6151,6 +6162,32 @@ export class StudentManagementComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private withServiceItemsInProfilePayload(
+    payload: StudentProfilePayload | StudentProfileResponse | null | undefined,
+    serviceItems: string[]
+  ): StudentProfilePayload | StudentProfileResponse {
+    const normalizedServiceItems = this.normalizeServiceItems(serviceItems);
+    const root =
+      payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+
+    if (root['profile'] && typeof root['profile'] === 'object') {
+      return {
+        ...root,
+        profile: {
+          ...(root['profile'] as Record<string, unknown>),
+          serviceItems: normalizedServiceItems,
+          serviceProjects: normalizedServiceItems,
+        },
+      } as StudentProfileResponse;
+    }
+
+    return {
+      ...(root as StudentProfilePayload),
+      serviceItems: normalizedServiceItems,
+      serviceProjects: normalizedServiceItems,
+    };
   }
 
   private normalizeServiceItems(value: unknown): string[] {
