@@ -7,74 +7,139 @@ import { finalize, timeout } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
 import { StudentProfilePayload, StudentProfileService } from '../../services/student-profile.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 @Component({
   selector: 'app-account-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div class="account-profile-page">
       <div class="account-profile-card">
-        <h2>Name Settings</h2>
-        <p class="subtitle">Display your current name and update first/last name quickly.</p>
+        <h2>{{ ui.title | appTranslate }}</h2>
 
         <div class="state-row">
-          <div *ngIf="loadingProfile" class="state-text">Loading current name...</div>
+          <div *ngIf="loadingProfile" class="state-text">
+            {{ ui.loadingCurrentName | appTranslate }}
+          </div>
           <button
             type="button"
             class="link-btn"
             (click)="reloadProfile()"
             [disabled]="loadingProfile || saving"
           >
-            {{ loadingProfile ? 'Loading...' : 'Reload Current Name' }}
+            {{ (loadingProfile ? ui.loading : ui.reloadCurrentName) | appTranslate }}
           </button>
         </div>
 
         <section class="current-name-card">
-          <div class="field-label">Current Name</div>
+          <div class="field-label">{{ ui.currentName | appTranslate }}</div>
           <div class="current-name-value">
             {{ currentDisplayName || '-' }}
           </div>
           <div class="field-note" *ngIf="currentLegalName">
-            Legal Name: {{ currentLegalName }}
+            {{ ui.legalName | appTranslate }}: {{ currentLegalName }}
           </div>
         </section>
 
-        <label class="field-label" for="newFirstName">New First Name</label>
+        <label class="field-label" for="newFirstName">{{ ui.newFirstName | appTranslate }}</label>
         <input
           id="newFirstName"
           name="newFirstName"
           class="name-input"
           [(ngModel)]="newFirstName"
           [disabled]="saving"
-          [placeholder]="currentFirstName || currentDisplayName || 'Enter your first name'"
+          [placeholder]="currentFirstName || currentDisplayName || (ui.enterFirstName | appTranslate)"
         />
 
-        <label class="field-label" for="newLastName" style="margin-top: 10px;">New Last Name</label>
+        <label class="field-label" for="newLastName" style="margin-top: 10px;">
+          {{ ui.newLastName | appTranslate }}
+        </label>
         <input
           id="newLastName"
           name="newLastName"
           class="name-input"
           [(ngModel)]="newLastName"
           [disabled]="saving"
-          [placeholder]="currentLastName || 'Enter your last name'"
+          [placeholder]="currentLastName || (ui.enterLastName | appTranslate)"
         />
 
         <div class="actions">
           <button type="button" class="save-btn" (click)="submit()" [disabled]="saving">
-            {{ saving ? 'Saving...' : 'Update Name' }}
+            {{ (saving ? ui.saving : ui.updateName) | appTranslate }}
           </button>
-          <a [routerLink]="['/dashboard']">Back</a>
+          <a [routerLink]="['/dashboard']">{{ ui.back | appTranslate }}</a>
         </div>
 
-        <p *ngIf="successMsg" class="success-text">{{ successMsg }}</p>
-        <p *ngIf="error" class="error-text">{{ error }}</p>
+        <p *ngIf="successMsg" class="success-text">{{ successMsg | appTranslate }}</p>
+        <p *ngIf="error" class="error-text">{{ error | appTranslate }}</p>
       </div>
     </div>
   `,
   styleUrl: './account-profile.component.scss',
 })
 export class AccountProfileComponent implements OnInit {
+  readonly ui = {
+    title: uiText('\u59d3\u540d\u8bbe\u7f6e', 'Name Settings'),
+    loadingCurrentName: uiText(
+      '\u6b63\u5728\u52a0\u8f7d\u5f53\u524d\u59d3\u540d...',
+      'Loading current name...'
+    ),
+    loading: uiText('\u52a0\u8f7d\u4e2d...', 'Loading...'),
+    reloadCurrentName: uiText(
+      '\u91cd\u65b0\u52a0\u8f7d\u5f53\u524d\u59d3\u540d',
+      'Reload Current Name'
+    ),
+    currentName: uiText('\u5f53\u524d\u59d3\u540d', 'Current Name'),
+    legalName: uiText('\u6cd5\u5b9a\u59d3\u540d', 'Legal Name'),
+    newFirstName: uiText('\u65b0\u540d\u5b57', 'New First Name'),
+    newLastName: uiText('\u65b0\u59d3\u6c0f', 'New Last Name'),
+    enterFirstName: uiText('\u8bf7\u8f93\u5165\u540d\u5b57', 'Enter your first name'),
+    enterLastName: uiText('\u8bf7\u8f93\u5165\u59d3\u6c0f', 'Enter your last name'),
+    saving: uiText('\u4fdd\u5b58\u4e2d...', 'Saving...'),
+    updateName: uiText('\u66f4\u65b0\u59d3\u540d', 'Update Name'),
+    back: uiText('\u8fd4\u56de', 'Back'),
+    sessionExpired: uiText(
+      '\u767b\u5f55\u4f1a\u8bdd\u5df2\u8fc7\u671f\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55\u3002',
+      'Login session expired. Please sign in again.'
+    ),
+    nameRequired: uiText(
+      '\u8bf7\u8f93\u5165\u65b0\u7684\u540d\u5b57\u6216\u59d3\u6c0f\u3002',
+      'Please enter a new first name or last name.'
+    ),
+    firstNameNumbersOnly: uiText(
+      '\u540d\u5b57\u4e0d\u80fd\u53ea\u5305\u542b\u6570\u5b57\u3002',
+      'First name cannot be numbers only.'
+    ),
+    lastNameNumbersOnly: uiText(
+      '\u59d3\u6c0f\u4e0d\u80fd\u53ea\u5305\u542b\u6570\u5b57\u3002',
+      'Last name cannot be numbers only.'
+    ),
+    sameName: uiText(
+      '\u65b0\u59d3\u540d\u4e0e\u5f53\u524d\u59d3\u540d\u76f8\u540c\u3002',
+      'New name is the same as current name.'
+    ),
+    loadCurrentNameFailed: uiText(
+      '\u52a0\u8f7d\u5f53\u524d\u59d3\u540d\u5931\u8d25\u3002',
+      'Failed to load current name.'
+    ),
+    nameUpdated: uiText('\u59d3\u540d\u5df2\u66f4\u65b0\u3002', 'Name updated.'),
+    nameUpdateFailed: uiText('\u59d3\u540d\u66f4\u65b0\u5931\u8d25\u3002', 'Name update failed.'),
+    loadTimedOut: uiText(
+      '\u5f53\u524d\u59d3\u540d\u52a0\u8f7d\u8d85\u65f6\uff0c\u8bf7\u70b9\u51fb\u201c\u91cd\u65b0\u52a0\u8f7d\u5f53\u524d\u59d3\u540d\u201d\u91cd\u8bd5\u3002',
+      'Loading current name timed out. You can tap "Reload Current Name" to retry.'
+    ),
+    duplicateSchools: uiText(
+      '\u59d3\u540d\u66f4\u65b0\u88ab\u6863\u6848\u4e2d\u91cd\u590d\u5b66\u6821\u8bb0\u5f55\u963b\u6b62\u3002\u8bf7\u8054\u7cfb\u8001\u5e08\u6216\u652f\u6301\u4eba\u5458\u4fee\u590d\u91cd\u590d\u5b66\u6821\u540e\u91cd\u8bd5\u3002',
+      'Name update is blocked by duplicate school records in your profile. Please contact support/teacher to fix duplicate schools, then retry.'
+    ),
+    serverSaveFailed: uiText(
+      '\u670d\u52a1\u5668\u4fdd\u5b58\u6863\u6848\u5931\u8d25\u3002\u8fd9\u53ef\u80fd\u662f\u91cd\u590d\u5b66\u6821\u8bb0\u5f55\u5bfc\u81f4\u7684\uff0c\u8bf7\u8054\u7cfb\u8001\u5e08\u6216\u652f\u6301\u4eba\u5458\u4fee\u590d\u540e\u91cd\u8bd5\u3002',
+      'Profile save failed on server. This is likely caused by duplicate school records. Please contact support/teacher to fix duplicate schools, then retry.'
+    ),
+  };
+
   currentFirstName = '';
   currentLastName = '';
   currentPreferredName = '';
@@ -83,8 +148,8 @@ export class AccountProfileComponent implements OnInit {
 
   loadingProfile = false;
   saving = false;
-  error = '';
-  successMsg = '';
+  error: string | LocalizedText = '';
+  successMsg: string | LocalizedText = '';
 
   private profileSnapshot: StudentProfilePayload = {};
   private readonly loadProfileTimeoutMs = 5000;
@@ -108,7 +173,7 @@ export class AccountProfileComponent implements OnInit {
   ngOnInit(): void {
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
-      this.error = 'Login session expired. Please sign in again.';
+      this.error = this.ui.sessionExpired;
       this.cdr.detectChanges();
       return;
     }
@@ -137,7 +202,7 @@ export class AccountProfileComponent implements OnInit {
 
     const authHeader = this.auth.getAuthorizationHeaderValue();
     if (!authHeader) {
-      this.error = 'Login session expired. Please sign in again.';
+      this.error = this.ui.sessionExpired;
       this.cdr.detectChanges();
       return;
     }
@@ -150,19 +215,19 @@ export class AccountProfileComponent implements OnInit {
     const currentLastName = this.toText(this.currentLastName);
 
     if (!nextFirstNameInput && !nextLastNameInput) {
-      this.error = 'Please enter a new first name or last name.';
+      this.error = this.ui.nameRequired;
       this.cdr.detectChanges();
       return;
     }
 
     if (nextFirstNameInput && !this.hasReadableNameText(nextFirstNameInput)) {
-      this.error = 'First name cannot be numbers only.';
+      this.error = this.ui.firstNameNumbersOnly;
       this.cdr.detectChanges();
       return;
     }
 
     if (nextLastNameInput && !this.hasReadableNameText(nextLastNameInput)) {
-      this.error = 'Last name cannot be numbers only.';
+      this.error = this.ui.lastNameNumbersOnly;
       this.cdr.detectChanges();
       return;
     }
@@ -171,7 +236,7 @@ export class AccountProfileComponent implements OnInit {
     const nextLastName = nextLastNameInput || currentLastName;
 
     if (nextFirstName === currentFirstName && nextLastName === currentLastName) {
-      this.error = 'New name is the same as current name.';
+      this.error = this.ui.sameName;
       this.cdr.detectChanges();
       return;
     }
@@ -209,7 +274,7 @@ export class AccountProfileComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: unknown) => {
-          this.error = this.extractErrorMessage(err) || 'Failed to load current name.';
+          this.error = this.extractErrorMessage(err) || this.ui.loadCurrentNameFailed;
           this.cdr.detectChanges();
         },
       });
@@ -239,11 +304,11 @@ export class AccountProfileComponent implements OnInit {
           this.newFirstName = '';
           this.newLastName = '';
 
-          this.successMsg = this.extractSuccessMessage(resp) || 'Name updated.';
+          this.successMsg = this.extractSuccessMessage(resp) || this.ui.nameUpdated;
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || 'Name update failed.';
+          this.error = this.extractErrorMessage(err) || this.ui.nameUpdateFailed;
           this.cdr.detectChanges();
         },
       });
@@ -333,7 +398,7 @@ export class AccountProfileComponent implements OnInit {
         .trim()
         .toLowerCase();
       if (timeoutName === 'timeouterror') {
-        return 'Loading current name timed out. You can tap "Reload Current Name" to retry.';
+        return this.ui.loadTimedOut.en;
       }
     }
 
@@ -344,14 +409,14 @@ export class AccountProfileComponent implements OnInit {
     const payload = err?.error;
     const normalizedErrorText = this.collectErrorText(err);
     if (this.isDuplicateSchoolConflictError(normalizedErrorText)) {
-      return 'Name update is blocked by duplicate school records in your profile. Please contact support/teacher to fix duplicate schools, then retry.';
+      return this.ui.duplicateSchools.en;
     }
     if (
       err.status >= 500 &&
       this.toText(err.url).includes('/api/student/profile') &&
       normalizedErrorText.includes('server error')
     ) {
-      return 'Profile save failed on server. This is likely caused by duplicate school records. Please contact support/teacher to fix duplicate schools, then retry.';
+      return this.ui.serverSaveFailed.en;
     }
 
     if (payload && typeof payload === 'object') {

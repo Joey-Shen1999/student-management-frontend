@@ -198,6 +198,45 @@
   </select>
 </label>
 
+<div
+  *ngIf="shouldShowFilterField('coursePlan')"
+  class="student-filter-item course-plan-filter-item"
+>
+  <label class="course-plan-filter-label">
+    Course Code / 课程代码
+    <input
+      class="student-filter-input course-code-filter-input"
+      [ngModel]="courseCodeFilterInput"
+      (ngModelChange)="courseCodeFilterInputChange.emit($event)"
+      [name]="idPrefix + '-course-code-filter'"
+      [attr.list]="idPrefix + '-course-code-options'"
+      placeholder="MHF4U"
+      [disabled]="disabled"
+    />
+    <datalist [attr.id]="idPrefix + '-course-code-options'">
+      <option *ngFor="let option of courseCodeFilterOptions" [value]="option"></option>
+    </datalist>
+  </label>
+
+  <label class="course-plan-filter-label">
+    Status / 状态
+    <select
+      class="student-filter-select course-status-filter-select"
+      [ngModel]="courseStatusFilter"
+      (ngModelChange)="onCourseStatusFilterSelect($event)"
+      [disabled]="disabled"
+    >
+      <option [ngValue]="''">Any / 全部</option>
+      <option
+        *ngFor="let option of courseStatusFilterOptions"
+        [ngValue]="option"
+      >
+        {{ resolveCourseStatusFilterOptionLabel(option) }}
+      </option>
+    </select>
+  </label>
+</div>
+
 <label
   *ngIf="shouldShowFilterField('volunteerCompleted')"
   class="student-filter-item"

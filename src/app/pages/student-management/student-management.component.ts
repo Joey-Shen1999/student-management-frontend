@@ -30,6 +30,11 @@ import {
   VolunteerTrackingService,
   type VolunteerTrackingBatchSummaryItemVm,
 } from '../../services/volunteer-tracking.service';
+import {
+  CoursePlanPayload,
+  CoursePlanService,
+  CoursePlanStatus,
+} from '../../services/course-plan.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
@@ -72,6 +77,7 @@ import {
   type StudentSelectorFilterFieldKey,
 } from '../../shared/student-fields/student-field-presets';
 import { StudentFilterFieldsComponent } from '../../shared/student-filter-fields/student-filter-fields.component';
+import { COURSE_PLAN_CATALOG } from '../student-profile/course-plan-course-catalog';
 
 interface PasswordResetResult {
   studentId: number;
@@ -147,7 +153,14 @@ interface StudentListFilterPreferenceVm {
   languageCourseStatusFilter?: string;
   ossltResultFilter?: string;
   ossltTrackingFilter?: string;
+  courseCodeFilterInput?: string;
+  courseStatusFilter?: string;
   volunteerCompletedFilter?: boolean;
+}
+
+interface StudentCoursePlanCourseSummary {
+  courseCode: string;
+  status: CoursePlanStatus | null;
 }
 
 const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -157,6 +170,7 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
   string
 > = {
   students: 'student-management.list-columns',
+  courses: 'course-management.list-columns',
   ielts: 'ielts-tracking.list-columns',
   osslt: 'osslt-tracking.list-columns',
   volunteer: 'volunteer-tracking.list-columns',
@@ -164,6 +178,7 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
 
 const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   students: '\u5b66\u751f\u8d26\u53f7\u7ba1\u7406',
+  courses: '\u8bfe\u7a0b\u7ba1\u7406',
   ielts: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
   osslt: 'OSSLT \u8ddf\u8e2a',
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
@@ -187,6 +202,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   serviceItems: '\u670d\u52a1\u9879\u76ee',
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
+  coursePlan: '\u8bfe\u7a0b\u8868',
   ielts: '\u8bed\u8a00\u6210\u7ee9',
   languageTracking: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
   languageCourseStatus: '\u8bed\u8a00\u62a5\u8bfe\u60c5\u51b5',
@@ -213,7 +229,7 @@ const SERVICE_ITEM_OPTIONS = [
   '一对一辅导',
 ] as const;
 
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v10';
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v11';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -378,6 +394,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   {
     key: 'profile',
     label: '档案',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'coursePlan',
+    label: '课程表',
     defaultVisible: true,
     hideable: true,
     backendDependent: false,
@@ -612,6 +638,9 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             [cityFilterInput]="cityFilterInput"
             [schoolBoardFilterInput]="schoolBoardFilterInput"
             [graduationSeasonFilterInput]="graduationSeasonFilterInput"
+            [courseCodeFilterInput]="courseCodeFilterInput"
+            [courseStatusFilter]="courseStatusFilter"
+            [courseCodeFilterOptions]="courseCodeFilterOptions"
             [volunteerCompletedFilter]="volunteerCompletedFilter"
             [volunteerCompletedDisabled]="!volunteerCompletedFilterAvailable"
             [volunteerCompletedTitle]="
@@ -626,6 +655,8 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             (cityFilterInputChange)="onCityFilterInputChange($event)"
             (schoolBoardFilterInputChange)="onSchoolBoardFilterInputChange($event)"
             (graduationSeasonFilterInputChange)="onGraduationSeasonFilterInputChange($event)"
+            (courseCodeFilterInputChange)="onCourseCodeFilterInputChange($event)"
+            (courseStatusFilterChange)="onCourseStatusFilterChange($event)"
             (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
             (studentKeywordChange)="onSearchKeywordChange($event)"
           ></app-student-filter-fields>
@@ -879,6 +910,17 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       [disabled]="!resolveStudentId(student)"
                     >
                       编辑档案
+                    </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'coursePlan'">
+                    <button
+                      type="button"
+                      [routerLink]="coursePlanRoute(student)"
+                      style="min-width:86px;white-space:nowrap;"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      课程表
                     </button>
                   </ng-container>
 
@@ -1337,6 +1379,9 @@ export class StudentManagementComponent implements OnInit {
     'EXAM_REGISTERED',
     'SCORE_RELEASED',
   ];
+  readonly courseCodeFilterOptions: readonly string[] = COURSE_PLAN_CATALOG.map(
+    (course) => course.code
+  );
   readonly ossltResultStatusOptions: readonly OssltResult[] = ['PASS', 'FAIL', 'UNKNOWN'];
   readonly ossltTrackingStatusOptions: readonly OssltTrackingStatus[] = [
     'WAITING_UPDATE',
@@ -1349,6 +1394,7 @@ export class StudentManagementComponent implements OnInit {
     'city',
     'schoolBoard',
     'graduationSeason',
+    'coursePlan',
     'volunteerCompleted',
     'keyword',
   ];
@@ -1383,6 +1429,8 @@ export class StudentManagementComponent implements OnInit {
   languageCourseStatusFilter: LanguageCourseStatus | '' = '';
   ossltResultFilter: OssltResult | '' = '';
   ossltTrackingFilter: OssltTrackingStatus | '' = '';
+  courseCodeFilterInput = '';
+  courseStatusFilter: CoursePlanStatus | '' = '';
   volunteerCompletedFilter = false;
   volunteerCompletedFilterAvailable = true;
   volunteerCompletedFilterError = '';
@@ -1432,6 +1480,9 @@ export class StudentManagementComponent implements OnInit {
   private readonly volunteerCompletedCache = new Map<number, boolean>();
   private readonly volunteerHoursLoadInFlight = new Set<number>();
   private readonly volunteerHoursUnavailable = new Set<number>();
+  private readonly coursePlanCoursesCache = new Map<number, StudentCoursePlanCourseSummary[]>();
+  private readonly coursePlanLoadInFlight = new Set<number>();
+  private readonly coursePlanUnavailable = new Set<number>();
   private readonly serviceItemsSaveInFlight = new Set<number>();
   private readonly studentProfileCache = new Map<
     number,
@@ -1450,6 +1501,7 @@ export class StudentManagementComponent implements OnInit {
     private ieltsApi: IeltsTrackingService,
     private ossltApi: OssltTrackingService,
     private volunteerApi: VolunteerTrackingService,
+    private coursePlanApi: CoursePlanService,
     private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
@@ -1713,6 +1765,8 @@ export class StudentManagementComponent implements OnInit {
         return this.resolveStudentProvince(student);
       case 'city':
         return this.resolveStudentCity(student);
+      case 'coursePlan':
+        return '课程表';
       case 'languageCourseStatus':
         return this.resolveStudentLanguageCourseStatus(student);
       case 'status':
@@ -1893,6 +1947,16 @@ export class StudentManagementComponent implements OnInit {
     const input = String(value ?? '').trim();
     this.graduationSeasonFilterInput = input;
     this.graduationSeasonFilter = input ? this.resolveGraduationSeasonFilterSelection(input) : '';
+    this.applyListView();
+  }
+
+  onCourseCodeFilterInputChange(value: string): void {
+    this.courseCodeFilterInput = String(value ?? '').trim().toUpperCase();
+    this.applyListView();
+  }
+
+  onCourseStatusFilterChange(value: string): void {
+    this.courseStatusFilter = this.normalizeCoursePlanStatusValue(value) ?? '';
     this.applyListView();
   }
 
@@ -2442,6 +2506,14 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'profile'];
   }
 
+  coursePlanRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    return ['/teacher/students', String(studentId), 'course-plan'];
+  }
+
   ieltsRoute(student: StudentAccount): string[] {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
@@ -2929,6 +3001,9 @@ export class StudentManagementComponent implements OnInit {
     this.volunteerCompletedCache.clear();
     this.volunteerHoursLoadInFlight.clear();
     this.volunteerHoursUnavailable.clear();
+    this.coursePlanCoursesCache.clear();
+    this.coursePlanLoadInFlight.clear();
+    this.coursePlanUnavailable.clear();
     this.volunteerCompletedFilterAvailable = true;
     this.volunteerCompletedFilterError = '';
     this.cdr.detectChanges();
@@ -3742,6 +3817,8 @@ export class StudentManagementComponent implements OnInit {
     this.ossltResultFilter = this.normalizeOssltResultValue(persisted.ossltResultFilter) ?? '';
     this.ossltTrackingFilter =
       this.normalizeOssltTrackingStatusValue(persisted.ossltTrackingFilter) ?? '';
+    this.courseCodeFilterInput = String(persisted.courseCodeFilterInput ?? '').trim().toUpperCase();
+    this.courseStatusFilter = this.normalizeCoursePlanStatusValue(persisted.courseStatusFilter) ?? '';
     this.volunteerCompletedFilter = this.normalizePreferenceBoolean(
       persisted.volunteerCompletedFilter
     );
@@ -3770,6 +3847,8 @@ export class StudentManagementComponent implements OnInit {
         languageCourseStatusFilter: this.languageCourseStatusFilter,
         ossltResultFilter: this.ossltResultFilter,
         ossltTrackingFilter: this.ossltTrackingFilter,
+        courseCodeFilterInput: this.courseCodeFilterInput,
+        courseStatusFilter: this.courseStatusFilter,
         volunteerCompletedFilter: this.volunteerCompletedFilter,
       };
       storage.setItem(this.resolveListControlsStorageKey(), JSON.stringify(payload));
@@ -3814,6 +3893,9 @@ export class StudentManagementComponent implements OnInit {
       .toLowerCase();
     if (url.startsWith('/teacher/ielts')) {
       return 'ielts';
+    }
+    if (url.startsWith('/teacher/courses')) {
+      return 'courses';
     }
     if (url.startsWith('/teacher/osslt')) {
       return 'osslt';
@@ -3984,6 +4066,8 @@ export class StudentManagementComponent implements OnInit {
       !this.languageCourseStatusFilter &&
       !this.ossltResultFilter &&
       !this.ossltTrackingFilter &&
+      !this.courseCodeFilterInput &&
+      !this.courseStatusFilter &&
       !this.volunteerCompletedFilter
     );
   }
@@ -4007,6 +4091,8 @@ export class StudentManagementComponent implements OnInit {
     this.languageCourseStatusFilter = '';
     this.ossltResultFilter = '';
     this.ossltTrackingFilter = '';
+    this.courseCodeFilterInput = '';
+    this.courseStatusFilter = '';
     this.volunteerCompletedFilter = false;
     this.applyListView();
   }
@@ -4163,6 +4249,10 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
+    if (this.isCoursePlanFilterActive() && !this.matchesCoursePlanFilter(student)) {
+      return false;
+    }
+
     const keyword = this.searchKeyword.trim().toLowerCase();
     if (!keyword) {
       return true;
@@ -4206,6 +4296,9 @@ export class StudentManagementComponent implements OnInit {
       if (!this.hasVolunteerSummaryForAllStudents()) {
         this.prefetchVolunteerHoursForStudents(this.students, true);
       }
+    }
+    if (this.isCoursePlanFilterActive()) {
+      this.prefetchCoursePlansForStudents(this.students, true);
     }
   }
 
@@ -4344,6 +4437,215 @@ export class StudentManagementComponent implements OnInit {
       this.volunteerCompletedCache.set(studentId, derived);
     }
     return derived;
+  }
+
+  private isCoursePlanFilterActive(): boolean {
+    return !!this.normalizeCourseCodeForFilter(this.courseCodeFilterInput) || !!this.courseStatusFilter;
+  }
+
+  private matchesCoursePlanFilter(student: StudentAccount): boolean {
+    const courseCodeFilter = this.normalizeCourseCodeForFilter(this.courseCodeFilterInput);
+    const statusFilter = this.courseStatusFilter;
+    if (!courseCodeFilter && !statusFilter) {
+      return true;
+    }
+
+    const courses = this.resolveCoursePlanCoursesForFilter(student);
+    if (!courses || courses.length <= 0) {
+      return false;
+    }
+
+    return courses.some((course) => {
+      const codeMatched =
+        !courseCodeFilter || this.normalizeCourseCodeForFilter(course.courseCode) === courseCodeFilter;
+      const statusMatched = !statusFilter || course.status === statusFilter;
+      return codeMatched && statusMatched;
+    });
+  }
+
+  private resolveCoursePlanCoursesForFilter(
+    student: StudentAccount
+  ): readonly StudentCoursePlanCourseSummary[] | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId && this.coursePlanCoursesCache.has(studentId)) {
+      return this.coursePlanCoursesCache.get(studentId) ?? [];
+    }
+
+    const coursesFromRow = this.extractCoursePlanCoursesFromStudent(student);
+    if (coursesFromRow !== null) {
+      if (studentId) {
+        this.coursePlanCoursesCache.set(studentId, coursesFromRow);
+        this.coursePlanUnavailable.delete(studentId);
+      }
+      return coursesFromRow;
+    }
+
+    if (studentId && this.coursePlanUnavailable.has(studentId)) {
+      return [];
+    }
+
+    return null;
+  }
+
+  private extractCoursePlanCoursesFromStudent(
+    student: StudentAccount
+  ): StudentCoursePlanCourseSummary[] | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const profile = this.asObjectRecord(row['profile']);
+    const candidates: unknown[] = [
+      row['coursePlan'],
+      row['course_plan'],
+      row['academicCoursePlan'],
+      row['academic_course_plan'],
+      row['studentCoursePlan'],
+      row['student_course_plan'],
+      row['coursePlanning'],
+      row['course_planning'],
+      profile?.['coursePlan'],
+      profile?.['course_plan'],
+      profile?.['academicCoursePlan'],
+      profile?.['studentCoursePlan'],
+      row,
+    ];
+
+    for (const candidate of candidates) {
+      const courses = this.extractCoursePlanCoursesFromPayload(candidate);
+      if (courses !== null) {
+        return courses;
+      }
+    }
+    return null;
+  }
+
+  private extractCoursePlanCoursesFromPayload(
+    payload: unknown
+  ): StudentCoursePlanCourseSummary[] | null {
+    if (!payload) return null;
+
+    if (Array.isArray(payload)) {
+      const courses = payload.flatMap((item) => this.extractCoursePlanCoursesFromPayload(item) ?? []);
+      return courses.length > 0 ? courses : null;
+    }
+
+    const node = this.asObjectRecord(payload);
+    if (!node) return null;
+
+    const grades = this.pickFirstArray([node['grades'], node['gradePlans'], node['grade_plans']]);
+    if (grades) {
+      const courses = grades.flatMap((grade) => {
+        const gradeNode = this.asObjectRecord(grade);
+        if (!gradeNode) return [];
+        const gradeCourses = this.pickFirstArray([
+          gradeNode['courses'],
+          gradeNode['courseList'],
+          gradeNode['course_list'],
+        ]);
+        return gradeCourses
+          ? gradeCourses
+              .map((course) => this.normalizeCoursePlanCourseSummary(course))
+              .filter((course): course is StudentCoursePlanCourseSummary => course !== null)
+          : [];
+      });
+      return courses;
+    }
+
+    const directCourses = this.pickFirstArray([
+      node['courses'],
+      node['courseList'],
+      node['course_list'],
+      node['items'],
+      node['data'],
+    ]);
+    if (directCourses) {
+      const courses = directCourses
+        .flatMap((course) => {
+          const nested = this.extractCoursePlanCoursesFromPayload(course);
+          if (nested) return nested;
+          const normalized = this.normalizeCoursePlanCourseSummary(course);
+          return normalized ? [normalized] : [];
+        });
+      return courses.length > 0 ? courses : null;
+    }
+
+    const directCourse = this.normalizeCoursePlanCourseSummary(node);
+    return directCourse ? [directCourse] : null;
+  }
+
+  private normalizeCoursePlanCourseSummary(
+    value: unknown
+  ): StudentCoursePlanCourseSummary | null {
+    const node = this.asObjectRecord(value);
+    if (!node) return null;
+
+    const courseCode = this.pickFirstText([
+      node['courseCode'],
+      node['course_code'],
+      node['code'],
+      node['course'],
+    ]);
+    if (!courseCode) return null;
+
+    return {
+      courseCode,
+      status: this.normalizeCoursePlanStatusValue(
+        node['status'] ??
+          node['courseStatus'] ??
+          node['course_status'] ??
+          node['state'] ??
+          node['progress']
+      ),
+    };
+  }
+
+  private pickFirstArray(candidates: unknown[]): unknown[] | null {
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  private normalizeCourseCodeForFilter(value: unknown): string {
+    return String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+  }
+
+  private normalizeCoursePlanStatusValue(value: unknown): CoursePlanStatus | null {
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (!normalized) return null;
+    if (
+      normalized === 'COMPLETED' ||
+      normalized === 'COMPLETE' ||
+      normalized === 'DONE' ||
+      normalized === 'FINISHED'
+    ) {
+      return 'COMPLETED';
+    }
+    if (
+      normalized === 'IN_PROGRESS' ||
+      normalized === 'INPROGRESS' ||
+      normalized === 'TAKING' ||
+      normalized === 'CURRENT' ||
+      normalized === 'ONGOING'
+    ) {
+      return 'IN_PROGRESS';
+    }
+    if (
+      normalized === 'PLANNED' ||
+      normalized === 'PLANNING' ||
+      normalized === 'PLANING' ||
+      normalized === 'PLAN'
+    ) {
+      return 'PLANNED';
+    }
+    return null;
   }
 
   private extractVolunteerCompletedFromStudent(student: StudentAccount): boolean | null {
@@ -5122,6 +5424,8 @@ export class StudentManagementComponent implements OnInit {
       !this.languageCourseStatusFilter &&
       !this.ossltResultFilter &&
       !this.ossltTrackingFilter &&
+      !this.courseCodeFilterInput &&
+      !this.courseStatusFilter &&
       !this.volunteerCompletedFilter
     ) {
       return;
@@ -5278,6 +5582,59 @@ export class StudentManagementComponent implements OnInit {
 
   private prefetchVisibleVolunteerHours(): void {
     this.prefetchVolunteerHoursForStudents(this.visibleStudents);
+  }
+
+  private prefetchCoursePlansForStudents(
+    students: readonly StudentAccount[],
+    reapplyOnUpdate = false
+  ): void {
+    for (const student of students) {
+      const studentId = this.resolveStudentId(student);
+      if (!studentId) continue;
+
+      const rowCourses = this.extractCoursePlanCoursesFromStudent(student);
+      if (rowCourses !== null) {
+        this.coursePlanCoursesCache.set(studentId, rowCourses);
+        this.coursePlanUnavailable.delete(studentId);
+        continue;
+      }
+
+      if (
+        this.coursePlanCoursesCache.has(studentId) ||
+        this.coursePlanUnavailable.has(studentId) ||
+        this.coursePlanLoadInFlight.has(studentId)
+      ) {
+        continue;
+      }
+
+      this.coursePlanLoadInFlight.add(studentId);
+      this.coursePlanApi
+        .getTeacherStudentCoursePlan(studentId)
+        .pipe(
+          finalize(() => {
+            this.coursePlanLoadInFlight.delete(studentId);
+          })
+        )
+        .subscribe({
+          next: (payload: CoursePlanPayload) => {
+            const courses = this.extractCoursePlanCoursesFromPayload(payload) ?? [];
+            this.coursePlanCoursesCache.set(studentId, courses);
+            this.coursePlanUnavailable.delete(studentId);
+            this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
+          },
+          error: () => {
+            this.coursePlanCoursesCache.delete(studentId);
+            this.coursePlanUnavailable.add(studentId);
+            this.cdr.detectChanges();
+            if (reapplyOnUpdate) {
+              this.scheduleStatusFilterReapply();
+            }
+          },
+        });
+    }
   }
 
   private prefetchVolunteerHoursForStudents(

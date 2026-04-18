@@ -23,6 +23,7 @@ export class StudentFilterFieldsComponent {
     'languageCourseStatus',
     'ossltResult',
     'ossltTracking',
+    'coursePlan',
     'volunteerCompleted',
     'keyword',
   ];
@@ -52,6 +53,11 @@ export class StudentFilterFieldsComponent {
     'NEEDS_TRACKING',
     'PASSED',
   ];
+  readonly defaultCourseStatusFilterOptions: readonly string[] = [
+    'COMPLETED',
+    'IN_PROGRESS',
+    'PLANNED',
+  ];
 
   @Input() idPrefix = `student-filter-fields-${Math.trunc(Math.random() * 1_000_000_000)}`;
   @Input() disabled = false;
@@ -73,6 +79,9 @@ export class StudentFilterFieldsComponent {
   @Input() languageCourseStatusFilter = '';
   @Input() ossltResultFilter = '';
   @Input() ossltTrackingFilter = '';
+  @Input() courseCodeFilterInput = '';
+  @Input() courseStatusFilter = '';
+  @Input() courseCodeFilterOptions: readonly string[] = [];
   @Input() languageScoreFilterOptions: readonly string[] = this.defaultLanguageScoreFilterOptions;
   @Input() languageTrackingFilterOptions: readonly string[] =
     this.defaultLanguageTrackingFilterOptions;
@@ -80,6 +89,7 @@ export class StudentFilterFieldsComponent {
     this.defaultLanguageCourseStatusFilterOptions;
   @Input() ossltResultFilterOptions: readonly string[] = this.defaultOssltResultFilterOptions;
   @Input() ossltTrackingFilterOptions: readonly string[] = this.defaultOssltTrackingFilterOptions;
+  @Input() courseStatusFilterOptions: readonly string[] = this.defaultCourseStatusFilterOptions;
   @Input() volunteerCompletedFilter = false;
   @Input() volunteerCompletedDisabled = false;
   @Input() volunteerCompletedTitle: string | null = null;
@@ -96,6 +106,8 @@ export class StudentFilterFieldsComponent {
   @Output() languageCourseStatusFilterChange = new EventEmitter<string>();
   @Output() ossltResultFilterChange = new EventEmitter<string>();
   @Output() ossltTrackingFilterChange = new EventEmitter<string>();
+  @Output() courseCodeFilterInputChange = new EventEmitter<string>();
+  @Output() courseStatusFilterChange = new EventEmitter<string>();
   @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();
   @Output() studentKeywordChange = new EventEmitter<string>();
 
@@ -126,6 +138,10 @@ export class StudentFilterFieldsComponent {
 
   onOssltTrackingFilterSelect(value: unknown): void {
     this.ossltTrackingFilterChange.emit(String(value ?? '').trim());
+  }
+
+  onCourseStatusFilterSelect(value: unknown): void {
+    this.courseStatusFilterChange.emit(String(value ?? '').trim());
   }
 
   resolveLanguageScoreFilterOptionLabel(value: string): string {
@@ -170,6 +186,14 @@ export class StudentFilterFieldsComponent {
     if (normalized === 'PASSED') return '\u5df2\u901a\u8fc7';
     if (normalized === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
     if (normalized === 'WAITING_UPDATE') return '\u7b49\u5f85\u66f4\u65b0';
+    return String(value ?? '').trim() || '-';
+  }
+
+  resolveCourseStatusFilterOptionLabel(value: string): string {
+    const normalized = String(value ?? '').trim().toUpperCase();
+    if (normalized === 'COMPLETED') return 'Done / \u5df2\u5b8c\u6210';
+    if (normalized === 'IN_PROGRESS') return 'Taking / \u5728\u8bfb';
+    if (normalized === 'PLANNED') return 'Planning / \u8ba1\u5212\u4e2d';
     return String(value ?? '').trim() || '-';
   }
 }

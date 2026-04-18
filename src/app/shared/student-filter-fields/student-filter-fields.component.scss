@@ -42,6 +42,25 @@
   min-width: 170px;
 }
 
+.course-plan-filter-item {
+  flex-wrap: wrap;
+}
+
+.course-plan-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.course-code-filter-input {
+  min-width: 110px;
+  text-transform: uppercase;
+}
+
+.course-status-filter-select {
+  min-width: 160px;
+}
+
 .student-filter-keyword {
   min-width: 260px;
   max-width: 360px;

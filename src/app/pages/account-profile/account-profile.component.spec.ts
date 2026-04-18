@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
 import { StudentProfileService } from '../../services/student-profile.service';
+import { translateUiText } from '../../shared/i18n/ui-translations';
 import { AccountProfileComponent } from './account-profile.component';
 
 describe('AccountProfileComponent', () => {
@@ -12,6 +13,10 @@ describe('AccountProfileComponent', () => {
 
   function createComponent(): AccountProfileComponent {
     return new AccountProfileComponent(auth as AuthService, profileApi as StudentProfileService);
+  }
+
+  function toEnglish(value: Parameters<typeof translateUiText>[0]): string {
+    return translateUiText(value, 'en');
   }
 
   beforeEach(() => {
@@ -49,8 +54,19 @@ describe('AccountProfileComponent', () => {
 
     component.ngOnInit();
 
-    expect(component.error).toBe('Login session expired. Please sign in again.');
+    expect(toEnglish(component.error)).toBe('Login session expired. Please sign in again.');
     expect(profileApi.getMyProfile).not.toHaveBeenCalled();
+  });
+
+  it('should provide complete bilingual account profile labels', () => {
+    const component = createComponent();
+
+    expect(translateUiText(component.ui.newFirstName, 'zh')).toBe('\u65b0\u540d\u5b57');
+    expect(translateUiText(component.ui.newLastName, 'zh')).toBe('\u65b0\u59d3\u6c0f');
+    expect(translateUiText(component.ui.updateName, 'zh')).toBe('\u66f4\u65b0\u59d3\u540d');
+    expect(translateUiText(component.ui.newFirstName, 'en')).toBe('New First Name');
+    expect(translateUiText(component.ui.newLastName, 'en')).toBe('New Last Name');
+    expect(translateUiText(component.ui.updateName, 'en')).toBe('Update Name');
   });
 
   it('ngOnInit should load names from legal fields', () => {
@@ -187,7 +203,7 @@ describe('AccountProfileComponent', () => {
     component.submit();
 
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
-    expect(component.error).toBe('Please enter a new first name or last name.');
+    expect(toEnglish(component.error)).toBe('Please enter a new first name or last name.');
   });
 
   it('submit should block same name update', () => {
@@ -199,7 +215,7 @@ describe('AccountProfileComponent', () => {
     component.submit();
 
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
-    expect(component.error).toBe('New name is the same as current name.');
+    expect(toEnglish(component.error)).toBe('New name is the same as current name.');
   });
 
   it('submit should reject numeric-only names before request', () => {
@@ -210,7 +226,7 @@ describe('AccountProfileComponent', () => {
     component.submit();
 
     expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
-    expect(component.error).toBe('First name cannot be numbers only.');
+    expect(toEnglish(component.error)).toBe('First name cannot be numbers only.');
   });
 
   it('submit should send merged payload and keep existing profile fields', () => {

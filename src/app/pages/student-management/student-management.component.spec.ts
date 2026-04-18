@@ -12,6 +12,7 @@ import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
 import { VolunteerTrackingService } from '../../services/volunteer-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import { CoursePlanService } from '../../services/course-plan.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -32,6 +33,7 @@ describe('StudentManagementComponent', () => {
     VolunteerTrackingService,
     'getTeacherStudentVolunteerTracking' | 'getTeacherStudentsVolunteerBatchSummary'
   >;
+  let coursePlanApi: Pick<CoursePlanService, 'getTeacherStudentCoursePlan'>;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -119,6 +121,15 @@ describe('StudentManagementComponent', () => {
       ),
       getTeacherStudentsVolunteerBatchSummary: vi.fn().mockReturnValue(of([])),
     };
+    coursePlanApi = {
+      getTeacherStudentCoursePlan: vi.fn().mockReturnValue(
+        of({
+          currentGradeLevel: 12,
+          grade13Enabled: false,
+          grades: [],
+        })
+      ),
+    };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
       upsertPagePreference: vi.fn().mockReturnValue(of({})),
@@ -133,6 +144,7 @@ describe('StudentManagementComponent', () => {
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
       preferenceApi as TeacherPreferenceService
     );
   });
@@ -573,6 +585,8 @@ describe('StudentManagementComponent', () => {
     component.languageScoreTrackingFilter = 'AUTO_PASS_ALL_SCHOOLS';
     component.ossltResultFilter = 'PASS';
     component.ossltTrackingFilter = 'PASSED';
+    component.courseCodeFilterInput = 'MHF4U';
+    component.courseStatusFilter = 'COMPLETED';
     component.volunteerCompletedFilter = true;
 
     component.clearListControls();
@@ -594,6 +608,8 @@ describe('StudentManagementComponent', () => {
     expect(component.languageScoreTrackingFilter).toBe('');
     expect(component.ossltResultFilter).toBe('');
     expect(component.ossltTrackingFilter).toBe('');
+    expect(component.courseCodeFilterInput).toBe('');
+    expect(component.courseStatusFilter).toBe('');
     expect(component.volunteerCompletedFilter).toBe(false);
   });
 
@@ -1226,6 +1242,115 @@ describe('StudentManagementComponent', () => {
     expect(volunteerApi.getTeacherStudentsVolunteerBatchSummary).not.toHaveBeenCalled();
   });
 
+  it('course plan filter should match course code and done/taking/planning status from row data', () => {
+    component.students = [
+      {
+        studentId: 541,
+        username: 'student541',
+        status: 'ACTIVE',
+        coursePlan: {
+          grades: [
+            {
+              gradeLevel: 12,
+              courses: [{ courseCode: 'MHF4U', status: 'COMPLETED' }],
+            },
+          ],
+        },
+      },
+      {
+        studentId: 542,
+        username: 'student542',
+        status: 'ACTIVE',
+        coursePlan: {
+          grades: [
+            {
+              gradeLevel: 12,
+              courses: [{ courseCode: 'MHF4U', status: 'IN_PROGRESS' }],
+            },
+          ],
+        },
+      },
+      {
+        studentId: 543,
+        username: 'student543',
+        status: 'ACTIVE',
+        coursePlan: {
+          grades: [
+            {
+              gradeLevel: 12,
+              courses: [{ courseCode: 'ENG4U', status: 'PLANNED' }],
+            },
+          ],
+        },
+      },
+    ] as any;
+
+    component.courseCodeFilterInput = 'mhf 4u';
+    component.courseStatusFilter = 'COMPLETED';
+    component.applyListView();
+
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([541]);
+
+    component.courseStatusFilter = 'IN_PROGRESS';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([542]);
+
+    component.courseCodeFilterInput = 'eng4u';
+    component.courseStatusFilter = 'PLANNED';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([543]);
+  });
+
+  it('course plan filter should load course plans from teacher course plan API when row data is missing', () => {
+    (coursePlanApi.getTeacherStudentCoursePlan as any).mockImplementation((studentId: number) =>
+      of({
+        currentGradeLevel: 12,
+        grade13Enabled: false,
+        grades: [
+          {
+            gradeLevel: 12,
+            yearStructure: 'SEMESTER',
+            courses: [
+              {
+                id: `course-${studentId}`,
+                courseCode: studentId === 551 ? 'SCH4U' : 'MHF4U',
+                status: studentId === 551 ? 'IN_PROGRESS' : 'PLANNED',
+                mark: null,
+                semester: 'S1',
+                sortOrder: 0,
+              },
+            ],
+          },
+        ],
+      })
+    );
+    component.students = [
+      { studentId: 551, username: 'student551', status: 'ACTIVE' },
+      { studentId: 552, username: 'student552', status: 'ACTIVE' },
+    ] as any;
+
+    component.courseCodeFilterInput = 'sch4u';
+    component.courseStatusFilter = 'IN_PROGRESS';
+    component.applyListView();
+
+    expect(coursePlanApi.getTeacherStudentCoursePlan).toHaveBeenCalledWith(551);
+    expect(coursePlanApi.getTeacherStudentCoursePlan).toHaveBeenCalledWith(552);
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([551]);
+  });
+
+  it('coursePlanRoute should point to the teacher course plan page', () => {
+    expect(component.coursePlanRoute({ studentId: 77, username: 'student77' } as any)).toEqual([
+      '/teacher/students',
+      '77',
+      'course-plan',
+    ]);
+  });
+
+  it('course code filter autocomplete should use the course catalog', () => {
+    expect(component.courseCodeFilterOptions).toContain('MHF4U');
+    expect(component.courseCodeFilterOptions).toContain('ENG4U');
+  });
+
   it('volunteer completed filter should use batch-summary API when row does not include volunteer summary fields', () => {
     (volunteerApi.getTeacherStudentsVolunteerBatchSummary as any).mockImplementation(
       (studentIds: number[]) =>
@@ -1393,6 +1518,7 @@ describe('StudentManagementComponent', () => {
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
       preferenceApi as TeacherPreferenceService
     );
     const storageKey = (local as any).resolveListControlsStorageKey();
@@ -1411,6 +1537,8 @@ describe('StudentManagementComponent', () => {
         languageScoreTrackingFilter: 'AUTO_PASS_ALL_SCHOOLS',
         ossltResultFilter: 'PASS',
         ossltTrackingFilter: 'PASSED',
+        courseCodeFilterInput: 'mhf 4u',
+        courseStatusFilter: 'done',
         volunteerCompletedFilter: true,
       })
     );
@@ -1429,6 +1557,8 @@ describe('StudentManagementComponent', () => {
     expect(local.languageScoreTrackingFilter).toBe('AUTO_PASS_ALL_SCHOOLS');
     expect(local.ossltResultFilter).toBe('PASS');
     expect(local.ossltTrackingFilter).toBe('PASSED');
+    expect(local.courseCodeFilterInput).toBe('MHF 4U');
+    expect(local.courseStatusFilter).toBe('COMPLETED');
     expect(local.volunteerCompletedFilter).toBe(true);
     storage?.removeItem(storageKey);
   });
@@ -1436,7 +1566,7 @@ describe('StudentManagementComponent', () => {
   it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
     (preferenceApi.getPagePreference as any).mockReturnValue(
       of({
-        version: 'v10',
+        version: 'v11',
         visibleColumnKeys: [
           'name',
           'email',
@@ -1459,6 +1589,7 @@ describe('StudentManagementComponent', () => {
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1474,7 +1605,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v10',
+        version: 'v11',
         visibleColumnKeys: expect.any(Array),
         orderedColumnKeys: expect.any(Array),
       })
@@ -1497,6 +1628,7 @@ describe('StudentManagementComponent', () => {
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1527,6 +1659,7 @@ describe('StudentManagementComponent', () => {
       ieltsApi as IeltsTrackingService,
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
       preferenceApi as TeacherPreferenceService
     );
     second.ngOnInit();
@@ -1544,7 +1677,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v10',
+        version: 'v11',
       })
     );
   });
@@ -1559,7 +1692,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'ielts-tracking.list-columns',
       expect.objectContaining({
-        version: 'v10',
+        version: 'v11',
       })
     );
   });
@@ -1605,6 +1738,7 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
+        'coursePlan',
         'resetPassword',
         'archive',
       ].sort()
@@ -1850,5 +1984,38 @@ describe('StudentManagementComponent', () => {
     expect(component.resolveVolunteerHoursBackground(student)).toBe('#f1f3f5');
     expect(component.resolveVolunteerHoursTextColor(student)).toBe('#6a7385');
     expect(component.resolveVolunteerHoursBorderColor(student)).toBe('#c8cfda');
+  });
+
+  it('course management route should reuse student management defaults and preference key', () => {
+    router.url = '/teacher/courses';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(component.pageTitle).toBe('课程管理');
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'email',
+        'phone',
+        'graduation',
+        'schoolName',
+        'schoolBoard',
+        'teacherNote',
+        'coursePlan',
+      ].sort()
+    );
+
+    component.onColumnVisibilityChange('city', {
+      target: { checked: true },
+    } as unknown as Event);
+
+    expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
+      'course-management.list-columns',
+      expect.objectContaining({
+        version: 'v11',
+      })
+    );
   });
 });

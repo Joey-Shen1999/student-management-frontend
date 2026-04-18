@@ -153,6 +153,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'courses',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
         path: 'ielts',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(

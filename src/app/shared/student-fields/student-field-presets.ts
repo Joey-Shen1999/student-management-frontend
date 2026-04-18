@@ -1,6 +1,11 @@
 import type { GoalStudentSelectorColumnKey } from '../student-columns/goal-student-selector-columns';
 
-export type StudentManagementPageContext = 'students' | 'ielts' | 'osslt' | 'volunteer';
+export type StudentManagementPageContext =
+  | 'students'
+  | 'courses'
+  | 'ielts'
+  | 'osslt'
+  | 'volunteer';
 
 export type StudentListColumnKey =
   | 'name'
@@ -20,6 +25,7 @@ export type StudentListColumnKey =
   | 'city'
   | 'teacherNote'
   | 'profile'
+  | 'coursePlan'
   | 'ielts'
   | 'languageTracking'
   | 'languageCourseStatus'
@@ -39,6 +45,7 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
+  'coursePlan',
   'resetPassword',
   'archive',
 ];
@@ -74,11 +81,23 @@ export const VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnK
   'volunteerTracking',
 ];
 
+export const COURSE_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
+  'name',
+  'email',
+  'phone',
+  'graduation',
+  'schoolName',
+  'schoolBoard',
+  'teacherNote',
+  'coursePlan',
+];
+
 export const STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   StudentManagementPageContext,
   readonly StudentListColumnKey[]
 > = {
   students: STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS,
+  courses: COURSE_MANAGEMENT_DEFAULT_COLUMN_KEYS,
   ielts: LANGUAGE_SCORE_TRACKING_DEFAULT_COLUMN_KEYS,
   osslt: OSSLT_TRACKING_DEFAULT_COLUMN_KEYS,
   volunteer: VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS,
@@ -96,6 +115,7 @@ export type StudentSelectorFilterFieldKey =
   | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
+  | 'coursePlan'
   | 'volunteerCompleted'
   | 'keyword';
 

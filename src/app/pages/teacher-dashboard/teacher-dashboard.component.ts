@@ -41,6 +41,9 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/students']">
               学生管理
             </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/courses']">
+              课程管理
+            </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/osslt']">
               OSSLT 跟踪
             </button>
@@ -76,6 +79,10 @@ export class TeacherDashboardComponent {
 
   goStudents() {
     this.router.navigate(['/teacher/students']);
+  }
+
+  goCourses() {
+    this.router.navigate(['/teacher/courses']);
   }
 
   goIeltsTracking() {
