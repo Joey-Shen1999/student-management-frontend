@@ -13,8 +13,10 @@ describe('StudentProfile', () => {
   let profileApi: Pick<
     StudentProfileService,
     | 'getMyProfile'
+    | 'getMyProfileHistory'
     | 'saveMyProfile'
     | 'getStudentProfileForTeacher'
+    | 'getStudentProfileHistoryForTeacher'
     | 'saveStudentProfileForTeacher'
     | 'searchCanadianHighSchools'
     | 'searchOntarioCourseProviders'
@@ -37,10 +39,21 @@ describe('StudentProfile', () => {
   let router: Pick<Router, 'navigate'>;
 
   beforeEach(async () => {
+    const defaultProfile = {
+      schools: [
+        {
+          schoolType: 'MAIN',
+          schoolName: 'Unionville High School',
+        },
+      ],
+    };
+
     profileApi = {
-      getMyProfile: vi.fn(() => of({})),
+      getMyProfile: vi.fn(() => of(defaultProfile)),
+      getMyProfileHistory: vi.fn(() => of({ items: [] })),
       saveMyProfile: vi.fn(() => of({})),
-      getStudentProfileForTeacher: vi.fn(() => of({})),
+      getStudentProfileForTeacher: vi.fn(() => of(defaultProfile)),
+      getStudentProfileHistoryForTeacher: vi.fn(() => of({ items: [] })),
       saveStudentProfileForTeacher: vi.fn(() => of({})),
       searchCanadianHighSchools: vi.fn(() => of([])),
       searchOntarioCourseProviders: vi.fn(() => of([])),
@@ -371,6 +384,16 @@ describe('StudentProfile', () => {
     expect(component.oenError).toContain('9');
   });
 
+  it('should block save when first high school name is empty', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolName = '   ';
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+    expect(component.error).toContain('高中学校第1项的学校名称为必填项');
+  });
+
   it('should allow save when OEN is 9 digits', () => {
     component.enterEditMode();
     component.onOenInputChange('123456789');
@@ -383,6 +406,43 @@ describe('StudentProfile', () => {
       })
     );
     expect(component.oenError).toBe('');
+  });
+
+  it('should set save context with If-Match version and manual_save source', () => {
+    const setProfileSaveContext = vi.fn();
+    (profileApi as any).setProfileSaveContext = setProfileSaveContext;
+    component.enterEditMode();
+    component.profileVersion = 11;
+
+    component.save();
+
+    expect(setProfileSaveContext).toHaveBeenCalledWith({
+      ifMatchVersion: 11,
+      changeSource: 'manual_save',
+    });
+  });
+
+  it('should show conflict message and update version on PROFILE_VERSION_CONFLICT', () => {
+    component.enterEditMode();
+    component.profileVersion = 5;
+    (profileApi.saveMyProfile as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: {
+              code: 'PROFILE_VERSION_CONFLICT',
+              currentVersion: 12,
+            },
+          })
+      )
+    );
+
+    component.save();
+
+    expect(component.profileVersion).toBe(12);
+    expect(component.error).toContain('版本冲突');
+    expect(component.saved).toBe(false);
   });
 
   it('should render first-entry-date helper text in edit mode', () => {
@@ -1827,8 +1887,91 @@ describe('StudentProfile', () => {
     expect(profileApi.getStudentProfileForTeacher).toHaveBeenCalledWith(12);
   });
 
+  it('should load self profile history', () => {
+    (profileApi.getMyProfileHistory as any).mockReturnValueOnce(
+      of({
+        items: [
+          {
+            id: 1,
+            changedAt: '2026-04-18T14:30:00',
+            actorRole: 'STUDENT',
+            actorName: 'Amy Chen',
+            changeSource: 'manual_save',
+            changedFields: [{ path: 'phone', before: '111', after: '222' }],
+          },
+        ],
+      })
+    );
+
+    component.openHistory();
+
+    expect(profileApi.getMyProfileHistory).toHaveBeenCalledWith({ size: 20 });
+    expect(component.historyPanelOpen).toBe(true);
+    expect(component.historyEntries).toHaveLength(1);
+    expect(component.displayHistoryActor(component.historyEntries[0])).toBe('学生 Amy Chen');
+    expect(component.displayHistoryField(component.historyEntries[0].changedFields![0])).toBe('联系电话');
+  });
+
+  it('should parse history pagination metadata and render summary', () => {
+    (profileApi.getMyProfileHistory as any).mockReturnValueOnce(
+      of({
+        items: [
+          { id: 1, changedAt: '2026-04-18T14:30:00', changeSource: 'manual_save' },
+          { id: 2, changedAt: '2026-04-18T15:00:00', changeSource: 'auto_save' },
+        ],
+        total: 7,
+        page: 0,
+        size: 20,
+      })
+    );
+
+    component.openHistory();
+    fixture.detectChanges();
+
+    expect(component.historyTotal).toBe(7);
+    expect(component.historyPage).toBe(0);
+    expect(component.historySize).toBe(20);
+    expect(component.displayHistorySummary()).toBe('已显示 2 / 共 7 条（每页 20 条）');
+    expect(fixture.nativeElement.textContent).toContain('已显示 2 / 共 7 条');
+  });
+
+  it('should map stable history changeSource enum values', () => {
+    expect(component.displayHistorySource({ changeSource: 'manual_save' })).toBe('手动保存');
+    expect(component.displayHistorySource({ changeSource: 'auto_save' })).toBe('自动保存');
+    expect(component.displayHistorySource({ changeSource: 'file_upload' })).toBe('文件上传');
+    expect(component.displayHistorySource({ changeSource: 'version_restore' })).toBe('历史恢复');
+  });
+
+  it('should show friendly message when history endpoint returns 404', () => {
+    (profileApi.getMyProfileHistory as any).mockReturnValueOnce(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 404,
+            statusText: 'Not Found',
+            error: 'Not Found',
+          })
+      )
+    );
+
+    component.openHistory();
+
+    expect(component.historyEntries).toHaveLength(0);
+    expect(component.historyError).toBe('修改记录接口暂未开通（后端返回 404）。');
+  });
+
+  it('should load teacher-managed student profile history via teacher API', () => {
+    routeParams$.next(convertToParamMap({ studentId: '12' }));
+
+    component.openHistory();
+
+    expect(profileApi.getStudentProfileHistoryForTeacher).toHaveBeenCalledWith(12, { size: 20 });
+    expect(profileApi.getMyProfileHistory).not.toHaveBeenCalled();
+  });
+
   it('should save teacher-managed student profile via teacher API', () => {
     routeParams$.next(convertToParamMap({ studentId: '12' }));
+    component.model.highSchools[0].schoolName = 'Unionville High School';
     component.save();
 
     expect(profileApi.saveStudentProfileForTeacher).toHaveBeenCalledWith(

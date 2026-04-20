@@ -72,6 +72,10 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
   private nextLocalCourseSeed = 1;
   private dragState: DragState | null = null;
   private suggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly autoSaveDelayMs = 700;
+  private lastSavedPayloadDigest = '';
+  private pendingAutoSave = false;
   private routeSub: Subscription | null = null;
 
   constructor(
@@ -90,6 +94,7 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
     this.clearCourseSuggestionCloseTimer();
+    this.clearAutoSaveTimer();
   }
 
   get visibleGrades(): GradePlanDraft[] {
@@ -106,23 +111,49 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     return `repeat(${this.visibleGrades.length}, minmax(240px, 1fr))`;
   }
 
+  get autoSaveLabel(): string {
+    if (this.saving) return 'Auto-saving...';
+    if (this.autoSaveTimer !== null) return 'Unsaved changes...';
+    if (this.error && !this.loading) return 'Auto-save failed';
+    if (this.savedMessage) return this.savedMessage;
+    return 'Auto-save on';
+  }
+
   countGradeCourses(grade: GradePlanDraft): number {
     return grade.courses.length;
   }
 
   refresh(): void {
+    this.clearAutoSaveTimer();
+    this.pendingAutoSave = false;
     this.loadState();
   }
 
   save(): void {
+    this.clearAutoSaveTimer();
+    this.persistCoursePlan({ force: true, successMessage: 'Course plan saved.' });
+  }
+
+  private persistCoursePlan(options: { force?: boolean; successMessage?: string } = {}): void {
     if (!this.studentId || this.loading) return;
+
+    const payload = this.buildPayloadForSave();
+    const payloadDigest = this.createPayloadDigest(payload);
+    if (!options.force && payloadDigest === this.lastSavedPayloadDigest) {
+      this.savedMessage = '';
+      return;
+    }
+
+    if (this.saving) {
+      this.pendingAutoSave = true;
+      return;
+    }
 
     this.saving = true;
     this.error = '';
     this.savedMessage = '';
     this.cdr.detectChanges();
 
-    const payload = this.buildPayloadForSave();
     const request$ = this.managedMode
       ? this.coursePlanApi.saveTeacherStudentCoursePlan(this.studentId, payload)
       : this.coursePlanApi.saveStudentCoursePlan(payload);
@@ -131,13 +162,24 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
       .pipe(
         finalize(() => {
           this.saving = false;
+          if (this.pendingAutoSave) {
+            this.pendingAutoSave = false;
+            this.scheduleAutoSave(0);
+          }
           this.cdr.detectChanges();
         })
       )
       .subscribe({
         next: (savedPayload) => {
-          this.applyPayload(savedPayload || payload);
-          this.savedMessage = 'Course plan saved.';
+          const currentDigest = this.createPayloadDigest(this.buildPayloadForSave());
+          if (currentDigest === payloadDigest) {
+            this.applyPayload(savedPayload || payload);
+            this.updateLastSavedPayloadDigest();
+            this.savedMessage = options.successMessage || 'Saved automatically.';
+          } else {
+            this.lastSavedPayloadDigest = payloadDigest;
+            this.pendingAutoSave = true;
+          }
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -154,12 +196,14 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     }
     this.savedMessage = '';
     this.ensureSemesterAssignmentsForCurrentGrade();
+    this.markCoursePlanDirty();
   }
 
   toggleManualCurrentGrade(level: number): void {
     this.manualCurrentGradeLevel = this.manualCurrentGradeLevel === level ? null : level;
     this.savedMessage = '';
     this.ensureSemesterAssignmentsForCurrentGrade();
+    this.markCoursePlanDirty();
   }
 
   addCourse(gradeId: number): void {
@@ -177,6 +221,7 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
       )
     );
     this.savedMessage = '';
+    this.markCoursePlanDirty();
   }
 
   removeCourse(gradeId: number, courseId: string): void {
@@ -188,23 +233,28 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     if (this.activeSuggestionCourseId === courseId) {
       this.closeCourseSuggestions();
     }
+    this.markCoursePlanDirty();
   }
 
   setCourseStatus(course: CourseDraft, status: CourseStatus): void {
+    if (course.status === status) return;
     course.status = status;
     if (status === 'PLANNED') {
       course.mark = '';
     }
     this.savedMessage = '';
+    this.markCoursePlanDirty();
   }
 
   setYearStructure(grade: GradePlanDraft, yearStructure: YearStructure): void {
+    if (grade.yearStructure === yearStructure) return;
     grade.yearStructure = yearStructure;
     if (yearStructure === 'FULL_YEAR') {
       grade.courses.forEach((course) => {
         course.semester = null;
       });
       this.savedMessage = '';
+      this.markCoursePlanDirty();
       return;
     }
 
@@ -212,6 +262,7 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
       this.assignSemesterSlots(grade);
     }
     this.savedMessage = '';
+    this.markCoursePlanDirty();
   }
 
   isCurrentGrade(grade: GradePlanDraft): boolean {
@@ -278,6 +329,12 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     this.openCourseSuggestions(course.id);
     this.highlightedSuggestionIndex = 0;
     this.savedMessage = '';
+    this.markCoursePlanDirty();
+  }
+
+  onCourseMarkInput(): void {
+    this.savedMessage = '';
+    this.markCoursePlanDirty();
   }
 
   onCourseCodeKeydown(event: KeyboardEvent, grade: GradePlanDraft, course: CourseDraft): void {
@@ -376,6 +433,7 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     this.reindexGradeCourses(targetGrade);
     this.savedMessage = '';
     this.endCourseDrag();
+    this.markCoursePlanDirty();
   }
 
   trackGrade = (_index: number, grade: GradePlanDraft): number => grade.id;
@@ -425,6 +483,7 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (payload) => {
           this.applyPayload(payload);
+          this.updateLastSavedPayloadDigest();
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -605,6 +664,52 @@ export class CoursePlanPrototypeComponent implements OnInit, OnDestroy {
     course.courseCode = suggestion.code;
     this.savedMessage = '';
     this.closeCourseSuggestions();
+    this.markCoursePlanDirty();
+  }
+
+  private markCoursePlanDirty(): void {
+    if (!this.studentId || this.loading) return;
+
+    this.error = '';
+    this.savedMessage = '';
+    this.clearAutoSaveTimer();
+
+    const payloadDigest = this.createPayloadDigest(this.buildPayloadForSave());
+    if (payloadDigest === this.lastSavedPayloadDigest) {
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.saving) {
+      this.pendingAutoSave = true;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.scheduleAutoSave();
+  }
+
+  private scheduleAutoSave(delayMs = this.autoSaveDelayMs): void {
+    this.clearAutoSaveTimer();
+    this.autoSaveTimer = setTimeout(() => {
+      this.autoSaveTimer = null;
+      this.persistCoursePlan();
+    }, delayMs);
+    this.cdr.detectChanges();
+  }
+
+  private clearAutoSaveTimer(): void {
+    if (this.autoSaveTimer === null) return;
+    clearTimeout(this.autoSaveTimer);
+    this.autoSaveTimer = null;
+  }
+
+  private updateLastSavedPayloadDigest(): void {
+    this.lastSavedPayloadDigest = this.createPayloadDigest(this.buildPayloadForSave());
+  }
+
+  private createPayloadDigest(payload: CoursePlanPayload): string {
+    return JSON.stringify(payload);
   }
 
   private defaultSemesterForGrade(grade: GradePlanDraft, status: CourseStatus): SemesterSlot {

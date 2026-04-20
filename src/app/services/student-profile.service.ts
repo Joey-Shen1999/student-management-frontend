@@ -138,6 +138,72 @@ export interface StudentProfileResponse {
   [key: string]: any;
 }
 
+export interface StudentProfileHistoryFieldChange {
+  path?: string;
+  field?: string;
+  label?: string;
+  before?: unknown;
+  after?: unknown;
+  oldValue?: unknown;
+  newValue?: unknown;
+  from?: unknown;
+  to?: unknown;
+  name?: string;
+  [key: string]: any;
+}
+
+export interface StudentProfileHistoryEntry {
+  id?: number | string;
+  studentId?: number;
+  version?: number;
+  fromVersion?: number;
+  toVersion?: number;
+  changeSource?: string;
+  source?: string;
+  actorUserId?: number;
+  actorRole?: string;
+  actorName?: string;
+  actorDisplayName?: string;
+  changedByUserId?: number;
+  changedByRole?: string;
+  changedByName?: string;
+  changedBy?: string;
+  role?: string;
+  changedAt?: string;
+  createdAt?: string;
+  timestamp?: string;
+  requestId?: string;
+  changedFields?: StudentProfileHistoryFieldChange[];
+  changes?: StudentProfileHistoryFieldChange[];
+  [key: string]: any;
+}
+
+export interface StudentProfileHistoryResponse {
+  items?: StudentProfileHistoryEntry[];
+  entries?: StudentProfileHistoryEntry[];
+  history?: StudentProfileHistoryEntry[];
+  total?: number;
+  page?: number;
+  size?: number;
+  [key: string]: any;
+}
+
+export interface StudentProfileHistoryQuery {
+  page?: number;
+  size?: number;
+}
+
+export type ProfileChangeSource =
+  | 'manual_save'
+  | 'auto_save'
+  | 'file_upload'
+  | 'version_restore';
+
+export interface StudentProfileSaveRequestOptions {
+  ifMatchVersion?: number | null;
+  changeSource?: ProfileChangeSource;
+}
+
 const EDUCATION_BOARD_LIBRARY_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
   B28002: 'DSB Ontario North East',
   B28010: 'Algoma DSB',
@@ -252,19 +318,21 @@ export const EDUCATION_BOARD_LIBRARY_OPTIONS: ReadonlyArray<string> = buildEduca
 export class StudentProfileService {
   private readonly selfProfileUrl = '/api/student/profile';
   private readonly teacherStudentProfileBaseUrl = '/api/teacher/students';
+  private readonly historyPageSizeDefault = 20;
   private readonly canadianHighSchoolSearchUrl = '/api/reference/canadian-high-schools/search';
   private readonly ontarioCourseProviderSearchUrl = '/api/reference/ontario-course-providers/search';
   private readonly transcriptPrimaryField = 'file';
   private readonly transcriptFallbackField = 'transcript';
   private readonly identityFilePrimaryField = 'file';
   private readonly identityFileFallbackField = 'identity';
+  private pendingProfileSaveContext: StudentProfileSaveRequestOptions | null = null;
 
   constructor(
     private http: HttpClient,
     private auth: AuthService
   ) {}
 
-  private withAuthHeaderIfAvailable() {
+  private withAuthHeaderIfAvailable(): { headers?: HttpHeaders } {
     const authorization = this.auth.getAuthorizationHeaderValue();
     if (!authorization) {
       return {};
@@ -277,6 +345,10 @@ export class StudentProfileService {
     };
   }
 
+  setProfileSaveContext(options: StudentProfileSaveRequestOptions | null): void {
+    this.pendingProfileSaveContext = options ? { ...options } : null;
+  }
+
   getMyProfile(): Observable<StudentProfilePayload | StudentProfileResponse> {
     return this.http.get<StudentProfilePayload | StudentProfileResponse>(
       this.selfProfileUrl,
@@ -284,13 +356,26 @@ export class StudentProfileService {
     );
   }
 
+  getMyProfileHistory(
+    query: StudentProfileHistoryQuery = {}
+  ): Observable<StudentProfileHistoryResponse | StudentProfileHistoryEntry[]> {
+    return this.http.get<StudentProfileHistoryResponse | StudentProfileHistoryEntry[]>(
+      `${this.selfProfileUrl}/history`,
+      {
+        params: this.buildProfileHistoryParams(query),
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
   saveMyProfile(
     payload: StudentProfilePayload
   ): Observable<StudentProfilePayload | StudentProfileResponse> {
+    const requestOptions = this.consumeProfileSaveContext();
     return this.http.put<StudentProfilePayload | StudentProfileResponse>(
       this.selfProfileUrl,
       payload,
-      this.withAuthHeaderIfAvailable()
+      this.buildProfileSaveHeaders(requestOptions)
     );
   }
 
@@ -303,14 +388,28 @@ export class StudentProfileService {
     );
   }
 
+  getStudentProfileHistoryForTeacher(
+    studentId: number,
+    query: StudentProfileHistoryQuery = {}
+  ): Observable<StudentProfileHistoryResponse | StudentProfileHistoryEntry[]> {
+    return this.http.get<StudentProfileHistoryResponse | StudentProfileHistoryEntry[]>(
+      `${this.resolveTeacherStudentProfileUrl(studentId)}/history`,
+      {
+        params: this.buildProfileHistoryParams(query),
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
   saveStudentProfileForTeacher(
     studentId: number,
     payload: StudentProfilePayload
   ): Observable<StudentProfilePayload | StudentProfileResponse> {
+    const requestOptions = this.consumeProfileSaveContext();
     return this.http.put<StudentProfilePayload | StudentProfileResponse>(
       this.resolveTeacherStudentProfileUrl(studentId),
       payload,
-      this.withAuthHeaderIfAvailable()
+      this.buildProfileSaveHeaders(requestOptions)
     );
   }
 
@@ -478,6 +577,45 @@ export class StudentProfileService {
   private shouldRetryTranscriptWithFallbackField(error: unknown): boolean {
     if (!(error instanceof HttpErrorResponse)) return false;
     return error.status === 0 || error.status === 400 || error.status === 415 || error.status === 422;
+  }
+
+  private consumeProfileSaveContext(): StudentProfileSaveRequestOptions {
+    const context = this.pendingProfileSaveContext;
+    this.pendingProfileSaveContext = null;
+    return context ? { ...context } : {};
+  }
+
+  private buildProfileSaveHeaders(
+    options: StudentProfileSaveRequestOptions
+  ): { headers?: HttpHeaders } {
+    const authHeaders = this.withAuthHeaderIfAvailable();
+    let headers = authHeaders.headers || new HttpHeaders();
+    const ifMatchVersion = Number(options.ifMatchVersion);
+    const changeSource = String(options.changeSource || '').trim();
+
+    if (Number.isInteger(ifMatchVersion) && ifMatchVersion >= 0) {
+      headers = headers.set('If-Match', String(ifMatchVersion));
+    }
+    if (changeSource) {
+      headers = headers.set('X-Profile-Change-Source', changeSource);
+    }
+
+    return headers.keys().length > 0 ? { headers } : {};
+  }
+
+  private buildProfileHistoryParams(query: StudentProfileHistoryQuery): HttpParams {
+    let params = new HttpParams();
+    const page = Number(query.page);
+    const size = Number(query.size);
+    const normalizedSize =
+      Number.isInteger(size) && size > 0 ? size : this.historyPageSizeDefault;
+
+    if (Number.isInteger(page) && page >= 0) {
+      params = params.set('page', String(page));
+    }
+    params = params.set('size', String(normalizedSize));
+
+    return params;
   }
 
   private searchCanadianHighSchoolsFromBackend(query: string): Observable<CanadianHighSchoolLookupItem[]> {

@@ -18,6 +18,9 @@
   >
     {{ saving ? '保存中...' : '保存' }}
   </button>
+  <button type="button" (click)="openHistory()" [disabled]="loading || invalidManagedStudentId">
+    修改记录
+  </button>
   <button type="button" (click)="loadProfile()" [disabled]="loading || saving">
     {{ loading ? '加载中...' : '重新加载' }}
   </button>
@@ -32,6 +35,67 @@
 <div *ngIf="saved" style="color: #1b5e20; margin-bottom: 8px;">
   保存成功。
 </div>
+
+<section
+  *ngIf="historyPanelOpen"
+  style="border: 1px solid #ddd; padding: 12px; margin-bottom: 16px; background: #fff;"
+>
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+    <h3 style="margin: 0;">修改记录</h3>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" (click)="refreshProfileHistory()" [disabled]="historyLoading">
+        {{ historyLoading ? '加载中...' : '刷新' }}
+      </button>
+      <button type="button" (click)="closeHistory()">关闭</button>
+    </div>
+  </div>
+
+  <div *ngIf="historyLoading" style="color: #666; margin-top: 10px;">
+    正在加载修改记录...
+  </div>
+  <div *ngIf="historyError" style="color: #b00020; margin-top: 10px;">
+    {{ historyError }}
+  </div>
+  <div
+    *ngIf="!historyLoading && !historyError && historyEntries.length === 0"
+    style="color: #666; margin-top: 10px;"
+  >
+    暂无修改记录。
+  </div>
+
+  <div
+    *ngIf="!historyLoading && !historyError && historyEntries.length > 0"
+    style="color: #666; margin-top: 10px;"
+  >
+    {{ displayHistorySummary() }}
+  </div>
+
+  <div
+    *ngFor="let entry of historyEntries"
+    style="border-top: 1px solid #eee; margin-top: 12px; padding-top: 12px;"
+  >
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;">
+      <strong>{{ displayHistoryTimestamp(entry) }}</strong>
+      <span>{{ displayHistoryActor(entry) }}</span>
+      <span style="color: #555;">{{ displayHistorySource(entry) }}</span>
+      <span *ngIf="displayHistoryVersion(entry)" style="color: #555;">
+        版本 {{ displayHistoryVersion(entry) }}
+      </span>
+    </div>
+
+    <div *ngIf="getHistoryChanges(entry).length === 0" style="color: #666; margin-top: 6px;">
+      字段详情未返回。
+    </div>
+    <ul *ngIf="getHistoryChanges(entry).length > 0" style="margin: 8px 0 0; padding-left: 20px;">
+      <li *ngFor="let change of getHistoryChanges(entry)" style="margin-top: 4px;">
+        <strong>{{ displayHistoryField(change) }}</strong>:
+        <span>{{ displayHistoryValue(getHistoryBeforeValue(change)) }}</span>
+        <span> -> </span>
+        <span>{{ displayHistoryValue(getHistoryAfterValue(change)) }}</span>
+      </li>
+    </ul>
+  </div>
+</section>
 
 <ng-container *ngIf="!editing; else editModeTpl">
   <fieldset style="margin-bottom: 16px;">

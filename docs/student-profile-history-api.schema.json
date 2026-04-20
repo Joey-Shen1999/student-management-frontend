@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://student-management.local/schemas/student-profile-history-api.schema.json",
+  "title": "Student Profile History API Contract",
+  "type": "object",
+  "description": "Contract definitions for profile history list responses and save conflict responses.",
+  "$defs": {
+    "changeSource": {
+      "type": "string",
+      "enum": [
+        "manual_save",
+        "auto_save",
+        "file_upload",
+        "version_restore"
+      ]
+    },
+    "changedField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "label",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "before": {},
+        "after": {}
+      }
+    },
+    "historyItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "studentId",
+        "fromVersion",
+        "toVersion",
+        "changeSource",
+        "actorUserId",
+        "actorRole",
+        "actorName",
+        "changedAt",
+        "changedFields"
+      ],
+      "properties": {
+        "id": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "studentId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fromVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "changeSource": {
+          "$ref": "#/$defs/changeSource"
+        },
+        "actorUserId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actorRole": {
+          "type": "string",
+          "enum": [
+            "STUDENT",
+            "TEACHER",
+            "ADMIN"
+          ]
+        },
+        "actorName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "changedFields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/changedField"
+          }
+        }
+      }
+    },
+    "historyListResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "total",
+        "page",
+        "size"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/historyItem"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "profileVersionConflictResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "code",
+        "currentVersion"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "PROFILE_VERSION_CONFLICT"
+        },
+        "currentVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "properties": {
+    "historyListResponse": {
+      "$ref": "#/$defs/historyListResponse"
+    },
+    "profileVersionConflictResponse": {
+      "$ref": "#/$defs/profileVersionConflictResponse"
+    }
+  }
+}

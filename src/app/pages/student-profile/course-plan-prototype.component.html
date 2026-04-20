@@ -6,11 +6,16 @@
     </div>
 
     <div class="plan-actions">
+      <span
+        class="autosave-status"
+        [class.saving]="saving"
+        [class.error]="!loading && !!error"
+        *ngIf="!loading"
+      >
+        {{ autoSaveLabel }}
+      </span>
       <button type="button" class="ghost-btn" (click)="refresh()" [disabled]="loading || saving">
         Reload
-      </button>
-      <button type="button" class="primary-btn" (click)="save()" [disabled]="loading || saving">
-        {{ saving ? 'Saving...' : 'Save Course Plan' }}
       </button>
     </div>
   </div>
@@ -237,6 +242,7 @@
             class="mark-input"
             [class.na-state]="course.status === 'IN_PROGRESS' && !course.mark"
             [(ngModel)]="course.mark"
+            (ngModelChange)="onCourseMarkInput()"
             type="number"
             min="0"
             max="100"

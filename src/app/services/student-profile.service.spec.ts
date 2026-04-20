@@ -32,6 +32,32 @@ describe('StudentProfileService', () => {
     req.flush({});
   });
 
+  it('getMyProfileHistory should call GET /api/student/profile/history with pagination', () => {
+    service.getMyProfileHistory({ page: 1, size: 20 }).subscribe();
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === '/api/student/profile/history' &&
+        request.params.get('page') === '1' &&
+        request.params.get('size') === '20'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ items: [] });
+  });
+
+  it('getMyProfileHistory should default to size 20', () => {
+    service.getMyProfileHistory().subscribe();
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === '/api/student/profile/history' &&
+        request.params.get('page') === null &&
+        request.params.get('size') === '20'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ items: [] });
+  });
+
   it('saveMyProfile should call PUT /api/student/profile', () => {
     service
       .saveMyProfile({
@@ -47,12 +73,39 @@ describe('StudentProfileService', () => {
     req.flush({});
   });
 
+  it('saveMyProfile should attach version and change-source headers from save context', () => {
+    service.setProfileSaveContext({
+      ifMatchVersion: 12,
+      changeSource: 'manual_save',
+    });
+
+    service.saveMyProfile({ phone: '(111) 222-3333' }).subscribe();
+
+    const req = httpMock.expectOne('/api/student/profile');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.headers.get('If-Match')).toBe('12');
+    expect(req.request.headers.get('X-Profile-Change-Source')).toBe('manual_save');
+    req.flush({});
+  });
+
   it('getStudentProfileForTeacher should call GET /api/teacher/students/{id}/profile', () => {
     service.getStudentProfileForTeacher(12).subscribe();
 
     const req = httpMock.expectOne('/api/teacher/students/12/profile');
     expect(req.request.method).toBe('GET');
     req.flush({});
+  });
+
+  it('getStudentProfileHistoryForTeacher should call teacher history endpoint', () => {
+    service.getStudentProfileHistoryForTeacher(12, { size: 20 }).subscribe();
+
+    const req = httpMock.expectOne(
+      (request) =>
+        request.url === '/api/teacher/students/12/profile/history' &&
+        request.params.get('size') === '20'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ items: [] });
   });
 
   it('saveStudentProfileForTeacher should call PUT /api/teacher/students/{id}/profile', () => {
@@ -68,6 +121,25 @@ describe('StudentProfileService', () => {
       phone: '(111) 222-3333',
     });
     req.flush({});
+  });
+
+  it('save context should be consumed once', () => {
+    service.setProfileSaveContext({
+      ifMatchVersion: 7,
+      changeSource: 'auto_save',
+    });
+
+    service.saveMyProfile({ phone: '(111) 222-3333' }).subscribe();
+    const firstReq = httpMock.expectOne('/api/student/profile');
+    expect(firstReq.request.headers.get('If-Match')).toBe('7');
+    expect(firstReq.request.headers.get('X-Profile-Change-Source')).toBe('auto_save');
+    firstReq.flush({});
+
+    service.saveMyProfile({ phone: '(111) 222-3333' }).subscribe();
+    const secondReq = httpMock.expectOne('/api/student/profile');
+    expect(secondReq.request.headers.has('If-Match')).toBe(false);
+    expect(secondReq.request.headers.has('X-Profile-Change-Source')).toBe(false);
+    secondReq.flush({});
   });
 
   it('uploadMySchoolTranscript should call POST /api/student/profile/schools/{id}/transcript with multipart body', () => {

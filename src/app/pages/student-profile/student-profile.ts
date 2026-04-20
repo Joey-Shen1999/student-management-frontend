@@ -9,7 +9,11 @@ import { forkJoin, from } from 'rxjs';
 import {
   CanadianHighSchoolLookupItem,
   EDUCATION_BOARD_LIBRARY_OPTIONS,
+  ProfileChangeSource,
   StudentIdentityFilePayload,
+  StudentProfileHistoryEntry,
+  StudentProfileHistoryFieldChange,
+  StudentProfileHistoryResponse,
   StudentProfilePayload,
   StudentSchoolTranscriptPayload,
   StudentProfileService,
@@ -107,6 +111,7 @@ interface SaveOptions {
   showSavedFeedback?: boolean;
   syncModelOnSuccess?: boolean;
   background?: boolean;
+  changeSource?: ProfileChangeSource;
 }
 
 interface SchoolUploadHint {
@@ -501,6 +506,7 @@ export class StudentProfile implements OnInit {
   readonly countryOptions: string[] = this.buildCountryOptions();
   readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
   readonly serviceItemOptions: readonly string[] = [...SERVICE_ITEM_OPTIONS];
+  readonly historyPageSize = 20;
 
   statusInCanadaSelection = '';
   statusInCanadaOtherText = '';
@@ -515,6 +521,14 @@ export class StudentProfile implements OnInit {
   error = '';
   oenError = '';
   editing = false;
+  historyPanelOpen = false;
+  historyLoading = false;
+  historyError = '';
+  historyEntries: StudentProfileHistoryEntry[] = [];
+  historyTotal = 0;
+  historyPage = 0;
+  historySize = this.historyPageSize;
+  profileVersion: number | null = null;
 
   model: StudentProfileModel = this.defaultModel();
   highSchoolLookupOptions: CanadianHighSchoolLookupItem[][] = [[]];
@@ -891,6 +905,127 @@ export class StudentProfile implements OnInit {
     return value ? '是' : '否';
   }
 
+  openHistory(): void {
+    if (this.invalidManagedStudentId || this.historyLoading) return;
+
+    this.historyPanelOpen = true;
+    this.loadProfileHistory();
+  }
+
+  closeHistory(): void {
+    this.historyPanelOpen = false;
+    this.historyError = '';
+  }
+
+  refreshProfileHistory(): void {
+    if (!this.historyPanelOpen || this.historyLoading) return;
+    this.loadProfileHistory();
+  }
+
+  displayHistorySummary(): string {
+    if (this.historyEntries.length <= 0) return '';
+
+    const loaded = this.historyEntries.length;
+    const total = this.historyTotal > 0 ? this.historyTotal : loaded;
+    const size = this.historySize > 0 ? this.historySize : this.historyPageSize;
+
+    if (total <= loaded) return `共 ${total} 条`;
+    return `已显示 ${loaded} / 共 ${total} 条（每页 ${size} 条）`;
+  }
+
+  displayHistoryTimestamp(entry: StudentProfileHistoryEntry): string {
+    const raw = this.toText(entry.changedAt || entry.createdAt || entry.timestamp);
+    if (!raw) return '-';
+
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+    ].join('-') + ` ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  displayHistoryActor(entry: StudentProfileHistoryEntry): string {
+    const role = this.displayHistoryRole(entry.actorRole || entry.changedByRole || entry.role);
+    const name = this.toText(
+      entry.actorName || entry.changedByName || entry.actorDisplayName || entry.changedBy
+    );
+
+    if (role && name) return `${role} ${name}`;
+    return role || name || '未知用户';
+  }
+
+  displayHistorySource(entry: StudentProfileHistoryEntry): string {
+    const source = this.toText(entry.changeSource || entry.source)
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+
+    if (source === 'autosave' || source === 'auto_save' || source.includes('auto')) return '自动保存';
+    if (source === 'manual' || source === 'manual_save' || source.includes('manual')) return '手动保存';
+    if (source === 'file' || source === 'file_upload' || source.includes('upload')) return '文件上传';
+    if (source === 'restore' || source === 'version_restore' || source.includes('restore')) return '历史恢复';
+    return source ? source : '档案修改';
+  }
+
+  displayHistoryVersion(entry: StudentProfileHistoryEntry): string {
+    const fromVersion = this.toOptionalNumber(entry.fromVersion);
+    const toVersion = this.toOptionalNumber(entry.toVersion || entry.version);
+
+    if (fromVersion !== null && toVersion !== null) return `${fromVersion} -> ${toVersion}`;
+    if (toVersion !== null) return String(toVersion);
+    return '';
+  }
+
+  getHistoryChanges(entry: StudentProfileHistoryEntry): StudentProfileHistoryFieldChange[] {
+    return Array.isArray(entry.changedFields) ? entry.changedFields : [];
+  }
+
+  displayHistoryField(change: StudentProfileHistoryFieldChange): string {
+    const label = this.toText(change.label);
+    if (label) return label;
+
+    const path = this.toText(change.path || change.field || change.name);
+    if (!path) return '字段';
+
+    const lastPart = path.split('.').pop() || path;
+    const key = lastPart.replace(/\[\d+\]/g, '');
+    return VALIDATION_FIELD_LABELS[key] || VALIDATION_COLLECTION_LABELS[key] || path;
+  }
+
+  getHistoryBeforeValue(change: StudentProfileHistoryFieldChange): unknown {
+    if (Object.prototype.hasOwnProperty.call(change, 'before')) return change.before;
+    if (Object.prototype.hasOwnProperty.call(change, 'oldValue')) return change.oldValue;
+    if (Object.prototype.hasOwnProperty.call(change, 'from')) return change.from;
+    return undefined;
+  }
+
+  getHistoryAfterValue(change: StudentProfileHistoryFieldChange): unknown {
+    if (Object.prototype.hasOwnProperty.call(change, 'after')) return change.after;
+    if (Object.prototype.hasOwnProperty.call(change, 'newValue')) return change.newValue;
+    if (Object.prototype.hasOwnProperty.call(change, 'to')) return change.to;
+    return undefined;
+  }
+
+  displayHistoryValue(value: unknown): string {
+    if (value === null || value === undefined) return '-';
+    if (typeof value === 'boolean') return this.displayBoolean(value);
+    if (typeof value === 'number') return String(value);
+
+    if (Array.isArray(value)) {
+      const items = value.map((item) => this.toText(item)).filter(Boolean);
+      return items.length > 0 ? items.join('、') : '-';
+    }
+
+    if (typeof value === 'object') {
+      return '已修改';
+    }
+
+    return this.displayText(value);
+  }
+
   displayServiceItems(): string {
     return this.model.serviceItems.length > 0 ? this.model.serviceItems.join('、') : '-';
   }
@@ -1136,6 +1271,11 @@ export class StudentProfile implements OnInit {
       this.cdr.detectChanges();
       return;
     }
+    if (!this.validateRequiredMainHighSchoolName()) {
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
 
     const uploadHint = this.buildSchoolUploadHint(index);
     const payload = this.toPayload(this.model);
@@ -1147,8 +1287,8 @@ export class StudentProfile implements OnInit {
 
     const request$ =
       this.managedMode && this.managedStudentId
-        ? this.profileApi.saveStudentProfileForTeacher(this.managedStudentId, payload)
-        : this.profileApi.saveMyProfile(payload);
+        ? this.saveStudentProfileWithContext(this.managedStudentId, payload, 'file_upload')
+        : this.saveMyProfileWithContext(payload, 'file_upload');
 
     request$
       .pipe(
@@ -1160,6 +1300,7 @@ export class StudentProfile implements OnInit {
       )
       .subscribe({
         next: (resp) => {
+          this.profileVersion = this.resolveProfileVersion(resp);
           const resolved = this.unwrapProfile(resp);
           const hasResolvedData = Object.keys(resolved).length > 0;
           this.model = this.normalizeModel(hasResolvedData ? resolved : payload);
@@ -1178,6 +1319,11 @@ export class StudentProfile implements OnInit {
           this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input);
         },
         error: (err: HttpErrorResponse) => {
+          if (this.handleProfileVersionConflict(err)) {
+            if (input) input.value = '';
+            this.cdr.detectChanges();
+            return;
+          }
           this.saved = false;
           this.error = this.extractErrorMessage(err) || '保存学校信息失败，无法上传成绩单。';
           if (input) input.value = '';
@@ -1801,6 +1947,165 @@ export class StudentProfile implements OnInit {
     delete this.externalCourseProviderLookupTimer[index];
   }
 
+  private loadProfileHistory(): void {
+    if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) return;
+
+    this.historyLoading = true;
+    this.historyError = '';
+    this.cdr.detectChanges();
+
+    const request$ =
+      this.managedMode && this.managedStudentId
+        ? this.profileApi.getStudentProfileHistoryForTeacher(this.managedStudentId, { size: this.historyPageSize })
+        : this.profileApi.getMyProfileHistory({ size: this.historyPageSize });
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.historyLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          const history = this.normalizeHistoryPayload(resp);
+          this.historyEntries = history.items;
+          this.historyTotal = history.total;
+          this.historyPage = history.page;
+          this.historySize = history.size;
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.historyEntries = [];
+          this.historyTotal = 0;
+          this.historyPage = 0;
+          this.historySize = this.historyPageSize;
+          this.historyError = this.resolveHistoryLoadError(err);
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private resolveHistoryLoadError(err: HttpErrorResponse): string {
+    if (err?.status === 404) {
+      return '修改记录接口暂未开通（后端返回 404）。';
+    }
+    return this.extractErrorMessage(err) || '加载修改记录失败。';
+  }
+
+  private normalizeHistoryPayload(
+    payload: StudentProfileHistoryResponse | StudentProfileHistoryEntry[] | null | undefined
+  ): { items: StudentProfileHistoryEntry[]; total: number; page: number; size: number } {
+    const items = this.normalizeHistoryEntries(payload);
+
+    if (Array.isArray(payload) || !payload || typeof payload !== 'object') {
+      return {
+        items,
+        total: items.length,
+        page: 0,
+        size: this.historyPageSize,
+      };
+    }
+
+    const total = this.toOptionalNumber(payload.total);
+    const page = this.toOptionalNumber(payload.page);
+    const size = this.toOptionalNumber(payload.size);
+
+    return {
+      items,
+      total: total !== null && total >= 0 ? total : items.length,
+      page: page !== null && page >= 0 ? page : 0,
+      size: size !== null && size > 0 ? size : this.historyPageSize,
+    };
+  }
+
+  private normalizeHistoryEntries(
+    payload: StudentProfileHistoryResponse | StudentProfileHistoryEntry[] | null | undefined
+  ): StudentProfileHistoryEntry[] {
+    const rows = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload?.entries)
+          ? payload.entries
+          : Array.isArray(payload?.history)
+            ? payload.history
+            : [];
+
+    return rows.map((entry, index) => {
+      const source: any = entry && typeof entry === 'object' ? entry : {};
+      return {
+        ...source,
+        id: source.id ?? source.eventId ?? `${source.changedAt || source.createdAt || 'history'}-${index}`,
+        changedFields: this.normalizeHistoryChanges(source),
+      };
+    });
+  }
+
+  private normalizeHistoryChanges(source: any): StudentProfileHistoryFieldChange[] {
+    const rawChanges: unknown[] = Array.isArray(source?.changedFields)
+      ? source.changedFields
+      : Array.isArray(source?.changes)
+        ? source.changes
+        : Array.isArray(source?.fields)
+          ? source.fields
+          : Array.isArray(source?.changedPaths)
+            ? source.changedPaths
+            : [];
+
+    return rawChanges
+      .map((change: unknown) => this.normalizeHistoryChange(change))
+      .filter(
+        (change: StudentProfileHistoryFieldChange | null): change is StudentProfileHistoryFieldChange =>
+          change !== null
+      );
+  }
+
+  private normalizeHistoryChange(change: unknown): StudentProfileHistoryFieldChange | null {
+    if (typeof change === 'string') {
+      const path = this.toText(change);
+      return path ? { path } : null;
+    }
+
+    if (!change || typeof change !== 'object') return null;
+    const source: any = change;
+    const path = this.toText(source.path || source.field || source.fieldPath || source.name);
+
+    return {
+      ...source,
+      path,
+      label: this.toText(source.label),
+      before: Object.prototype.hasOwnProperty.call(source, 'before')
+        ? source.before
+        : Object.prototype.hasOwnProperty.call(source, 'oldValue')
+          ? source.oldValue
+          : source.from,
+      after: Object.prototype.hasOwnProperty.call(source, 'after')
+        ? source.after
+        : Object.prototype.hasOwnProperty.call(source, 'newValue')
+          ? source.newValue
+          : source.to,
+    };
+  }
+
+  private displayHistoryRole(value: unknown): string {
+    const role = this.toText(value).toUpperCase();
+    if (role === 'STUDENT') return '学生';
+    if (role === 'TEACHER') return '老师';
+    if (role === 'ADMIN') return '管理员';
+    return this.toText(value);
+  }
+
+  private resetProfileHistoryState(): void {
+    this.historyPanelOpen = false;
+    this.historyLoading = false;
+    this.historyError = '';
+    this.historyEntries = [];
+    this.historyTotal = 0;
+    this.historyPage = 0;
+    this.historySize = this.historyPageSize;
+  }
+
   loadProfile(): void {
     if (this.invalidManagedStudentId) return;
     if (this.loading) return;
@@ -1824,6 +2129,7 @@ export class StudentProfile implements OnInit {
       )
       .subscribe({
         next: (resp) => {
+          this.profileVersion = this.resolveProfileVersion(resp);
           this.model = this.normalizeModel(this.unwrapProfile(resp));
           this.syncHighSchoolLookupState();
           this.syncExternalCourseProviderLookupState();
@@ -1842,6 +2148,7 @@ export class StudentProfile implements OnInit {
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
+          this.profileVersion = null;
           this.pendingSelfOnboardingEdit = false;
           this.error = this.extractErrorMessage(err) || '加载档案失败。';
           this.cdr.detectChanges();
@@ -1855,6 +2162,7 @@ export class StudentProfile implements OnInit {
     const showSavedFeedback = options.showSavedFeedback ?? true;
     const syncModelOnSuccess = options.syncModelOnSuccess ?? true;
     const background = options.background ?? false;
+    const changeSource = options.changeSource || (background ? 'auto_save' : 'manual_save');
     if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
       this.error = '路由中的学生 ID 无效。';
       this.cdr.detectChanges();
@@ -1863,6 +2171,14 @@ export class StudentProfile implements OnInit {
     if (!this.validateOenNumber()) {
       this.error = this.oenError;
       this.cdr.detectChanges();
+      return;
+    }
+    if (!this.validateRequiredMainHighSchoolName({ showError: !background })) {
+      if (background) {
+        this.pendingAutoSave = false;
+      } else {
+        this.cdr.detectChanges();
+      }
       return;
     }
 
@@ -1896,8 +2212,8 @@ export class StudentProfile implements OnInit {
 
     const request$ =
       this.managedMode && this.managedStudentId
-        ? this.profileApi.saveStudentProfileForTeacher(this.managedStudentId, payload)
-        : this.profileApi.saveMyProfile(payload);
+        ? this.saveStudentProfileWithContext(this.managedStudentId, payload, changeSource)
+        : this.saveMyProfileWithContext(payload, changeSource);
 
     request$
       .pipe(
@@ -1919,6 +2235,7 @@ export class StudentProfile implements OnInit {
       )
       .subscribe({
         next: (resp) => {
+          this.profileVersion = this.resolveProfileVersion(resp);
           if (syncModelOnSuccess) {
             const resolved = this.unwrapProfile(resp);
             const hasResolvedData = Object.keys(resolved).length > 0;
@@ -1941,6 +2258,10 @@ export class StudentProfile implements OnInit {
           }
         },
         error: (err: HttpErrorResponse) => {
+          if (this.handleProfileVersionConflict(err)) {
+            this.cdr.detectChanges();
+            return;
+          }
           this.saved = false;
           this.error = this.extractErrorMessage(err) || '保存档案失败。';
           this.cdr.detectChanges();
@@ -1960,7 +2281,52 @@ export class StudentProfile implements OnInit {
       showSavedFeedback: false,
       syncModelOnSuccess: true,
       background: true,
+      changeSource: 'auto_save',
     });
+  }
+
+  private saveMyProfileWithContext(
+    payload: StudentProfilePayload,
+    changeSource: ProfileChangeSource
+  ) {
+    this.applyProfileSaveRequestContext(changeSource);
+    return this.profileApi.saveMyProfile(payload);
+  }
+
+  private saveStudentProfileWithContext(
+    studentId: number,
+    payload: StudentProfilePayload,
+    changeSource: ProfileChangeSource
+  ) {
+    this.applyProfileSaveRequestContext(changeSource);
+    return this.profileApi.saveStudentProfileForTeacher(studentId, payload);
+  }
+
+  private applyProfileSaveRequestContext(changeSource: ProfileChangeSource): void {
+    const api = this.profileApi as any;
+    if (typeof api.setProfileSaveContext !== 'function') return;
+    api.setProfileSaveContext({
+      ifMatchVersion: this.profileVersion,
+      changeSource,
+    });
+  }
+
+  private handleProfileVersionConflict(err: HttpErrorResponse): boolean {
+    const payload: any = err?.error && typeof err.error === 'object' ? err.error : {};
+    const code = String(payload.code || '')
+      .trim()
+      .toUpperCase();
+    if (err?.status !== 409 || code !== 'PROFILE_VERSION_CONFLICT') return false;
+
+    const currentVersion = this.toOptionalNumber(payload.currentVersion);
+    if (currentVersion !== null && currentVersion >= 0) {
+      this.profileVersion = Math.trunc(currentVersion);
+      this.error = `档案版本冲突（最新版本 ${this.profileVersion}）。请点击“重新加载”后重试。`;
+    } else {
+      this.error = '档案版本冲突，请点击“重新加载”后重试。';
+    }
+    this.saved = false;
+    return true;
   }
 
   private shouldSkipAutoSaveForNextTarget(target: EventTarget | null): boolean {
@@ -2029,8 +2395,10 @@ export class StudentProfile implements OnInit {
       this.managedMode = false;
       this.managedStudentId = null;
       this.invalidManagedStudentId = false;
+      this.profileVersion = null;
       this.editing = false;
       this.pendingAutoSave = false;
+      this.resetProfileHistoryState();
       this.pendingSelfOnboardingEdit = this.shouldOpenSelfProfileInEditMode();
       this.loadProfile();
       return;
@@ -2041,6 +2409,7 @@ export class StudentProfile implements OnInit {
     if (!Number.isInteger(parsedStudentId) || parsedStudentId <= 0) {
       this.managedStudentId = null;
       this.invalidManagedStudentId = true;
+      this.profileVersion = null;
       this.model = this.defaultModel();
       this.syncHighSchoolLookupState();
       this.syncExternalCourseProviderLookupState();
@@ -2049,6 +2418,7 @@ export class StudentProfile implements OnInit {
       this.saved = false;
       this.editing = false;
       this.pendingAutoSave = false;
+      this.resetProfileHistoryState();
       this.pendingSelfOnboardingEdit = false;
       this.lastSavedPayloadDigest = '';
       this.error = '路由中的学生 ID 无效。';
@@ -2058,8 +2428,10 @@ export class StudentProfile implements OnInit {
 
     this.managedStudentId = parsedStudentId;
     this.invalidManagedStudentId = false;
+    this.profileVersion = null;
     this.editing = false;
     this.pendingAutoSave = false;
+    this.resetProfileHistoryState();
     this.pendingSelfOnboardingEdit = false;
     this.loadProfile();
   }
@@ -2115,6 +2487,28 @@ export class StudentProfile implements OnInit {
       return payload.profile;
     }
     return (payload || {}) as StudentProfilePayload;
+  }
+
+  private resolveProfileVersion(payload: unknown): number | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const source: any = payload;
+    const candidates = [
+      source.version,
+      source.currentVersion,
+      source.profileVersion,
+      source.profile?.version,
+      source.profile?.currentVersion,
+      source.profile?.profileVersion,
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = this.toOptionalNumber(candidate);
+      if (parsed !== null && parsed >= 0) {
+        return Math.trunc(parsed);
+      }
+    }
+
+    return null;
   }
 
   private normalizeModel(payload: StudentProfilePayload): StudentProfileModel {
@@ -2881,6 +3275,23 @@ export class StudentProfile implements OnInit {
     }
 
     this.oenError = 'OEN 蹇呴』涓?9 浣嶇函鏁板瓧';
+    return false;
+  }
+
+  private validateRequiredMainHighSchoolName(options: { showError?: boolean } = {}): boolean {
+    const showError = options.showError ?? true;
+    const mainSchool = this.model.highSchools[0];
+    const schoolName = this.toText(mainSchool?.schoolName);
+    if (mainSchool) {
+      mainSchool.schoolName = schoolName;
+    }
+
+    if (schoolName) {
+      return true;
+    }
+    if (showError) {
+      this.error = '高中学校第1项的学校名称为必填项';
+    }
     return false;
   }
 
