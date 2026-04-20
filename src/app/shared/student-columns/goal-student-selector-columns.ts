@@ -21,6 +21,7 @@ export type GoalStudentSelectorColumnKey =
   | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
+  | 'osslcCourseLocation'
   | 'status'
   | 'selectable';
 
@@ -164,6 +165,13 @@ export const GOAL_STUDENT_SELECTOR_COLUMNS: readonly GoalStudentSelectorColumnCo
   {
     key: 'ossltTracking',
     label: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+  },
+  {
+    key: 'osslcCourseLocation',
+    label: 'OSSLC \u5728\u54ea\u91cc\u4e0a',
     defaultVisible: true,
     hideable: true,
     backendDependent: false,

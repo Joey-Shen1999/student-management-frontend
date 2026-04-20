@@ -47,6 +47,12 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
             </ng-container>
             <div class="summary-grid">
               <div><b>毕业年份：</b>{{ moduleState.graduationYear || '-' }}</div>
+              <ng-container *ngIf="moduleState.osslcCourseStatus">
+                <div><b>OSSLC 课程状态：</b>{{ resolveOsslcStatusLabel(moduleState.osslcCourseStatus) }}</div>
+              </ng-container>
+              <ng-container *ngIf="moduleState.osslcCourseLocation">
+                <div><b>OSSLC 在哪里上：</b>{{ moduleState.osslcCourseLocation }}</div>
+              </ng-container>
             </div>
           </section>
 
@@ -120,6 +126,13 @@ export class StudentOssltComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/dashboard']);
+  }
+
+  resolveOsslcStatusLabel(status: string | null): string {
+    if (status === 'NOT_PLANNING') return '不打算上';
+    if (status === 'IN_PROGRESS') return '在上';
+    if (status === 'NOT_ENROLLED') return '还没报名';
+    return '-';
   }
 
   setResult(value: '' | 'PASS' | 'FAIL'): void {

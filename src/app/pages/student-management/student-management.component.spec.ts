@@ -1769,12 +1769,11 @@ describe('StudentManagementComponent', () => {
       [
         'name',
         'graduation',
-        'schoolName',
         'schoolBoard',
-        'city',
         'teacherNote',
         'ossltResult',
         'ossltTracking',
+        'osslcCourseLocation',
       ].sort()
     );
   });

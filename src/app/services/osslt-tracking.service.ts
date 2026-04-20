@@ -4,6 +4,7 @@ import { Observable, map, timeout } from 'rxjs';
 
 import { deriveOssltTrackingStatus, deriveStudentOssltSummary } from '../features/osslt/osslt-derive';
 import {
+  OsslcCourseStatus,
   OssltResult,
   OssltTrackingManualStatus,
   OssltTrackingStatus,
@@ -127,6 +128,22 @@ export class OssltTrackingService {
     const hasOsslc = this.normalizeNullableBoolean(
       this.readValue(source, ['hasOsslc', 'has_osslc', 'osslcStatus', 'osslc_status'])
     );
+    const osslcCourseStatus = this.normalizeOsslcCourseStatus(
+      this.readValue(source, [
+        'osslcCourseStatus',
+        'osslc_course_status',
+        'osslcCoursePlanStatus',
+        'osslc_course_plan_status',
+      ])
+    );
+    const osslcCourseLocation = this.toNullableText(
+      this.readValue(source, [
+        'osslcCourseLocation',
+        'osslc_course_location',
+        'osslcLocation',
+        'osslc_location',
+      ])
+    );
     const manualStatus = this.normalizeManualStatus(
       this.readValue(source, ['ossltTrackingManualStatus', 'osslt_tracking_manual_status'])
     );
@@ -142,6 +159,8 @@ export class OssltTrackingService {
       latestOssltResult,
       latestOssltDate,
       hasOsslc,
+      osslcCourseStatus,
+      osslcCourseLocation,
       ossltTrackingManualStatus: manualStatus,
       ossltTrackingStatus: trackingStatus,
       updatedAt: this.toNullableText(this.readValue(source, ['updatedAt', 'updated_at'])),
@@ -158,6 +177,12 @@ export class OssltTrackingService {
     }
     if (payload.hasOsslc !== undefined) {
       normalized.hasOsslc = this.normalizeNullableBoolean(payload.hasOsslc);
+    }
+    if (payload.osslcCourseStatus !== undefined) {
+      normalized.osslcCourseStatus = this.normalizeOsslcCourseStatus(payload.osslcCourseStatus);
+    }
+    if (payload.osslcCourseLocation !== undefined) {
+      normalized.osslcCourseLocation = this.toNullableText(payload.osslcCourseLocation);
     }
     if (payload.ossltTrackingManualStatus !== undefined) {
       normalized.ossltTrackingManualStatus = this.normalizeManualStatus(payload.ossltTrackingManualStatus);
@@ -193,6 +218,25 @@ export class OssltTrackingService {
     if (normalized === 'WAITING_UPDATE') return 'WAITING_UPDATE';
     if (normalized === 'NEEDS_TRACKING') return 'NEEDS_TRACKING';
     if (normalized === 'PASSED') return 'PASSED';
+    return null;
+  }
+
+  private normalizeOsslcCourseStatus(value: unknown): OsslcCourseStatus {
+    const normalized = this.toText(value).toUpperCase();
+    if (normalized === 'NOT_PLANNING' || normalized === 'NOT_PLAN' || normalized === 'NO_PLAN') {
+      return 'NOT_PLANNING';
+    }
+    if (normalized === 'IN_PROGRESS' || normalized === 'ENROLLED' || normalized === 'TAKING') {
+      return 'IN_PROGRESS';
+    }
+    if (
+      normalized === 'NOT_ENROLLED' ||
+      normalized === 'NOT_ENROLLED_YET' ||
+      normalized === 'NOT_REGISTERED' ||
+      normalized === 'PENDING_ENROLLMENT'
+    ) {
+      return 'NOT_ENROLLED';
+    }
     return null;
   }
 

@@ -53,7 +53,7 @@ function buildDisplayModel(state: OssltStatusDisplayState): OssltStatusDisplayMo
   if (state === 'NEEDS_TRACKING') {
     return {
       state,
-      label: '需要跟踪',
+      label: '未通过',
       background: '#fff2d8',
       textColor: '#8a5a00',
       borderColor: '#e3c77a',

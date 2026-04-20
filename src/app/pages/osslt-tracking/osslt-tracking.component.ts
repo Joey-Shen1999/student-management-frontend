@@ -7,9 +7,11 @@ import { finalize } from 'rxjs/operators';
 import { deriveOssltTrackingStatus, deriveStudentOssltSummary } from '../../features/osslt/osslt-derive';
 import { resolveOssltStatusDisplay } from '../../features/osslt/osslt-status-display';
 import {
+  OsslcCourseStatus,
   OssltSummaryViewModel,
   OssltTrackingStatus,
   StudentOssltModuleState,
+  UpdateStudentOssltPayload,
 } from '../../features/osslt/osslt-types';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
 
@@ -50,6 +52,12 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
 
             <div class="summary-grid">
               <div><b>Graduation Year:</b> {{ vm.graduationYear || '-' }}</div>
+              <ng-container *ngIf="moduleState.osslcCourseStatus">
+                <div><b>OSSLC Course Status:</b> {{ resolveOsslcStatusLabel(moduleState.osslcCourseStatus) }}</div>
+              </ng-container>
+              <ng-container *ngIf="moduleState.osslcCourseLocation">
+                <div><b>OSSLC Location:</b> {{ moduleState.osslcCourseLocation }}</div>
+              </ng-container>
             </div>
           </section>
 
@@ -70,6 +78,34 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
               </select>
             </div>
 
+            <ng-container *ngIf="shouldShowOsslcCourseSection()">
+              <div class="field-row">
+                <label>OSSLC 课程状态</label>
+                <select
+                  class="field-input"
+                  [ngModel]="osslcCourseStatus ?? ''"
+                  (ngModelChange)="setOsslcCourseStatus($event)"
+                  name="osslcCourseStatus"
+                >
+                  <option [ngValue]="''">请选择</option>
+                  <option *ngFor="let option of osslcCourseStatusOptions" [ngValue]="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="field-row">
+                <label>在哪里上</label>
+                <input
+                  class="field-input"
+                  [ngModel]="osslcCourseLocation"
+                  (ngModelChange)="setOsslcCourseLocation($event)"
+                  name="osslcCourseLocation"
+                  placeholder="填写学校或机构名称"
+                />
+              </div>
+            </ng-container>
+
             <div class="actions">
               <button type="button" class="primary-btn" (click)="save()" [disabled]="saving || !studentId">
                 {{ saving ? '保存中...' : '保存 OSSLT 跟进' }}
@@ -88,6 +124,11 @@ export class OssltTrackingComponent implements OnInit {
     'NEEDS_TRACKING',
     'PASSED',
   ];
+  readonly osslcCourseStatusOptions: ReadonlyArray<{ value: Exclude<OsslcCourseStatus, null>; label: string }> = [
+    { value: 'NOT_PLANNING', label: '不打算上' },
+    { value: 'IN_PROGRESS', label: '在上' },
+    { value: 'NOT_ENROLLED', label: '还没报名' },
+  ];
 
   studentId = 0;
   loading = false;
@@ -97,6 +138,8 @@ export class OssltTrackingComponent implements OnInit {
 
   moduleState: StudentOssltModuleState | null = null;
   trackingStatus: OssltTrackingStatus = 'WAITING_UPDATE';
+  osslcCourseStatus: OsslcCourseStatus = null;
+  osslcCourseLocation = '';
 
   constructor(
     private route: ActivatedRoute,
@@ -128,7 +171,30 @@ export class OssltTrackingComponent implements OnInit {
       return;
     }
     this.trackingStatus = value;
+    if (!this.shouldShowOsslcCourseSection()) {
+      this.osslcCourseStatus = null;
+      this.osslcCourseLocation = '';
+    }
     this.savedMessage = '';
+  }
+
+  setOsslcCourseStatus(value: OsslcCourseStatus | ''): void {
+    if (value === 'NOT_PLANNING' || value === 'IN_PROGRESS' || value === 'NOT_ENROLLED') {
+      this.osslcCourseStatus = value;
+      this.savedMessage = '';
+      return;
+    }
+    this.osslcCourseStatus = null;
+    this.savedMessage = '';
+  }
+
+  setOsslcCourseLocation(value: string): void {
+    this.osslcCourseLocation = String(value ?? '').trim();
+    this.savedMessage = '';
+  }
+
+  shouldShowOsslcCourseSection(): boolean {
+    return this.trackingStatus === 'NEEDS_TRACKING';
   }
 
   resolveSummaryStatusDisplay(status: OssltTrackingStatus) {
@@ -139,17 +205,25 @@ export class OssltTrackingComponent implements OnInit {
     return resolveOssltStatusDisplay({ status }).label;
   }
 
+  resolveOsslcStatusLabel(status: string | null): string {
+    const found = this.osslcCourseStatusOptions.find((o) => o.value === status);
+    return found ? found.label : '-';
+  }
+
   save(): void {
     if (!this.studentId) return;
+    if (!this.validateBeforeSave()) {
+      this.cdr.detectChanges();
+      return;
+    }
 
     this.error = '';
     this.savedMessage = '';
     this.saving = true;
 
+    const payload = this.buildSavePayload();
     this.ossltApi
-      .updateTeacherStudentOssltData(this.studentId, {
-        ossltTrackingManualStatus: this.trackingStatus,
-      })
+      .updateTeacherStudentOssltData(this.studentId, payload)
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (state) => {
@@ -162,6 +236,35 @@ export class OssltTrackingComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private validateBeforeSave(): boolean {
+    if (!this.shouldShowOsslcCourseSection()) return true;
+    if (!this.osslcCourseStatus) {
+      this.error = '请选择 OSSLC 课程状态。';
+      return false;
+    }
+    if (this.osslcCourseStatus === 'IN_PROGRESS' && !this.osslcCourseLocation) {
+      this.error = '请填写 OSSLC 在哪里上。';
+      return false;
+    }
+    return true;
+  }
+
+  private buildSavePayload(): UpdateStudentOssltPayload {
+    const payload: UpdateStudentOssltPayload = {
+      ossltTrackingManualStatus: this.trackingStatus,
+    };
+
+    if (this.shouldShowOsslcCourseSection()) {
+      payload.osslcCourseStatus = this.osslcCourseStatus;
+      payload.osslcCourseLocation = this.osslcCourseLocation || null;
+    } else {
+      payload.osslcCourseStatus = null;
+      payload.osslcCourseLocation = null;
+    }
+
+    return payload;
   }
 
   private applyRouteContext(params: ParamMap): void {
@@ -211,6 +314,8 @@ export class OssltTrackingComponent implements OnInit {
       state.ossltTrackingManualStatus ??
       state.ossltTrackingStatus ??
       deriveOssltTrackingStatus(null, state.latestOssltResult, state.hasOsslc);
+    this.osslcCourseStatus = state.osslcCourseStatus;
+    this.osslcCourseLocation = state.osslcCourseLocation || '';
   }
 
   private extractErrorMessage(error: unknown, fallback: string): string {

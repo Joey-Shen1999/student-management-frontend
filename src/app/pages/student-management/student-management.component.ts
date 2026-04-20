@@ -208,6 +208,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   languageCourseStatus: '\u8bed\u8a00\u62a5\u8bfe\u60c5\u51b5',
   ossltResult: 'OSSLT \u6210\u7ee9',
   ossltTracking: 'OSSLT \u8ddf\u8fdb\u72b6\u6001',
+  osslcCourseLocation: 'OSSLC \u5728\u54ea\u91cc\u4e0a',
   volunteerTracking: '\u4e49\u5de5\u8ddf\u8e2a',
   resetPassword: '\u91cd\u7f6e\u5bc6\u7801',
   archive: '\u5f52\u6863',
@@ -459,6 +460,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: true,
     headerStyle:
       'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'osslcCourseLocation',
+    label: 'OSSLC \u5728\u54ea\u91cc\u4e0a',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: true,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:200px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -1041,6 +1052,23 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     </select>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'osslcCourseLocation'">
+                    <div style="padding: 4px 8px;">
+                      <input
+                        type="text"
+                        [ngModel]="resolveOsslcCourseLocation(student)"
+                        (blur)="onOsslcCourseLocationChange(student, $any($event.target).value)"
+                        (keydown.enter)="$any($event.target).blur()"
+                        style="width:100%;min-width:140px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-size:14px;color:#1f2f47;"
+                        [disabled]="!resolveStudentId(student) || isOsslcCourseLocationSaving(student)"
+                        placeholder="\u586b\u5199\u5730\u70b9..."
+                      />
+                      <small *ngIf="isOsslcCourseLocationSaving(student)" style="color:#7f8a9e;display:block;margin-top:2px;">
+                        保存中...
+                      </small>
+                    </div>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'volunteerTracking'">
                     <button
                       type="button"
@@ -1473,9 +1501,11 @@ export class StudentManagementComponent implements OnInit {
   private readonly languageCourseStatusSaveInFlight = new Set<number>();
   private readonly ossltResultCache = new Map<number, OssltResult>();
   private readonly ossltTrackingStatusCache = new Map<number, OssltTrackingStatus>();
+  private readonly osslcCourseLocationCache = new Map<number, string | null>();
   private readonly ossltStatusLoadInFlight = new Set<number>();
   private readonly ossltStatusUnavailable = new Set<number>();
   private readonly ossltTrackingStatusSaveInFlight = new Set<number>();
+  private readonly osslcCourseLocationSaveInFlight = new Set<number>();
   private readonly volunteerHoursCache = new Map<number, number>();
   private readonly volunteerCompletedCache = new Map<number, boolean>();
   private readonly volunteerHoursLoadInFlight = new Set<number>();
@@ -2930,6 +2960,53 @@ export class StudentManagementComponent implements OnInit {
     return this.ossltTrackingStatusSaveInFlight.has(studentId);
   }
 
+  isOsslcCourseLocationSaving(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return false;
+    }
+    return this.osslcCourseLocationSaveInFlight.has(studentId);
+  }
+
+  onOsslcCourseLocationChange(student: StudentAccount, rawValue: string): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) return;
+
+    const nextLocation = String(rawValue ?? '').trim();
+    const previousLocation = this.osslcCourseLocationCache.get(studentId) || '';
+    if (previousLocation === nextLocation) return;
+    if (this.osslcCourseLocationSaveInFlight.has(studentId)) return;
+
+    this.osslcCourseLocationCache.set(studentId, nextLocation);
+    this.osslcCourseLocationSaveInFlight.add(studentId);
+    this.actionError = '';
+    this.cdr.detectChanges();
+
+    this.ossltApi
+      .updateTeacherStudentOssltData(studentId, {
+        osslcCourseLocation: nextLocation || null,
+      })
+      .pipe(
+        finalize(() => {
+          this.osslcCourseLocationSaveInFlight.delete(studentId);
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (state) => {
+          this.osslcCourseLocationCache.set(studentId, state.osslcCourseLocation);
+          this.ossltResultCache.set(studentId, state.latestOssltResult);
+          this.ossltStatusUnavailable.delete(studentId);
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.osslcCourseLocationCache.set(studentId, previousLocation);
+          this.actionError = this.extractErrorMessage(err) || '\u4fdd\u5b58 OSSLC \u5730\u70b9\u5931\u8d25\u3002';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   onOssltTrackingStatusSelectionChangePublic(student: StudentAccount, rawValue: unknown): void {
     this.onOssltTrackingStatusSelectionChange(student, rawValue);
   }
@@ -2965,7 +3042,9 @@ export class StudentManagementComponent implements OnInit {
           const summary = deriveStudentOssltSummary(state);
           this.ossltTrackingStatusCache.set(studentId, summary.trackingStatus);
           this.ossltResultCache.set(studentId, state.latestOssltResult);
+          this.osslcCourseLocationCache.set(studentId, state.osslcCourseLocation);
           this.ossltStatusUnavailable.delete(studentId);
+
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
@@ -3600,7 +3679,12 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleIeltsStatuses();
       this.cdr.detectChanges();
     }
-    if ((columnKey === 'ossltResult' || columnKey === 'ossltTracking') && checked) {
+    if (
+      (columnKey === 'ossltResult' ||
+        columnKey === 'ossltTracking' ||
+        columnKey === 'osslcCourseLocation') &&
+      checked
+    ) {
       this.prefetchVisibleOssltStatuses();
       this.cdr.detectChanges();
     }
@@ -3625,7 +3709,11 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleIeltsStatuses();
       this.cdr.detectChanges();
     }
-    if (this.visibleColumnKeys.has('ossltResult') || this.visibleColumnKeys.has('ossltTracking')) {
+    if (
+      this.visibleColumnKeys.has('ossltResult') ||
+      this.visibleColumnKeys.has('ossltTracking') ||
+      this.visibleColumnKeys.has('osslcCourseLocation')
+    ) {
       this.prefetchVisibleOssltStatuses();
       this.cdr.detectChanges();
     }
@@ -4118,7 +4206,11 @@ export class StudentManagementComponent implements OnInit {
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
     }
-    if (this.visibleColumnKeys.has('ossltResult') || this.visibleColumnKeys.has('ossltTracking')) {
+    if (
+      this.visibleColumnKeys.has('ossltResult') ||
+      this.visibleColumnKeys.has('ossltTracking') ||
+      this.visibleColumnKeys.has('osslcCourseLocation')
+    ) {
       this.prefetchVisibleOssltStatuses();
     }
     if (this.visibleColumnKeys.has('volunteerTracking')) {
@@ -5243,11 +5335,26 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveOssltResultDisplayModel(studentId).textColor;
   }
 
-  private resolveOssltResultBorderColor(studentId: number | null): string {
+  resolveOssltResultBorderColor(studentId: number | null): string {
     return this.resolveOssltResultDisplayModel(studentId).borderColor;
   }
 
+  resolveOsslcCourseLocation(student: StudentAccount): string {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) return '';
+
+    const cached = this.osslcCourseLocationCache.get(studentId);
+    if (cached !== undefined) return cached || '';
+
+    // Fallback to extraction from raw student object if available
+    const ossltNode = (student as any)?.ossltModule;
+    const location = ossltNode?.osslcCourseLocation || (student as any)?.osslcCourseLocation;
+
+    return location || '';
+  }
+
   private resolveOssltResultDisplayModel(studentId: number | null): {
+
     label: string;
     background: string;
     textColor: string;
@@ -5914,6 +6021,7 @@ export class StudentManagementComponent implements OnInit {
             const summary = deriveStudentOssltSummary(moduleState);
             this.ossltTrackingStatusCache.set(studentId, summary.trackingStatus);
             this.ossltResultCache.set(studentId, moduleState.latestOssltResult);
+            this.osslcCourseLocationCache.set(studentId, moduleState.osslcCourseLocation);
             this.ossltStatusUnavailable.delete(studentId);
             this.cdr.detectChanges();
             if (reapplyOnUpdate) {

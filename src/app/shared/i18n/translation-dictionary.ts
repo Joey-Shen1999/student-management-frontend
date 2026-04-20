@@ -259,4 +259,12 @@ export const ADDITIONAL_UI_TRANSLATIONS = [
     zh: '\u8001\u5e08\u5df2\u5728\u4efb\u52a1\u7ba1\u7406\u9875\u6807\u8bb0\u5b8c\u6210\u3002',
     en: 'Teacher marked this task as completed in Task Management.',
   },
+  { zh: 'Upper Canada DSB', en: 'Upper Canada DSB' },
+  { zh: 'Toronto DSB', en: 'Toronto DSB' },
+  { zh: 'York Region DSB', en: 'York Region DSB' },
+  { zh: 'Peel DSB', en: 'Peel DSB' },
+  { zh: 'Ottawa-Carleton DSB', en: 'Ottawa-Carleton DSB' },
+  { zh: 'Halton DSB', en: 'Halton DSB' },
+  { zh: 'Waterloo Region DSB', en: 'Waterloo Region DSB' },
+  { zh: 'OSSLC \u5728\u54ea\u91cc\u4e0a', en: 'OSSLC Location' },
 ] as const;

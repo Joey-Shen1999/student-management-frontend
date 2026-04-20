@@ -31,6 +31,7 @@ export type StudentListColumnKey =
   | 'languageCourseStatus'
   | 'ossltResult'
   | 'ossltTracking'
+  | 'osslcCourseLocation'
   | 'volunteerTracking'
   | 'resetPassword'
   | 'archive'
@@ -63,12 +64,11 @@ export const LANGUAGE_SCORE_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListCo
 export const OSSLT_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
   'name',
   'graduation',
-  'schoolName',
   'schoolBoard',
-  'city',
   'teacherNote',
   'ossltResult',
   'ossltTracking',
+  'osslcCourseLocation',
 ];
 
 export const VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
@@ -133,13 +133,13 @@ export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColu
   'schoolBoard',
   'country',
   'province',
-  'city',
   'teacherNote',
   'ielts',
   'languageTracking',
   'languageCourseStatus',
   'ossltResult',
   'ossltTracking',
+  'osslcCourseLocation',
   'status',
   'selectable',
 ];
@@ -154,13 +154,13 @@ const UNIFIED_TASK_INFO_STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS: readonly GoalStude
   'schoolBoard',
   'country',
   'province',
-  'city',
   'teacherNote',
   'ielts',
   'languageTracking',
   'languageCourseStatus',
   'ossltResult',
   'ossltTracking',
+  'osslcCourseLocation',
   'status',
   'selectable',
 ];
@@ -177,8 +177,14 @@ export const STUDENT_SELECTOR_AVAILABLE_COLUMN_KEYS_BY_CONTEXT: Record<
   StudentSelectorContext,
   readonly GoalStudentSelectorColumnKey[]
 > = {
-  'goal-create': STUDENT_SELECTOR_FULL_COLUMN_KEYS,
-  'info-create': STUDENT_SELECTOR_FULL_COLUMN_KEYS,
+  'goal-create': [
+    ...STUDENT_SELECTOR_FULL_COLUMN_KEYS,
+    'osslcCourseLocation' as GoalStudentSelectorColumnKey,
+  ],
+  'info-create': [
+    ...STUDENT_SELECTOR_FULL_COLUMN_KEYS,
+    'osslcCourseLocation' as GoalStudentSelectorColumnKey,
+  ],
 };
 
 export const STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT: Record<
