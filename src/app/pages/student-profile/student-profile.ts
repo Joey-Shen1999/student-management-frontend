@@ -20,6 +20,23 @@ import {
 } from '../../services/student-profile.service';
 
 type Gender = '' | 'Male' | 'Female' | 'Other';
+type StudentRegion =
+  | ''
+  | 'Ontario'
+  | 'British Columbia'
+  | 'Alberta'
+  | 'Saskatchewan'
+  | 'Manitoba'
+  | 'Quebec'
+  | 'New Brunswick'
+  | 'Nova Scotia'
+  | 'Prince Edward Island'
+  | 'Newfoundland and Labrador'
+  | 'Yukon'
+  | 'Northwest Territories'
+  | 'Nunavut'
+  | 'China'
+  | 'United States';
 
 type SchoolType = '' | 'MAIN' | 'OTHER';
 
@@ -88,7 +105,9 @@ interface StudentProfileModel {
 
   address: AddressModel;
 
+  studentRegion: StudentRegion;
   oenNumber: string;
+  penNumber: string;
   ib: string;
   ap: boolean;
   serviceItems: string[];
@@ -411,6 +430,74 @@ const COUNTRY_STANDARD_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['u s', 'United States'],
 ] as const;
 
+const STUDENT_REGION_OPTIONS: ReadonlyArray<Readonly<{ value: StudentRegion; label: string }>> = [
+  { value: 'Ontario', label: 'Ontario' },
+  { value: 'British Columbia', label: 'British Columbia' },
+  { value: 'Alberta', label: 'Alberta' },
+  { value: 'Saskatchewan', label: 'Saskatchewan' },
+  { value: 'Manitoba', label: 'Manitoba' },
+  { value: 'Quebec', label: 'Quebec' },
+  { value: 'New Brunswick', label: 'New Brunswick' },
+  { value: 'Nova Scotia', label: 'Nova Scotia' },
+  { value: 'Prince Edward Island', label: 'Prince Edward Island' },
+  { value: 'Newfoundland and Labrador', label: 'Newfoundland and Labrador' },
+  { value: 'Yukon', label: 'Yukon' },
+  { value: 'Northwest Territories', label: 'Northwest Territories' },
+  { value: 'Nunavut', label: 'Nunavut' },
+  { value: 'China', label: 'China' },
+  { value: 'United States', label: 'United States' },
+] as const;
+
+const STUDENT_REGION_ALIASES: ReadonlyArray<readonly [string, StudentRegion]> = [
+  ['on', 'Ontario'],
+  ['ontario', 'Ontario'],
+  ['ca-on', 'Ontario'],
+  ['bc', 'British Columbia'],
+  ['b c', 'British Columbia'],
+  ['british columbia', 'British Columbia'],
+  ['ca-bc', 'British Columbia'],
+  ['ab', 'Alberta'],
+  ['a b', 'Alberta'],
+  ['alberta', 'Alberta'],
+  ['sk', 'Saskatchewan'],
+  ['s k', 'Saskatchewan'],
+  ['saskatchewan', 'Saskatchewan'],
+  ['mb', 'Manitoba'],
+  ['m b', 'Manitoba'],
+  ['manitoba', 'Manitoba'],
+  ['qc', 'Quebec'],
+  ['q c', 'Quebec'],
+  ['quebec', 'Quebec'],
+  ['nb', 'New Brunswick'],
+  ['n b', 'New Brunswick'],
+  ['new brunswick', 'New Brunswick'],
+  ['ns', 'Nova Scotia'],
+  ['n s', 'Nova Scotia'],
+  ['nova scotia', 'Nova Scotia'],
+  ['pei', 'Prince Edward Island'],
+  ['p e i', 'Prince Edward Island'],
+  ['prince edward island', 'Prince Edward Island'],
+  ['nl', 'Newfoundland and Labrador'],
+  ['n l', 'Newfoundland and Labrador'],
+  ['newfoundland and labrador', 'Newfoundland and Labrador'],
+  ['yt', 'Yukon'],
+  ['y t', 'Yukon'],
+  ['yukon', 'Yukon'],
+  ['nt', 'Northwest Territories'],
+  ['n t', 'Northwest Territories'],
+  ['northwest territories', 'Northwest Territories'],
+  ['nu', 'Nunavut'],
+  ['n u', 'Nunavut'],
+  ['nunavut', 'Nunavut'],
+  ['cn', 'China'],
+  ['china', 'China'],
+  ['prc', 'China'],
+  ['us', 'United States'],
+  ['usa', 'United States'],
+  ['united states', 'United States'],
+  ['united states of america', 'United States'],
+] as const;
+
 const SERVICE_ITEM_OPTIONS = [
   '面试辅导',
   '雅思A类全科班',
@@ -447,7 +534,12 @@ const VALIDATION_FIELD_LABELS: Record<string, string> = {
   firstLanguage: '第一语言',
   firstBoardingDate: '首次入境加拿大时间',
   firstEntryDateInCanada: '首次入境加拿大时间',
+  studentRegion: '高中毕业地区',
+  student_region: '高中毕业地区',
   oenNumber: 'OEN',
+  oen: 'OEN',
+  pen: 'PEN',
+  penNumber: 'PEN',
   ib: 'IB',
   ap: 'AP',
   serviceItems: '服务项目',
@@ -504,6 +596,7 @@ export class StudentProfile implements OnInit {
   readonly cityOptions: string[] = this.buildCityOptions();
   readonly provinceOptions: string[] = this.buildProvinceOptions();
   readonly countryOptions: string[] = this.buildCountryOptions();
+  readonly studentRegionOptions = STUDENT_REGION_OPTIONS;
   readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
   readonly serviceItemOptions: readonly string[] = [...SERVICE_ITEM_OPTIONS];
   readonly historyPageSize = 20;
@@ -520,6 +613,7 @@ export class StudentProfile implements OnInit {
   saved = false;
   error = '';
   oenError = '';
+  penError = '';
   editing = false;
   historyPanelOpen = false;
   historyLoading = false;
@@ -633,9 +727,21 @@ export class StudentProfile implements OnInit {
     this.model.address.postal = this.formatPostalForDisplay(this.model.address.postal, normalizedCountry);
   }
 
+  onStudentRegionChange(value: string): void {
+    this.model.studentRegion = this.resolveStudentRegionForPayload(value) || 'Ontario';
+    this.applyLocalStudentNumberVisibilityRules();
+    this.validateLocalStudentNumbers();
+    this.triggerAutoSave();
+  }
+
   onOenInputChange(value: string): void {
     this.model.oenNumber = this.normalizeOenNumber(value);
-    this.validateOenNumber();
+    this.validateLocalStudentNumbers();
+  }
+
+  onPenInputChange(value: string): void {
+    this.model.penNumber = this.normalizePenNumber(value);
+    this.validateLocalStudentNumbers();
   }
 
   onServiceItemSelectionChange(item: string, checked: boolean): void {
@@ -1026,6 +1132,19 @@ export class StudentProfile implements OnInit {
     return this.displayText(value);
   }
 
+  shouldShowOenField(): boolean {
+    return this.model.studentRegion === 'Ontario';
+  }
+
+  shouldShowPenField(): boolean {
+    return this.model.studentRegion === 'British Columbia';
+  }
+
+  displayStudentRegion(): string {
+    const option = this.studentRegionOptions.find((candidate) => candidate.value === this.model.studentRegion);
+    return option?.label || '-';
+  }
+
   displayServiceItems(): string {
     return this.model.serviceItems.length > 0 ? this.model.serviceItems.join('、') : '-';
   }
@@ -1265,8 +1384,8 @@ export class StudentProfile implements OnInit {
       return;
     }
 
-    if (!this.validateOenNumber()) {
-      this.error = this.oenError;
+    if (!this.validateLocalStudentNumbers()) {
+      this.error = this.oenError || this.penError;
       if (input) input.value = '';
       this.cdr.detectChanges();
       return;
@@ -1307,7 +1426,7 @@ export class StudentProfile implements OnInit {
           this.syncHighSchoolLookupState();
           this.syncExternalCourseProviderLookupState();
           this.syncStatusInCanadaControls();
-          this.validateOenNumber();
+          this.validateLocalStudentNumbers();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
 
           const uploadTarget = this.resolveSchoolUploadTarget(index, uploadHint);
@@ -1497,7 +1616,7 @@ export class StudentProfile implements OnInit {
         this.syncHighSchoolLookupState();
         this.syncExternalCourseProviderLookupState();
         this.syncStatusInCanadaControls();
-        this.validateOenNumber();
+        this.validateLocalStudentNumbers();
         this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
 
         const uploadTarget = this.resolveSchoolUploadTarget(fallbackIndex, uploadHint);
@@ -2134,7 +2253,7 @@ export class StudentProfile implements OnInit {
           this.syncHighSchoolLookupState();
           this.syncExternalCourseProviderLookupState();
           this.syncStatusInCanadaControls();
-          this.validateOenNumber();
+          this.validateLocalStudentNumbers();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
           this.pendingAutoSave = false;
           if (this.pendingSelfOnboardingEdit && !this.managedMode && !this.invalidManagedStudentId) {
@@ -2168,8 +2287,8 @@ export class StudentProfile implements OnInit {
       this.cdr.detectChanges();
       return;
     }
-    if (!this.validateOenNumber()) {
-      this.error = this.oenError;
+    if (!this.validateLocalStudentNumbers()) {
+      this.error = this.oenError || this.penError;
       this.cdr.detectChanges();
       return;
     }
@@ -2245,7 +2364,7 @@ export class StudentProfile implements OnInit {
           }
 
           this.syncStatusInCanadaControls();
-          this.validateOenNumber();
+          this.validateLocalStudentNumbers();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
           if (showSavedFeedback) {
             this.saved = true;
@@ -2470,7 +2589,9 @@ export class StudentProfile implements OnInit {
         postal: '',
       },
 
+      studentRegion: 'Ontario',
       oenNumber: '',
+      penNumber: '',
       ib: '',
       ap: false,
       serviceItems: [],
@@ -2519,6 +2640,9 @@ export class StudentProfile implements OnInit {
     const normalizedCountry = this.normalizeCountryToStandardEnglish(rawAddress.country || defaults.address.country);
     const rawCourses = this.resolveExternalCourses(source);
     const rawSchools = this.resolveSchoolRecords(source, rawCourses);
+    const normalizedOen = this.normalizeOenNumber(source.oenNumber ?? source.oen);
+    const normalizedPen = this.normalizePenNumber(source.penNumber ?? source.pen);
+    const normalizedStudentRegion = this.resolveInitialStudentRegion(source, normalizedOen, normalizedPen);
 
     return {
       legalFirstName: this.toText(source.legalFirstName || source.firstName),
@@ -2549,7 +2673,9 @@ export class StudentProfile implements OnInit {
         postal: this.formatPostalForDisplay(rawAddress.postal, normalizedCountry),
       },
 
-      oenNumber: this.normalizeOenNumber(source.oenNumber),
+      studentRegion: normalizedStudentRegion,
+      oenNumber: normalizedStudentRegion === 'Ontario' ? normalizedOen : '',
+      penNumber: normalizedStudentRegion === 'British Columbia' ? normalizedPen : '',
       ib: this.toText(source.ib),
       ap: this.toBoolean(source.ap),
       serviceItems: this.normalizeServiceItems(this.extractServiceItems(source)),
@@ -2720,6 +2846,10 @@ export class StudentProfile implements OnInit {
     const firstEntryDateInCanada = this.normalizeDate(model.firstBoardingDate);
     const normalizedCountry = this.normalizeCountryToStandardEnglish(model.address.country);
     const normalizedServiceItems = this.normalizeServiceItems(model.serviceItems);
+    const normalizedStudentRegion = this.resolveStudentRegionForPayload(model.studentRegion) || 'Ontario';
+    const normalizedOen = normalizedStudentRegion === 'Ontario' ? this.normalizeOenNumber(model.oenNumber) : '';
+    const normalizedPen =
+      normalizedStudentRegion === 'British Columbia' ? this.normalizePenNumber(model.penNumber) : '';
 
     return {
       legalFirstName: this.toText(model.legalFirstName),
@@ -2743,7 +2873,11 @@ export class StudentProfile implements OnInit {
         country: normalizedCountry,
         postal: this.formatPostalForDisplay(model.address.postal, normalizedCountry),
       },
-      oenNumber: this.normalizeOenNumber(model.oenNumber),
+      studentRegion: normalizedStudentRegion,
+      oen: normalizedOen,
+      oenNumber: normalizedOen,
+      pen: normalizedPen,
+      penNumber: normalizedPen,
       ib: this.toText(model.ib),
       ap: !!model.ap,
       serviceItems: normalizedServiceItems,
@@ -3191,6 +3325,50 @@ export class StudentProfile implements OnInit {
       .slice(0, 9);
   }
 
+  private normalizePenNumber(value: unknown): string {
+    return String(value ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 9);
+  }
+
+  private resolveStudentRegionForPayload(value: unknown): StudentRegion {
+    const rawText = this.toText(value);
+    if (!rawText) return '';
+    const normalizedKey = this.normalizeTextKey(rawText);
+
+    for (const [alias, region] of STUDENT_REGION_ALIASES) {
+      if (normalizedKey === alias) return region;
+    }
+
+    const matchedOption = this.studentRegionOptions.find(
+      (option) => option.value.toLowerCase() === rawText.toLowerCase()
+    );
+    if (matchedOption) return matchedOption.value;
+    return '';
+  }
+
+  private resolveInitialStudentRegion(source: any, normalizedOen: string, normalizedPen: string): StudentRegion {
+    const explicitRegion = this.resolveStudentRegionForPayload(
+      source?.studentRegion ?? source?.student_region ?? source?.region ?? source?.profileRegion
+    );
+    if (explicitRegion) return explicitRegion;
+    if (normalizedOen) return 'Ontario';
+    if (normalizedPen) return 'British Columbia';
+    return 'Ontario';
+  }
+
+  private applyLocalStudentNumberVisibilityRules(): void {
+    this.model.studentRegion = this.resolveStudentRegionForPayload(this.model.studentRegion) || 'Ontario';
+    if (this.model.studentRegion !== 'Ontario') {
+      this.model.oenNumber = '';
+      this.oenError = '';
+    }
+    if (this.model.studentRegion !== 'British Columbia') {
+      this.model.penNumber = '';
+      this.penError = '';
+    }
+  }
+
   private extractServiceItems(source: any): unknown {
     return (
       source?.serviceItems ??
@@ -3262,7 +3440,20 @@ export class StudentProfile implements OnInit {
     return [...orderedKnownOptions, ...extraOptions];
   }
 
+  private validateLocalStudentNumbers(): boolean {
+    this.applyLocalStudentNumberVisibilityRules();
+    const oenValid = this.validateOenNumber();
+    const penValid = this.validatePenNumber();
+    return oenValid && penValid;
+  }
+
   private validateOenNumber(): boolean {
+    if (this.model.studentRegion !== 'Ontario') {
+      this.oenError = '';
+      this.model.oenNumber = '';
+      return true;
+    }
+
     const oen = this.normalizeOenNumber(this.model.oenNumber);
     this.model.oenNumber = oen;
     if (!oen) {
@@ -3274,7 +3465,29 @@ export class StudentProfile implements OnInit {
       return true;
     }
 
-    this.oenError = 'OEN 蹇呴』涓?9 浣嶇函鏁板瓧';
+    this.oenError = 'OEN 必须是 9 位纯数字';
+    return false;
+  }
+
+  private validatePenNumber(): boolean {
+    if (this.model.studentRegion !== 'British Columbia') {
+      this.penError = '';
+      this.model.penNumber = '';
+      return true;
+    }
+
+    const pen = this.normalizePenNumber(this.model.penNumber);
+    this.model.penNumber = pen;
+    if (!pen) {
+      this.penError = '';
+      return true;
+    }
+    if (/^\d{9}$/.test(pen)) {
+      this.penError = '';
+      return true;
+    }
+
+    this.penError = 'PEN 必须是 9 位纯数字';
     return false;
   }
 

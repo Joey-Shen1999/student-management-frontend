@@ -125,7 +125,7 @@ describe('InfoManagementComponent', () => {
   it('should apply volunteer completed filter in create selector', () => {
     expect(component.filteredCreateStudentOptions.map((row) => row.studentId)).toEqual([20001]);
 
-    component.onVolunteerCompletedFilterChange(true);
+    component.onVolunteerCompletedFilterChange('COMPLETED');
 
     expect(component.filteredCreateStudentOptions).toEqual([]);
   });
@@ -313,7 +313,7 @@ describe('InfoManagementComponent', () => {
     first.onCityFilterInputChange('Toronto');
     first.onSchoolBoardFilterInputChange('Toronto District School Board');
     first.onGraduationSeasonFilterInputChange('2026 Fall');
-    first.onVolunteerCompletedFilterChange(true);
+    first.onVolunteerCompletedFilterChange('COMPLETED');
     first.onStudentKeywordChange('alice');
 
     const second = new InfoManagementComponent(
@@ -329,7 +329,7 @@ describe('InfoManagementComponent', () => {
     expect(second.createCityFilter).toBe('Toronto');
     expect(second.createSchoolBoardFilter).toBe('Toronto District School Board');
     expect(second.createGraduationSeasonFilter).toBe('2026 Fall');
-    expect(second.createVolunteerCompletedFilter).toBe(true);
+    expect(second.createVolunteerCompletedFilter).toBe('COMPLETED');
     expect(second.createStudentKeyword).toBe('alice');
   });
 });

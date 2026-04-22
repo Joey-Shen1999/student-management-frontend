@@ -122,10 +122,11 @@
 
   <fieldset style="margin-bottom: 16px;">
     <legend>学术信息</legend>
-    <div><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
+    <div><strong>高中毕业地区：</strong>{{ displayStudentRegion() }}</div>
+    <div *ngIf="shouldShowOenField()"><strong>OEN 编号：</strong>{{ displayText(model.oenNumber) }}</div>
+    <div *ngIf="shouldShowPenField()"><strong>PEN 编号：</strong>{{ displayText(model.penNumber) }}</div>
     <div><strong>IB：</strong>{{ displayText(model.ib) }}</div>
     <div><strong>AP：</strong>{{ displayBoolean(model.ap) }}</div>
-    <div><strong>服务项目：</strong>{{ displayServiceItems() }}</div>
     <div><strong>身份证明文件：</strong>{{ displayIdentityFilesSummary() }}</div>
     <div *ngIf="model.identityFiles.length > 0" style="margin-top: 6px;">
       <div><strong>已上传文件：</strong></div>
@@ -376,6 +377,17 @@
         <legend>学术信息</legend>
 
         <div>
+          <label>高中毕业地区：</label>
+          <select
+            [(ngModel)]="model.studentRegion"
+            (ngModelChange)="onStudentRegionChange($event)"
+            name="studentRegion"
+          >
+            <option *ngFor="let option of studentRegionOptions" [value]="option.value">{{ option.label }}</option>
+          </select>
+        </div>
+
+        <div *ngIf="shouldShowOenField()">
           <label>OEN 编号：</label>
           <input
             [(ngModel)]="model.oenNumber"
@@ -393,6 +405,24 @@
           </div>
         </div>
 
+        <div *ngIf="shouldShowPenField()">
+          <label>PEN 编号：</label>
+          <input
+            [(ngModel)]="model.penNumber"
+            (ngModelChange)="onPenInputChange($event)"
+            name="penNumber"
+            inputmode="numeric"
+            maxlength="9"
+            placeholder="9位纯数字"
+          />
+          <div style="margin-top: 4px; color: #666; font-size: 12px;">
+            PEN 是 BC 省学生本地编号。
+          </div>
+          <div *ngIf="penError" style="margin-top: 4px; color: #b00020; font-size: 12px;">
+            {{ penError }}
+          </div>
+        </div>
+
         <div>
           <label>IB：</label>
           <input [(ngModel)]="model.ib" name="ib" placeholder="例如：IB DP / MYP / 无" />
@@ -401,27 +431,6 @@
         <div>
           <label>AP：</label>
           <input type="checkbox" [(ngModel)]="model.ap" name="ap" />
-        </div>
-
-        <div>
-          <label>服务项目：</label>
-          <div style="display: grid; gap: 8px; margin: 6px 0 0;">
-            <label
-              *ngFor="let option of serviceItemOptions; let optionIndex = index"
-              style="display: flex; align-items: flex-start; gap: 8px; font-weight: 400;"
-            >
-              <input
-                type="checkbox"
-                [checked]="isServiceItemSelected(option)"
-                (change)="onServiceItemSelectionChange(option, $any($event.target).checked)"
-                [name]="'serviceItem_' + optionIndex"
-              />
-              <span>{{ option }}</span>
-            </label>
-          </div>
-          <div style="margin-top: 4px; color: #666; font-size: 12px;">
-            可多选；如学生同时参加多个项目，可全部勾选。
-          </div>
         </div>
 
         <div>

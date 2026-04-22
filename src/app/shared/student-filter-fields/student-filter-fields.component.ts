@@ -2,7 +2,10 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import type { StudentSelectorFilterFieldKey } from '../student-fields/student-field-presets';
+import type {
+  StudentSelectorFilterFieldKey,
+  VolunteerCompletedFilterValue,
+} from '../student-fields/student-field-presets';
 
 @Component({
   selector: 'app-student-filter-fields',
@@ -74,6 +77,7 @@ export class StudentFilterFieldsComponent {
   @Input() cityFilterInput = '';
   @Input() schoolBoardFilterInput = '';
   @Input() graduationSeasonFilterInput = '';
+  @Input() graduationSeasonLabel = '\u6bd5\u4e1a\u5b63';
   @Input() languageScoreFilter = '';
   @Input() languageTrackingFilter = '';
   @Input() languageCourseStatusFilter = '';
@@ -90,7 +94,7 @@ export class StudentFilterFieldsComponent {
   @Input() ossltResultFilterOptions: readonly string[] = this.defaultOssltResultFilterOptions;
   @Input() ossltTrackingFilterOptions: readonly string[] = this.defaultOssltTrackingFilterOptions;
   @Input() courseStatusFilterOptions: readonly string[] = this.defaultCourseStatusFilterOptions;
-  @Input() volunteerCompletedFilter = false;
+  @Input() volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
   @Input() volunteerCompletedDisabled = false;
   @Input() volunteerCompletedTitle: string | null = null;
   @Input() studentKeyword = '';
@@ -108,16 +112,15 @@ export class StudentFilterFieldsComponent {
   @Output() ossltTrackingFilterChange = new EventEmitter<string>();
   @Output() courseCodeFilterInputChange = new EventEmitter<string>();
   @Output() courseStatusFilterChange = new EventEmitter<string>();
-  @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();
+  @Output() volunteerCompletedFilterChange = new EventEmitter<VolunteerCompletedFilterValue>();
   @Output() studentKeywordChange = new EventEmitter<string>();
 
   shouldShowFilterField(field: StudentSelectorFilterFieldKey): boolean {
     return this.filterFields.includes(field);
   }
 
-  onVolunteerCompletedFilterToggle(event: Event): void {
-    const checked = (event.target as HTMLInputElement | null)?.checked === true;
-    this.volunteerCompletedFilterChange.emit(checked);
+  onVolunteerCompletedFilterSelect(value: unknown): void {
+    this.volunteerCompletedFilterChange.emit(this.normalizeVolunteerCompletedFilterValue(value));
   }
 
   onLanguageScoreFilterSelect(value: unknown): void {
@@ -195,5 +198,18 @@ export class StudentFilterFieldsComponent {
     if (normalized === 'IN_PROGRESS') return 'Taking / \u5728\u8bfb';
     if (normalized === 'PLANNED') return 'Planning / \u8ba1\u5212\u4e2d';
     return String(value ?? '').trim() || '-';
+  }
+
+  private normalizeVolunteerCompletedFilterValue(value: unknown): VolunteerCompletedFilterValue {
+    if (value === true) return 'COMPLETED';
+    if (value === false || value === null || value === undefined) return '';
+
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    if (!normalized || normalized === 'ALL') return '';
+    if (normalized === 'COMPLETED') return 'COMPLETED';
+    if (normalized === 'NOT_COMPLETED') return 'NOT_COMPLETED';
+    return '';
   }
 }

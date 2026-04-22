@@ -316,6 +316,59 @@ describe('StudentProfile', () => {
     expect(provinceDatalist.querySelectorAll('option').length).toBeGreaterThan(10);
   });
 
+  it('should render studentRegion selector with full supported region options', () => {
+    component.enterEditMode();
+    fixture.detectChanges();
+
+    const selector = fixture.nativeElement.querySelector('select[name="studentRegion"]') as HTMLSelectElement | null;
+    expect(selector).not.toBeNull();
+    const values = Array.from(selector?.querySelectorAll('option') ?? []).map((option) => option.getAttribute('value'));
+    expect(values).toEqual([
+      'Ontario',
+      'British Columbia',
+      'Alberta',
+      'Saskatchewan',
+      'Manitoba',
+      'Quebec',
+      'New Brunswick',
+      'Nova Scotia',
+      'Prince Edward Island',
+      'Newfoundland and Labrador',
+      'Yukon',
+      'Northwest Territories',
+      'Nunavut',
+      'China',
+      'United States',
+    ]);
+  });
+
+  it('should show OEN input and hide PEN input when studentRegion is Ontario', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('Ontario');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('input[name="oenNumber"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name="penNumber"]')).toBeNull();
+  });
+
+  it('should show PEN input and hide OEN input when studentRegion is British Columbia', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('British Columbia');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('input[name="penNumber"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name="oenNumber"]')).toBeNull();
+  });
+
+  it('should hide both OEN and PEN inputs when studentRegion is China', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('China');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('input[name="penNumber"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name="oenNumber"]')).toBeNull();
+  });
+
   it('should prioritize country options with Canada, China, United States first', () => {
     expect(component.countryOptions.slice(0, 3)).toEqual([
       'Canada',
@@ -376,6 +429,7 @@ describe('StudentProfile', () => {
 
   it('should block save and show error when OEN is not 9 digits', () => {
     component.enterEditMode();
+    component.onStudentRegionChange('Ontario');
     component.onOenInputChange('12345');
 
     component.save();
@@ -396,6 +450,7 @@ describe('StudentProfile', () => {
 
   it('should allow save when OEN is 9 digits', () => {
     component.enterEditMode();
+    component.onStudentRegionChange('Ontario');
     component.onOenInputChange('123456789');
 
     component.save();
@@ -406,6 +461,57 @@ describe('StudentProfile', () => {
       })
     );
     expect(component.oenError).toBe('');
+  });
+
+  it('should block save and show error when PEN is not 9 digits in BC mode', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('British Columbia');
+    component.onPenInputChange('12345');
+    (profileApi.saveMyProfile as any).mockClear();
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+    expect(component.penError).toContain('9');
+  });
+
+  it('should save studentRegion=British Columbia with PEN and clear OEN', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('British Columbia');
+    component.onOenInputChange('123456789');
+    component.onPenInputChange('987654321');
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentRegion: 'British Columbia',
+        oen: '',
+        oenNumber: '',
+        pen: '987654321',
+        penNumber: '987654321',
+      })
+    );
+    expect(component.penError).toBe('');
+  });
+
+  it('should save studentRegion=China and clear both OEN/PEN', () => {
+    component.enterEditMode();
+    component.onStudentRegionChange('China');
+    component.onOenInputChange('123456789');
+    component.onPenInputChange('987654321');
+
+    component.save();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentRegion: 'China',
+        oen: '',
+        oenNumber: '',
+        pen: '',
+        penNumber: '',
+      })
+    );
   });
 
   it('should set save context with If-Match version and manual_save source', () => {
@@ -470,6 +576,34 @@ describe('StudentProfile', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Ontario Student Transcript');
     expect(text).not.toContain('OEN 缂栧彿锛堝彲閫夛級');
+  });
+
+  it('should infer studentRegion=Ontario from legacy OEN data when studentRegion is missing', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        oenNumber: '123456789',
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.studentRegion).toBe('Ontario');
+    expect(component.model.oenNumber).toBe('123456789');
+    expect(component.model.penNumber).toBe('');
+  });
+
+  it('should infer studentRegion=British Columbia from legacy PEN data when studentRegion is missing', () => {
+    (profileApi.getMyProfile as any).mockReturnValueOnce(
+      of({
+        pen: '987654321',
+      })
+    );
+
+    component.loadProfile();
+
+    expect(component.model.studentRegion).toBe('British Columbia');
+    expect(component.model.penNumber).toBe('987654321');
+    expect(component.model.oenNumber).toBe('');
   });
 
   it('should initialize with one current high school record', () => {

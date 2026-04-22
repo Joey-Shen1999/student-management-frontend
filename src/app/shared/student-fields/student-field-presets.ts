@@ -46,7 +46,6 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
-  'coursePlan',
   'resetPassword',
   'archive',
 ];
@@ -118,6 +117,8 @@ export type StudentSelectorFilterFieldKey =
   | 'coursePlan'
   | 'volunteerCompleted'
   | 'keyword';
+
+export type VolunteerCompletedFilterValue = '' | 'COMPLETED' | 'NOT_COMPLETED';
 
 export const STUDENT_SELECTOR_FULL_COLUMN_KEYS: readonly GoalStudentSelectorColumnKey[] = [
   'name',

@@ -78,7 +78,7 @@
   *ngIf="shouldShowFilterField('graduationSeason')"
   class="student-filter-item"
 >
-  &#27605;&#19994;&#23395;
+  {{ graduationSeasonLabel }}
   <input
     class="student-filter-input graduation-season-filter-input"
     [ngModel]="graduationSeasonFilterInput"
@@ -241,14 +241,18 @@
   *ngIf="shouldShowFilterField('volunteerCompleted')"
   class="student-filter-item"
 >
-  <input
-    type="checkbox"
-    [checked]="volunteerCompletedFilter"
-    (change)="onVolunteerCompletedFilterToggle($event)"
+  &#20041;&#24037;&#23436;&#25104;
+  <select
+    class="student-filter-select volunteer-completed-filter-select"
+    [ngModel]="volunteerCompletedFilter"
+    (ngModelChange)="onVolunteerCompletedFilterSelect($event)"
     [disabled]="disabled || volunteerCompletedDisabled"
     [attr.title]="volunteerCompletedTitle"
-  />
-  &#20041;&#24037;&#23436;&#25104;
+  >
+    <option [ngValue]="''">&#20840;&#37096;</option>
+    <option [ngValue]="'COMPLETED'">&#24050;&#23436;&#25104;</option>
+    <option [ngValue]="'NOT_COMPLETED'">&#26410;&#23436;&#25104;</option>
+  </select>
 </label>
 
 <input

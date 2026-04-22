@@ -3,7 +3,10 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import type { AssignableStudentOptionVm } from '../../services/task-center.service';
-import type { StudentSelectorFilterFieldKey } from '../student-fields/student-field-presets';
+import type {
+  StudentSelectorFilterFieldKey,
+  VolunteerCompletedFilterValue,
+} from '../student-fields/student-field-presets';
 import { StudentFilterFieldsComponent } from '../student-filter-fields/student-filter-fields.component';
 import type { StudentSelectorColumnConfig } from './student-selector.types';
 
@@ -83,7 +86,7 @@ export class StudentSelectorPanelComponent {
   @Input() languageCourseStatusFilterOptions: readonly string[] = [];
   @Input() ossltResultFilterOptions: readonly string[] = [];
   @Input() ossltTrackingFilterOptions: readonly string[] = [];
-  @Input() volunteerCompletedFilter = false;
+  @Input() volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
   @Input() studentKeyword = '';
   @Input() filterFields: readonly StudentSelectorFilterFieldKey[] = this.allFilterFields;
 
@@ -124,7 +127,7 @@ export class StudentSelectorPanelComponent {
   @Output() languageCourseStatusFilterChange = new EventEmitter<string>();
   @Output() ossltResultFilterChange = new EventEmitter<string>();
   @Output() ossltTrackingFilterChange = new EventEmitter<string>();
-  @Output() volunteerCompletedFilterChange = new EventEmitter<boolean>();
+  @Output() volunteerCompletedFilterChange = new EventEmitter<VolunteerCompletedFilterValue>();
   @Output() studentKeywordChange = new EventEmitter<string>();
 
   @Output() selectAllToggle = new EventEmitter<boolean>();
@@ -164,9 +167,8 @@ export class StudentSelectorPanelComponent {
     this.columnVisibilityChange.emit({ key: columnKey, checked });
   }
 
-  onVolunteerCompletedFilterChange(event: Event): void {
-    const checked = (event.target as HTMLInputElement | null)?.checked === true;
-    this.volunteerCompletedFilterChange.emit(checked);
+  onVolunteerCompletedFilterChange(value: VolunteerCompletedFilterValue): void {
+    this.volunteerCompletedFilterChange.emit(value);
   }
 
   canDragColumnHeaders(): boolean {

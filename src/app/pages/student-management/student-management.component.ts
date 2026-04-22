@@ -75,6 +75,7 @@ import {
   type StudentListColumnKey,
   type StudentManagementPageContext,
   type StudentSelectorFilterFieldKey,
+  type VolunteerCompletedFilterValue,
 } from '../../shared/student-fields/student-field-presets';
 import { StudentFilterFieldsComponent } from '../../shared/student-filter-fields/student-filter-fields.component';
 import { COURSE_PLAN_CATALOG } from '../student-profile/course-plan-course-catalog';
@@ -155,7 +156,7 @@ interface StudentListFilterPreferenceVm {
   ossltTrackingFilter?: string;
   courseCodeFilterInput?: string;
   courseStatusFilter?: string;
-  volunteerCompletedFilter?: boolean;
+  volunteerCompletedFilter?: VolunteerCompletedFilterValue | boolean;
 }
 
 interface StudentCoursePlanCourseSummary {
@@ -644,6 +645,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             [cityFilterOptions]="cityFilterOptions"
             [schoolBoardFilterOptions]="schoolBoardFilterOptions"
             [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
+            [graduationSeasonLabel]="'大学入学时间'"
             [countryFilterInput]="countryFilterInput"
             [provinceFilterInput]="provinceFilterInput"
             [cityFilterInput]="cityFilterInput"
@@ -660,7 +662,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                 : (volunteerCompletedFilterError || 'Volunteer completed filter data unavailable')
             "
             [studentKeyword]="searchKeyword"
-            [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、毕业季搜索'"
+            [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、大学入学时间搜索'"
             (countryFilterInputChange)="onCountryFilterInputChange($event)"
             (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
             (cityFilterInputChange)="onCityFilterInputChange($event)"
@@ -1059,7 +1061,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                         [ngModel]="resolveOsslcCourseLocation(student)"
                         (blur)="onOsslcCourseLocationChange(student, $any($event.target).value)"
                         (keydown.enter)="$any($event.target).blur()"
-                        style="width:100%;min-width:140px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-size:14px;color:#1f2f47;"
+                        style="width:100%;max-width:170px;min-width:120px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-size:14px;color:#1f2f47;"
                         [disabled]="!resolveStudentId(student) || isOsslcCourseLocationSaving(student)"
                         placeholder="\u586b\u5199\u5730\u70b9..."
                       />
@@ -1459,7 +1461,7 @@ export class StudentManagementComponent implements OnInit {
   ossltTrackingFilter: OssltTrackingStatus | '' = '';
   courseCodeFilterInput = '';
   courseStatusFilter: CoursePlanStatus | '' = '';
-  volunteerCompletedFilter = false;
+  volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
   volunteerCompletedFilterAvailable = true;
   volunteerCompletedFilterError = '';
   creatingInvite = false;
@@ -1995,8 +1997,8 @@ export class StudentManagementComponent implements OnInit {
     this.applyListView();
   }
 
-  onVolunteerCompletedFilterChange(value: boolean): void {
-    this.volunteerCompletedFilter = value === true;
+  onVolunteerCompletedFilterChange(value: VolunteerCompletedFilterValue): void {
+    this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(value);
     this.applyListView();
   }
 
@@ -3907,7 +3909,7 @@ export class StudentManagementComponent implements OnInit {
       this.normalizeOssltTrackingStatusValue(persisted.ossltTrackingFilter) ?? '';
     this.courseCodeFilterInput = String(persisted.courseCodeFilterInput ?? '').trim().toUpperCase();
     this.courseStatusFilter = this.normalizeCoursePlanStatusValue(persisted.courseStatusFilter) ?? '';
-    this.volunteerCompletedFilter = this.normalizePreferenceBoolean(
+    this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(
       persisted.volunteerCompletedFilter
     );
   }
@@ -3973,6 +3975,25 @@ export class StudentManagementComponent implements OnInit {
       .toLowerCase();
     if (!normalized) return false;
     return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+
+  private normalizeVolunteerCompletedFilterValue(value: unknown): VolunteerCompletedFilterValue {
+    if (value === true) return 'COMPLETED';
+    if (value === false || value === null || value === undefined) return '';
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || value <= 0) return '';
+      return 'COMPLETED';
+    }
+
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    if (!normalized || normalized === 'ALL' || normalized === 'ANY') return '';
+    if (normalized === 'COMPLETED' || normalized === 'DONE') return 'COMPLETED';
+    if (normalized === 'NOT_COMPLETED' || normalized === 'INCOMPLETE') return 'NOT_COMPLETED';
+    if (normalized === 'TRUE' || normalized === 'YES' || normalized === '1') return 'COMPLETED';
+    if (normalized === 'FALSE' || normalized === 'NO' || normalized === '0') return '';
+    return '';
   }
 
   private resolvePageContext(): StudentManagementPageContext {
@@ -4181,7 +4202,7 @@ export class StudentManagementComponent implements OnInit {
     this.ossltTrackingFilter = '';
     this.courseCodeFilterInput = '';
     this.courseStatusFilter = '';
-    this.volunteerCompletedFilter = false;
+    this.volunteerCompletedFilter = '';
     this.applyListView();
   }
 
@@ -4330,14 +4351,14 @@ export class StudentManagementComponent implements OnInit {
 
     if (this.volunteerCompletedFilter) {
       const volunteerCompleted = this.resolveVolunteerCompletedForFilter(student);
-      if (volunteerCompleted === false) {
+      if (volunteerCompleted === null) {
         return false;
       }
-      if (volunteerCompleted === null) {
-        const volunteerHours = this.resolveVolunteerHours(student);
-        if (volunteerHours === null || volunteerHours < 40) {
-          return false;
-        }
+      if (
+        (this.volunteerCompletedFilter === 'COMPLETED' && volunteerCompleted !== true) ||
+        (this.volunteerCompletedFilter === 'NOT_COMPLETED' && volunteerCompleted !== false)
+      ) {
+        return false;
       }
     }
 
@@ -5855,9 +5876,9 @@ export class StudentManagementComponent implements OnInit {
   private degradeVolunteerCompletedFilter(error: unknown, reapplyOnUpdate: boolean): void {
     this.volunteerCompletedFilterAvailable = false;
     this.volunteerCompletedFilterError = this.resolveVolunteerBatchSummaryErrorMessage(error);
-    const wasEnabled = this.volunteerCompletedFilter;
+    const wasEnabled = this.volunteerCompletedFilter !== '';
     if (wasEnabled) {
-      this.volunteerCompletedFilter = false;
+      this.volunteerCompletedFilter = '';
     }
     this.cdr.detectChanges();
     if (reapplyOnUpdate || wasEnabled) {

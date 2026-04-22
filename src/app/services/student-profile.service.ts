@@ -119,7 +119,12 @@ export interface StudentProfilePayload {
   firstEntryDate?: string;
   firstArrivalDateInCanada?: string;
   address?: StudentProfileAddressPayload;
+  studentRegion?: string;
+  student_region?: string;
+  oen?: string;
   oenNumber?: string;
+  pen?: string;
+  penNumber?: string;
   ib?: string;
   ap?: boolean;
   serviceItems?: string[];

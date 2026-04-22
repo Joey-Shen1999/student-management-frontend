@@ -33,6 +33,7 @@ import {
   STUDENT_SELECTOR_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
   STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT,
   type StudentSelectorFilterFieldKey,
+  type VolunteerCompletedFilterValue,
 } from '../../shared/student-fields/student-field-presets';
 import {
   CITY_FILTER_OPTIONS_BY_COUNTRY,
@@ -111,7 +112,7 @@ interface CreateStudentFilterPreferenceVm {
   languageCourseStatusFilter?: string;
   ossltResultFilter?: string;
   ossltTrackingFilter?: string;
-  volunteerCompleted?: boolean;
+  volunteerCompleted?: VolunteerCompletedFilterValue | boolean;
   keyword?: string;
 }
 
@@ -187,7 +188,7 @@ export class InfoManagementComponent implements OnInit {
   createLanguageCourseStatusFilter = '';
   createOssltResultFilter = '';
   createOssltTrackingFilter = '';
-  createVolunteerCompletedFilter = false;
+  createVolunteerCompletedFilter: VolunteerCompletedFilterValue = '';
   readonly languageScoreFilterOptions: readonly string[] = [
     'GREEN_STRICT_PASS',
     'GREEN_COMMON_PASS_WITH_WARNING',
@@ -553,8 +554,8 @@ export class InfoManagementComponent implements OnInit {
     this.persistCreateStudentFiltersPreference();
   }
 
-  onVolunteerCompletedFilterChange(value: boolean): void {
-    this.createVolunteerCompletedFilter = value === true;
+  onVolunteerCompletedFilterChange(value: VolunteerCompletedFilterValue): void {
+    this.createVolunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(value);
     this.persistCreateStudentFiltersPreference();
   }
 
@@ -574,7 +575,7 @@ export class InfoManagementComponent implements OnInit {
     this.createLanguageCourseStatusFilter = '';
     this.createOssltResultFilter = '';
     this.createOssltTrackingFilter = '';
-    this.createVolunteerCompletedFilter = false;
+    this.createVolunteerCompletedFilter = '';
     this.createStudentKeyword = '';
     this.persistCreateStudentFiltersPreference();
   }
@@ -865,8 +866,9 @@ export class InfoManagementComponent implements OnInit {
     this.createOssltTrackingFilter = this.normalizeOssltTrackingStatusValue(
       persisted.ossltTrackingFilter
     ) || '';
-    this.createVolunteerCompletedFilter =
-      this.parseBooleanValue(persisted.volunteerCompleted) === true;
+    this.createVolunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(
+      persisted.volunteerCompleted
+    );
     this.createStudentKeyword = String(persisted.keyword ?? '').trim();
   }
 
@@ -1672,8 +1674,22 @@ export class InfoManagementComponent implements OnInit {
     if (!this.createVolunteerCompletedFilter) {
       return true;
     }
-    if (detail?.volunteerCompleted === true) {
-      return true;
+    const completed = this.resolveVolunteerCompletedForFilter(student, detail);
+    if (completed === null) {
+      return false;
+    }
+    if (this.createVolunteerCompletedFilter === 'COMPLETED') {
+      return completed;
+    }
+    return !completed;
+  }
+
+  private resolveVolunteerCompletedForFilter(
+    student: AssignableStudentOptionVm,
+    detail: StudentDetailVm | undefined
+  ): boolean | null {
+    if (typeof detail?.volunteerCompleted === 'boolean') {
+      return detail.volunteerCompleted;
     }
     const totalHours = detail?.totalVolunteerHours;
     if (typeof totalHours === 'number' && Number.isFinite(totalHours)) {
@@ -1690,7 +1706,10 @@ export class InfoManagementComponent implements OnInit {
     const rowHours = this.parseNumberValue(
       row['totalVolunteerHours'] ?? row['volunteerTotalHours'] ?? row['totalHours']
     );
-    return rowHours !== null && rowHours >= 40;
+    if (rowHours === null) {
+      return null;
+    }
+    return rowHours >= 40;
   }
 
   private syncSelectedStudents(): void {
@@ -2477,6 +2496,25 @@ export class InfoManagementComponent implements OnInit {
       return false;
     }
     return null;
+  }
+
+  private normalizeVolunteerCompletedFilterValue(value: unknown): VolunteerCompletedFilterValue {
+    if (value === true) return 'COMPLETED';
+    if (value === false || value === null || value === undefined) return '';
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || value <= 0) return '';
+      return 'COMPLETED';
+    }
+
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    if (!normalized || normalized === 'ALL' || normalized === 'ANY') return '';
+    if (normalized === 'COMPLETED' || normalized === 'DONE') return 'COMPLETED';
+    if (normalized === 'NOT_COMPLETED' || normalized === 'INCOMPLETE') return 'NOT_COMPLETED';
+    if (normalized === 'TRUE' || normalized === 'YES' || normalized === '1') return 'COMPLETED';
+    if (normalized === 'FALSE' || normalized === 'NO' || normalized === '0') return '';
+    return '';
   }
 
   private asObjectRecord(value: unknown): Record<string, unknown> | null {
