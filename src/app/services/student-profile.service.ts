@@ -73,10 +73,46 @@ export interface StudentSchoolTranscriptPayload {
   sizeBytes?: number | null;
   transcriptUploadedAt?: string;
   uploadedAt?: string;
+  academicRecordType?: string;
+  transcriptType?: string;
+  reportYear?: number | null;
+  reportMonth?: string;
   hasTranscript?: boolean;
   transcriptAvailable?: boolean;
   transcripts?: StudentSchoolTranscriptPayload[];
   [key: string]: any;
+}
+
+export interface StudentDocumentPayload {
+  id?: number | null;
+  documentCategory?: 'Identity Document' | 'Academic Record' | 'Other' | string;
+  identityDocumentType?: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | string;
+  academicRecordType?: 'Transcript' | 'Report Card' | string;
+  reportYear?: number | null;
+  reportMonth?: string;
+  title?: string;
+  notes?: string;
+  fileName?: string;
+  contentType?: string;
+  sizeBytes?: number | null;
+  uploadedAt?: string;
+  [key: string]: any;
+}
+
+export interface StudentDocumentUploadOptions {
+  documentCategory: 'Identity Document' | 'Academic Record' | 'Other';
+  identityDocumentType?: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | '';
+  academicRecordType?: 'Transcript' | 'Report Card' | '';
+  reportYear?: number | null;
+  reportMonth?: string;
+  title: string;
+  notes?: string;
+}
+
+export interface SchoolTranscriptUploadOptions {
+  academicRecordType?: 'Transcript' | 'Report Card' | '';
+  reportYear?: number | null;
+  reportMonth?: string;
 }
 
 export interface CanadianHighSchoolLookupItem {
@@ -322,6 +358,7 @@ export const EDUCATION_BOARD_LIBRARY_OPTIONS: ReadonlyArray<string> = buildEduca
 @Injectable({ providedIn: 'root' })
 export class StudentProfileService {
   private readonly selfProfileUrl = '/api/student/profile';
+  private readonly studentDocumentsUrl = '/api/student/documents';
   private readonly teacherStudentProfileBaseUrl = '/api/teacher/students';
   private readonly historyPageSizeDefault = 20;
   private readonly canadianHighSchoolSearchUrl = '/api/reference/canadian-high-schools/search';
@@ -451,32 +488,98 @@ export class StudentProfileService {
 
   uploadMySchoolTranscript(
     schoolRecordId: number,
-    file: File
+    file: File,
+    options: SchoolTranscriptUploadOptions = {}
   ): Observable<StudentSchoolTranscriptPayload> {
     const url = `${this.selfProfileUrl}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`;
-    return this.uploadSchoolTranscriptWithFallback(url, file);
+    return this.uploadSchoolTranscriptWithFallback(url, file, options);
   }
 
   uploadStudentSchoolTranscriptForTeacher(
     studentId: number,
     schoolRecordId: number,
-    file: File
+    file: File,
+    options: SchoolTranscriptUploadOptions = {}
   ): Observable<StudentSchoolTranscriptPayload> {
     const url = `${this.resolveTeacherStudentProfileUrl(studentId)}/schools/${Math.trunc(Number(schoolRecordId))}/transcript`;
-    return this.uploadSchoolTranscriptWithFallback(url, file);
+    return this.uploadSchoolTranscriptWithFallback(url, file, options);
   }
 
-  uploadMyIdentityFile(file: File): Observable<StudentIdentityFilePayload> {
+  uploadMyIdentityFile(
+    file: File,
+    identityDocumentType: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | '' = ''
+  ): Observable<StudentIdentityFilePayload> {
     const url = `${this.selfProfileUrl}/identity-files`;
-    return this.uploadIdentityFileWithFallback(url, file);
+    return this.uploadIdentityFileWithFallback(url, file, identityDocumentType);
   }
 
   uploadStudentIdentityFileForTeacher(
     studentId: number,
-    file: File
+    file: File,
+    identityDocumentType: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | '' = ''
   ): Observable<StudentIdentityFilePayload> {
     const url = `${this.resolveTeacherStudentProfileUrl(studentId)}/identity-files`;
-    return this.uploadIdentityFileWithFallback(url, file);
+    return this.uploadIdentityFileWithFallback(url, file, identityDocumentType);
+  }
+
+  listMyDocuments(): Observable<StudentDocumentPayload[]> {
+    return this.http.get<StudentDocumentPayload[]>(this.studentDocumentsUrl, this.withAuthHeaderIfAvailable());
+  }
+
+  uploadMyDocument(file: File, options: StudentDocumentUploadOptions): Observable<StudentDocumentPayload> {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('documentCategory', String(options.documentCategory || '').trim());
+    body.append('title', String(options.title || '').trim());
+
+    const identityDocumentType = String(options.identityDocumentType || '').trim();
+    if (identityDocumentType) {
+      body.append('identityDocumentType', identityDocumentType);
+    }
+
+    const academicRecordType = String(options.academicRecordType || '').trim();
+    if (academicRecordType) {
+      body.append('academicRecordType', academicRecordType);
+    }
+
+    const reportYear = Number(options.reportYear);
+    if (Number.isFinite(reportYear) && reportYear > 0) {
+      body.append('reportYear', String(Math.trunc(reportYear)));
+    }
+
+    const reportMonth = String(options.reportMonth || '').trim();
+    if (reportMonth) {
+      body.append('reportMonth', reportMonth);
+    }
+
+    const notes = String(options.notes || '').trim();
+    if (notes) {
+      body.append('notes', notes);
+    }
+
+    return this.http.post<StudentDocumentPayload>(
+      this.studentDocumentsUrl,
+      body,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  viewMyDocumentFile(documentId: number): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `${this.studentDocumentsUrl}/${Math.trunc(Number(documentId))}/file`,
+      {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
+  deleteMyDocument(documentId: number): Observable<void> {
+    return this.http.delete<void>(
+      `${this.studentDocumentsUrl}/${Math.trunc(Number(documentId))}`,
+      this.withAuthHeaderIfAvailable()
+    );
   }
 
   downloadMySchoolTranscript(schoolRecordId: number): Observable<HttpResponse<Blob>> {
@@ -531,15 +634,16 @@ export class StudentProfileService {
 
   private uploadSchoolTranscriptWithFallback(
     url: string,
-    file: File
+    file: File,
+    options: SchoolTranscriptUploadOptions = {}
   ): Observable<StudentSchoolTranscriptPayload> {
-    return this.uploadSchoolTranscriptWithField(url, file, this.transcriptPrimaryField).pipe(
+    return this.uploadSchoolTranscriptWithField(url, file, this.transcriptPrimaryField, options).pipe(
       catchError((error: unknown) => {
         if (!this.shouldRetryTranscriptWithFallbackField(error)) {
           return throwError(() => error);
         }
 
-        return this.uploadSchoolTranscriptWithField(url, file, this.transcriptFallbackField);
+        return this.uploadSchoolTranscriptWithField(url, file, this.transcriptFallbackField, options);
       })
     );
   }
@@ -547,24 +651,39 @@ export class StudentProfileService {
   private uploadSchoolTranscriptWithField(
     url: string,
     file: File,
-    fieldName: string
+    fieldName: string,
+    options: SchoolTranscriptUploadOptions = {}
   ): Observable<StudentSchoolTranscriptPayload> {
     const body = new FormData();
     body.append(fieldName, file);
+    const academicRecordType = String(options.academicRecordType || '').trim();
+    if (academicRecordType) {
+      body.append('academicRecordType', academicRecordType);
+      body.append('transcriptType', academicRecordType);
+    }
+    const reportYear = Number(options.reportYear);
+    if (Number.isFinite(reportYear) && reportYear > 0) {
+      body.append('reportYear', String(Math.trunc(reportYear)));
+    }
+    const reportMonth = String(options.reportMonth || '').trim();
+    if (reportMonth) {
+      body.append('reportMonth', reportMonth);
+    }
     return this.http.post<StudentSchoolTranscriptPayload>(url, body, this.withAuthHeaderIfAvailable());
   }
 
   private uploadIdentityFileWithFallback(
     url: string,
-    file: File
+    file: File,
+    identityDocumentType: string
   ): Observable<StudentIdentityFilePayload> {
-    return this.uploadIdentityFileWithField(url, file, this.identityFilePrimaryField).pipe(
+    return this.uploadIdentityFileWithField(url, file, this.identityFilePrimaryField, identityDocumentType).pipe(
       catchError((error: unknown) => {
         if (!this.shouldRetryTranscriptWithFallbackField(error)) {
           return throwError(() => error);
         }
 
-        return this.uploadIdentityFileWithField(url, file, this.identityFileFallbackField);
+        return this.uploadIdentityFileWithField(url, file, this.identityFileFallbackField, identityDocumentType);
       })
     );
   }
@@ -572,10 +691,15 @@ export class StudentProfileService {
   private uploadIdentityFileWithField(
     url: string,
     file: File,
-    fieldName: string
+    fieldName: string,
+    identityDocumentType: string
   ): Observable<StudentIdentityFilePayload> {
     const body = new FormData();
     body.append(fieldName, file);
+    const normalizedType = String(identityDocumentType || '').trim();
+    if (normalizedType) {
+      body.append('identityDocumentType', normalizedType);
+    }
     return this.http.post<StudentIdentityFilePayload>(url, body, this.withAuthHeaderIfAvailable());
   }
 

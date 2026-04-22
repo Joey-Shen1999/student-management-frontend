@@ -16,6 +16,7 @@ import {
   StudentProfileHistoryResponse,
   StudentProfilePayload,
   StudentSchoolTranscriptPayload,
+  SchoolTranscriptUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
 
@@ -39,6 +40,8 @@ type StudentRegion =
   | 'United States';
 
 type SchoolType = '' | 'MAIN' | 'OTHER';
+type AcademicRecordType = 'Transcript' | 'Report Card';
+type IdentityDocumentType = 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other';
 
 interface AddressModel {
   streetAddress: string;
@@ -512,6 +515,33 @@ const SERVICE_ITEM_OPTIONS = [
   '一对一辅导',
 ] as const;
 
+const IDENTITY_DOCUMENT_TYPE_OPTIONS: ReadonlyArray<IdentityDocumentType> = [
+  'Passport',
+  'Study Permit / Visa',
+  'PR Card',
+  'Other',
+] as const;
+
+const ACADEMIC_RECORD_TYPE_OPTIONS: ReadonlyArray<AcademicRecordType> = [
+  'Transcript',
+  'Report Card',
+] as const;
+
+const REPORT_MONTH_OPTIONS: ReadonlyArray<string> = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
 const VALIDATION_COLLECTION_LABELS: Record<string, string> = {
   schools: '高中学校',
   schoolRecords: '高中学校',
@@ -599,6 +629,9 @@ export class StudentProfile implements OnInit {
   readonly studentRegionOptions = STUDENT_REGION_OPTIONS;
   readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
   readonly serviceItemOptions: readonly string[] = [...SERVICE_ITEM_OPTIONS];
+  readonly identityDocumentTypeOptions: readonly IdentityDocumentType[] = [...IDENTITY_DOCUMENT_TYPE_OPTIONS];
+  readonly academicRecordTypeOptions: readonly AcademicRecordType[] = [...ACADEMIC_RECORD_TYPE_OPTIONS];
+  readonly reportMonthOptions: readonly string[] = [...REPORT_MONTH_OPTIONS];
   readonly historyPageSize = 20;
 
   statusInCanadaSelection = '';
@@ -628,7 +661,11 @@ export class StudentProfile implements OnInit {
   highSchoolLookupOptions: CanadianHighSchoolLookupItem[][] = [[]];
   highSchoolLookupLoading: boolean[] = [false];
   highSchoolTranscriptUploading: boolean[] = [false];
+  highSchoolTranscriptTypeSelection: AcademicRecordType[] = ['Transcript'];
+  highSchoolReportYearSelection: string[] = [''];
+  highSchoolReportMonthSelection: string[] = [''];
   identityFileUploading = false;
+  identityDocumentTypeSelection: IdentityDocumentType = 'Other';
   externalCourseProviderLookupOptions: CanadianHighSchoolLookupItem[][] = [];
   externalCourseProviderLookupLoading: boolean[] = [];
   private lastSavedPayloadDigest = '';
@@ -781,6 +818,23 @@ export class StudentProfile implements OnInit {
     school.postal = this.formatPostalForDisplay(school.postal, normalizedCountry);
   }
 
+  getHighSchoolTranscriptType(index: number): AcademicRecordType {
+    return this.highSchoolTranscriptTypeSelection[index] || 'Transcript';
+  }
+
+  onHighSchoolTranscriptTypeChange(index: number, value: string): void {
+    const normalizedType: AcademicRecordType = value === 'Report Card' ? 'Report Card' : 'Transcript';
+    this.highSchoolTranscriptTypeSelection[index] = normalizedType;
+    if (normalizedType !== 'Report Card') {
+      this.highSchoolReportYearSelection[index] = '';
+      this.highSchoolReportMonthSelection[index] = '';
+    }
+  }
+
+  shouldShowReportCardDateFields(index: number): boolean {
+    return this.getHighSchoolTranscriptType(index) === 'Report Card';
+  }
+
   onHighSchoolTranscriptFileSelected(index: number, event: Event): void {
     const school = this.model.highSchools[index];
     if (!school) return;
@@ -789,18 +843,25 @@ export class StudentProfile implements OnInit {
     const file = input?.files?.[0];
     if (!file) return;
 
+    const uploadOptions = this.buildSchoolTranscriptUploadOptions(index);
+    if (!uploadOptions) {
+      if (input) input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
     if (this.isProfileBusyForTranscriptUpload()) {
-      this.retrySchoolTranscriptUploadWhenIdle(index, file, input);
+      this.retrySchoolTranscriptUploadWhenIdle(index, file, input, 0, uploadOptions);
       return;
     }
 
     const schoolRecordId = this.toOptionalNumber(school.schoolRecordId);
     if (schoolRecordId === null) {
-      this.persistProfileThenUploadSchoolTranscript(index, file, input);
+      this.persistProfileThenUploadSchoolTranscript(index, file, input, 0, uploadOptions);
       return;
     }
 
-    this.uploadSchoolTranscript(index, schoolRecordId, file, input);
+    this.uploadSchoolTranscript(index, schoolRecordId, file, input, true, uploadOptions);
   }
 
   onIdentityFileSelected(event: Event): void {
@@ -822,10 +883,20 @@ export class StudentProfile implements OnInit {
     this.error = '';
     this.cdr.detectChanges();
 
+    const identityDocumentType: IdentityDocumentType =
+      this.identityDocumentTypeOptions.find(
+        (option) =>
+          this.toText(option).toLowerCase() === this.toText(this.identityDocumentTypeSelection).toLowerCase()
+      ) || 'Other';
+
     const uploadOne = (file: File) =>
       this.managedMode && this.managedStudentId
-        ? this.profileApi.uploadStudentIdentityFileForTeacher(this.managedStudentId, file)
-        : this.profileApi.uploadMyIdentityFile(file);
+        ? this.profileApi.uploadStudentIdentityFileForTeacher(
+            this.managedStudentId,
+            file,
+            identityDocumentType
+          )
+        : this.profileApi.uploadMyIdentityFile(file, identityDocumentType);
 
     from(files)
       .pipe(
@@ -1323,7 +1394,8 @@ export class StudentProfile implements OnInit {
     schoolRecordId: number,
     file: File,
     input: HTMLInputElement | null,
-    allowRefreshOnNotFound = true
+    allowRefreshOnNotFound = true,
+    uploadOptions: SchoolTranscriptUploadOptions = {}
   ): void {
     const uploadHint = this.buildSchoolUploadHint(index);
     this.highSchoolTranscriptUploading[index] = true;
@@ -1332,8 +1404,13 @@ export class StudentProfile implements OnInit {
 
     const request$ =
       this.managedMode && this.managedStudentId
-        ? this.profileApi.uploadStudentSchoolTranscriptForTeacher(this.managedStudentId, schoolRecordId, file)
-        : this.profileApi.uploadMySchoolTranscript(schoolRecordId, file);
+        ? this.profileApi.uploadStudentSchoolTranscriptForTeacher(
+            this.managedStudentId,
+            schoolRecordId,
+            file,
+            uploadOptions
+          )
+        : this.profileApi.uploadMySchoolTranscript(schoolRecordId, file, uploadOptions);
 
     request$
       .pipe(
@@ -1352,7 +1429,7 @@ export class StudentProfile implements OnInit {
         },
         error: (err: HttpErrorResponse) => {
           if (allowRefreshOnNotFound && err.status === 404) {
-            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input);
+            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input, uploadOptions);
             return;
           }
           if ((err.status === 0 || err.status === 413) && file.size > 1024 * 1024) {
@@ -1370,7 +1447,8 @@ export class StudentProfile implements OnInit {
     index: number,
     file: File,
     input: HTMLInputElement | null,
-    retryAttempt = 0
+    retryAttempt = 0,
+    uploadOptions: SchoolTranscriptUploadOptions = {}
   ): void {
     if (this.invalidManagedStudentId || (this.managedMode && !this.managedStudentId)) {
       this.error = '路由中的学生 ID 无效。';
@@ -1431,11 +1509,18 @@ export class StudentProfile implements OnInit {
 
           const uploadTarget = this.resolveSchoolUploadTarget(index, uploadHint);
           if (!uploadTarget) {
-            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input);
+            this.refreshProfileThenUploadSchoolTranscript(index, uploadHint, file, input, uploadOptions);
             return;
           }
 
-          this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input);
+          this.uploadSchoolTranscript(
+            uploadTarget.index,
+            uploadTarget.schoolRecordId,
+            file,
+            input,
+            true,
+            uploadOptions
+          );
         },
         error: (err: HttpErrorResponse) => {
           if (this.handleProfileVersionConflict(err)) {
@@ -1603,7 +1688,8 @@ export class StudentProfile implements OnInit {
     fallbackIndex: number,
     uploadHint: SchoolUploadHint | null,
     file: File,
-    input: HTMLInputElement | null
+    input: HTMLInputElement | null,
+    uploadOptions: SchoolTranscriptUploadOptions = {}
   ): void {
     const request$ =
       this.managedMode && this.managedStudentId
@@ -1627,7 +1713,14 @@ export class StudentProfile implements OnInit {
           return;
         }
 
-        this.uploadSchoolTranscript(uploadTarget.index, uploadTarget.schoolRecordId, file, input, false);
+        this.uploadSchoolTranscript(
+          uploadTarget.index,
+          uploadTarget.schoolRecordId,
+          file,
+          input,
+          false,
+          uploadOptions
+        );
       },
         error: (err: HttpErrorResponse) => {
           this.saved = false;
