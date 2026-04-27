@@ -200,6 +200,9 @@ import {
         <section class="dashboard-card">
           <h3>快捷操作</h3>
           <div class="quick-actions">
+            <button type="button" class="action-btn primary" (click)="goDocumentUpload()">
+              上传材料
+            </button>
             <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
             <button type="button" class="action-btn primary" (click)="goCoursePlanner()">
               课程规划
@@ -276,6 +279,10 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goDocumentUpload() {
+    this.router.navigate(['/student/documents']);
   }
 
   goCoursePlanner() {

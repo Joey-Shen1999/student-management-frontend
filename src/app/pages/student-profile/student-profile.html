@@ -436,6 +436,12 @@
         <div>
           <label>身份证明文件：</label>
           <div style="margin: 4px 0;">{{ displayIdentityFilesSummary() }}</div>
+          <div style="margin: 4px 0; display: flex; align-items: center; gap: 8px;">
+            <label style="min-width: 120px;">Document Type:</label>
+            <select [(ngModel)]="identityDocumentTypeSelection" name="identityDocumentTypeSelection">
+              <option *ngFor="let option of identityDocumentTypeOptions" [value]="option">{{ option }}</option>
+            </select>
+          </div>
           <div *ngIf="model.identityFiles.length > 0" style="margin: 4px 0;">
             <div>已上传文件：</div>
             <div *ngFor="let identityFile of model.identityFiles; let identityIndex = index" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
@@ -576,6 +582,39 @@
           <div>
             <label>成绩单：</label>
             <div style="margin: 4px 0;">{{ displaySchoolTranscript(s) }}</div>
+            <div style="margin: 4px 0; display: flex; align-items: center; gap: 8px;">
+              <label style="min-width: 120px;">Academic Record Type:</label>
+              <select
+                [name]="'highSchoolTranscriptType_' + i"
+                [attr.name]="'highSchoolTranscriptType_' + i"
+                [(ngModel)]="highSchoolTranscriptTypeSelection[i]"
+              >
+                <option *ngFor="let option of academicRecordTypeOptions" [value]="option">{{ option }}</option>
+              </select>
+            </div>
+            <div
+              *ngIf="shouldShowReportCardDateFields(i)"
+              style="margin: 4px 0; display: flex; align-items: center; gap: 8px;"
+            >
+              <label style="min-width: 120px;">Report Year:</label>
+              <input
+                [(ngModel)]="highSchoolReportYearSelection[i]"
+                [name]="'highSchoolReportYear_' + i"
+                [attr.name]="'highSchoolReportYear_' + i"
+                inputmode="numeric"
+                maxlength="4"
+                placeholder="e.g. 2025"
+              />
+              <label>Month:</label>
+              <select
+                [(ngModel)]="highSchoolReportMonthSelection[i]"
+                [name]="'highSchoolReportMonth_' + i"
+                [attr.name]="'highSchoolReportMonth_' + i"
+              >
+                <option value="">Select month</option>
+                <option *ngFor="let month of reportMonthOptions" [value]="month">{{ month }}</option>
+              </select>
+            </div>
             <div *ngIf="s.hasTranscript && s.transcripts.length > 0" style="margin: 4px 0;">
               <div>已上传文件：</div>
               <div *ngFor="let transcript of s.transcripts; let transcriptIndex = index" style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">

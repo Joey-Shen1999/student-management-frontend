@@ -210,6 +210,11 @@ describe('DashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/student/profile']);
   });
 
+  it('goDocumentUpload should navigate to dedicated student documents page', () => {
+    component.goDocumentUpload();
+    expect(router.navigate).toHaveBeenCalledWith(['/student/documents']);
+  });
+
   it('goVolunteerRecords should navigate to student volunteer page', () => {
     component.goVolunteerRecords();
     expect(router.navigate).toHaveBeenCalledWith(['/student/volunteer']);

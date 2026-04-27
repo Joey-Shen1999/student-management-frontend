@@ -19,6 +19,7 @@ import {
 } from '../../services/student-invite.service';
 import {
   EDUCATION_BOARD_LIBRARY_OPTIONS,
+  type StudentDocumentUploadOptions,
   StudentProfilePayload,
   StudentProfileResponse,
   StudentProfileService,
@@ -164,6 +165,21 @@ interface StudentCoursePlanCourseSummary {
   status: CoursePlanStatus | null;
 }
 
+type TeacherDocumentCategory = 'Identity Document' | 'Academic Record' | 'Other';
+type TeacherAcademicRecordType = 'transcript' | 'report card';
+type TeacherAcademicRecordTerm = 'winter' | 'spring' | 'summer' | 'fall';
+
+interface TeacherDocumentUploadFormModel {
+  documentCategory: TeacherDocumentCategory;
+  academicRecordType: TeacherAcademicRecordType;
+  academicRecordYear: string;
+  academicRecordTerm: TeacherAcademicRecordTerm;
+  title: string;
+  notes: string;
+  file: File | null;
+  selectedFileName: string;
+}
+
 const STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX =
   'student-management.student-list.visible-columns';
 const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
@@ -203,6 +219,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   serviceItems: '\u670d\u52a1\u9879\u76ee',
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
+  documents: '\u6587\u6863',
   coursePlan: '\u8bfe\u7a0b\u8868',
   ielts: '\u8bed\u8a00\u6210\u7ee9',
   languageTracking: '\u8bed\u8a00\u6210\u7ee9\u8ddf\u8e2a',
@@ -229,6 +246,30 @@ const SERVICE_ITEM_OPTIONS = [
   '学科VIP 50小时包',
   'AP/IB/数学竞赛VIP 50小时包',
   '一对一辅导',
+] as const;
+
+const TEACHER_DOCUMENT_CATEGORY_OPTIONS: readonly TeacherDocumentCategory[] = [
+  'Identity Document',
+  'Academic Record',
+  'Other',
+] as const;
+
+const TEACHER_ACADEMIC_RECORD_TYPE_TRANSCRIPT = 'transcript';
+const TEACHER_ACADEMIC_RECORD_TYPE_REPORT_CARD = 'report card';
+const TEACHER_ACADEMIC_RECORD_TYPE_OPTIONS: readonly TeacherAcademicRecordType[] = [
+  TEACHER_ACADEMIC_RECORD_TYPE_TRANSCRIPT,
+  TEACHER_ACADEMIC_RECORD_TYPE_REPORT_CARD,
+] as const;
+
+const TEACHER_ACADEMIC_RECORD_TERM_WINTER = 'winter';
+const TEACHER_ACADEMIC_RECORD_TERM_SPRING = 'spring';
+const TEACHER_ACADEMIC_RECORD_TERM_SUMMER = 'summer';
+const TEACHER_ACADEMIC_RECORD_TERM_FALL = 'fall';
+const TEACHER_ACADEMIC_RECORD_TERM_OPTIONS: readonly TeacherAcademicRecordTerm[] = [
+  TEACHER_ACADEMIC_RECORD_TERM_WINTER,
+  TEACHER_ACADEMIC_RECORD_TERM_SPRING,
+  TEACHER_ACADEMIC_RECORD_TERM_SUMMER,
+  TEACHER_ACADEMIC_RECORD_TERM_FALL,
 ] as const;
 
 const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v11';
@@ -401,6 +442,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: false,
     headerStyle:
       'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'documents',
+    label: '文档',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:160px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -926,6 +977,157 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     </button>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'documents'">
+                    <button
+                      type="button"
+                      [routerLink]="studentDocumentsRoute(student)"
+                      [queryParams]="studentDocumentsRouteQueryParams(student)"
+                      style="min-width:86px;white-space:nowrap;"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      文档
+                    </button>
+                    <div
+                      *ngIf="false"
+                      data-teacher-document-upload-root
+                      style="display:grid;gap:6px;justify-items:center;"
+                    >
+                      <button
+                        type="button"
+                        (click)="toggleTeacherDocumentUploadPanel(student)"
+                        style="min-width:86px;white-space:nowrap;"
+                        [disabled]="!resolveStudentId(student)"
+                      >
+                        {{ isTeacherDocumentUploadPanelOpen(student) ? '收起文档' : '上传文档' }}
+                      </button>
+
+                      <div
+                        *ngIf="isTeacherDocumentUploadPanelOpen(student)"
+                        style="display:grid;gap:6px;min-width:250px;padding:8px;border:1px solid #dbe4f2;border-radius:8px;background:#fff;"
+                      >
+                        <label style="display:grid;gap:4px;font-size:12px;color:#4a5b78;">
+                          类别
+                          <select
+                            [ngModel]="teacherDocumentUploadForm.documentCategory"
+                            (ngModelChange)="onTeacherDocumentCategoryChange($event)"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            style="padding:4px 6px;"
+                          >
+                            <option
+                              *ngFor="let option of teacherDocumentCategoryOptions"
+                              [ngValue]="option"
+                            >
+                              {{ option }}
+                            </option>
+                          </select>
+                        </label>
+
+                        <label
+                          *ngIf="teacherDocumentUploadForm.documentCategory === 'Academic Record'"
+                          style="display:grid;gap:4px;font-size:12px;color:#4a5b78;"
+                        >
+                          Academic record type
+                          <select
+                            [(ngModel)]="teacherDocumentUploadForm.academicRecordType"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            style="padding:4px 6px;"
+                          >
+                            <option
+                              *ngFor="let option of teacherAcademicRecordTypeOptions"
+                              [ngValue]="option"
+                            >
+                              {{ option }}
+                            </option>
+                          </select>
+                        </label>
+
+                        <label
+                          *ngIf="teacherDocumentUploadForm.documentCategory === 'Academic Record'"
+                          style="display:grid;gap:4px;font-size:12px;color:#4a5b78;"
+                        >
+                          Academic term year
+                          <input
+                            [(ngModel)]="teacherDocumentUploadForm.academicRecordYear"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            inputmode="numeric"
+                            maxlength="4"
+                            placeholder="例如 25 或 2025"
+                            style="padding:4px 6px;"
+                          />
+                        </label>
+
+                        <label
+                          *ngIf="teacherDocumentUploadForm.documentCategory === 'Academic Record'"
+                          style="display:grid;gap:4px;font-size:12px;color:#4a5b78;"
+                        >
+                          Academic term
+                          <select
+                            [(ngModel)]="teacherDocumentUploadForm.academicRecordTerm"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            style="padding:4px 6px;"
+                          >
+                            <option
+                              *ngFor="let option of teacherAcademicRecordTermOptions"
+                              [ngValue]="option"
+                            >
+                              {{ option }}
+                            </option>
+                          </select>
+                        </label>
+
+                        <label style="display:grid;gap:4px;font-size:12px;color:#4a5b78;">
+                          标题
+                          <input
+                            [(ngModel)]="teacherDocumentUploadForm.title"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            placeholder="例如 Grade 11 Transcript"
+                            style="padding:4px 6px;"
+                          />
+                        </label>
+
+                        <label style="display:grid;gap:4px;font-size:12px;color:#4a5b78;">
+                          备注（可选）
+                          <textarea
+                            [(ngModel)]="teacherDocumentUploadForm.notes"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                            rows="2"
+                            placeholder="可填写补充信息"
+                            style="padding:4px 6px;"
+                          ></textarea>
+                        </label>
+
+                        <label style="display:grid;gap:4px;font-size:12px;color:#4a5b78;">
+                          文件
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            (change)="onTeacherDocumentFileSelected($event)"
+                            [disabled]="isTeacherDocumentUploading(student)"
+                          />
+                          <small *ngIf="teacherDocumentUploadForm.selectedFileName" style="color:#6d7d98;">
+                            已选择：{{ teacherDocumentUploadForm.selectedFileName }}
+                          </small>
+                        </label>
+
+                        <button
+                          type="button"
+                          (click)="submitTeacherDocumentUpload(student)"
+                          [disabled]="isTeacherDocumentUploading(student)"
+                          style="padding:6px 8px;"
+                        >
+                          {{ isTeacherDocumentUploading(student) ? '上传中...' : '提交上传' }}
+                        </button>
+
+                        <small *ngIf="teacherDocumentUploadError" style="color:#b00020;">
+                          {{ teacherDocumentUploadError }}
+                        </small>
+                        <small *ngIf="teacherDocumentUploadSuccess" style="color:#2f7a43;">
+                          {{ teacherDocumentUploadSuccess }}
+                        </small>
+                      </div>
+                    </div>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'coursePlan'">
                     <button
                       type="button"
@@ -1386,6 +1588,12 @@ export class StudentManagementComponent implements OnInit {
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
   readonly serviceItemOptions: readonly string[] = SERVICE_ITEM_OPTIONS;
+  readonly teacherDocumentCategoryOptions: readonly TeacherDocumentCategory[] =
+    TEACHER_DOCUMENT_CATEGORY_OPTIONS;
+  readonly teacherAcademicRecordTypeOptions: readonly TeacherAcademicRecordType[] =
+    TEACHER_ACADEMIC_RECORD_TYPE_OPTIONS;
+  readonly teacherAcademicRecordTermOptions: readonly TeacherAcademicRecordTerm[] =
+    TEACHER_ACADEMIC_RECORD_TERM_OPTIONS;
   readonly studentListColumns: readonly StudentListColumnConfig[] = STUDENT_LIST_COLUMNS;
   private readonly studentListColumnConfigByKey = new Map<StudentListColumnKey, StudentListColumnConfig>(
     this.studentListColumns.map((column) => [column.key, column])
@@ -1487,6 +1695,11 @@ export class StudentManagementComponent implements OnInit {
   serviceItemsPanelTop: number | null = null;
   serviceItemsPanelBottom: number | null = null;
   serviceItemsPanelLeft = 12;
+  teacherDocumentUploadPanelStudentId: number | null = null;
+  teacherDocumentUploadingStudentId: number | null = null;
+  teacherDocumentUploadError = '';
+  teacherDocumentUploadSuccess = '';
+  teacherDocumentUploadForm: TeacherDocumentUploadFormModel = this.createTeacherDocumentUploadForm();
   private readonly studentContactCache = new Map<number, StudentListMetadata>();
   private readonly studentContactLoadInFlight = new Set<number>();
   private readonly teacherNoteCache = new Map<number, string>();
@@ -1523,6 +1736,7 @@ export class StudentManagementComponent implements OnInit {
   private draggingColumnKey: StudentListColumnKey | null = null;
   private teacherNoteAutoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private statusFilterReapplyTimer: ReturnType<typeof setTimeout> | null = null;
+  private teacherDocumentFileInputElement: HTMLInputElement | null = null;
 
   constructor(
     private studentApi: StudentManagementService,
@@ -2538,6 +2752,19 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'profile'];
   }
 
+  studentDocumentsRoute(_student: StudentAccount): string[] {
+    return ['/student/documents'];
+  }
+
+  studentDocumentsRouteQueryParams(student: StudentAccount): { studentId: number } | null {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return null;
+    }
+
+    return { studentId };
+  }
+
   coursePlanRoute(student: StudentAccount): string[] {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
@@ -2568,6 +2795,274 @@ export class StudentManagementComponent implements OnInit {
       return ['/teacher/volunteer'];
     }
     return ['/teacher/students', String(studentId), 'volunteer'];
+  }
+
+  isTeacherDocumentUploadPanelOpen(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && this.teacherDocumentUploadPanelStudentId === studentId;
+  }
+
+  isTeacherDocumentUploading(student: StudentAccount): boolean {
+    const studentId = this.resolveStudentId(student);
+    return !!studentId && this.teacherDocumentUploadingStudentId === studentId;
+  }
+
+  toggleTeacherDocumentUploadPanel(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      this.teacherDocumentUploadError = '缺少学生 ID，无法上传文件。';
+      this.teacherDocumentUploadSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.teacherDocumentUploadPanelStudentId === studentId) {
+      this.closeTeacherDocumentUploadPanel();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.teacherDocumentUploadPanelStudentId = studentId;
+    this.teacherDocumentUploadForm = this.createTeacherDocumentUploadForm();
+    this.teacherDocumentUploadError = '';
+    this.teacherDocumentUploadSuccess = '';
+    this.teacherDocumentFileInputElement = null;
+    this.cdr.detectChanges();
+  }
+
+  onTeacherDocumentCategoryChange(value: unknown): void {
+    const normalized = this.normalizeTeacherDocumentCategory(value);
+    this.teacherDocumentUploadForm.documentCategory = normalized || 'Identity Document';
+
+    if (this.teacherDocumentUploadForm.documentCategory !== 'Academic Record') {
+      this.teacherDocumentUploadForm.academicRecordType = TEACHER_ACADEMIC_RECORD_TYPE_TRANSCRIPT;
+      this.teacherDocumentUploadForm.academicRecordYear = '';
+      this.teacherDocumentUploadForm.academicRecordTerm = TEACHER_ACADEMIC_RECORD_TERM_FALL;
+    }
+  }
+
+  onTeacherDocumentFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.teacherDocumentFileInputElement = input;
+    const file = input?.files && input.files.length > 0 ? input.files[0] : null;
+    this.teacherDocumentUploadForm.file = file;
+    this.teacherDocumentUploadForm.selectedFileName = file ? file.name : '';
+
+    if (file && !this.toTrimmedText(this.teacherDocumentUploadForm.title)) {
+      this.teacherDocumentUploadForm.title = this.stripFileExtension(file.name);
+    }
+  }
+
+  submitTeacherDocumentUpload(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      this.teacherDocumentUploadError = '缺少学生 ID，无法上传文件。';
+      this.teacherDocumentUploadSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (this.teacherDocumentUploadingStudentId !== null) {
+      return;
+    }
+
+    const validationError = this.validateTeacherDocumentUploadForm();
+    if (validationError) {
+      this.teacherDocumentUploadError = validationError;
+      this.teacherDocumentUploadSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const file = this.teacherDocumentUploadForm.file;
+    if (!file) {
+      this.teacherDocumentUploadError = '请选择要上传的文件。';
+      this.teacherDocumentUploadSuccess = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.teacherDocumentUploadingStudentId = studentId;
+    this.teacherDocumentUploadError = '';
+    this.teacherDocumentUploadSuccess = '';
+    this.cdr.detectChanges();
+
+    this.studentProfileApi
+      .uploadStudentDocumentForTeacher(
+        studentId,
+        file,
+        this.buildTeacherDocumentUploadOptions()
+      )
+      .pipe(
+        finalize(() => {
+          this.teacherDocumentUploadingStudentId = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.teacherDocumentUploadSuccess = '上传成功。';
+          this.teacherDocumentUploadForm.title = '';
+          this.teacherDocumentUploadForm.notes = '';
+          this.clearTeacherDocumentSelectedFile();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.teacherDocumentUploadError =
+            this.extractTeacherDocumentUploadError(error) || '上传失败，请稍后重试。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private closeTeacherDocumentUploadPanel(): void {
+    this.teacherDocumentUploadPanelStudentId = null;
+    this.teacherDocumentUploadingStudentId = null;
+    this.teacherDocumentUploadError = '';
+    this.teacherDocumentUploadSuccess = '';
+    this.teacherDocumentUploadForm = this.createTeacherDocumentUploadForm();
+    this.teacherDocumentFileInputElement = null;
+  }
+
+  private createTeacherDocumentUploadForm(): TeacherDocumentUploadFormModel {
+    return {
+      documentCategory: 'Identity Document',
+      academicRecordType: TEACHER_ACADEMIC_RECORD_TYPE_TRANSCRIPT,
+      academicRecordYear: '',
+      academicRecordTerm: TEACHER_ACADEMIC_RECORD_TERM_FALL,
+      title: '',
+      notes: '',
+      file: null,
+      selectedFileName: '',
+    };
+  }
+
+  private clearTeacherDocumentSelectedFile(): void {
+    this.teacherDocumentUploadForm.file = null;
+    this.teacherDocumentUploadForm.selectedFileName = '';
+    if (this.teacherDocumentFileInputElement) {
+      this.teacherDocumentFileInputElement.value = '';
+    }
+  }
+
+  private validateTeacherDocumentUploadForm(): string {
+    if (!this.teacherDocumentUploadForm.file) {
+      return '请选择要上传的文件。';
+    }
+
+    if (this.teacherDocumentUploadForm.documentCategory === 'Academic Record') {
+      const reportYear = this.normalizeTeacherAcademicRecordYear(
+        this.teacherDocumentUploadForm.academicRecordYear
+      );
+      if (reportYear === null || reportYear <= 0) {
+        return '请填写学期年份（例如 25 或 2025）。';
+      }
+
+      const reportMonth = this.normalizeTeacherAcademicRecordTerm(
+        this.teacherDocumentUploadForm.academicRecordTerm
+      );
+      if (!reportMonth) {
+        return '请选择学期（winter/spring/summer/fall）。';
+      }
+    }
+
+    const title = this.toTrimmedText(this.teacherDocumentUploadForm.title);
+    if (!title) {
+      return '请填写材料标题。';
+    }
+
+    return '';
+  }
+
+  private buildTeacherDocumentUploadOptions(): StudentDocumentUploadOptions {
+    const options: StudentDocumentUploadOptions = {
+      documentCategory: this.teacherDocumentUploadForm.documentCategory,
+      title: this.toTrimmedText(this.teacherDocumentUploadForm.title),
+    };
+
+    const notes = this.toTrimmedText(this.teacherDocumentUploadForm.notes);
+    if (notes) {
+      options.notes = notes;
+    }
+
+    if (this.teacherDocumentUploadForm.documentCategory === 'Academic Record') {
+      options.academicRecordType =
+        this.teacherDocumentUploadForm.academicRecordType ||
+        TEACHER_ACADEMIC_RECORD_TYPE_TRANSCRIPT;
+      options.reportYear = this.normalizeTeacherAcademicRecordYear(
+        this.teacherDocumentUploadForm.academicRecordYear
+      );
+      options.reportMonth = this.normalizeTeacherAcademicRecordTerm(
+        this.teacherDocumentUploadForm.academicRecordTerm
+      );
+    }
+
+    return options;
+  }
+
+  private normalizeTeacherDocumentCategory(value: unknown): TeacherDocumentCategory | '' {
+    const text = this.toTrimmedText(value);
+    if (text === 'Identity Document') return text;
+    if (text === 'Academic Record') return text;
+    if (text === 'Other') return text;
+    return '';
+  }
+
+  private normalizeTeacherAcademicRecordTerm(value: unknown): TeacherAcademicRecordTerm | '' {
+    const text = this.toTrimmedText(value).toLowerCase();
+    if (text === TEACHER_ACADEMIC_RECORD_TERM_WINTER) return TEACHER_ACADEMIC_RECORD_TERM_WINTER;
+    if (text === TEACHER_ACADEMIC_RECORD_TERM_SPRING) return TEACHER_ACADEMIC_RECORD_TERM_SPRING;
+    if (text === TEACHER_ACADEMIC_RECORD_TERM_SUMMER) return TEACHER_ACADEMIC_RECORD_TERM_SUMMER;
+    if (text === TEACHER_ACADEMIC_RECORD_TERM_FALL) return TEACHER_ACADEMIC_RECORD_TERM_FALL;
+    return '';
+  }
+
+  private normalizeTeacherAcademicRecordYear(value: unknown): number | null {
+    const text = this.toTrimmedText(value);
+    if (!text) return null;
+
+    const normalized = text.replace(/\s+/g, '');
+    if (!/^\d{2}$|^\d{4}$/.test(normalized)) return null;
+
+    const year = Number(normalized);
+    if (!Number.isFinite(year) || year <= 0) return null;
+
+    if (normalized.length === 2) {
+      return 2000 + Math.trunc(year);
+    }
+
+    const fullYear = Math.trunc(year);
+    if (fullYear < 2000 || fullYear > 2099) return null;
+    return fullYear;
+  }
+
+  private toTrimmedText(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private stripFileExtension(fileName: string): string {
+    const name = this.toTrimmedText(fileName);
+    if (!name) return '';
+    const index = name.lastIndexOf('.');
+    if (index <= 0) return name;
+    return name.slice(0, index);
+  }
+
+  private extractTeacherDocumentUploadError(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      return this.extractErrorMessage(error);
+    }
+
+    if (typeof error === 'string') return error;
+    if (!error || typeof error !== 'object') return '';
+
+    const node = error as { message?: unknown; error?: unknown };
+    const nestedError =
+      node.error && typeof node.error === 'object'
+        ? String((node.error as { message?: unknown; error?: unknown }).message || (node.error as { message?: unknown; error?: unknown }).error || '').trim()
+        : '';
+    if (nestedError) return nestedError;
+    return String(node.message || node.error || '').trim();
   }
 
   resolveVolunteerHoursLabel(student: StudentAccount): string {
@@ -3064,6 +3559,7 @@ export class StudentManagementComponent implements OnInit {
   loadStudents(): void {
     this.loadingList = true;
     this.listError = '';
+    this.closeTeacherDocumentUploadPanel();
     this.ieltsStatusCache.clear();
     this.languageTrackingStatusCache.clear();
     this.languageCourseStatusCache.clear();
@@ -3425,19 +3921,30 @@ export class StudentManagementComponent implements OnInit {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (this.serviceItemsPanelStudentId === null) {
+    if (this.serviceItemsPanelStudentId === null && this.teacherDocumentUploadPanelStudentId === null) {
       return;
     }
 
     const targetElement = event.target as HTMLElement;
     const isInsideServiceItems = !!targetElement.closest('.service-items-container');
+    const isInsideTeacherDocumentUpload = !!targetElement.closest('[data-teacher-document-upload-root]');
+    let shouldDetectChanges = false;
 
     // Also check if clicking on elements that might be logically part of the panel but physically outside
     // (e.g. some tooltips or dynamic elements if any).
     // For now, closest('.service-items-container') is the primary check.
 
-    if (!isInsideServiceItems) {
+    if (this.serviceItemsPanelStudentId !== null && !isInsideServiceItems) {
       this.closeServiceItemsPanel();
+      shouldDetectChanges = true;
+    }
+
+    if (this.teacherDocumentUploadPanelStudentId !== null && !isInsideTeacherDocumentUpload) {
+      this.closeTeacherDocumentUploadPanel();
+      shouldDetectChanges = true;
+    }
+
+    if (shouldDetectChanges) {
       this.cdr.detectChanges();
     }
   }
@@ -4020,7 +4527,9 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private isColumnAllowedForCurrentContext(columnKey: StudentListColumnKey): boolean {
-    void columnKey;
+    if (columnKey === 'documents') {
+      return this.resolvePageContext() === 'students';
+    }
     return true;
   }
 

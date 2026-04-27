@@ -25,6 +25,7 @@ export type StudentListColumnKey =
   | 'city'
   | 'teacherNote'
   | 'profile'
+  | 'documents'
   | 'coursePlan'
   | 'ielts'
   | 'languageTracking'
@@ -46,6 +47,7 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
+  'documents',
   'resetPassword',
   'archive',
 ];

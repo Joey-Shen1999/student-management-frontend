@@ -55,6 +55,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/documents',
+    loadComponent: () =>
+      import('./pages/student-documents/student-documents.component').then(
+        (m) => m.StudentDocumentsComponent
+      ),
+  },
+
+  {
     path: 'student/course-plan',
     loadComponent: () =>
       import('./pages/student-course-plan/student-course-plan.component').then(

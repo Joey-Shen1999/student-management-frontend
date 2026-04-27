@@ -21,7 +21,10 @@ describe('StudentManagementComponent', () => {
     'listStudents' | 'resetStudentPassword' | 'updateStudentStatus'
   >;
   let inviteApi: Pick<StudentInviteService, 'createInvite'>;
-  let profileApi: Pick<StudentProfileService, 'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher'>;
+  let profileApi: Pick<
+    StudentProfileService,
+    'getStudentProfileForTeacher' | 'saveStudentProfileForTeacher' | 'uploadStudentDocumentForTeacher'
+  >;
   let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId' | 'getAuthorizationHeaderValue'>;
   let router: { url: string };
   let ieltsApi: Pick<IeltsTrackingService, 'getTeacherStudentIeltsModuleState' | 'updateTeacherStudentIeltsData'>;
@@ -49,6 +52,7 @@ describe('StudentManagementComponent', () => {
     profileApi = {
       getStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
       saveStudentProfileForTeacher: vi.fn().mockReturnValue(of({})),
+      uploadStudentDocumentForTeacher: vi.fn().mockReturnValue(of({ id: 1 })),
     };
     auth = {
       getSession: vi.fn().mockReturnValue({ userId: 1, teacherId: 1 }),
@@ -452,6 +456,55 @@ describe('StudentManagementComponent', () => {
     component.loadStudents();
 
     expect(component.resolveStudentServiceItems(component.students[0])).toBe('面试辅导、一对一辅导');
+  });
+
+  it('submitTeacherDocumentUpload should call teacher document upload API with academic record fields', () => {
+    const student = { studentId: 57, username: 'student57', status: 'ACTIVE' } as any;
+    const file = new File(['doc-content'], 'report-card.pdf', { type: 'application/pdf' });
+
+    component.toggleTeacherDocumentUploadPanel(student);
+    component.onTeacherDocumentCategoryChange('Academic Record');
+    component.teacherDocumentUploadForm.academicRecordType = 'report card';
+    component.teacherDocumentUploadForm.academicRecordYear = '25';
+    component.teacherDocumentUploadForm.academicRecordTerm = 'winter';
+    component.teacherDocumentUploadForm.title = 'Grade 11 Report Card';
+    component.teacherDocumentUploadForm.notes = 'teacher upload';
+    component.teacherDocumentUploadForm.file = file;
+    component.teacherDocumentUploadForm.selectedFileName = 'report-card.pdf';
+
+    component.submitTeacherDocumentUpload(student);
+
+    expect(profileApi.uploadStudentDocumentForTeacher).toHaveBeenCalledWith(
+      57,
+      file,
+      expect.objectContaining({
+        documentCategory: 'Academic Record',
+        academicRecordType: 'report card',
+        reportYear: 2025,
+        reportMonth: 'winter',
+        title: 'Grade 11 Report Card',
+        notes: 'teacher upload',
+      })
+    );
+    expect(component.teacherDocumentUploadSuccess).toBe('上传成功。');
+  });
+
+  it('submitTeacherDocumentUpload should require academic term year', () => {
+    const student = { studentId: 58, username: 'student58', status: 'ACTIVE' } as any;
+    const file = new File(['doc-content'], 'transcript.pdf', { type: 'application/pdf' });
+
+    component.toggleTeacherDocumentUploadPanel(student);
+    component.onTeacherDocumentCategoryChange('Academic Record');
+    component.teacherDocumentUploadForm.academicRecordType = 'transcript';
+    component.teacherDocumentUploadForm.academicRecordYear = '';
+    component.teacherDocumentUploadForm.academicRecordTerm = 'fall';
+    component.teacherDocumentUploadForm.title = 'Grade 12 Transcript';
+    component.teacherDocumentUploadForm.file = file;
+
+    component.submitTeacherDocumentUpload(student);
+
+    expect(profileApi.uploadStudentDocumentForTeacher).not.toHaveBeenCalled();
+    expect(component.teacherDocumentUploadError).toContain('学期年份');
   });
 
   it('loadStudents should show backend error message on failure', () => {
@@ -1477,6 +1530,19 @@ describe('StudentManagementComponent', () => {
     expect(route).toEqual(['/teacher/students']);
   });
 
+  it('studentDocumentsRoute should resolve /student/documents', () => {
+    const route = component.studentDocumentsRoute({ studentId: 88, username: 'student88' } as any);
+    expect(route).toEqual(['/student/documents']);
+  });
+
+  it('studentDocumentsRouteQueryParams should include studentId when student id exists', () => {
+    const queryParams = component.studentDocumentsRouteQueryParams({
+      studentId: 88,
+      username: 'student88',
+    } as any);
+    expect(queryParams).toEqual({ studentId: 88 });
+  });
+
   it('column preference localStorage key should be scoped by teacher id', () => {
     const storageKey = (component as any).resolveVisibleColumnsStorageKey();
     expect(storageKey).toContain('teacher-1');
@@ -1742,6 +1808,7 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
+        'documents',
         'resetPassword',
         'archive',
       ].sort()

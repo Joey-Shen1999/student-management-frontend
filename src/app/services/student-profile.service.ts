@@ -96,17 +96,53 @@ export interface StudentDocumentPayload {
   contentType?: string;
   sizeBytes?: number | null;
   uploadedAt?: string;
+  uploadedBy?: number | null;
+  uploadedByRole?: string;
+  uploadedByName?: string;
   [key: string]: any;
 }
 
 export interface StudentDocumentUploadOptions {
   documentCategory: 'Identity Document' | 'Academic Record' | 'Other';
   identityDocumentType?: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | '';
-  academicRecordType?: 'Transcript' | 'Report Card' | '';
+  academicRecordType?: 'Transcript' | 'Report Card' | 'transcript' | 'report card' | '';
   reportYear?: number | null;
   reportMonth?: string;
   title: string;
   notes?: string;
+}
+
+export interface StudentDocumentHistoryEntry {
+  id?: number | string;
+  studentId?: number;
+  documentId?: number | null;
+  action?: 'UPLOAD' | 'DELETE' | string;
+  documentCategory?: 'Identity Document' | 'Academic Record' | 'Other' | string;
+  identityDocumentType?: 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other' | string;
+  academicRecordType?: 'Transcript' | 'Report Card' | string;
+  reportYear?: number | null;
+  reportMonth?: string;
+  title?: string;
+  notes?: string;
+  fileName?: string;
+  contentType?: string;
+  sizeBytes?: number | null;
+  actorUserId?: number | null;
+  actorRole?: string;
+  actorName?: string;
+  actionAt?: string;
+  createdAt?: string;
+  [key: string]: any;
+}
+
+export interface StudentDocumentHistoryResponse {
+  items?: StudentDocumentHistoryEntry[];
+  entries?: StudentDocumentHistoryEntry[];
+  history?: StudentDocumentHistoryEntry[];
+  total?: number;
+  page?: number;
+  size?: number;
+  [key: string]: any;
 }
 
 export interface SchoolTranscriptUploadOptions {
@@ -526,41 +562,93 @@ export class StudentProfileService {
     return this.http.get<StudentDocumentPayload[]>(this.studentDocumentsUrl, this.withAuthHeaderIfAvailable());
   }
 
+  getMyDocumentHistory(
+    query: StudentProfileHistoryQuery = {}
+  ): Observable<StudentDocumentHistoryResponse | StudentDocumentHistoryEntry[]> {
+    return this.http.get<StudentDocumentHistoryResponse | StudentDocumentHistoryEntry[]>(
+      `${this.studentDocumentsUrl}/history`,
+      {
+        params: this.buildProfileHistoryParams(query),
+        ...this.withAuthHeaderIfAvailable(),
+      }
+    );
+  }
+
+  listStudentDocumentsForTeacher(studentId: number): Observable<StudentDocumentPayload[]> {
+    const normalizedStudentId = this.normalizeTeacherStudentId(studentId);
+    const primaryUrl = `${this.teacherStudentProfileBaseUrl}/${normalizedStudentId}/documents`;
+    const fallbackUrl = `${this.resolveTeacherStudentProfileUrl(studentId)}/documents`;
+
+    return this.http.get<StudentDocumentPayload[]>(primaryUrl, this.withAuthHeaderIfAvailable()).pipe(
+      catchError((error: unknown) => {
+        if (!this.shouldRetryTeacherDocumentsWithProfilePath(error)) {
+          return throwError(() => error);
+        }
+
+        return this.http.get<StudentDocumentPayload[]>(
+          fallbackUrl,
+          this.withAuthHeaderIfAvailable()
+        );
+      })
+    );
+  }
+
+  getStudentDocumentHistoryForTeacher(
+    studentId: number,
+    query: StudentProfileHistoryQuery = {}
+  ): Observable<StudentDocumentHistoryResponse | StudentDocumentHistoryEntry[]> {
+    const normalizedStudentId = this.normalizeTeacherStudentId(studentId);
+    const primaryUrl = `${this.teacherStudentProfileBaseUrl}/${normalizedStudentId}/documents/history`;
+    const fallbackUrl = `${this.resolveTeacherStudentProfileUrl(studentId)}/documents/history`;
+
+    return this.http
+      .get<StudentDocumentHistoryResponse | StudentDocumentHistoryEntry[]>(primaryUrl, {
+        params: this.buildProfileHistoryParams(query),
+        ...this.withAuthHeaderIfAvailable(),
+      })
+      .pipe(
+        catchError((error: unknown) => {
+          if (!this.shouldRetryTeacherDocumentsWithProfilePath(error)) {
+            return throwError(() => error);
+          }
+
+          return this.http.get<StudentDocumentHistoryResponse | StudentDocumentHistoryEntry[]>(
+            fallbackUrl,
+            {
+              params: this.buildProfileHistoryParams(query),
+              ...this.withAuthHeaderIfAvailable(),
+            }
+          );
+        })
+      );
+  }
+
   uploadMyDocument(file: File, options: StudentDocumentUploadOptions): Observable<StudentDocumentPayload> {
-    const body = new FormData();
-    body.append('file', file);
-    body.append('documentCategory', String(options.documentCategory || '').trim());
-    body.append('title', String(options.title || '').trim());
-
-    const identityDocumentType = String(options.identityDocumentType || '').trim();
-    if (identityDocumentType) {
-      body.append('identityDocumentType', identityDocumentType);
-    }
-
-    const academicRecordType = String(options.academicRecordType || '').trim();
-    if (academicRecordType) {
-      body.append('academicRecordType', academicRecordType);
-    }
-
-    const reportYear = Number(options.reportYear);
-    if (Number.isFinite(reportYear) && reportYear > 0) {
-      body.append('reportYear', String(Math.trunc(reportYear)));
-    }
-
-    const reportMonth = String(options.reportMonth || '').trim();
-    if (reportMonth) {
-      body.append('reportMonth', reportMonth);
-    }
-
-    const notes = String(options.notes || '').trim();
-    if (notes) {
-      body.append('notes', notes);
-    }
-
+    const body = this.buildDocumentUploadFormData(file, options);
     return this.http.post<StudentDocumentPayload>(
       this.studentDocumentsUrl,
       body,
       this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  uploadStudentDocumentForTeacher(
+    studentId: number,
+    file: File,
+    options: StudentDocumentUploadOptions
+  ): Observable<StudentDocumentPayload> {
+    const normalizedStudentId = this.normalizeTeacherStudentId(studentId);
+    const primaryUrl = `${this.teacherStudentProfileBaseUrl}/${normalizedStudentId}/documents`;
+    const fallbackUrl = `${this.resolveTeacherStudentProfileUrl(studentId)}/documents`;
+
+    return this.uploadStudentDocumentWithUrl(primaryUrl, file, options).pipe(
+      catchError((error: unknown) => {
+        if (!this.shouldRetryTeacherDocumentsWithProfilePath(error)) {
+          return throwError(() => error);
+        }
+
+        return this.uploadStudentDocumentWithUrl(fallbackUrl, file, options);
+      })
     );
   }
 
@@ -575,10 +663,57 @@ export class StudentProfileService {
     );
   }
 
+  viewStudentDocumentFileForTeacher(
+    studentId: number,
+    documentId: number
+  ): Observable<HttpResponse<Blob>> {
+    const normalizedStudentId = this.normalizeTeacherStudentId(studentId);
+    const normalizedDocumentId = Math.trunc(Number(documentId));
+    const primaryUrl = `${this.teacherStudentProfileBaseUrl}/${normalizedStudentId}/documents/${normalizedDocumentId}/file`;
+    const fallbackUrl = `${this.resolveTeacherStudentProfileUrl(studentId)}/documents/${normalizedDocumentId}/file`;
+
+    return this.http
+      .get(primaryUrl, {
+        observe: 'response',
+        responseType: 'blob',
+        ...this.withAuthHeaderIfAvailable(),
+      })
+      .pipe(
+        catchError((error: unknown) => {
+          if (!this.shouldRetryTeacherDocumentsWithProfilePath(error)) {
+            return throwError(() => error);
+          }
+
+          return this.http.get(fallbackUrl, {
+            observe: 'response',
+            responseType: 'blob',
+            ...this.withAuthHeaderIfAvailable(),
+          });
+        })
+      );
+  }
+
   deleteMyDocument(documentId: number): Observable<void> {
     return this.http.delete<void>(
       `${this.studentDocumentsUrl}/${Math.trunc(Number(documentId))}`,
       this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  deleteStudentDocumentForTeacher(studentId: number, documentId: number): Observable<void> {
+    const normalizedStudentId = this.normalizeTeacherStudentId(studentId);
+    const normalizedDocumentId = Math.trunc(Number(documentId));
+    const primaryUrl = `${this.teacherStudentProfileBaseUrl}/${normalizedStudentId}/documents/${normalizedDocumentId}`;
+    const fallbackUrl = `${this.resolveTeacherStudentProfileUrl(studentId)}/documents/${normalizedDocumentId}`;
+
+    return this.http.delete<void>(primaryUrl, this.withAuthHeaderIfAvailable()).pipe(
+      catchError((error: unknown) => {
+        if (!this.shouldRetryTeacherDocumentsWithProfilePath(error)) {
+          return throwError(() => error);
+        }
+
+        return this.http.delete<void>(fallbackUrl, this.withAuthHeaderIfAvailable());
+      })
     );
   }
 
@@ -665,7 +800,7 @@ export class StudentProfileService {
     if (Number.isFinite(reportYear) && reportYear > 0) {
       body.append('reportYear', String(Math.trunc(reportYear)));
     }
-    const reportMonth = String(options.reportMonth || '').trim();
+    const reportMonth = this.toBackendReportMonth(options.reportMonth);
     if (reportMonth) {
       body.append('reportMonth', reportMonth);
     }
@@ -703,9 +838,74 @@ export class StudentProfileService {
     return this.http.post<StudentIdentityFilePayload>(url, body, this.withAuthHeaderIfAvailable());
   }
 
+  private uploadStudentDocumentWithUrl(
+    url: string,
+    file: File,
+    options: StudentDocumentUploadOptions
+  ): Observable<StudentDocumentPayload> {
+    return this.http.post<StudentDocumentPayload>(
+      url,
+      this.buildDocumentUploadFormData(file, options),
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  private buildDocumentUploadFormData(file: File, options: StudentDocumentUploadOptions): FormData {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('documentCategory', String(options.documentCategory || '').trim());
+    body.append('title', String(options.title || '').trim());
+
+    const identityDocumentType = String(options.identityDocumentType || '').trim();
+    if (identityDocumentType) {
+      body.append('identityDocumentType', identityDocumentType);
+    }
+
+    const academicRecordType = String(options.academicRecordType || '').trim();
+    if (academicRecordType) {
+      body.append('academicRecordType', academicRecordType);
+    }
+
+    const reportYear = Number(options.reportYear);
+    if (Number.isFinite(reportYear) && reportYear > 0) {
+      body.append('reportYear', String(Math.trunc(reportYear)));
+    }
+
+    const reportMonth = this.toBackendReportMonth(options.reportMonth);
+    if (reportMonth) {
+      body.append('reportMonth', reportMonth);
+    }
+
+    const notes = String(options.notes || '').trim();
+    if (notes) {
+      body.append('notes', notes);
+    }
+
+    return body;
+  }
+
+  private toBackendReportMonth(value: unknown): string {
+    const text = String(value || '').trim();
+    const normalized = text.toLowerCase();
+    if (normalized === 'winter') return 'January';
+    if (normalized === 'spring') return 'April';
+    if (normalized === 'summer') return 'June';
+    if (normalized === 'fall') return 'September';
+    return text;
+  }
+
   private shouldRetryTranscriptWithFallbackField(error: unknown): boolean {
     if (!(error instanceof HttpErrorResponse)) return false;
     return error.status === 0 || error.status === 400 || error.status === 415 || error.status === 422;
+  }
+
+  private normalizeTeacherStudentId(studentId: number): number {
+    return Number.isFinite(Number(studentId)) ? Math.trunc(Number(studentId)) : 0;
+  }
+
+  private shouldRetryTeacherDocumentsWithProfilePath(error: unknown): boolean {
+    if (!(error instanceof HttpErrorResponse)) return false;
+    return error.status === 0 || error.status === 404 || error.status === 405;
   }
 
   private consumeProfileSaveContext(): StudentProfileSaveRequestOptions {

@@ -369,6 +369,20 @@ describe('StudentProfile', () => {
     expect(fixture.nativeElement.querySelector('input[name="oenNumber"]')).toBeNull();
   });
 
+  it('should render identity document type selector in edit mode', () => {
+    component.enterEditMode();
+    fixture.detectChanges();
+
+    const selector = fixture.nativeElement.querySelector(
+      'select[name="identityDocumentTypeSelection"]'
+    ) as HTMLSelectElement | null;
+    expect(selector).not.toBeNull();
+    const values = Array.from(selector?.querySelectorAll('option') ?? []).map((option) =>
+      option.getAttribute('value')
+    );
+    expect(values).toEqual(['Passport', 'Study Permit / Visa', 'PR Card', 'Other']);
+  });
+
   it('should prioritize country options with Canada, China, United States first', () => {
     expect(component.countryOptions.slice(0, 3)).toEqual([
       'Canada',
@@ -696,9 +710,40 @@ describe('StudentProfile', () => {
 
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
-    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(101, file);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(
+      101,
+      file,
+      expect.objectContaining({ academicRecordType: 'Transcript' })
+    );
     expect(component.model.highSchools[0].hasTranscript).toBe(true);
     expect(component.model.highSchools[0].transcriptFileName).toBe('transcript.pdf');
+  });
+
+  it('should upload report card with year and month metadata', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.onHighSchoolTranscriptTypeChange(0, 'Report Card');
+    component.highSchoolReportYearSelection[0] = '2025';
+    component.highSchoolReportMonthSelection[0] = 'March';
+
+    const file = new File(['pdf-content'], 'report-card.pdf', { type: 'application/pdf' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
+
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(
+      101,
+      file,
+      expect.objectContaining({
+        academicRecordType: 'Report Card',
+        reportYear: 2025,
+        reportMonth: 'March',
+      })
+    );
   });
 
   it('should append newly uploaded transcript to existing transcript list', () => {
@@ -850,8 +895,8 @@ describe('StudentProfile', () => {
     component.onIdentityFileSelected({ target: input } as unknown as Event);
 
     expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledTimes(2);
-    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(1, fileOne);
-    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(2, fileTwo);
+    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(1, fileOne, 'Other');
+    expect(profileApi.uploadMyIdentityFile).toHaveBeenNthCalledWith(2, fileTwo, 'Other');
     expect(component.model.identityFiles.length).toBe(3);
     expect(component.model.identityFiles[1].identityFileName).toBe('new-passport.pdf');
     expect(component.model.identityFiles[2].identityFileName).toBe('new-permit.pdf');
@@ -882,7 +927,7 @@ describe('StudentProfile', () => {
       vi.advanceTimersByTime(500);
 
       expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledTimes(1);
-      expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledWith(file);
+      expect(profileApi.uploadMyIdentityFile).toHaveBeenCalledWith(file, 'Other');
       expect(component.error).toBe('');
     } finally {
       vi.useRealTimers();
@@ -968,7 +1013,11 @@ describe('StudentProfile', () => {
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
     expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
-    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(88, file);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(
+      88,
+      file,
+      expect.objectContaining({ academicRecordType: 'Transcript' })
+    );
   });
 
   it('should refresh profile and continue transcript upload when save response misses schoolRecordId', () => {
@@ -1005,7 +1054,11 @@ describe('StudentProfile', () => {
 
     expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
     expect(profileApi.getMyProfile).toHaveBeenCalled();
-    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(188, file);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(
+      188,
+      file,
+      expect.objectContaining({ academicRecordType: 'Transcript' })
+    );
   });
 
   it('should queue transcript upload until current save finishes', () => {
@@ -1048,7 +1101,11 @@ describe('StudentProfile', () => {
       vi.advanceTimersByTime(600);
 
       expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
-      expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(288, file);
+      expect(profileApi.uploadMySchoolTranscript).toHaveBeenCalledWith(
+        288,
+        file,
+        expect.objectContaining({ academicRecordType: 'Transcript' })
+      );
       expect(component.error).toBe('');
     } finally {
       vi.useRealTimers();
@@ -1319,9 +1376,19 @@ describe('StudentProfile', () => {
 
     component.onHighSchoolTranscriptFileSelected(0, { target: input } as unknown as Event);
 
-    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(1, 101, file);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(
+      1,
+      101,
+      file,
+      expect.objectContaining({ academicRecordType: 'Transcript' })
+    );
     expect(profileApi.getMyProfile).toHaveBeenCalled();
-    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(2, 301, file);
+    expect(profileApi.uploadMySchoolTranscript).toHaveBeenNthCalledWith(
+      2,
+      301,
+      file,
+      expect.objectContaining({ academicRecordType: 'Transcript' })
+    );
     expect(component.error).toBe('');
   });
 

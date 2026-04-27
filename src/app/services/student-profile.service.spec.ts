@@ -296,6 +296,136 @@ describe('StudentProfileService', () => {
     req.flush({});
   });
 
+  it('uploadStudentDocumentForTeacher should call teacher documents endpoint with multipart body', () => {
+    const file = new File(['doc-content'], 'report-card.pdf', { type: 'application/pdf' });
+
+    service
+      .uploadStudentDocumentForTeacher(12, file, {
+        documentCategory: 'Academic Record',
+        academicRecordType: 'report card',
+        reportYear: 2026,
+        reportMonth: 'winter',
+        title: 'Grade 11 Report Card',
+        notes: 'teacher upload',
+      })
+      .subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/documents');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body instanceof FormData).toBe(true);
+    const formData = req.request.body as FormData;
+    expect(formData.get('file')).toBe(file);
+    expect(formData.get('documentCategory')).toBe('Academic Record');
+    expect(formData.get('academicRecordType')).toBe('report card');
+    expect(formData.get('reportYear')).toBe('2026');
+    expect(formData.get('reportMonth')).toBe('January');
+    expect(formData.get('title')).toBe('Grade 11 Report Card');
+    expect(formData.get('notes')).toBe('teacher upload');
+    req.flush({});
+  });
+
+  it('uploadStudentDocumentForTeacher should fallback to teacher profile documents endpoint when primary path is unsupported', () => {
+    const file = new File(['doc-content'], 'transcript.pdf', { type: 'application/pdf' });
+    const nextSpy = vi.fn();
+
+    service
+      .uploadStudentDocumentForTeacher(12, file, {
+        documentCategory: 'Academic Record',
+        academicRecordType: 'transcript',
+        title: 'Grade 12 Transcript',
+      })
+      .subscribe(nextSpy);
+
+    const primaryReq = httpMock.expectOne('/api/teacher/students/12/documents');
+    expect(primaryReq.request.method).toBe('POST');
+    primaryReq.flush({ message: 'Not found' }, { status: 404, statusText: 'Not Found' });
+
+    const fallbackReq = httpMock.expectOne('/api/teacher/students/12/profile/documents');
+    expect(fallbackReq.request.method).toBe('POST');
+    const fallbackBody = fallbackReq.request.body as FormData;
+    expect(fallbackBody.get('file')).toBe(file);
+    expect(fallbackBody.get('documentCategory')).toBe('Academic Record');
+    expect(fallbackBody.get('academicRecordType')).toBe('transcript');
+    expect(fallbackBody.get('title')).toBe('Grade 12 Transcript');
+    fallbackReq.flush({ ok: true });
+
+    expect(nextSpy).toHaveBeenCalledWith({ ok: true });
+  });
+
+  it('listStudentDocumentsForTeacher should call teacher documents endpoint', () => {
+    service.listStudentDocumentsForTeacher(12).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/documents');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('listStudentDocumentsForTeacher should fallback to teacher profile documents endpoint when primary path is unsupported', () => {
+    const nextSpy = vi.fn();
+
+    service.listStudentDocumentsForTeacher(12).subscribe(nextSpy);
+
+    const primaryReq = httpMock.expectOne('/api/teacher/students/12/documents');
+    expect(primaryReq.request.method).toBe('GET');
+    primaryReq.flush({ message: 'Not found' }, { status: 404, statusText: 'Not Found' });
+
+    const fallbackReq = httpMock.expectOne('/api/teacher/students/12/profile/documents');
+    expect(fallbackReq.request.method).toBe('GET');
+    fallbackReq.flush([{ id: 1 }]);
+
+    expect(nextSpy).toHaveBeenCalledWith([{ id: 1 }]);
+  });
+
+  it('viewStudentDocumentFileForTeacher should call teacher document file endpoint with blob response', () => {
+    service.viewStudentDocumentFileForTeacher(12, 35).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/documents/35/file');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['x']));
+  });
+
+  it('viewStudentDocumentFileForTeacher should fallback to teacher profile document file endpoint when primary path is unsupported', () => {
+    const nextSpy = vi.fn();
+
+    service.viewStudentDocumentFileForTeacher(12, 35).subscribe(nextSpy);
+
+    const primaryReq = httpMock.expectOne('/api/teacher/students/12/documents/35/file');
+    expect(primaryReq.request.method).toBe('GET');
+    primaryReq.flush(new Blob(['Not found']), { status: 404, statusText: 'Not Found' });
+
+    const fallbackReq = httpMock.expectOne('/api/teacher/students/12/profile/documents/35/file');
+    expect(fallbackReq.request.method).toBe('GET');
+    expect(fallbackReq.request.responseType).toBe('blob');
+    fallbackReq.flush(new Blob(['y']));
+
+    expect(nextSpy).toHaveBeenCalled();
+  });
+
+  it('deleteStudentDocumentForTeacher should call teacher documents endpoint', () => {
+    service.deleteStudentDocumentForTeacher(12, 35).subscribe();
+
+    const req = httpMock.expectOne('/api/teacher/students/12/documents/35');
+    expect(req.request.method).toBe('DELETE');
+    req.flush({});
+  });
+
+  it('deleteStudentDocumentForTeacher should fallback to teacher profile documents endpoint when primary path is unsupported', () => {
+    const nextSpy = vi.fn();
+
+    service.deleteStudentDocumentForTeacher(12, 35).subscribe(nextSpy);
+
+    const primaryReq = httpMock.expectOne('/api/teacher/students/12/documents/35');
+    expect(primaryReq.request.method).toBe('DELETE');
+    primaryReq.flush({ message: 'Not found' }, { status: 404, statusText: 'Not Found' });
+
+    const fallbackReq = httpMock.expectOne('/api/teacher/students/12/profile/documents/35');
+    expect(fallbackReq.request.method).toBe('DELETE');
+    fallbackReq.flush({});
+
+    expect(nextSpy).toHaveBeenCalled();
+  });
+
   it('uploadMyIdentityFile should retry with identity field when primary upload fails', () => {
     const file = new File(['doc-content'], 'passport.pdf', { type: 'application/pdf' });
     const nextSpy = vi.fn();

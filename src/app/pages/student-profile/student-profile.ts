@@ -1347,6 +1347,9 @@ export class StudentProfile implements OnInit {
     this.highSchoolLookupOptions.push([]);
     this.highSchoolLookupLoading.push(false);
     this.highSchoolTranscriptUploading.push(false);
+    this.highSchoolTranscriptTypeSelection.push('Transcript');
+    this.highSchoolReportYearSelection.push('');
+    this.highSchoolReportMonthSelection.push('');
   }
 
   removeHighSchool(index: number): void {
@@ -1357,6 +1360,9 @@ export class StudentProfile implements OnInit {
     this.highSchoolLookupOptions.splice(index, 1);
     this.highSchoolLookupLoading.splice(index, 1);
     this.highSchoolTranscriptUploading.splice(index, 1);
+    this.highSchoolTranscriptTypeSelection.splice(index, 1);
+    this.highSchoolReportYearSelection.splice(index, 1);
+    this.highSchoolReportMonthSelection.splice(index, 1);
     this.clearHighSchoolLookupTimer(index);
     this.triggerAutoSave();
   }
@@ -1458,7 +1464,7 @@ export class StudentProfile implements OnInit {
     }
 
     if (this.isProfileBusyForTranscriptUpload()) {
-      this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt);
+      this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt, uploadOptions);
       return;
     }
 
@@ -1788,6 +1794,44 @@ export class StudentProfile implements OnInit {
     };
   }
 
+  private buildSchoolTranscriptUploadOptions(index: number): SchoolTranscriptUploadOptions | null {
+    const academicRecordType = this.getHighSchoolTranscriptType(index);
+    if (academicRecordType !== 'Report Card') {
+      this.highSchoolReportYearSelection[index] = '';
+      this.highSchoolReportMonthSelection[index] = '';
+      return { academicRecordType: 'Transcript' };
+    }
+
+    const reportYearText = this.toText(this.highSchoolReportYearSelection[index]);
+    const reportYear = Number(reportYearText);
+    if (!Number.isFinite(reportYear) || reportYear <= 0) {
+      this.error = '请先填写 Report Card 的年份。';
+      return null;
+    }
+
+    const normalizedReportMonth = this.resolveReportMonth(this.highSchoolReportMonthSelection[index]);
+    if (!normalizedReportMonth) {
+      this.error = '请先选择 Report Card 的月份。';
+      return null;
+    }
+
+    this.highSchoolReportYearSelection[index] = String(Math.trunc(reportYear));
+    this.highSchoolReportMonthSelection[index] = normalizedReportMonth;
+    return {
+      academicRecordType: 'Report Card',
+      reportYear: Math.trunc(reportYear),
+      reportMonth: normalizedReportMonth,
+    };
+  }
+
+  private resolveReportMonth(value: unknown): string {
+    const text = this.toText(value);
+    if (!text) return '';
+    const normalized = text.toLowerCase();
+    const matched = this.reportMonthOptions.find((month) => month.toLowerCase() === normalized);
+    return matched || '';
+  }
+
   private isProfileBusyForTranscriptUpload(): boolean {
     return this.saveInProgress || this.loading || this.saving;
   }
@@ -1796,7 +1840,8 @@ export class StudentProfile implements OnInit {
     index: number,
     file: File,
     input: HTMLInputElement | null,
-    retryAttempt = 0
+    retryAttempt = 0,
+    uploadOptions: SchoolTranscriptUploadOptions = {}
   ): void {
     if (retryAttempt >= TRANSCRIPT_UPLOAD_RETRY_LIMIT) {
       this.error = '档案正在保存中，请稍后重试上传。';
@@ -1813,17 +1858,17 @@ export class StudentProfile implements OnInit {
       }
 
       if (this.isProfileBusyForTranscriptUpload()) {
-        this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt + 1);
+        this.retrySchoolTranscriptUploadWhenIdle(index, file, input, retryAttempt + 1, uploadOptions);
         return;
       }
 
       const schoolRecordId = this.toOptionalNumber(school.schoolRecordId);
       if (schoolRecordId !== null) {
-        this.uploadSchoolTranscript(index, schoolRecordId, file, input);
+        this.uploadSchoolTranscript(index, schoolRecordId, file, input, true, uploadOptions);
         return;
       }
 
-      this.persistProfileThenUploadSchoolTranscript(index, file, input, retryAttempt + 1);
+      this.persistProfileThenUploadSchoolTranscript(index, file, input, retryAttempt + 1, uploadOptions);
     }, TRANSCRIPT_UPLOAD_RETRY_DELAY_MS);
   }
 
@@ -2025,10 +2070,22 @@ export class StudentProfile implements OnInit {
     const transcriptUploading = this.model.highSchools.map(
       (_, index) => this.highSchoolTranscriptUploading[index] || false
     );
+    const transcriptTypeSelection = this.model.highSchools.map((_, index) =>
+      this.highSchoolTranscriptTypeSelection[index] === 'Report Card' ? 'Report Card' : 'Transcript'
+    );
+    const reportYearSelection = this.model.highSchools.map((_, index) =>
+      this.toText(this.highSchoolReportYearSelection[index])
+    );
+    const reportMonthSelection = this.model.highSchools.map((_, index) =>
+      this.resolveReportMonth(this.highSchoolReportMonthSelection[index])
+    );
 
     this.highSchoolLookupOptions = options;
     this.highSchoolLookupLoading = loading;
     this.highSchoolTranscriptUploading = transcriptUploading;
+    this.highSchoolTranscriptTypeSelection = transcriptTypeSelection;
+    this.highSchoolReportYearSelection = reportYearSelection;
+    this.highSchoolReportMonthSelection = reportMonthSelection;
 
     for (const key of Object.keys(this.highSchoolLookupTimer)) {
       const index = Number(key);
