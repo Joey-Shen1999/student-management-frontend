@@ -8,6 +8,8 @@ import {
   type AssignableStudentOptionVm,
   type CreateGoalRequestVm,
   type CreateInfoRequestVm,
+  type GoalGroupStudentStatusResponseVm,
+  type GoalGroupStudentStatusVm,
   type GoalTaskStatus,
   type GoalTaskVm,
   type InfoTaskCategory,
@@ -101,6 +103,97 @@ import {
         </div>
 
         <div *ngIf="updateError" style="color:#b00020;">{{ updateError }}</div>
+
+        <div
+          *ngIf="selectedGoal"
+          style="border-top:1px solid #e6edf7;margin-top:4px;padding-top:12px;display:grid;gap:10px;"
+        >
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <h4 style="margin:0;">学生完成情况</h4>
+            <span *ngIf="selectedGroupStatus" style="color:#4a5b73;font-size:13px;">
+              已完成 {{ selectedGroupStatus.completedCount }} / {{ selectedGroupStatus.totalAssigned }}
+              · 未完成 {{ selectedGroupStatus.pendingCount }}
+            </span>
+            <button
+              type="button"
+              (click)="loadSelectedGoalGroupStatus()"
+              [disabled]="groupStatusLoading"
+              style="margin-left:auto;"
+            >
+              {{ groupStatusLoading ? '刷新中...' : '刷新完成情况' }}
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select [(ngModel)]="groupStatusFilter" [disabled]="groupStatusLoading" style="padding:6px 8px;">
+              <option value="ALL">全部学生</option>
+              <option value="PENDING">未完成</option>
+              <option value="COMPLETED">已完成</option>
+            </select>
+            <input
+              type="search"
+              [(ngModel)]="groupStatusKeyword"
+              [disabled]="groupStatusLoading"
+              placeholder="搜索学生、邮箱或用户名"
+              style="padding:6px 8px;min-width:220px;"
+            />
+          </div>
+
+          <div *ngIf="groupStatusLoading" style="color:#666;">正在加载学生完成情况...</div>
+          <div *ngIf="!groupStatusLoading && groupStatusError" style="color:#b00020;">
+            {{ groupStatusError }}
+          </div>
+          <div
+            *ngIf="!groupStatusLoading && !groupStatusError && selectedGroupStatus && displayedGroupStudents.length === 0"
+            style="color:#666;"
+          >
+            没有匹配的学生。
+          </div>
+
+          <div
+            *ngIf="!groupStatusLoading && !groupStatusError && selectedGroupStatus && displayedGroupStudents.length > 0"
+            style="overflow:auto;border:1px solid #dfe6f4;border-radius:8px;"
+          >
+            <table style="width:100%;border-collapse:collapse;min-width:720px;font-size:13px;">
+              <thead style="background:#f6f8fc;color:#34445c;">
+                <tr>
+                  <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe6f4;">学生</th>
+                  <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe6f4;">邮箱 / 用户名</th>
+                  <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe6f4;">状态</th>
+                  <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe6f4;">完成时间</th>
+                  <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe6f4;">进度备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let student of displayedGroupStudents; trackBy: trackGroupStudent">
+                  <td style="padding:8px;border-bottom:1px solid #eef2f8;">
+                    <strong>{{ student.studentName || ('学生 #' + student.studentId) }}</strong>
+                    <div style="color:#7a8798;">ID: {{ student.studentId }}</div>
+                  </td>
+                  <td style="padding:8px;border-bottom:1px solid #eef2f8;">
+                    <div>{{ student.email || '无邮箱' }}</div>
+                    <div style="color:#7a8798;">{{ student.username || '无用户名' }}</div>
+                  </td>
+                  <td style="padding:8px;border-bottom:1px solid #eef2f8;">
+                    <span
+                      [style.color]="student.completed ? '#1b5e20' : '#7a4f00'"
+                      style="font-weight:700;"
+                    >
+                      {{ student.completed ? '已完成' : '未完成' }}
+                    </span>
+                    <div style="color:#7a8798;">{{ goalStatusLabel(student.status) }}</div>
+                  </td>
+                  <td style="padding:8px;border-bottom:1px solid #eef2f8;">
+                    {{ displayDateTime(student.completedAt) }}
+                  </td>
+                  <td style="padding:8px;border-bottom:1px solid #eef2f8;">
+                    {{ student.progressNote || '无' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section style="border:1px solid #dfe6f4;border-radius:10px;padding:12px;background:#fff;display:grid;gap:8px;">
@@ -226,6 +319,11 @@ export class TaskManagementComponent implements OnInit {
   selectedGoalId: number | null = null;
   updatingGoalId: number | null = null;
   updateError = '';
+  selectedGroupStatus: GoalGroupStudentStatusResponseVm | null = null;
+  groupStatusLoading = false;
+  groupStatusError = '';
+  groupStatusFilter: 'ALL' | 'COMPLETED' | 'PENDING' = 'ALL';
+  groupStatusKeyword = '';
 
   private studentsLoadWatchdog: number | null = null;
   private goalsLoadWatchdog: number | null = null;
@@ -248,6 +346,25 @@ export class TaskManagementComponent implements OnInit {
       return null;
     }
     return this.goals.find((goal) => goal.id === this.selectedGoalId) || null;
+  }
+
+  get displayedGroupStudents(): GoalGroupStudentStatusVm[] {
+    const students = this.selectedGroupStatus?.students || [];
+    const keyword = this.groupStatusKeyword.trim().toLowerCase();
+
+    return students.filter((student) => {
+      if (this.groupStatusFilter === 'COMPLETED' && !student.completed) return false;
+      if (this.groupStatusFilter === 'PENDING' && student.completed) return false;
+      if (!keyword) return true;
+
+      return [
+        student.studentName,
+        String(student.studentId || ''),
+        student.username || '',
+        student.email || '',
+        this.goalStatusLabel(student.status),
+      ].some((value) => value.toLowerCase().includes(keyword));
+    });
   }
 
   goDashboard(): void {
@@ -422,6 +539,9 @@ export class TaskManagementComponent implements OnInit {
   selectGoal(goal: GoalTaskVm): void {
     this.selectedGoalId = goal.id;
     this.updateError = '';
+    this.groupStatusFilter = 'ALL';
+    this.groupStatusKeyword = '';
+    this.loadSelectedGoalGroupStatus();
   }
 
   setGoalStatus(goal: GoalTaskVm, status: GoalTaskStatus): void {
@@ -447,6 +567,7 @@ export class TaskManagementComponent implements OnInit {
           const nextRows = this.goals.map((item) => (item.id === updatedGoal.id ? updatedGoal : item));
           this.goals = this.sortGoals(nextRows);
           this.selectedGoalId = updatedGoal.id;
+          this.loadSelectedGoalGroupStatus();
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -459,6 +580,7 @@ export class TaskManagementComponent implements OnInit {
   trackStudent = (_index: number, student: AssignableStudentOptionVm): number => student.studentId;
   trackGoal = (_index: number, goal: GoalTaskVm): number => goal.id;
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
+  trackGroupStudent = (_index: number, student: GoalGroupStudentStatusVm): number => student.goalId;
 
   goalStatusLabel(status: GoalTaskStatus): string {
     if (status === 'NOT_STARTED') return 'Not Started';
@@ -479,6 +601,53 @@ export class TaskManagementComponent implements OnInit {
     }
 
     return new Date(timestamp).toLocaleDateString();
+  }
+
+  displayDateTime(value: string | null | undefined): string {
+    if (!value) return '未完成';
+
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) {
+      return value;
+    }
+
+    return new Date(timestamp).toLocaleString();
+  }
+
+  loadSelectedGoalGroupStatus(): void {
+    const taskGroupId = this.selectedGoal?.taskGroupId?.trim();
+    if (!taskGroupId) {
+      this.selectedGroupStatus = null;
+      this.groupStatusError = '当前任务缺少 taskGroupId，无法加载学生完成情况。';
+      return;
+    }
+
+    this.groupStatusLoading = true;
+    this.groupStatusError = '';
+    this.cdr.detectChanges();
+
+    this.taskCenter
+      .getGoalGroupStudentStatuses(taskGroupId)
+      .pipe(
+        finalize(() => {
+          this.groupStatusLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (response) => {
+          this.selectedGroupStatus = {
+            ...response,
+            students: response.students || [],
+          };
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.groupStatusError = this.extractErrorMessage(error) || '加载学生完成情况失败。';
+          this.selectedGroupStatus = null;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private loadAssignableStudents(): void {
@@ -539,12 +708,20 @@ export class TaskManagementComponent implements OnInit {
           if (!this.selectedGoalId && this.goals.length > 0) {
             this.selectedGoalId = this.goals[0].id;
           }
+          if (this.selectedGoalId) {
+            this.loadSelectedGoalGroupStatus();
+          } else {
+            this.selectedGroupStatus = null;
+            this.groupStatusError = '';
+          }
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
           this.goalsError = this.extractErrorMessage(error) || '加载 Goal 列表失败。';
           this.goals = [];
           this.selectedGoalId = null;
+          this.selectedGroupStatus = null;
+          this.groupStatusError = '';
           this.cdr.detectChanges();
         },
       });

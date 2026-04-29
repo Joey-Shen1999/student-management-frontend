@@ -78,6 +78,31 @@ export interface GoalGroupResponseVm {
   total: number;
 }
 
+export interface GoalGroupStudentStatusVm {
+  goalId: number;
+  taskGroupId: string;
+  studentId: number;
+  studentName: string;
+  username?: string | null;
+  email?: string | null;
+  status: GoalTaskStatus;
+  completed: boolean;
+  completedAt: string | null;
+  updatedAt: string | null;
+  progressNote: string;
+}
+
+export interface GoalGroupStudentStatusResponseVm {
+  taskGroupId: string;
+  title: string;
+  description: string;
+  dueAt: string | null;
+  totalAssigned: number;
+  completedCount: number;
+  pendingCount: number;
+  students: GoalGroupStudentStatusVm[];
+}
+
 export interface AssignableStudentOptionVm {
   studentId: number;
   studentName: string;
@@ -389,6 +414,26 @@ export class TaskCenterService {
       this.http.put<GoalGroupResponseVm>(
         `${this.teacherBaseUrl}/goal-groups/${encodeURIComponent(normalizedTaskGroupId)}`,
         request,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  getGoalGroupStudentStatuses(
+    taskGroupId: string
+  ): Observable<GoalGroupStudentStatusResponseVm> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    if (this.useMock) {
+      return this.getGoalGroupStudentStatusesFromMock(normalizedTaskGroupId);
+    }
+
+    return this.withRequestTimeout(
+      this.http.get<GoalGroupStudentStatusResponseVm>(
+        `${this.teacherBaseUrl}/goal-groups/${encodeURIComponent(normalizedTaskGroupId)}/students/status`,
         this.withAuthHeaderIfAvailable()
       )
     );
@@ -873,6 +918,53 @@ export class TaskCenterService {
     }).pipe(delay(120));
   }
 
+  private getGoalGroupStudentStatusesFromMock(
+    taskGroupId: string
+  ): Observable<GoalGroupStudentStatusResponseVm> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    const groupRows = this.mockGoals$.value.filter(
+      (goal) => this.normalizeTaskGroupId(goal.taskGroupId) === normalizedTaskGroupId
+    );
+    if (groupRows.length === 0) {
+      return throwError(() => new Error('Goal task group not found.'));
+    }
+
+    const scopedTeacherId = this.resolveTeacherScopeTeacherId(true);
+    if (scopedTeacherId !== null && groupRows.some((goal) => goal.assignedByTeacherId !== scopedTeacherId)) {
+      return throwError(() => new Error('Permission denied for this goal task group.'));
+    }
+
+    const sortedRows = this.sortGoalsForGroupStatus(groupRows);
+    const completedCount = sortedRows.filter((goal) => goal.status === 'COMPLETED').length;
+    const representative = sortedRows[0];
+
+    return of({
+      taskGroupId: normalizedTaskGroupId,
+      title: representative.title,
+      description: representative.description,
+      dueAt: representative.dueAt,
+      totalAssigned: sortedRows.length,
+      completedCount,
+      pendingCount: sortedRows.length - completedCount,
+      students: sortedRows.map((goal) => {
+        const student = this.resolveStudentOption(goal.assignedStudentId);
+        return {
+          goalId: goal.id,
+          taskGroupId: normalizedTaskGroupId,
+          studentId: goal.assignedStudentId,
+          studentName: goal.assignedStudentName,
+          username: student?.username || null,
+          email: student?.email || null,
+          status: goal.status,
+          completed: goal.status === 'COMPLETED',
+          completedAt: goal.completedAt,
+          updatedAt: goal.updatedAt,
+          progressNote: goal.progressNote,
+        };
+      }),
+    }).pipe(delay(120));
+  }
+
   private updateTeacherGoalFromMock(
     goalId: number,
     request: UpdateTeacherGoalRequestVm
@@ -1170,6 +1262,25 @@ export class TaskCenterService {
       const updatedB = this.toSortableTimestamp(b.updatedAt, 0);
       return updatedB - updatedA;
     });
+  }
+
+  private sortGoalsForGroupStatus(items: GoalTaskVm[]): GoalTaskVm[] {
+    return [...items].sort((a, b) => {
+      const statusRankA = this.goalGroupStatusRank(a.status);
+      const statusRankB = this.goalGroupStatusRank(b.status);
+      if (statusRankA !== statusRankB) return statusRankA - statusRankB;
+
+      const nameCompare = a.assignedStudentName.localeCompare(b.assignedStudentName);
+      if (nameCompare !== 0) return nameCompare;
+
+      return a.assignedStudentId - b.assignedStudentId;
+    });
+  }
+
+  private goalGroupStatusRank(status: GoalTaskStatus): number {
+    if (status === 'NOT_STARTED') return 0;
+    if (status === 'IN_PROGRESS') return 1;
+    return 2;
   }
 
   private sortInfos(items: InfoTaskVm[]): InfoTaskVm[] {
