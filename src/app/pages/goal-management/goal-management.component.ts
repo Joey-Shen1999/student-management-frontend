@@ -11,6 +11,9 @@ import {
   type CreateInfoRequestVm,
   type GoalTaskStatus,
   type GoalTaskVm,
+  type TaskCycleFrequency,
+  type TaskCycleType,
+  type TaskCycleUnit,
   TaskCenterService,
 } from '../../services/task-center.service';
 import { AuthService } from '../../services/auth.service';
@@ -88,6 +91,28 @@ interface GoalGroupRowVm {
   completedCount: number;
 }
 
+type TrackingSaveStatus = 'idle' | 'saving' | 'saved' | 'failed';
+
+interface TaskCycleDraftVm {
+  cycleType: TaskCycleType;
+  frequency: TaskCycleFrequency;
+  customInterval: number;
+  customUnit: TaskCycleUnit;
+  label: string;
+}
+
+interface TrackingStudentVm {
+  goalId: number | null;
+  studentId: number;
+  studentName: string;
+  username: string;
+  email: string;
+  schoolName: string;
+  graduation: string;
+  completed: boolean;
+  saving: boolean;
+}
+
 interface CreateStudentColumnPreferenceVm {
   visibleColumnKeys?: string[];
   orderedColumnKeys?: string[];
@@ -140,6 +165,9 @@ const GOAL_STUDENT_SELECTOR_COLUMN_PREFERENCE_VERSION = 'v7';
 const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
   'goal-management.create-goal.student-selector.filters';
 const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v4';
+const TASK_CYCLE_META_STORAGE_KEY_PREFIX = 'goal-management.task-cycle-meta';
+const TASK_CYCLE_META_STORAGE_VERSION = 'v1';
+const TRACKING_AUTO_SAVE_DELAY_MS = 850;
 
 @Component({
   selector: 'app-goal-management',
@@ -240,6 +268,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createTitle = '';
   createDescription = '';
   createDueAt = '';
+  cycleDraft: TaskCycleDraftVm = this.createDefaultCycleDraft();
   creating = false;
   createError = '';
   createSuccess = '';
@@ -248,6 +277,20 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   selectedGoalId: number | null = null;
   updatingGoalGroupKey: string | null = null;
   updateError = '';
+  trackingStudents: TrackingStudentVm[] = [];
+  trackingLoading = false;
+  trackingError = '';
+  autoSaveStatus: TrackingSaveStatus = 'idle';
+  autoSaveError = '';
+  private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoSaveRequestSeq = 0;
+  private suppressAutoSave = false;
+  private readonly pendingCompletionByStudentId = new Map<number, boolean>();
+  sendConfirmOpen = false;
+  sendConfirmText = '';
+  sendingNotification = false;
+  sendError = '';
+  sendSuccess = '';
 
   constructor(
     private taskCenter: TaskCenterService,
@@ -268,6 +311,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.clearTrackingAutoSaveTimer();
     this.clearAllTeacherNoteAutoSaveTimers();
   }
 
@@ -322,6 +366,44 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   get isEditMode(): boolean {
     return this.editingTaskGroupId !== null;
+  }
+
+  get completedTrackingCount(): number {
+    return this.trackingStudents.filter((student) => student.completed).length;
+  }
+
+  get pendingTrackingCount(): number {
+    return Math.max(0, this.trackingStudents.length - this.completedTrackingCount);
+  }
+
+  get completionPercent(): number {
+    if (this.trackingStudents.length === 0) return 0;
+    return Math.round((this.completedTrackingCount / this.trackingStudents.length) * 100);
+  }
+
+  get canAutoSaveTrackingDraft(): boolean {
+    return this.isEditMode && !this.creating;
+  }
+
+  get saveStatusLabel(): string {
+    if (this.autoSaveStatus === 'saving') return 'Saving...';
+    if (this.autoSaveStatus === 'saved') return 'All changes saved';
+    if (this.autoSaveStatus === 'failed') return 'Save failed';
+    return this.isEditMode ? 'All changes saved' : 'Ready to create';
+  }
+
+  get saveStatusClass(): string {
+    return `save-pill ${this.autoSaveStatus}`;
+  }
+
+  get sendRecipientCount(): number {
+    return Array.from(this.selectedCreateStudentIds.values()).filter((studentId) =>
+      this.isCreateStudentSelectable(studentId)
+    ).length;
+  }
+
+  get isSendConfirmationReady(): boolean {
+    return this.sendConfirmText.trim().toUpperCase() === 'SEND';
   }
 
   get goalGroups(): GoalGroupRowVm[] {
@@ -410,9 +492,17 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
   openCreatePanel(): void {
     if (this.creating) return;
+    this.suppressAutoSave = true;
+    this.clearTrackingAutoSaveTimer();
     this.editingTaskGroupId = null;
     this.resetCreateForm();
     this.createPanelExpanded = true;
+    this.autoSaveStatus = 'idle';
+    this.autoSaveError = '';
+    this.trackingStudents = [];
+    this.trackingError = '';
+    this.closeSendConfirmation();
+    this.suppressAutoSave = false;
   }
   openEditPanel(goal: GoalTaskVm): void {
     if (this.creating) return;
@@ -423,6 +513,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
       return;
     }
+    this.suppressAutoSave = true;
+    this.clearTrackingAutoSaveTimer();
     this.editingTaskGroupId = taskGroupId;
     this.selectedGoalId = goal.id;
     this.createPanelExpanded = true;
@@ -434,10 +526,19 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createTitle = goal.title;
     this.createDescription = goal.description;
     this.createDueAt = goal.dueAt || '';
+    this.cycleDraft = this.resolveCycleDraftForGoal(taskGroupId, goal);
+    this.autoSaveStatus = 'saved';
+    this.autoSaveError = '';
+    this.sendError = '';
+    this.sendSuccess = '';
+    this.closeSendConfirmation();
     this.selectedCreateStudentIds = new Set<number>(
       this.collectTaskGroupStudentIds(this.goals, taskGroupId, goal.assignedStudentId)
     );
+    this.rebuildTrackingStudentsFromSelection();
     this.loadMissingProfilesForVisibleRows();
+    this.loadTrackingStudents(taskGroupId);
+    this.suppressAutoSave = false;
 
     this.taskCenter
       .listTeacherGoals({ page: 1, size: 1000 })
@@ -451,17 +552,25 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         );
         this.selectedCreateStudentIds = new Set<number>(groupedStudentIds);
         this.pruneUnselectableSelectedStudents();
+        this.rebuildTrackingStudentsFromSelection();
         this.loadMissingProfilesForVisibleRows();
+        this.loadTrackingStudents(taskGroupId);
         this.cdr.detectChanges();
       });
   }
   closeCreatePanel(force = false): void {
     if (this.creating && !force) return;
+    this.clearTrackingAutoSaveTimer();
+    this.closeSendConfirmation();
     this.createPanelExpanded = false;
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
     this.editingTaskGroupId = null;
+    this.trackingStudents = [];
+    this.trackingError = '';
+    this.autoSaveStatus = 'idle';
+    this.autoSaveError = '';
   }
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
@@ -481,6 +590,44 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   toggleStudentFilterPanel(): void { this.studentFilterExpanded = !this.studentFilterExpanded; }
   toggleCreateStudentColumnPanel(): void {
     this.createStudentColumnPanelExpanded = !this.createStudentColumnPanelExpanded;
+  }
+
+  onTrackingDraftChange(): void {
+    if (this.suppressAutoSave) return;
+    this.scheduleTrackingAutoSave();
+  }
+
+  onCycleTypeChange(value: string): void {
+    this.cycleDraft.cycleType = value === 'ROUTINE' ? 'ROUTINE' : 'ONE_TIME';
+    if (this.cycleDraft.cycleType === 'ONE_TIME') {
+      this.cycleDraft.frequency = 'DAILY';
+    }
+    this.onTrackingDraftChange();
+  }
+
+  onCycleFrequencyChange(value: string): void {
+    const normalized = String(value || '').trim().toUpperCase();
+    this.cycleDraft.frequency =
+      normalized === 'WEEKLY' || normalized === 'CUSTOM'
+        ? (normalized as TaskCycleFrequency)
+        : 'DAILY';
+    this.onTrackingDraftChange();
+  }
+
+  onCustomCycleIntervalChange(value: string | number): void {
+    const numericValue = Math.trunc(Number(value));
+    this.cycleDraft.customInterval =
+      Number.isFinite(numericValue) && numericValue > 0 ? Math.min(numericValue, 99) : 1;
+    this.onTrackingDraftChange();
+  }
+
+  onCustomCycleUnitChange(value: string): void {
+    this.cycleDraft.customUnit = value === 'WEEKS' ? 'WEEKS' : 'DAYS';
+    this.onTrackingDraftChange();
+  }
+
+  retryAutoSave(): void {
+    this.flushTrackingAutoSave(true);
   }
 
   private getOrderedCreateStudentColumns(): GoalStudentSelectorColumnConfig[] {
@@ -745,6 +892,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createTitle = '';
     this.createDescription = '';
     this.createDueAt = '';
+    this.cycleDraft = this.createDefaultCycleDraft();
+    this.autoSaveStatus = 'idle';
+    this.autoSaveError = '';
+    this.trackingStudents = [];
+    this.trackingError = '';
+    this.sendError = '';
+    this.sendSuccess = '';
+    this.closeSendConfirmation();
     this.createError = '';
     this.createSuccess = '';
   }
@@ -766,11 +921,15 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     } else {
       this.selectedCreateStudentIds.delete(studentId);
     }
+    this.rebuildTrackingStudentsFromSelection();
+    this.scheduleTrackingAutoSave();
   }
 
   clearSelectedStudents(): void {
     if (this.creating) return;
     this.selectedCreateStudentIds.clear();
+    this.rebuildTrackingStudentsFromSelection();
+    this.scheduleTrackingAutoSave();
   }
 
   onToggleSelectAll(event: Event | boolean): void {
@@ -790,6 +949,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.selectedCreateStudentIds.delete(row.studentId);
       }
     }
+    this.rebuildTrackingStudentsFromSelection();
+    this.scheduleTrackingAutoSave();
   }
 
   isCreateStudentSelected(studentId: number): boolean { return this.selectedCreateStudentIds.has(studentId); }
@@ -975,7 +1136,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
     const dueAt = this.createDueAt.trim() || null;
     if (this.isEditMode) {
-      this.saveEditedGoal(selectedIds, title, description, dueAt);
+      this.flushTrackingAutoSave(true);
       return;
     }
 
@@ -998,6 +1159,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       description,
       dueAt,
       studentIds: selectedIds,
+      ...this.buildCycleRequestPayload(),
     }).pipe(
       finalize(() => { this.creating = false; this.cdr.detectChanges(); })
     ).subscribe({
@@ -1005,15 +1167,18 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         const rows = this.sortGoals(resp.items || []);
         const first = rows[0];
         if (first) this.selectedGoalId = first.id;
+        const taskGroupId = String(resp.taskGroupId || first?.taskGroupId || '').trim();
+        if (taskGroupId) {
+          this.editingTaskGroupId = taskGroupId;
+          this.persistCycleMeta(taskGroupId);
+          this.rebuildTrackingStudentsFromSelection();
+          this.loadTrackingStudents(taskGroupId);
+        }
+        this.autoSaveStatus = 'saved';
         this.createSuccess =
           rows.length === 1
             ? `Task已创建：#${first?.id || ''} ${first?.title || ''}`.trim()
             : `Task已为 ${rows.length} 位学生发布。`;
-        this.createTitle = '';
-        this.createDescription = '';
-        this.createDueAt = '';
-        this.resetStudentMetaFilters();
-        this.selectedCreateStudentIds.clear();
         this.loadGoals();
       },
       error: (error: unknown) => {
@@ -1024,80 +1189,363 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   private saveEditedGoal(
-    selectedIds: number[],
-    title: string,
-    description: string,
-    dueAt: string | null
+    _selectedIds: number[],
+    _title: string,
+    _description: string,
+    _dueAt: string | null
   ): void {
     const editingTaskGroupId = this.editingTaskGroupId;
     if (!editingTaskGroupId) return;
 
-    const infoRequest: CreateInfoRequestVm = {
-      category: 'ACTIVITY',
-      title: `Task更新：${title}`,
-      content: this.buildGoalUpdateInfoContent(title, description, dueAt),
-      tags: ['Task系统', 'Task更新'],
-      studentIds: selectedIds,
-      taskGroupId: editingTaskGroupId,
-    };
+    this.flushTrackingAutoSave(true);
+  }
 
-    this.creating = true;
-    this.createError = '';
-    this.createSuccess = '';
-    this.cdr.detectChanges();
+  private scheduleTrackingAutoSave(): void {
+    if (!this.canAutoSaveTrackingDraft || this.suppressAutoSave) return;
+    this.clearTrackingAutoSaveTimer();
+    this.autoSaveStatus = 'saving';
+    this.autoSaveError = '';
+    this.autoSaveTimer = setTimeout(() => this.flushTrackingAutoSave(), TRACKING_AUTO_SAVE_DELAY_MS);
+  }
 
+  private flushTrackingAutoSave(force = false): void {
+    if (!this.canAutoSaveTrackingDraft && !force) return;
+    const taskGroupId = this.editingTaskGroupId;
+    if (!taskGroupId) return;
+
+    this.clearTrackingAutoSaveTimer();
+    const title = this.createTitle.trim();
+    const description = this.createDescription.trim();
+    const selectedIds = this.getSelectedCreateStudentIds();
+    if (!title || !description || selectedIds.length === 0) {
+      this.autoSaveStatus = 'failed';
+      this.autoSaveError = !title
+        ? 'Task name is required.'
+        : !description
+          ? 'Description is required.'
+          : 'Select at least one student.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const requestSeq = ++this.autoSaveRequestSeq;
+    this.autoSaveStatus = 'saving';
+    this.autoSaveError = '';
     this.taskCenter
-      .overwriteGoalGroup(editingTaskGroupId, {
+      .overwriteGoalGroup(taskGroupId, {
         title,
         description,
-        dueAt,
+        dueAt: this.createDueAt.trim() || null,
         studentIds: selectedIds,
+        ...this.buildCycleRequestPayload(),
       })
-      .pipe(
-        concatMap((updatedGroup) =>
-          this.taskCenter.createInfo(infoRequest).pipe(
-            map((info) => ({ updatedGroup, info, notifyError: '' })),
-            catchError((error: unknown) =>
-              of({
-                updatedGroup,
-                info: null,
-                notifyError: this.extractErrorMessage(error) || '覆盖通知失败。',
-              })
-            )
-          )
-        ),
-        finalize(() => {
-          this.creating = false;
-          this.cdr.detectChanges();
-        })
-      )
       .subscribe({
-        next: ({ updatedGroup, info, notifyError }) => {
+        next: (updatedGroup) => {
+          if (requestSeq !== this.autoSaveRequestSeq) return;
           const updatedRows = this.sortGoals(updatedGroup.items || []);
-          const selectedInGroup = updatedRows.find((row) => row.id === this.selectedGoalId) || updatedRows[0];
+          this.goals = this.sortGoals([
+            ...updatedRows,
+            ...this.goals.filter((row) => this.resolveGoalTaskGroupId(row) !== taskGroupId),
+          ]);
+          const selectedInGroup =
+            updatedRows.find((row) => row.id === this.selectedGoalId) || updatedRows[0];
           if (selectedInGroup) {
             this.selectedGoalId = selectedInGroup.id;
           }
-          this.createSuccess = info
-            ? `Task已更新，并已覆盖通知：#${info.id}（覆盖 ${selectedIds.length} 人）`
-            : `Task已更新（覆盖 ${selectedIds.length} 人），但通知覆盖失败。`;
-          this.createError = notifyError || '';
+          this.persistCycleMeta(taskGroupId);
+          this.autoSaveStatus = 'saved';
+          this.autoSaveError = '';
+          this.loadTrackingStudents(taskGroupId);
           this.loadGoals();
+          this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.createError = this.extractErrorMessage(error) || '更新 Task 失败。';
+          if (requestSeq !== this.autoSaveRequestSeq) return;
+          this.autoSaveStatus = 'failed';
+          this.autoSaveError = this.extractErrorMessage(error) || 'Could not save changes.';
           this.cdr.detectChanges();
         },
       });
   }
 
-  private buildGoalUpdateInfoContent(
-    title: string,
-    description: string,
-    dueAt: string | null
-  ): string {
-    const dueText = dueAt || '无截止日期';
-    return `Task《${title}》已更新。\nTask描述：${description}\n截止日期：${dueText}`;
+  private clearTrackingAutoSaveTimer(): void {
+    if (!this.autoSaveTimer) return;
+    clearTimeout(this.autoSaveTimer);
+    this.autoSaveTimer = null;
+  }
+
+  private getSelectedCreateStudentIds(): number[] {
+    return Array.from(this.selectedCreateStudentIds.values())
+      .filter((studentId) => this.isCreateStudentSelectable(studentId))
+      .sort((a, b) => a - b);
+  }
+
+  private loadTrackingStudents(taskGroupId: string): void {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) return;
+
+    this.trackingLoading = true;
+    this.trackingError = '';
+    this.taskCenter
+      .getGoalGroupStudentStatuses(normalizedTaskGroupId)
+      .pipe(
+        finalize(() => {
+          this.trackingLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          if (this.editingTaskGroupId !== normalizedTaskGroupId) return;
+          this.trackingStudents = (resp.students || []).map((student) => {
+            const option = this.findStudentOption(student.studentId);
+            return {
+              goalId: student.goalId,
+              studentId: student.studentId,
+              studentName:
+                student.studentName || option?.studentName || `Student #${student.studentId}`,
+              username: String(student.username || option?.username || '').trim(),
+              email: String(
+                student.email || option?.email || this.detailEmail(student.studentId) || ''
+              ).trim(),
+              schoolName: this.detailSchoolName(student.studentId),
+              graduation: this.detailGraduation(student.studentId),
+              completed: student.completed || student.status === 'COMPLETED',
+              saving: false,
+            };
+          });
+          this.selectedCreateStudentIds = new Set(
+            this.trackingStudents.map((student) => student.studentId)
+          );
+          this.applyPendingCompletionUpdates();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.trackingError =
+            this.extractErrorMessage(error) || 'Could not load student completion statuses.';
+          this.rebuildTrackingStudentsFromSelection();
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private rebuildTrackingStudentsFromGoals(): void {
+    const taskGroupId = this.editingTaskGroupId;
+    if (!taskGroupId) {
+      this.rebuildTrackingStudentsFromSelection();
+      return;
+    }
+    const rows = this.goals.filter((goal) => this.resolveGoalTaskGroupId(goal) === taskGroupId);
+    if (rows.length === 0) {
+      this.rebuildTrackingStudentsFromSelection();
+      return;
+    }
+    this.trackingStudents = rows.map((goal) => {
+      const option = this.findStudentOption(goal.assignedStudentId);
+      return {
+        goalId: goal.id,
+        studentId: goal.assignedStudentId,
+        studentName:
+          goal.assignedStudentName || option?.studentName || `Student #${goal.assignedStudentId}`,
+        username: String(option?.username || '').trim(),
+        email: String(option?.email || this.detailEmail(goal.assignedStudentId) || '').trim(),
+        schoolName: this.detailSchoolName(goal.assignedStudentId),
+        graduation: this.detailGraduation(goal.assignedStudentId),
+        completed: goal.status === 'COMPLETED',
+        saving: false,
+      };
+    });
+  }
+
+  private rebuildTrackingStudentsFromSelection(): void {
+    const previousByStudentId = new Map(
+      this.trackingStudents.map((student) => [student.studentId, student])
+    );
+    this.trackingStudents = this.getSelectedCreateStudentIds().map((studentId) => {
+      const previous = previousByStudentId.get(studentId);
+      const option = this.findStudentOption(studentId);
+      return {
+        goalId: previous?.goalId || null,
+        studentId,
+        studentName: option?.studentName || previous?.studentName || `Student #${studentId}`,
+        username: String(option?.username || previous?.username || '').trim(),
+        email: String(option?.email || previous?.email || this.detailEmail(studentId) || '').trim(),
+        schoolName: this.detailSchoolName(studentId),
+        graduation: this.detailGraduation(studentId),
+        completed: previous?.completed || this.pendingCompletionByStudentId.get(studentId) === true,
+        saving: previous?.saving || false,
+      };
+    });
+  }
+
+  private persistTrackingStudentStatus(student: TrackingStudentVm, completed: boolean): void {
+    if (!student.goalId) return;
+
+    student.saving = true;
+    this.updateError = '';
+    this.taskCenter
+      .updateTeacherGoalStatus(student.goalId, {
+        status: completed ? 'COMPLETED' : 'NOT_STARTED',
+        progressNote: completed ? 'Teacher marked this student Completed in Task Tracking.' : '',
+      })
+      .pipe(
+        finalize(() => {
+          student.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (updatedGoal) => {
+          this.mergeUpdatedGoalRows([updatedGoal]);
+          student.goalId = updatedGoal.id;
+          student.completed = updatedGoal.status === 'COMPLETED';
+          student.saving = false;
+          this.pendingCompletionByStudentId.delete(student.studentId);
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          student.completed = !completed;
+          this.updateError = this.extractErrorMessage(error) || 'Failed to update completion status.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private applyPendingCompletionUpdates(): void {
+    if (this.pendingCompletionByStudentId.size === 0) return;
+    for (const student of this.trackingStudents) {
+      if (!student.goalId || !this.pendingCompletionByStudentId.has(student.studentId)) continue;
+      const completed = this.pendingCompletionByStudentId.get(student.studentId) === true;
+      this.pendingCompletionByStudentId.delete(student.studentId);
+      this.updateTrackingStudentStatus(student, completed);
+    }
+  }
+
+  private mergeUpdatedGoalRows(updatedRows: GoalTaskVm[]): void {
+    const updatedById = new Map(updatedRows.map((row) => [row.id, row]));
+    this.goals = this.sortGoals(this.goals.map((row) => updatedById.get(row.id) || row));
+  }
+
+  private createDefaultCycleDraft(): TaskCycleDraftVm {
+    return {
+      cycleType: 'ONE_TIME',
+      frequency: 'DAILY',
+      customInterval: 1,
+      customUnit: 'DAYS',
+      label: '',
+    };
+  }
+
+  private buildCycleRequestPayload(): {
+    cycleType: TaskCycleType;
+    cycleFrequency: TaskCycleFrequency | null;
+    cycleInterval: number | null;
+    cycleUnit: TaskCycleUnit | null;
+    cycleLabel: string | null;
+  } {
+    const isRoutine = this.cycleDraft.cycleType === 'ROUTINE';
+    const isCustom = isRoutine && this.cycleDraft.frequency === 'CUSTOM';
+    return {
+      cycleType: this.cycleDraft.cycleType,
+      cycleFrequency: isRoutine ? this.cycleDraft.frequency : null,
+      cycleInterval: isCustom ? this.cycleDraft.customInterval : null,
+      cycleUnit: isCustom ? this.cycleDraft.customUnit : null,
+      cycleLabel: this.cycleDraft.label.trim() || null,
+    };
+  }
+
+  private resolveCycleDraftForGoal(taskGroupId: string, goal: GoalTaskVm): TaskCycleDraftVm {
+    const stored = this.readCycleMeta(taskGroupId);
+    if (stored) return stored;
+
+    return {
+      cycleType: goal.cycleType === 'ROUTINE' ? 'ROUTINE' : 'ONE_TIME',
+      frequency:
+        goal.cycleFrequency === 'WEEKLY' || goal.cycleFrequency === 'CUSTOM'
+          ? goal.cycleFrequency
+          : 'DAILY',
+      customInterval:
+        Number.isFinite(Number(goal.cycleInterval)) && Number(goal.cycleInterval) > 0
+          ? Math.trunc(Number(goal.cycleInterval))
+          : 1,
+      customUnit: goal.cycleUnit === 'WEEKS' ? 'WEEKS' : 'DAYS',
+      label: String(goal.cycleLabel || '').trim(),
+    };
+  }
+
+  private persistCycleMeta(taskGroupId: string): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.setItem(this.resolveCycleMetaStorageKey(taskGroupId), JSON.stringify(this.cycleDraft));
+    } catch {}
+  }
+
+  private readCycleMeta(taskGroupId: string): TaskCycleDraftVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCycleMetaStorageKey(taskGroupId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<TaskCycleDraftVm>;
+      if (!parsed || typeof parsed !== 'object') return null;
+      const draft = this.createDefaultCycleDraft();
+      return {
+        cycleType: parsed.cycleType === 'ROUTINE' ? 'ROUTINE' : draft.cycleType,
+        frequency:
+          parsed.frequency === 'WEEKLY' || parsed.frequency === 'CUSTOM'
+            ? parsed.frequency
+            : draft.frequency,
+        customInterval:
+          Number.isFinite(Number(parsed.customInterval)) && Number(parsed.customInterval) > 0
+            ? Math.min(99, Math.trunc(Number(parsed.customInterval)))
+            : draft.customInterval,
+        customUnit: parsed.customUnit === 'WEEKS' ? 'WEEKS' : draft.customUnit,
+        label: String(parsed.label || '').trim(),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCycleMetaStorageKey(taskGroupId: string): string {
+    return `${TASK_CYCLE_META_STORAGE_KEY_PREFIX}.${TASK_CYCLE_META_STORAGE_VERSION}.${taskGroupId}`;
+  }
+
+  resolveCycleSummaryText(): string {
+    const label = this.cycleDraft.label.trim();
+    if (this.cycleDraft.cycleType === 'ONE_TIME') {
+      return label ? `One-time / ${label}` : 'One-time';
+    }
+    if (this.cycleDraft.frequency === 'CUSTOM') {
+      const unit = this.cycleDraft.customUnit === 'WEEKS' ? 'weeks' : 'days';
+      const customText = `Every ${this.cycleDraft.customInterval} ${unit}`;
+      return label ? `${customText} / ${label}` : customText;
+    }
+    const frequency = this.cycleDraft.frequency === 'WEEKLY' ? 'Weekly' : 'Daily';
+    return label ? `${frequency} / ${label}` : frequency;
+  }
+
+  private buildTaskNotificationContent(): string {
+    const title = this.createTitle.trim() || 'Untitled task';
+    const description = this.createDescription.trim() || '-';
+    const dueAt = this.createDueAt.trim() || 'No date';
+    const cycle = this.resolveCycleSummaryText();
+    return [
+      `Task: ${title}`,
+      `Cycle / Label: ${cycle}`,
+      `Period date: ${dueAt}`,
+      '',
+      description,
+    ].join('\n');
+  }
+
+  private findStudentOption(studentId: number): AssignableStudentOptionVm | null {
+    return this.studentOptions.find((student) => student.studentId === studentId) || null;
+  }
+
+  private normalizeTaskGroupId(value: unknown): string {
+    return String(value ?? '').trim();
   }
 
   private resolveGoalTaskGroupId(goal: GoalTaskVm | null | undefined): string {
@@ -1204,9 +1652,146 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       });
   }
 
+  updateTrackingStudentStatus(student: TrackingStudentVm, completed: boolean): void {
+    if (student.saving || this.creating) return;
+
+    student.completed = completed;
+    if (!student.goalId) {
+      this.pendingCompletionByStudentId.set(student.studentId, completed);
+      this.scheduleTrackingAutoSave();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.persistTrackingStudentStatus(student, completed);
+  }
+
+  markAllTrackingStudents(completed: boolean): void {
+    if (this.creating || this.trackingStudents.length === 0) return;
+
+    const persistedRows = this.trackingStudents.filter((student) => student.goalId);
+    const pendingRows = this.trackingStudents.filter((student) => !student.goalId);
+
+    for (const student of this.trackingStudents) {
+      student.completed = completed;
+      student.saving = !!student.goalId;
+    }
+    for (const student of pendingRows) {
+      this.pendingCompletionByStudentId.set(student.studentId, completed);
+    }
+    if (pendingRows.length > 0) {
+      this.scheduleTrackingAutoSave();
+    }
+    if (persistedRows.length === 0) {
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.updateError = '';
+    from(persistedRows)
+      .pipe(
+        concatMap((student) =>
+          this.taskCenter.updateTeacherGoalStatus(student.goalId as number, {
+            status: completed ? 'COMPLETED' : 'NOT_STARTED',
+            progressNote: completed
+              ? 'Teacher marked this student Completed in Task Tracking.'
+              : '',
+          })
+        ),
+        toArray(),
+        finalize(() => {
+          for (const student of persistedRows) {
+            student.saving = false;
+          }
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (updatedRows) => {
+          this.mergeUpdatedGoalRows(updatedRows);
+          const updatedByStudentId = new Map(
+            updatedRows.map((row) => [row.assignedStudentId, row])
+          );
+          this.trackingStudents = this.trackingStudents.map((student) => {
+            const updated = updatedByStudentId.get(student.studentId);
+            if (!updated) return student;
+            return {
+              ...student,
+              goalId: updated.id,
+              completed: updated.status === 'COMPLETED',
+            };
+          });
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.updateError = this.extractErrorMessage(error) || 'Failed to update completion status.';
+          this.rebuildTrackingStudentsFromGoals();
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  openSendConfirmation(): void {
+    if (!this.isEditMode || this.sendRecipientCount === 0) return;
+    this.sendConfirmOpen = true;
+    this.sendConfirmText = '';
+    this.sendError = '';
+    this.sendSuccess = '';
+  }
+
+  closeSendConfirmation(): void {
+    this.sendConfirmOpen = false;
+    this.sendConfirmText = '';
+  }
+
+  confirmSendNotification(): void {
+    if (!this.isSendConfirmationReady || this.sendingNotification || !this.editingTaskGroupId) {
+      return;
+    }
+
+    const selectedIds = this.getSelectedCreateStudentIds();
+    if (selectedIds.length === 0) {
+      this.sendError = 'Select at least one student before sending.';
+      return;
+    }
+
+    const request: CreateInfoRequestVm = {
+      category: 'ACTIVITY',
+      title: `Task update: ${this.createTitle.trim() || 'Untitled task'}`,
+      content: this.buildTaskNotificationContent(),
+      tags: ['Task Tracking', this.resolveCycleSummaryText()].filter(Boolean),
+      studentIds: selectedIds,
+      taskGroupId: this.editingTaskGroupId,
+    };
+
+    this.sendingNotification = true;
+    this.sendError = '';
+    this.sendSuccess = '';
+    this.taskCenter
+      .createInfo(request)
+      .pipe(
+        finalize(() => {
+          this.sendingNotification = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (info) => {
+          this.sendSuccess = `Notification sent to ${selectedIds.length} student(s). Ref #${info.id}`;
+          this.closeSendConfirmation();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.sendError = this.extractErrorMessage(error) || 'Failed to send notification.';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   trackStudent = (_: number, student: AssignableStudentOptionVm): number => student.studentId;
   trackGoal = (_: number, group: GoalGroupRowVm): string => group.taskGroupKey;
-  goalStatusLabel(status: GoalTaskStatus): string { if (status === 'NOT_STARTED') return 'Not Started'; if (status === 'IN_PROGRESS') return 'In Progress'; return 'Completed'; }
+  trackTrackingStudent = (_: number, student: TrackingStudentVm): number => student.studentId;
+  goalStatusLabel(status: GoalTaskStatus): string { return status === 'COMPLETED' ? 'Completed' : 'Not Completed'; }
   displayDueAt(goal: GoalTaskVm): string { if (!goal.dueAt) return '无截止日期'; const ts = Date.parse(goal.dueAt); return Number.isFinite(ts) ? new Date(ts).toLocaleDateString() : goal.dueAt; }
   displayUpdatedAt(value: string): string { const ts = Date.parse(value); return Number.isFinite(ts) ? new Date(ts).toLocaleString() : value; }
 

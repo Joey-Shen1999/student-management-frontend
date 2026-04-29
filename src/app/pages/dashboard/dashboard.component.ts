@@ -6,8 +6,6 @@ import { finalize, timeout } from 'rxjs/operators';
 import { AuthService, type LoginResponse } from '../../services/auth.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import {
-  type GoalTaskStatus,
-  type GoalTaskVm,
   type InfoTaskCategory,
   type InfoTaskVm,
   TaskCenterService,
@@ -34,80 +32,6 @@ import {
             {{ signingOut ? '退出中...' : '退出登录' }}
           </button>
         </div>
-
-        <section class="dashboard-card">
-          <div class="section-head">
-            <h3>近期 Task</h3>
-            <button
-              type="button"
-              class="action-btn ghost compact"
-              (click)="refreshGoals()"
-              [disabled]="goalLoading || updatingGoalId !== null"
-            >
-              {{ goalLoading ? '刷新中...' : '刷新' }}
-            </button>
-          </div>
-
-          <div *ngIf="goalLoading" class="state-text">正在加载 Task...</div>
-
-          <div *ngIf="!goalLoading && goalError" class="error-banner">
-            <span>{{ goalError }}</span>
-            <button type="button" class="action-btn ghost compact" (click)="refreshGoals()">重试</button>
-          </div>
-
-          <div *ngIf="!goalLoading && !goalError && goalItems.length === 0" class="state-text">
-            当前没有 Task。
-          </div>
-
-          <div *ngIf="!goalLoading && !goalError && goalItems.length > 0" class="goal-list">
-            <article class="goal-item" *ngFor="let goal of goalItems; trackBy: trackGoal">
-              <div class="goal-row">
-                <h4 class="goal-title">{{ goal.title }}</h4>
-                <span [class]="goalStatusClass(goal.status)">{{ goalStatusLabel(goal.status) }}</span>
-              </div>
-
-              <p class="goal-desc">{{ goal.description }}</p>
-
-              <div class="goal-meta">
-                <span>截止：{{ displayDueAt(goal) }}</span>
-                <span *ngIf="isOverdue(goal)" class="goal-overdue">已逾期</span>
-                <span>更新：{{ displayUpdatedAt(goal.updatedAt) }}</span>
-              </div>
-
-              <div class="goal-actions">
-                <button
-                  type="button"
-                  class="action-btn secondary compact"
-                  *ngIf="canStart(goal)"
-                  (click)="startGoal(goal)"
-                  [disabled]="updatingGoalId === goal.id"
-                >
-                  {{ updatingGoalId === goal.id ? '处理中...' : 'Start Task' }}
-                </button>
-
-                <button
-                  type="button"
-                  class="action-btn primary compact"
-                  *ngIf="canComplete(goal)"
-                  (click)="markGoalCompleted(goal)"
-                  [disabled]="updatingGoalId === goal.id"
-                >
-                  {{ updatingGoalId === goal.id ? '处理中...' : 'Mark Completed' }}
-                </button>
-
-                <button
-                  type="button"
-                  class="action-btn ghost compact"
-                  *ngIf="canReopen(goal)"
-                  (click)="reopenGoal(goal)"
-                  [disabled]="updatingGoalId === goal.id"
-                >
-                  {{ updatingGoalId === goal.id ? '处理中...' : 'Reopen' }}
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
 
         <section class="dashboard-card">
           <div class="section-head">
@@ -232,11 +156,6 @@ import {
 export class DashboardComponent implements OnInit {
   session: LoginResponse | null;
 
-  goalLoading = false;
-  goalError = '';
-  goalItems: GoalTaskVm[] = [];
-  updatingGoalId: number | null = null;
-
   infoLoading = false;
   infoError = '';
   infoItems: InfoTaskVm[] = [];
@@ -247,7 +166,6 @@ export class DashboardComponent implements OnInit {
   signingOut = false;
   welcomeNameOverride = '';
 
-  private goalLoadWatchdog: number | null = null;
   private infoLoadWatchdog: number | null = null;
   private readonly welcomeNameTimeoutMs = 8000;
 
@@ -273,7 +191,6 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadWelcomeNameIfNeeded();
-    this.loadGoals();
     this.loadInfos();
   }
 
@@ -337,10 +254,6 @@ export class DashboardComponent implements OnInit {
     this.router.navigate(['/account']);
   }
 
-  refreshGoals(): void {
-    this.loadGoals();
-  }
-
   refreshInfos(): void {
     this.loadInfos();
   }
@@ -362,18 +275,6 @@ export class DashboardComponent implements OnInit {
   toggleUnreadOnly(): void {
     this.infoUnreadOnly = !this.infoUnreadOnly;
     this.loadInfos();
-  }
-
-  startGoal(goal: GoalTaskVm): void {
-    this.updateGoalStatus(goal, 'IN_PROGRESS');
-  }
-
-  markGoalCompleted(goal: GoalTaskVm): void {
-    this.updateGoalStatus(goal, 'COMPLETED');
-  }
-
-  reopenGoal(goal: GoalTaskVm): void {
-    this.updateGoalStatus(goal, 'IN_PROGRESS');
   }
 
   markInfoRead(info: InfoTaskVm): void {
@@ -403,34 +304,10 @@ export class DashboardComponent implements OnInit {
       });
   }
 
-  trackGoal = (_index: number, goal: GoalTaskVm): number => goal.id;
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
-
-  goalStatusLabel(status: GoalTaskStatus): string {
-    if (status === 'NOT_STARTED') return 'Not Started';
-    if (status === 'IN_PROGRESS') return 'In Progress';
-    return 'Completed';
-  }
-
-  goalStatusClass(status: GoalTaskStatus): string {
-    if (status === 'NOT_STARTED') return 'goal-status not-started';
-    if (status === 'IN_PROGRESS') return 'goal-status in-progress';
-    return 'goal-status completed';
-  }
 
   infoCategoryLabel(category: InfoTaskCategory): string {
     return category === 'VOLUNTEER' ? '义工' : '活动';
-  }
-
-  displayDueAt(goal: GoalTaskVm): string {
-    if (!goal.dueAt) return '无截止日期';
-
-    const timestamp = Date.parse(goal.dueAt);
-    if (!Number.isFinite(timestamp)) {
-      return goal.dueAt;
-    }
-
-    return new Date(timestamp).toLocaleDateString();
   }
 
   displayUpdatedAt(value: string): string {
@@ -440,28 +317,6 @@ export class DashboardComponent implements OnInit {
     }
 
     return new Date(timestamp).toLocaleString();
-  }
-
-  isOverdue(goal: GoalTaskVm): boolean {
-    if (goal.status === 'COMPLETED' || !goal.dueAt) return false;
-
-    const date = new Date(goal.dueAt);
-    if (Number.isNaN(date.getTime())) return false;
-
-    date.setHours(23, 59, 59, 999);
-    return date.getTime() < Date.now();
-  }
-
-  canStart(goal: GoalTaskVm): boolean {
-    return goal.status === 'NOT_STARTED';
-  }
-
-  canComplete(goal: GoalTaskVm): boolean {
-    return goal.status === 'IN_PROGRESS';
-  }
-
-  canReopen(goal: GoalTaskVm): boolean {
-    return goal.status === 'COMPLETED';
   }
 
   logout() {
@@ -478,34 +333,6 @@ export class DashboardComponent implements OnInit {
         error: () => {
           this.auth.clearAuthState();
           this.router.navigate(['/login']);
-        },
-      });
-  }
-
-  private loadGoals(): void {
-    this.goalLoading = true;
-    this.goalError = '';
-    this.startGoalLoadWatchdog();
-    this.cdr.detectChanges();
-
-    this.taskCenter
-      .listMyGoals({ status: 'ALL', page: 1, size: 8 })
-      .pipe(
-        finalize(() => {
-          this.goalLoading = false;
-          this.clearGoalLoadWatchdog();
-          this.cdr.detectChanges();
-        })
-      )
-      .subscribe({
-        next: (resp) => {
-          this.goalItems = this.sortGoals(resp.items || []);
-          this.cdr.detectChanges();
-        },
-        error: (error: unknown) => {
-          this.goalError = this.extractErrorMessage(error) || '加载 Task 失败。';
-          this.goalItems = [];
-          this.cdr.detectChanges();
         },
       });
   }
@@ -544,24 +371,6 @@ export class DashboardComponent implements OnInit {
       });
   }
 
-  private startGoalLoadWatchdog(): void {
-    this.clearGoalLoadWatchdog();
-    this.goalLoadWatchdog = window.setTimeout(() => {
-      if (!this.goalLoading) return;
-      this.goalLoading = false;
-      if (!this.goalError) {
-        this.goalError = '请求超时，请检查后端服务或网络连接。';
-      }
-      this.cdr.detectChanges();
-    }, 15000);
-  }
-
-  private clearGoalLoadWatchdog(): void {
-    if (this.goalLoadWatchdog === null) return;
-    window.clearTimeout(this.goalLoadWatchdog);
-    this.goalLoadWatchdog = null;
-  }
-
   private startInfoLoadWatchdog(): void {
     this.clearInfoLoadWatchdog();
     this.infoLoadWatchdog = window.setTimeout(() => {
@@ -578,60 +387,6 @@ export class DashboardComponent implements OnInit {
     if (this.infoLoadWatchdog === null) return;
     window.clearTimeout(this.infoLoadWatchdog);
     this.infoLoadWatchdog = null;
-  }
-
-  private updateGoalStatus(goal: GoalTaskVm, status: GoalTaskStatus): void {
-    if (this.updatingGoalId !== null) return;
-
-    this.updatingGoalId = goal.id;
-    this.goalError = '';
-    this.cdr.detectChanges();
-
-    this.taskCenter
-      .updateMyGoalStatus(goal.id, {
-        status,
-        progressNote: status === 'COMPLETED' ? '学生已在主页面标记 Completed。' : goal.progressNote,
-      })
-      .pipe(
-        finalize(() => {
-          this.updatingGoalId = null;
-          this.cdr.detectChanges();
-        })
-      )
-      .subscribe({
-        next: (updatedGoal) => {
-          const nextItems = this.goalItems.map((item) =>
-            item.id === updatedGoal.id ? updatedGoal : item
-          );
-          this.goalItems = this.sortGoals(nextItems);
-          this.cdr.detectChanges();
-        },
-        error: (error: unknown) => {
-          this.goalError = this.extractErrorMessage(error) || '更新 Task 状态失败。';
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  private sortGoals(items: GoalTaskVm[]): GoalTaskVm[] {
-    return [...items].sort((a, b) => {
-      const statusRankA = a.status === 'COMPLETED' ? 1 : 0;
-      const statusRankB = b.status === 'COMPLETED' ? 1 : 0;
-      if (statusRankA !== statusRankB) return statusRankA - statusRankB;
-
-      const dueA = this.toSortableTimestamp(a.dueAt, Number.MAX_SAFE_INTEGER);
-      const dueB = this.toSortableTimestamp(b.dueAt, Number.MAX_SAFE_INTEGER);
-      if (dueA !== dueB) return dueA - dueB;
-
-      const updatedA = this.toSortableTimestamp(a.updatedAt, 0);
-      const updatedB = this.toSortableTimestamp(b.updatedAt, 0);
-      return updatedB - updatedA;
-    });
-  }
-
-  private toSortableTimestamp(value: string | null | undefined, fallback: number): number {
-    const timestamp = Date.parse(String(value || ''));
-    return Number.isFinite(timestamp) ? timestamp : fallback;
   }
 
   private loadWelcomeNameIfNeeded(): void {

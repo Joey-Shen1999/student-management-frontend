@@ -6,6 +6,9 @@ import { AuthService } from './auth.service';
 
 export type GoalTaskStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 export type InfoTaskCategory = 'ACTIVITY' | 'VOLUNTEER';
+export type TaskCycleType = 'ONE_TIME' | 'ROUTINE';
+export type TaskCycleFrequency = 'DAILY' | 'WEEKLY' | 'CUSTOM';
+export type TaskCycleUnit = 'DAYS' | 'WEEKS';
 
 export interface GoalTaskVm {
   id: number;
@@ -23,6 +26,11 @@ export interface GoalTaskVm {
   updatedAt: string;
   completedAt: string | null;
   progressNote: string;
+  cycleType?: TaskCycleType | null;
+  cycleFrequency?: TaskCycleFrequency | null;
+  cycleInterval?: number | null;
+  cycleUnit?: TaskCycleUnit | null;
+  cycleLabel?: string | null;
 }
 
 export interface GoalListQueryVm {
@@ -70,6 +78,11 @@ export interface GoalGroupUpsertRequestVm {
   description: string;
   dueAt: string | null;
   studentIds: number[];
+  cycleType?: TaskCycleType | null;
+  cycleFrequency?: TaskCycleFrequency | null;
+  cycleInterval?: number | null;
+  cycleUnit?: TaskCycleUnit | null;
+  cycleLabel?: string | null;
 }
 
 export interface GoalGroupResponseVm {
@@ -101,6 +114,11 @@ export interface GoalGroupStudentStatusResponseVm {
   completedCount: number;
   pendingCount: number;
   students: GoalGroupStudentStatusVm[];
+  cycleType?: TaskCycleType | null;
+  cycleFrequency?: TaskCycleFrequency | null;
+  cycleInterval?: number | null;
+  cycleUnit?: TaskCycleUnit | null;
+  cycleLabel?: string | null;
 }
 
 export interface AssignableStudentOptionVm {

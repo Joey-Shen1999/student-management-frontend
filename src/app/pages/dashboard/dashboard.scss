@@ -145,84 +145,6 @@
   font-size: 14px;
 }
 
-.goal-list {
-  display: grid;
-  gap: 10px;
-}
-
-.goal-item {
-  border: 1px solid #dfe7f5;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fafcff;
-}
-
-.goal-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.goal-title {
-  margin: 0;
-  color: #203047;
-  font-size: 15px;
-}
-
-.goal-desc {
-  margin: 8px 0;
-  color: #4d5f79;
-  line-height: 1.45;
-  font-size: 14px;
-}
-
-.goal-meta {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  color: #60718a;
-  font-size: 13px;
-}
-
-.goal-overdue {
-  color: #b3261e;
-  font-weight: 600;
-}
-
-.goal-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.goal-status {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 2px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.goal-status.not-started {
-  background: #eef2f8;
-  color: #405673;
-}
-
-.goal-status.in-progress {
-  background: #fff3e0;
-  color: #9f5300;
-}
-
-.goal-status.completed {
-  background: #e8f5e9;
-  color: #1a6a32;
-}
-
 .info-filters {
   display: flex;
   gap: 8px;
@@ -334,7 +256,6 @@
     align-items: stretch;
   }
 
-  .goal-row,
   .info-head {
     align-items: flex-start;
     flex-direction: column;

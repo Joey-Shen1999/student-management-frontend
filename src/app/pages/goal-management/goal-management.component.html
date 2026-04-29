@@ -1,211 +1,498 @@
-<div class="page">
-  <div class="header">
-    <h2>Task系统</h2>
-    <button type="button" class="back-btn" (click)="goDashboard()">返回</button>
-  </div>
+<div class="page task-tracking-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Teacher Task Tracking</p>
+      <h2>Task Completion Workspace</h2>
+      <p class="page-subtitle">
+        Record whether selected students completed a teaching activity. Tasks are not shown as
+        student assignments.
+      </p>
+    </div>
+    <button type="button" class="btn secondary" (click)="goDashboard()">Back</button>
+  </header>
 
-  <section class="card create-entry-card">
+  <section class="toolbar-section">
+    <div class="toolbar-copy">
+      <strong>Tracking tasks</strong>
+      <span>{{ goalGroups.length }} task group(s)</span>
+    </div>
     <button
       type="button"
-      class="create-launch-btn"
+      class="btn primary"
       (click)="openCreatePanel()"
       [disabled]="creating"
     >
-      <span>新建 Task</span>
+      New Tracking Task
     </button>
-
-    <div
-      *ngIf="createPanelExpanded"
-      class="create-modal-backdrop"
-      (click)="onCreatePanelBackdropClick($event)"
-    >
-      <div class="create-modal card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-        <div class="create-modal-head">
-          <div class="create-modal-actions">
-            <button type="button" (click)="createGoal()" [disabled]="creating || studentsLoading">
-              保存
-            </button>
-            <button type="button" (click)="resetCreateForm()" [disabled]="creating">清空</button>
-          </div>
-          <strong class="create-modal-title">{{ isEditMode ? '编辑 Task' : '新建 Task' }}</strong>
-          <button
-            type="button"
-            class="modal-close-btn"
-            (click)="closeCreatePanel()"
-            [disabled]="creating"
-          >
-            关闭
-          </button>
-        </div>
-
-        <div class="create-body">
-          <app-student-selector-panel
-            [disabled]="creating"
-            [panelExpanded]="studentPanelExpanded"
-            [filterExpanded]="studentFilterExpanded"
-            [columnPanelExpanded]="createStudentColumnPanelExpanded"
-            [studentsLoading]="studentsLoading"
-            [studentsError]="studentsError"
-            [selectedCount]="selectedCreateStudentCount"
-            [filteredStudents]="filteredCreateStudentOptions"
-            [selectedStudents]="selectedCreateStudentOptions"
-            [countryFilterOptions]="countryFilterOptions"
-            [provinceFilterOptions]="provinceFilterOptions"
-            [cityFilterOptions]="cityFilterOptions"
-            [schoolBoardFilterOptions]="schoolBoardFilterOptions"
-            [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
-            [countryFilterInput]="createCountryFilterInput"
-            [provinceFilterInput]="createProvinceFilterInput"
-            [cityFilterInput]="createCityFilterInput"
-            [schoolBoardFilterInput]="createSchoolBoardFilterInput"
-            [graduationSeasonFilterInput]="createGraduationSeasonFilterInput"
-            [languageScoreFilter]="createLanguageScoreFilter"
-            [languageTrackingFilter]="createLanguageTrackingFilter"
-            [languageCourseStatusFilter]="createLanguageCourseStatusFilter"
-            [ossltResultFilter]="createOssltResultFilter"
-            [ossltTrackingFilter]="createOssltTrackingFilter"
-            [languageScoreFilterOptions]="languageScoreFilterOptions"
-            [languageTrackingFilterOptions]="languageTrackingFilterOptions"
-            [languageCourseStatusFilterOptions]="languageCourseStatusFilterOptions"
-            [ossltResultFilterOptions]="ossltResultFilterOptions"
-            [ossltTrackingFilterOptions]="ossltTrackingFilterOptions"
-            [volunteerCompletedFilter]="createVolunteerCompletedFilter"
-            [filterFields]="createStudentFilterFields"
-            [studentKeyword]="createStudentKeyword"
-            [visibleColumns]="visibleCreateStudentColumns"
-            [columnToggleOptions]="createStudentColumnToggleOptions"
-            [isAllVisibleSelected]="areAllVisibleStudentsSelected()"
-            [isVisibleSelectionPartial]="isVisibleStudentSelectionPartial()"
-            [isColumnSelectionAtDefault]="isCreateStudentColumnSelectionAtDefault()"
-            [isStudentSelected]="isCreateStudentSelectedRef"
-            [isStudentOutOfCurrentFilter]="isSelectedStudentOutOfCurrentFilterRef"
-            [isStudentSelectable]="isCreateStudentSelectableRowRef"
-            [isColumnVisible]="isCreateStudentColumnVisibleRef"
-            [resolveColumnValue]="resolveCreateStudentColumnValueRef"
-            [detailTeacherNote]="detailTeacherNoteRef"
-            [isTeacherNoteSaving]="isTeacherNoteSavingRef"
-            (panelToggle)="toggleStudentPanel()"
-            (filterPanelToggle)="toggleStudentFilterPanel()"
-            (columnPanelToggle)="toggleCreateStudentColumnPanel()"
-            (refreshStudents)="refreshAssignableStudents()"
-            (resetFilters)="resetStudentMetaFilters()"
-            (resetColumns)="resetCreateStudentVisibleColumns()"
-            (clearSelected)="clearSelectedStudents()"
-            (countryFilterInputChange)="onCountryFilterInputChange($event)"
-            (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
-            (cityFilterInputChange)="onCityFilterInputChange($event)"
-            (schoolBoardFilterInputChange)="onSchoolBoardFilterInputChange($event)"
-            (graduationSeasonFilterInputChange)="onGraduationSeasonFilterInputChange($event)"
-            (languageScoreFilterChange)="onLanguageScoreFilterChange($event)"
-            (languageTrackingFilterChange)="onLanguageTrackingFilterChange($event)"
-            (languageCourseStatusFilterChange)="onLanguageCourseStatusFilterChange($event)"
-            (ossltResultFilterChange)="onOssltResultFilterChange($event)"
-            (ossltTrackingFilterChange)="onOssltTrackingFilterChange($event)"
-            (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
-            (studentKeywordChange)="onStudentKeywordChange($event)"
-            (selectAllToggle)="onToggleSelectAll($event)"
-            (studentSelectionChange)="onCreateStudentCheckboxChange($event.studentId, $event.checked)"
-            (columnVisibilityChange)="onCreateStudentColumnVisibilityChange($event.key, $event.checked)"
-            (columnOrderChange)="onCreateStudentColumnOrderChange($event.orderedVisibleColumnKeys)"
-            (teacherNoteFocus)="onTeacherNoteCellFocus($event)"
-            (teacherNoteChange)="onTeacherNoteCellChange($event.studentId, $event.value)"
-            (teacherNoteBlur)="onTeacherNoteCellBlur($event)"
-          ></app-student-selector-panel>
-
-          <div class="form">
-            <input [(ngModel)]="createTitle" [disabled]="creating" placeholder="Task标题" />
-            <textarea
-              [(ngModel)]="createDescription"
-              [disabled]="creating"
-              rows="3"
-              placeholder="Task描述"
-            ></textarea>
-            <input type="date" [(ngModel)]="createDueAt" [disabled]="creating" />
-          </div>
-
-          <div *ngIf="createError" class="error-text">{{ createError }}</div>
-          <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
-        </div>
-      </div>
-    </div>
   </section>
 
-  <section class="card">
-    <div class="tools">
-      <h3>已发布 Task</h3>
-      <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
-        <option [ngValue]="null">全部学生</option>
-        <option
-          *ngFor="let student of studentOptions; trackBy: trackStudent"
-          [ngValue]="student.studentId"
-        >
-          {{ student.studentId }} - {{ student.studentName }}
-        </option>
-      </select>
-      <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
-        <option value="ALL">全部状态</option>
-        <option value="NOT_STARTED">Not Started</option>
-        <option value="IN_PROGRESS">In Progress</option>
-        <option value="COMPLETED">Completed</option>
-      </select>
-      <input type="search" [(ngModel)]="filterKeyword" [disabled]="goalsLoading" placeholder="关键字" />
-      <button type="button" (click)="applyFilters()" [disabled]="goalsLoading">查询</button>
-      <button type="button" (click)="clearFilters()" [disabled]="goalsLoading">重置</button>
-      <button type="button" (click)="refreshGoals()" [disabled]="goalsLoading">刷新</button>
+  <section class="task-list-section">
+    <div class="list-tools">
+      <div>
+        <h3>Teacher Task Records</h3>
+        <p>Open a task to update students and completion status.</p>
+      </div>
+      <div class="filter-row">
+        <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
+          <option [ngValue]="null">All students</option>
+          <option
+            *ngFor="let student of studentOptions; trackBy: trackStudent"
+            [ngValue]="student.studentId"
+          >
+            {{ student.studentName }}
+          </option>
+        </select>
+        <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
+          <option value="ALL">All status</option>
+          <option value="NOT_STARTED">Not Completed</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+        <input
+          type="search"
+          [(ngModel)]="filterKeyword"
+          [disabled]="goalsLoading"
+          placeholder="Search task name or description"
+        />
+        <button type="button" class="btn secondary" (click)="applyFilters()" [disabled]="goalsLoading">
+          Search
+        </button>
+        <button type="button" class="btn ghost" (click)="clearFilters()" [disabled]="goalsLoading">
+          Reset
+        </button>
+      </div>
     </div>
 
-    <div *ngIf="goalsLoading" class="state-text">正在加载 Task...</div>
+    <div *ngIf="goalsLoading" class="state-text">Loading tasks...</div>
     <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
-    <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">暂无 Task。</div>
+    <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">
+      No tracking tasks yet.
+    </div>
 
-    <article
-      class="goal-item"
-      *ngFor="let goal of goalGroups; trackBy: trackGoal"
-      (click)="selectGoal(goal)"
-      [class.goal-selected]="isGoalGroupSelected(goal)"
-    >
-      <div class="goal-head">
-        <strong>{{ goal.representativeGoal.title }}</strong>
-        <span>{{ goalGroupStatusLabel(goal) }}</span>
-      </div>
-      <p>{{ goal.representativeGoal.description }}</p>
-      <small>
-        学生：{{ goalGroupStudentLabel(goal) }} | 截止：{{ displayDueAt(goal.representativeGoal) }} | 更新：{{
-          displayUpdatedAt(goal.updatedAt)
-        }}
-      </small>
-      <div class="actions">
+    <div class="task-grid" *ngIf="!goalsLoading && !goalsError && goalGroups.length > 0">
+      <article
+        class="task-card"
+        *ngFor="let goal of goalGroups; trackBy: trackGoal"
+        (click)="selectGoal(goal)"
+        [class.selected]="isGoalGroupSelected(goal)"
+      >
+        <div class="task-card-head">
+          <h4>{{ goal.representativeGoal.title }}</h4>
+          <span class="status-chip" [class.done]="goal.status === 'COMPLETED'">
+            {{ goalGroupStatusLabel(goal) }}
+          </span>
+        </div>
+        <p>{{ goal.representativeGoal.description }}</p>
+        <div class="task-card-meta">
+          <span>{{ goal.studentCount }} student(s)</span>
+          <span>{{ goal.completedCount }}/{{ goal.studentCount }} completed</span>
+          <span>{{ displayUpdatedAt(goal.updatedAt) }}</span>
+        </div>
         <button
           type="button"
+          class="btn secondary compact"
           (click)="$event.stopPropagation(); openEditPanel(goal.representativeGoal)"
           [disabled]="creating || updatingGoalGroupKey === goal.taskGroupKey"
         >
-          编辑
+          Open Workspace
         </button>
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'NOT_STARTED')"
-          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'NOT_STARTED'"
-        >
-          Not Started
-        </button>
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'IN_PROGRESS')"
-          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'IN_PROGRESS'"
-        >
-          In Progress
-        </button>
-        <button
-          type="button"
-          (click)="$event.stopPropagation(); setGoalStatus(goal, 'COMPLETED')"
-          [disabled]="updatingGoalGroupKey === goal.taskGroupKey || goal.status === 'COMPLETED'"
-        >
-          Completed
-        </button>
-      </div>
-    </article>
+      </article>
+    </div>
 
     <div *ngIf="updateError" class="error-text">{{ updateError }}</div>
   </section>
+
+  <div
+    *ngIf="createPanelExpanded"
+    class="workspace-backdrop"
+    (click)="onCreatePanelBackdropClick($event)"
+  >
+    <div class="workspace-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="workspace-header">
+        <div>
+          <p class="eyebrow">{{ isEditMode ? 'Update Task' : 'Create Task' }}</p>
+          <h3>{{ isEditMode ? createTitle || 'Untitled tracking task' : 'New tracking task' }}</h3>
+        </div>
+        <div class="workspace-actions">
+          <span [class]="saveStatusClass">{{ saveStatusLabel }}</span>
+          <button
+            type="button"
+            class="btn ghost compact"
+            *ngIf="autoSaveStatus === 'failed'"
+            (click)="retryAutoSave()"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            class="btn secondary compact"
+            *ngIf="isEditMode"
+            (click)="openSendConfirmation()"
+            [disabled]="sendingNotification || sendRecipientCount === 0"
+          >
+            Send Update
+          </button>
+          <button
+            type="button"
+            class="btn primary compact"
+            *ngIf="!isEditMode"
+            (click)="createGoal()"
+            [disabled]="creating || studentsLoading"
+          >
+            {{ creating ? 'Creating...' : 'Create Task' }}
+          </button>
+          <button type="button" class="btn ghost compact" (click)="closeCreatePanel()" [disabled]="creating">
+            Close
+          </button>
+        </div>
+      </header>
+
+      <div *ngIf="autoSaveError" class="error-text">{{ autoSaveError }}</div>
+      <div *ngIf="createError" class="error-text">{{ createError }}</div>
+      <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
+      <div *ngIf="sendSuccess" class="success-text">{{ sendSuccess }}</div>
+      <div *ngIf="sendError" class="error-text">{{ sendError }}</div>
+
+      <div class="workspace-layout">
+        <section class="workspace-section basic-section">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">A</span>
+              <h4>Task Basic Information</h4>
+            </div>
+            <small>{{ resolveCycleSummaryText() }}</small>
+          </div>
+
+          <label class="field">
+            <span>Task Name</span>
+            <input
+              [(ngModel)]="createTitle"
+              (ngModelChange)="onTrackingDraftChange()"
+              [disabled]="creating"
+              placeholder="Daily vocabulary check"
+            />
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <textarea
+              [(ngModel)]="createDescription"
+              (ngModelChange)="onTrackingDraftChange()"
+              [disabled]="creating"
+              rows="4"
+              placeholder="What did the teacher track for this activity?"
+            ></textarea>
+          </label>
+
+          <label class="field compact-field">
+            <span>Period Date</span>
+            <input
+              type="date"
+              [(ngModel)]="createDueAt"
+              (ngModelChange)="onTrackingDraftChange()"
+              [disabled]="creating"
+            />
+          </label>
+        </section>
+
+        <section class="workspace-section cycle-section">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">B</span>
+              <h4>Cycle / Period</h4>
+            </div>
+          </div>
+
+          <div class="segmented-control">
+            <button
+              type="button"
+              [class.active]="cycleDraft.cycleType === 'ONE_TIME'"
+              (click)="onCycleTypeChange('ONE_TIME')"
+            >
+              One-time
+            </button>
+            <button
+              type="button"
+              [class.active]="cycleDraft.cycleType === 'ROUTINE'"
+              (click)="onCycleTypeChange('ROUTINE')"
+            >
+              Routine
+            </button>
+          </div>
+
+          <div class="field-grid" *ngIf="cycleDraft.cycleType === 'ROUTINE'">
+            <label class="field">
+              <span>Frequency</span>
+              <select
+                [ngModel]="cycleDraft.frequency"
+                (ngModelChange)="onCycleFrequencyChange($event)"
+              >
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="CUSTOM">Custom</option>
+              </select>
+            </label>
+
+            <div class="custom-frequency" *ngIf="cycleDraft.frequency === 'CUSTOM'">
+              <label class="field">
+                <span>Every</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  [ngModel]="cycleDraft.customInterval"
+                  (ngModelChange)="onCustomCycleIntervalChange($event)"
+                />
+              </label>
+              <label class="field">
+                <span>Unit</span>
+                <select
+                  [ngModel]="cycleDraft.customUnit"
+                  (ngModelChange)="onCustomCycleUnitChange($event)"
+                >
+                  <option value="DAYS">Days</option>
+                  <option value="WEEKS">Weeks</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Label</span>
+            <input
+              list="task-cycle-labels"
+              [(ngModel)]="cycleDraft.label"
+              (ngModelChange)="onTrackingDraftChange()"
+              placeholder="Week 1, Daily Practice, Midterm Review"
+            />
+            <datalist id="task-cycle-labels">
+              <option value="Week 1"></option>
+              <option value="Week 2"></option>
+              <option value="Daily Practice"></option>
+              <option value="Midterm Review"></option>
+              <option value="Final Project Phase"></option>
+            </datalist>
+          </label>
+
+          <p class="helper-text">
+            Cycle is a reporting dimension for filtering and future analytics. It does not auto-generate tasks.
+          </p>
+        </section>
+      </div>
+
+      <section class="workspace-section selector-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">C</span>
+            <h4>Selected Students</h4>
+          </div>
+          <small>{{ selectedCreateStudentCount }} selected</small>
+        </div>
+
+        <app-student-selector-panel
+          [disabled]="creating"
+          [panelExpanded]="studentPanelExpanded"
+          [filterExpanded]="studentFilterExpanded"
+          [columnPanelExpanded]="createStudentColumnPanelExpanded"
+          [studentsLoading]="studentsLoading"
+          [studentsError]="studentsError"
+          [selectedCount]="selectedCreateStudentCount"
+          [filteredStudents]="filteredCreateStudentOptions"
+          [selectedStudents]="selectedCreateStudentOptions"
+          [countryFilterOptions]="countryFilterOptions"
+          [provinceFilterOptions]="provinceFilterOptions"
+          [cityFilterOptions]="cityFilterOptions"
+          [schoolBoardFilterOptions]="schoolBoardFilterOptions"
+          [graduationSeasonFilterOptions]="graduationSeasonFilterOptions"
+          [countryFilterInput]="createCountryFilterInput"
+          [provinceFilterInput]="createProvinceFilterInput"
+          [cityFilterInput]="createCityFilterInput"
+          [schoolBoardFilterInput]="createSchoolBoardFilterInput"
+          [graduationSeasonFilterInput]="createGraduationSeasonFilterInput"
+          [languageScoreFilter]="createLanguageScoreFilter"
+          [languageTrackingFilter]="createLanguageTrackingFilter"
+          [languageCourseStatusFilter]="createLanguageCourseStatusFilter"
+          [ossltResultFilter]="createOssltResultFilter"
+          [ossltTrackingFilter]="createOssltTrackingFilter"
+          [languageScoreFilterOptions]="languageScoreFilterOptions"
+          [languageTrackingFilterOptions]="languageTrackingFilterOptions"
+          [languageCourseStatusFilterOptions]="languageCourseStatusFilterOptions"
+          [ossltResultFilterOptions]="ossltResultFilterOptions"
+          [ossltTrackingFilterOptions]="ossltTrackingFilterOptions"
+          [volunteerCompletedFilter]="createVolunteerCompletedFilter"
+          [filterFields]="createStudentFilterFields"
+          [studentKeyword]="createStudentKeyword"
+          [visibleColumns]="visibleCreateStudentColumns"
+          [columnToggleOptions]="createStudentColumnToggleOptions"
+          [isAllVisibleSelected]="areAllVisibleStudentsSelected()"
+          [isVisibleSelectionPartial]="isVisibleStudentSelectionPartial()"
+          [isColumnSelectionAtDefault]="isCreateStudentColumnSelectionAtDefault()"
+          [isStudentSelected]="isCreateStudentSelectedRef"
+          [isStudentOutOfCurrentFilter]="isSelectedStudentOutOfCurrentFilterRef"
+          [isStudentSelectable]="isCreateStudentSelectableRowRef"
+          [isColumnVisible]="isCreateStudentColumnVisibleRef"
+          [resolveColumnValue]="resolveCreateStudentColumnValueRef"
+          [detailTeacherNote]="detailTeacherNoteRef"
+          [isTeacherNoteSaving]="isTeacherNoteSavingRef"
+          (panelToggle)="toggleStudentPanel()"
+          (filterPanelToggle)="toggleStudentFilterPanel()"
+          (columnPanelToggle)="toggleCreateStudentColumnPanel()"
+          (refreshStudents)="refreshAssignableStudents()"
+          (resetFilters)="resetStudentMetaFilters()"
+          (resetColumns)="resetCreateStudentVisibleColumns()"
+          (clearSelected)="clearSelectedStudents()"
+          (countryFilterInputChange)="onCountryFilterInputChange($event)"
+          (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
+          (cityFilterInputChange)="onCityFilterInputChange($event)"
+          (schoolBoardFilterInputChange)="onSchoolBoardFilterInputChange($event)"
+          (graduationSeasonFilterInputChange)="onGraduationSeasonFilterInputChange($event)"
+          (languageScoreFilterChange)="onLanguageScoreFilterChange($event)"
+          (languageTrackingFilterChange)="onLanguageTrackingFilterChange($event)"
+          (languageCourseStatusFilterChange)="onLanguageCourseStatusFilterChange($event)"
+          (ossltResultFilterChange)="onOssltResultFilterChange($event)"
+          (ossltTrackingFilterChange)="onOssltTrackingFilterChange($event)"
+          (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
+          (studentKeywordChange)="onStudentKeywordChange($event)"
+          (selectAllToggle)="onToggleSelectAll($event)"
+          (studentSelectionChange)="onCreateStudentCheckboxChange($event.studentId, $event.checked)"
+          (columnVisibilityChange)="onCreateStudentColumnVisibilityChange($event.key, $event.checked)"
+          (columnOrderChange)="onCreateStudentColumnOrderChange($event.orderedVisibleColumnKeys)"
+          (teacherNoteFocus)="onTeacherNoteCellFocus($event)"
+          (teacherNoteChange)="onTeacherNoteCellChange($event.studentId, $event.value)"
+          (teacherNoteBlur)="onTeacherNoteCellBlur($event)"
+        ></app-student-selector-panel>
+      </section>
+
+      <section class="workspace-section tracking-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">D</span>
+            <h4>Completion Tracking</h4>
+          </div>
+          <div class="tracking-actions">
+            <button
+              type="button"
+              class="btn secondary compact"
+              (click)="markAllTrackingStudents(true)"
+              [disabled]="trackingStudents.length === 0"
+            >
+              Mark All Completed
+            </button>
+            <button
+              type="button"
+              class="btn ghost compact"
+              (click)="markAllTrackingStudents(false)"
+              [disabled]="trackingStudents.length === 0"
+            >
+              Mark All Not Completed
+            </button>
+          </div>
+        </div>
+
+        <div class="tracking-summary">
+          <div>
+            <strong>{{ completedTrackingCount }}</strong>
+            <span>Completed</span>
+          </div>
+          <div>
+            <strong>{{ pendingTrackingCount }}</strong>
+            <span>Not Completed</span>
+          </div>
+          <div>
+            <strong>{{ completionPercent }}%</strong>
+            <span>Completion Rate</span>
+          </div>
+        </div>
+
+        <div *ngIf="trackingLoading" class="state-text">Loading student statuses...</div>
+        <div *ngIf="trackingError" class="error-text">{{ trackingError }}</div>
+        <div *ngIf="!trackingLoading && trackingStudents.length === 0" class="state-text">
+          Select students to start tracking completion.
+        </div>
+
+        <div class="tracking-table" *ngIf="trackingStudents.length > 0">
+          <div class="tracking-row heading">
+            <span>Student</span>
+            <span>Student Info</span>
+            <span>Status</span>
+          </div>
+
+          <div
+            class="tracking-row"
+            *ngFor="let student of trackingStudents; trackBy: trackTrackingStudent"
+          >
+            <div class="student-name">
+              <strong>{{ student.studentName }}</strong>
+              <small *ngIf="student.email">{{ student.email }}</small>
+            </div>
+            <div class="student-meta">
+              <span *ngIf="student.username">@{{ student.username }}</span>
+              <span *ngIf="student.schoolName">{{ student.schoolName }}</span>
+              <span *ngIf="student.graduation">{{ student.graduation }}</span>
+              <span *ngIf="!student.username && !student.schoolName && !student.graduation">-</span>
+            </div>
+            <label class="completion-switch">
+              <input
+                type="checkbox"
+                [checked]="student.completed"
+                [disabled]="student.saving || autoSaveStatus === 'saving'"
+                (change)="updateTrackingStudentStatus(student, $any($event.target).checked)"
+              />
+              <span></span>
+              <strong>{{ student.completed ? 'Completed' : 'Not Completed' }}</strong>
+            </label>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div *ngIf="sendConfirmOpen" class="confirm-backdrop" role="dialog" aria-modal="true">
+    <div class="confirm-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">Confirm</span>
+          <h4>Send task update?</h4>
+        </div>
+        <button type="button" class="btn ghost compact" (click)="closeSendConfirmation()">Close</button>
+      </div>
+
+      <dl class="confirm-list">
+        <div>
+          <dt>Task name</dt>
+          <dd>{{ createTitle || 'Untitled task' }}</dd>
+        </div>
+        <div>
+          <dt>Cycle / Label</dt>
+          <dd>{{ resolveCycleSummaryText() }}</dd>
+        </div>
+        <div>
+          <dt>Recipients</dt>
+          <dd>{{ sendRecipientCount }} selected student(s)</dd>
+        </div>
+      </dl>
+
+      <p class="warning-text">
+        This action sends a notification to selected students. Confirm the audience and content before sending.
+      </p>
+
+      <label class="field">
+        <span>Type SEND to confirm</span>
+        <input [(ngModel)]="sendConfirmText" placeholder="SEND" />
+      </label>
+
+      <div class="confirm-actions">
+        <button
+          type="button"
+          class="btn primary"
+          (click)="confirmSendNotification()"
+          [disabled]="!isSendConfirmationReady || sendingNotification"
+        >
+          {{ sendingNotification ? 'Sending...' : 'Confirm Send' }}
+        </button>
+        <button type="button" class="btn ghost" (click)="closeSendConfirmation()" [disabled]="sendingNotification">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
