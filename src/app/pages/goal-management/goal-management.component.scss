@@ -273,6 +273,7 @@
   box-shadow: 0 26px 70px rgba(6, 17, 33, 0.25);
 }
 
+
 .workspace-header {
   position: sticky;
   top: 0;
@@ -350,6 +351,7 @@
 .field input,
 .field textarea,
 .field select {
+  box-sizing: border-box;
   width: 100%;
   min-height: 38px;
   border: 1px solid #cbd6e4;
@@ -360,6 +362,16 @@
   font: inherit;
   font-size: 14px;
   resize: vertical;
+}
+
+.field input,
+.field select {
+  min-height: 40px;
+}
+
+.field textarea {
+  min-height: 104px;
+  line-height: 1.45;
 }
 
 .compact-field {

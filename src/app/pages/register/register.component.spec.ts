@@ -46,6 +46,8 @@ describe('RegisterComponent', () => {
     component.username = 'alice';
     component.password = 'weak';
     component.confirmPassword = 'weak';
+    component.firstName = 'Alice';
+    component.lastName = 'Zhang';
 
     component.submit();
 
@@ -60,6 +62,8 @@ describe('RegisterComponent', () => {
     component.username = 'alice';
     component.password = 'Aa1!goodPass';
     component.confirmPassword = 'Aa1!different';
+    component.firstName = 'Alice';
+    component.lastName = 'Zhang';
 
     component.submit();
 
@@ -126,6 +130,8 @@ describe('RegisterComponent', () => {
     component.username = 'bob';
     component.password = 'Aa1!goodPass';
     component.confirmPassword = 'Aa1!goodPass';
+    component.firstName = 'Bob';
+    component.lastName = 'Chen';
 
     component.submit();
 
@@ -133,8 +139,23 @@ describe('RegisterComponent', () => {
     expect(auth.register).toHaveBeenCalledWith(
       expect.objectContaining({
         inviteToken: 'invite-abc',
+        firstName: 'Bob',
+        lastName: 'Chen',
       })
     );
+  });
+
+  it('should reject when student first or last name is missing', () => {
+    component.username = 'alice';
+    component.password = 'Aa1!goodPass';
+    component.confirmPassword = 'Aa1!goodPass';
+    component.firstName = 'Alice';
+    component.lastName = '';
+
+    component.submit();
+
+    expect(component.error).toEqual(component.ui.studentNameRequired);
+    expect(auth.register).not.toHaveBeenCalled();
   });
 
   it('should block submit when invite token is missing', () => {

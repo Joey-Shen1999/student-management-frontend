@@ -6,15 +6,35 @@ import type {
   StudentSelectorFilterFieldKey,
   VolunteerCompletedFilterValue,
 } from '../student-fields/student-field-presets';
+import { TranslatePipe } from '../i18n/translate.pipe';
+import { LocalizedText, uiText } from '../i18n/ui-translations';
 
 @Component({
   selector: 'app-student-filter-fields',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './student-filter-fields.component.html',
   styleUrl: './student-filter-fields.component.scss',
 })
 export class StudentFilterFieldsComponent {
+  readonly ui = {
+    country: uiText('国家', 'Country'),
+    province: uiText('省份', 'Province'),
+    city: uiText('城市', 'City'),
+    schoolBoard: uiText('所属教育局', 'School Board'),
+    all: uiText('全部', 'All'),
+    any: uiText('全部', 'Any'),
+    languageScore: uiText('语言成绩', 'Language Scores'),
+    languageTracking: uiText('语言成绩跟踪', 'Language Score Tracking'),
+    languageCourseStatus: uiText('语言报课情况', 'Language Course Status'),
+    ossltResult: uiText('OSSLT 成绩', 'OSSLT Result'),
+    ossltTracking: uiText('OSSLT 跟进状态', 'OSSLT Tracking Status'),
+    courseCode: uiText('课程代码', 'Course Code'),
+    status: uiText('状态', 'Status'),
+    volunteerCompleted: uiText('义工完成', 'Volunteer Completed'),
+    completed: uiText('已完成', 'Completed'),
+    notCompleted: uiText('未完成', 'Not Completed'),
+  };
   readonly allFilterFields: readonly StudentSelectorFilterFieldKey[] = [
     'country',
     'province',
@@ -77,7 +97,7 @@ export class StudentFilterFieldsComponent {
   @Input() cityFilterInput = '';
   @Input() schoolBoardFilterInput = '';
   @Input() graduationSeasonFilterInput = '';
-  @Input() graduationSeasonLabel = '\u6bd5\u4e1a\u5b63';
+  @Input() graduationSeasonLabel: string | LocalizedText = uiText('毕业季', 'Graduation Season');
   @Input() languageScoreFilter = '';
   @Input() languageTrackingFilter = '';
   @Input() languageCourseStatusFilter = '';
@@ -96,9 +116,12 @@ export class StudentFilterFieldsComponent {
   @Input() courseStatusFilterOptions: readonly string[] = this.defaultCourseStatusFilterOptions;
   @Input() volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
   @Input() volunteerCompletedDisabled = false;
-  @Input() volunteerCompletedTitle: string | null = null;
+  @Input() volunteerCompletedTitle: string | LocalizedText | null = null;
   @Input() studentKeyword = '';
-  @Input() keywordPlaceholder = 'Search by ID, name, email, phone, school';
+  @Input() keywordPlaceholder: string | LocalizedText = uiText(
+    '按 ID、姓名、邮箱、电话、学校搜索',
+    'Search by ID, name, email, phone, school'
+  );
 
   @Output() countryFilterInputChange = new EventEmitter<string>();
   @Output() provinceFilterInputChange = new EventEmitter<string>();
@@ -147,56 +170,56 @@ export class StudentFilterFieldsComponent {
     this.courseStatusFilterChange.emit(String(value ?? '').trim());
   }
 
-  resolveLanguageScoreFilterOptionLabel(value: string): string {
+  resolveLanguageScoreFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'GREEN_STRICT_PASS') return '\u5df2\u8fbe\u6807';
-    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return '\u57fa\u672c\u8fbe\u6807';
-    if (normalized === 'YELLOW_NEEDS_PREPARATION') return '\u9700\u63d0\u5347';
-    if (normalized === 'NO_REQUIREMENT') return '\u65e0\u9700\u8981\u6c42';
+    if (normalized === 'GREEN_STRICT_PASS') return uiText('已达标', 'Meets Requirement');
+    if (normalized === 'GREEN_COMMON_PASS_WITH_WARNING') return uiText('基本达标', 'Mostly Meets Requirement');
+    if (normalized === 'YELLOW_NEEDS_PREPARATION') return uiText('需提升', 'Needs Improvement');
+    if (normalized === 'NO_REQUIREMENT') return uiText('无需要求', 'No Requirement');
     return String(value ?? '').trim() || '-';
   }
 
-  resolveLanguageTrackingFilterOptionLabel(value: string): string {
+  resolveLanguageTrackingFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'TEACHER_REVIEW_APPROVED') return '\u6559\u5e08\u5df2\u786e\u8ba4';
-    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return '\u5168\u90e8\u5b66\u6821\u8fbe\u6807';
-    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return '\u90e8\u5206\u5b66\u6821\u8fbe\u6807';
-    if (normalized === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
+    if (normalized === 'TEACHER_REVIEW_APPROVED') return uiText('教师已确认', 'Teacher Confirmed');
+    if (normalized === 'AUTO_PASS_ALL_SCHOOLS') return uiText('全部学校达标', 'Meets All School Requirements');
+    if (normalized === 'AUTO_PASS_PARTIAL_SCHOOLS') return uiText('部分学校达标', 'Meets Some School Requirements');
+    if (normalized === 'NEEDS_TRACKING') return uiText('需要跟进', 'Needs Tracking');
     return String(value ?? '').trim() || '-';
   }
 
-  resolveLanguageCourseStatusFilterOptionLabel(value: string): string {
+  resolveLanguageCourseStatusFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'NOT_RECEIVED_TRAINING') return '\u672a\u63a5\u6536\u57f9\u8bad';
-    if (normalized === 'ENROLLED_GLOBAL_IELTS') return '\u5df2\u62a5\u540d\u73af\u7403\u96c5\u601d\u8bfe\u7a0b';
-    if (normalized === 'ENROLLED_OTHER_IELTS') return '\u5df2\u62a5\u540d\u5176\u4ed6\u673a\u6784\u96c5\u601d\u8bfe\u7a0b';
-    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED') return '\u5df2\u7ed3\u8bfe\uff0c\u672a\u8003\u8bd5';
-    if (normalized === 'EXAM_REGISTERED') return '\u5df2\u62a5\u540d\u8003\u8bd5';
-    if (normalized === 'SCORE_RELEASED') return '\u5df2\u51fa\u5206';
+    if (normalized === 'NOT_RECEIVED_TRAINING') return uiText('未接受培训', 'No Training Yet');
+    if (normalized === 'ENROLLED_GLOBAL_IELTS') return uiText('已报名环球雅思课程', 'Enrolled in Global IELTS');
+    if (normalized === 'ENROLLED_OTHER_IELTS') return uiText('已报名其他机构雅思课程', 'Enrolled in Other IELTS Course');
+    if (normalized === 'COURSE_COMPLETED_NOT_EXAMINED') return uiText('已结课，未考试', 'Course Complete, Exam Pending');
+    if (normalized === 'EXAM_REGISTERED') return uiText('已报名考试', 'Exam Registered');
+    if (normalized === 'SCORE_RELEASED') return uiText('已出分', 'Score Released');
     return String(value ?? '').trim() || '-';
   }
 
-  resolveOssltResultFilterOptionLabel(value: string): string {
+  resolveOssltResultFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'PASS') return '\u5df2\u901a\u8fc7';
-    if (normalized === 'FAIL') return '\u672a\u901a\u8fc7';
-    if (normalized === 'UNKNOWN') return '\u5f85\u66f4\u65b0';
+    if (normalized === 'PASS') return uiText('已通过', 'Passed');
+    if (normalized === 'FAIL') return uiText('未通过', 'Failed');
+    if (normalized === 'UNKNOWN') return uiText('待更新', 'Pending Update');
     return String(value ?? '').trim() || '-';
   }
 
-  resolveOssltTrackingFilterOptionLabel(value: string): string {
+  resolveOssltTrackingFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'PASSED') return '\u5df2\u901a\u8fc7';
-    if (normalized === 'NEEDS_TRACKING') return '\u9700\u8981\u8ddf\u8fdb';
-    if (normalized === 'WAITING_UPDATE') return '\u7b49\u5f85\u66f4\u65b0';
+    if (normalized === 'PASSED') return uiText('已通过', 'Passed');
+    if (normalized === 'NEEDS_TRACKING') return uiText('需要跟进', 'Needs Tracking');
+    if (normalized === 'WAITING_UPDATE') return uiText('等待更新', 'Waiting for Update');
     return String(value ?? '').trim() || '-';
   }
 
-  resolveCourseStatusFilterOptionLabel(value: string): string {
+  resolveCourseStatusFilterOptionLabel(value: string): string | LocalizedText {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (normalized === 'COMPLETED') return 'Done / \u5df2\u5b8c\u6210';
-    if (normalized === 'IN_PROGRESS') return 'Taking / \u5728\u8bfb';
-    if (normalized === 'PLANNED') return 'Planning / \u8ba1\u5212\u4e2d';
+    if (normalized === 'COMPLETED') return uiText('已完成', 'Done');
+    if (normalized === 'IN_PROGRESS') return uiText('在读', 'Taking');
+    if (normalized === 'PLANNED') return uiText('计划中', 'Planning');
     return String(value ?? '').trim() || '-';
   }
 

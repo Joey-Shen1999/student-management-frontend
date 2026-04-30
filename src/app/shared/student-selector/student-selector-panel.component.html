@@ -5,7 +5,7 @@
     (click)="panelToggle.emit()"
     [attr.aria-expanded]="panelExpanded"
   >
-    <span>选择学生（已选 {{ selectedCount }} 人）</span>
+    <span>{{ selectStudentsTitle(selectedCount) | appTranslate }}</span>
     <span class="toggle-symbol">toggle</span>
   </button>
 </div>
@@ -19,7 +19,7 @@
       [attr.aria-expanded]="filterExpanded"
       [disabled]="studentsLoading || disabled"
     >
-      <span>{{ filterExpanded ? '收起筛选' : '展开筛选' }}</span>
+      <span>{{ (filterExpanded ? ui.collapseFilters : ui.expandFilters) | appTranslate }}</span>
       <span class="toggle-symbol">toggle</span>
     </button>
 
@@ -28,7 +28,7 @@
       (click)="refreshStudents.emit()"
       [disabled]="studentsLoading || disabled"
     >
-      {{ studentsLoading ? '加载学生中...' : '刷新学生列表' }}
+      {{ (studentsLoading ? ui.loadingStudents : ui.refreshStudents) | appTranslate }}
     </button>
 
     <div class="student-filter-item student-filter-fields-wrap">
@@ -58,7 +58,7 @@
         [ossltTrackingFilterOptions]="ossltTrackingFilterOptions"
         [volunteerCompletedFilter]="volunteerCompletedFilter"
         [studentKeyword]="studentKeyword"
-        [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、学校等搜索'"
+        [keywordPlaceholder]="ui.studentSearchPlaceholder"
         (countryFilterInputChange)="countryFilterInputChange.emit($event)"
         (provinceFilterInputChange)="provinceFilterInputChange.emit($event)"
         (cityFilterInputChange)="cityFilterInputChange.emit($event)"
@@ -80,7 +80,7 @@
       (click)="resetFilters.emit()"
       [disabled]="studentsLoading || disabled"
     >
-      重置筛选
+      {{ ui.resetFilters | appTranslate }}
     </button>
 
     <label class="select-all-label">
@@ -91,7 +91,7 @@
         [disabled]="studentsLoading || disabled || filteredStudents.length === 0"
         (change)="onSelectAllChange($event)"
       />
-      全选
+      {{ ui.selectAll | appTranslate }}
     </label>
 
     <button
@@ -99,7 +99,7 @@
       (click)="columnPanelToggle.emit()"
       [disabled]="studentsLoading || disabled"
     >
-      {{ columnPanelExpanded ? '收起字段' : '字段显示' }}
+      {{ (columnPanelExpanded ? ui.collapseColumns : ui.columnDisplay) | appTranslate }}
     </button>
 
     <button
@@ -107,17 +107,17 @@
       (click)="resetColumns.emit()"
       [disabled]="studentsLoading || disabled || isColumnSelectionAtDefault"
     >
-      恢复默认字段
+      {{ ui.restoreDefaultColumns | appTranslate }}
     </button>
 
-    <span class="selected-count">已选 {{ selectedCount }} 人</span>
+    <span class="selected-count">{{ selectedCountText(selectedCount) | appTranslate }}</span>
   </div>
 
   <div *ngIf="columnPanelExpanded" class="student-column-panel">
     <label
       *ngFor="let column of columnToggleOptions; trackBy: trackColumn"
       class="student-column-chip"
-      [title]="column.backendDependent ? '可能依赖学生详情接口字段' : ''"
+      [title]="column.backendDependent ? (ui.backendDependentTitle | appTranslate) : ''"
     >
       <input
         type="checkbox"
@@ -125,8 +125,8 @@
         (change)="onColumnVisibilityChange(column.key, $event)"
         [disabled]="studentsLoading || disabled || !column.hideable"
       />
-      <span>{{ column.label }}</span>
-      <small *ngIf="!column.hideable">必选</small>
+      <span>{{ columnLabel(column) | appTranslate }}</span>
+      <small *ngIf="!column.hideable">{{ ui.required | appTranslate }}</small>
     </label>
   </div>
 
@@ -135,13 +135,13 @@
     class="selected-students-panel"
   >
     <div class="selected-students-head">
-      <strong>已选学生（{{ selectedCount }}）</strong>
+      <strong>{{ selectedStudentsText(selectedCount) | appTranslate }}</strong>
       <button
         type="button"
         (click)="clearSelected.emit()"
         [disabled]="disabled"
       >
-        清空已选
+        {{ ui.clearSelected | appTranslate }}
       </button>
     </div>
 
@@ -149,7 +149,7 @@
       <table class="student-table selected-student-table">
         <thead>
           <tr>
-            <th class="select-col">选择</th>
+            <th class="select-col">{{ ui.select | appTranslate }}</th>
             <th
               *ngFor="let column of visibleColumns; trackBy: trackColumn"
               class="draggable-column-header"
@@ -160,7 +160,7 @@
               (drop)="onColumnHeaderDrop(column.key, $event)"
               (dragend)="onColumnHeaderDragEnd()"
             >
-              {{ column.label }}
+              {{ columnLabel(column) | appTranslate }}
             </th>
           </tr>
         </thead>
@@ -188,7 +188,7 @@
                       *ngIf="isStudentOutOfCurrentFilter(student)"
                       class="filter-badge"
                     >
-                      未命中当前筛选
+                      {{ ui.outOfCurrentFilter | appTranslate }}
                     </span>
                   </div>
                 </ng-container>
@@ -203,7 +203,7 @@
                       (blur)="teacherNoteBlur.emit(student.studentId)"
                       rows="1"
                       [disabled]="disabled || isTeacherNoteSaving(student.studentId)"
-                      placeholder="输入教师内部备注"
+                      [placeholder]="ui.teacherNotePlaceholder | appTranslate"
                     ></textarea>
                   </div>
                 </ng-container>
@@ -219,15 +219,15 @@
     </div>
   </section>
 
-  <div *ngIf="studentsError" class="error-text">{{ studentsError }}</div>
-  <div *ngIf="studentsLoading" class="state-text">正在加载可选学生...</div>
-  <div class="list-section-title">筛选结果（{{ filteredStudents.length }}）</div>
+  <div *ngIf="studentsError" class="error-text">{{ studentsError | appTranslate }}</div>
+  <div *ngIf="studentsLoading" class="state-text">{{ ui.loadingSelectableStudents | appTranslate }}</div>
+  <div class="list-section-title">{{ filterResultsText(filteredStudents.length) | appTranslate }}</div>
 
   <div
     *ngIf="!studentsLoading && !studentsError && filteredStudents.length === 0"
     class="state-text"
   >
-    没有符合筛选条件的学生。
+    {{ ui.noMatchingStudents | appTranslate }}
   </div>
 
   <div
@@ -237,7 +237,7 @@
     <table class="student-table">
       <thead>
         <tr>
-          <th class="select-col">选择</th>
+          <th class="select-col">{{ ui.select | appTranslate }}</th>
           <th
             *ngFor="let column of visibleColumns; trackBy: trackColumn"
             class="draggable-column-header"
@@ -248,7 +248,7 @@
             (drop)="onColumnHeaderDrop(column.key, $event)"
             (dragend)="onColumnHeaderDragEnd()"
           >
-            {{ column.label }}
+            {{ columnLabel(column) | appTranslate }}
           </th>
         </tr>
       </thead>
@@ -279,7 +279,7 @@
                     (blur)="teacherNoteBlur.emit(student.studentId)"
                     rows="1"
                     [disabled]="disabled || isTeacherNoteSaving(student.studentId)"
-                    placeholder="输入教师内部备注"
+                    [placeholder]="ui.teacherNotePlaceholder | appTranslate"
                   ></textarea>
                 </div>
               </ng-container>

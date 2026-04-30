@@ -1,1 +1,141 @@
 /* You can add global styles to this file, and also import other style files */
+
+.task-card-chips,
+.task-card-actions,
+.selected-chip-list,
+.student-selector-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-card-chips,
+.task-card-actions,
+.student-selector-modal-header {
+  justify-content: space-between;
+}
+
+.notification-chip,
+.notification-pill,
+.selected-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid #d7e2ef;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #eef2f6;
+  color: #53647a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.notification-chip.sent {
+  background: #e6f5ec;
+  color: #1f6b3d;
+}
+
+.btn.danger {
+  border-color: #d8b7b3;
+  background: #fff4f2;
+  color: #9d2b1f;
+}
+
+.student-selector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  padding: 20px 12px;
+  background: rgba(13, 20, 32, 0.45);
+}
+
+.student-selector-modal {
+  width: min(1160px, 100%);
+  max-height: calc(100vh - 40px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(6, 17, 33, 0.27);
+}
+
+.student-selector-modal app-student-selector-panel {
+  min-height: 0;
+  overflow: auto;
+}
+
+.student-selector-modal-header {
+  border-bottom: 1px solid #dce4ef;
+  padding-bottom: 10px;
+}
+
+.student-selector-modal-header h4 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+
+.selected-students-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+}
+
+.selected-students-summary div,
+.tracking-collapsible {
+  display: grid;
+  gap: 12px;
+}
+
+.selected-students-summary div {
+  gap: 2px;
+}
+
+.selected-students-summary span {
+  color: #66768b;
+  font-size: 13px;
+}
+
+.selected-chip {
+  max-width: 220px;
+  background: #fff;
+  color: #33445a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selected-chip.muted {
+  background: #f1f4f7;
+  color: #64758a;
+}
+
+.warning-text.danger,
+.danger-panel {
+  border-color: #e7bbb5;
+}
+
+.warning-text.danger {
+  background: #fff4f2;
+  color: #8f2b1d;
+}
+
+@media (max-width: 920px) {
+  .selected-students-summary,
+  .student-selector-modal-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

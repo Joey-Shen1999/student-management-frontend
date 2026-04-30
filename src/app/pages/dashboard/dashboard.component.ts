@@ -6,7 +6,6 @@ import { finalize, timeout } from 'rxjs/operators';
 import { AuthService, type LoginResponse } from '../../services/auth.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import {
-  type InfoTaskCategory,
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
@@ -47,24 +46,6 @@ import {
           </div>
 
           <div class="info-filters">
-            <select
-              [disabled]="infoLoading"
-              [value]="infoCategoryFilter"
-              (change)="onInfoCategoryChange($any($event.target).value)"
-            >
-              <option value="ALL">全部分类</option>
-              <option value="ACTIVITY">活动</option>
-              <option value="VOLUNTEER">义工</option>
-            </select>
-
-            <input
-              type="search"
-              [disabled]="infoLoading"
-              [value]="infoTagFilter"
-              placeholder="按标签过滤（例如 志愿）"
-              (input)="onInfoTagInput($any($event.target).value)"
-            />
-
             <button
               type="button"
               class="action-btn ghost compact"
@@ -75,7 +56,7 @@ import {
             </button>
           </div>
 
-          <div *ngIf="infoLoading" class="state-text">正在加载信息...</div>
+          <div *ngIf="infoLoading" class="state-text">正在加载通知...</div>
 
           <div *ngIf="!infoLoading && infoError" class="error-banner">
             <span>{{ infoError }}</span>
@@ -83,28 +64,20 @@ import {
           </div>
 
           <div *ngIf="!infoLoading && !infoError && infoItems.length === 0" class="state-text">
-            当前没有符合筛选条件的信息。
+            当前没有通知。
           </div>
 
           <div *ngIf="!infoLoading && !infoError && infoItems.length > 0" class="info-list">
             <article class="info-item" *ngFor="let info of infoItems; trackBy: trackInfo">
               <div class="info-head">
                 <h4>{{ info.title }}</h4>
-                <span [class]="'info-badge ' + info.category.toLowerCase()">
-                  {{ infoCategoryLabel(info.category) }}
-                </span>
               </div>
 
               <p class="info-content">{{ info.content }}</p>
 
-              <div class="info-tags" *ngIf="info.tags.length > 0">
-                <span class="info-tag" *ngFor="let tag of info.tags">#{{ tag }}</span>
-              </div>
-
               <div class="info-meta">
                 <span>发布时间：{{ displayUpdatedAt(info.createdAt) }}</span>
                 <span>发布老师：{{ info.publishedByTeacherName }}</span>
-                <span>覆盖学生：{{ info.targetStudentCount }}</span>
               </div>
 
               <div class="info-actions">
@@ -160,8 +133,6 @@ export class DashboardComponent implements OnInit {
   infoError = '';
   infoItems: InfoTaskVm[] = [];
   infoUpdatingId: number | null = null;
-  infoCategoryFilter: InfoTaskCategory | 'ALL' = 'ALL';
-  infoTagFilter = '';
   infoUnreadOnly = false;
   signingOut = false;
   welcomeNameOverride = '';
@@ -258,20 +229,6 @@ export class DashboardComponent implements OnInit {
     this.loadInfos();
   }
 
-  onInfoCategoryChange(value: string): void {
-    const normalized = String(value || '').trim().toUpperCase();
-    this.infoCategoryFilter =
-      normalized === 'ACTIVITY' || normalized === 'VOLUNTEER'
-        ? (normalized as InfoTaskCategory)
-        : 'ALL';
-    this.loadInfos();
-  }
-
-  onInfoTagInput(value: string): void {
-    this.infoTagFilter = String(value || '');
-    this.loadInfos();
-  }
-
   toggleUnreadOnly(): void {
     this.infoUnreadOnly = !this.infoUnreadOnly;
     this.loadInfos();
@@ -305,10 +262,6 @@ export class DashboardComponent implements OnInit {
   }
 
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
-
-  infoCategoryLabel(category: InfoTaskCategory): string {
-    return category === 'VOLUNTEER' ? '义工' : '活动';
-  }
 
   displayUpdatedAt(value: string): string {
     const timestamp = Date.parse(value);
@@ -345,8 +298,8 @@ export class DashboardComponent implements OnInit {
 
     this.taskCenter
       .listMyInfos({
-        category: this.infoCategoryFilter,
-        tag: this.infoTagFilter,
+        category: 'ALL',
+        tag: '',
         unreadOnly: this.infoUnreadOnly,
         page: 1,
         size: 10,

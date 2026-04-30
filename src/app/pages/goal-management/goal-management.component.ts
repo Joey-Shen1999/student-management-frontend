@@ -16,6 +16,7 @@ import {
   type TaskCycleUnit,
   TaskCenterService,
 } from '../../services/task-center.service';
+import { AppLanguageService } from '../../services/app-language.service';
 import { AuthService } from '../../services/auth.service';
 import { type StudentAccount, StudentManagementService } from '../../services/student-management.service';
 import {
@@ -52,6 +53,8 @@ import {
   type ProvinceFilterCountry,
 } from '../../shared/student-location/student-location-options';
 import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 interface StudentDetailVm {
   email: string;
@@ -92,6 +95,7 @@ interface GoalGroupRowVm {
 }
 
 type TrackingSaveStatus = 'idle' | 'saving' | 'saved' | 'failed';
+type UiMessage = string | LocalizedText;
 
 interface TaskCycleDraftVm {
   cycleType: TaskCycleType;
@@ -99,6 +103,12 @@ interface TaskCycleDraftVm {
   customInterval: number;
   customUnit: TaskCycleUnit;
   label: string;
+}
+
+interface TaskNotificationMetaVm {
+  sentAt: string;
+  infoId: number | null;
+  recipientCount: number;
 }
 
 interface TrackingStudentVm {
@@ -167,16 +177,190 @@ const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
 const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v4';
 const TASK_CYCLE_META_STORAGE_KEY_PREFIX = 'goal-management.task-cycle-meta';
 const TASK_CYCLE_META_STORAGE_VERSION = 'v1';
+const TASK_NOTIFICATION_META_STORAGE_KEY_PREFIX = 'goal-management.task-notification-meta';
+const TASK_NOTIFICATION_META_STORAGE_VERSION = 'v1';
 const TRACKING_AUTO_SAVE_DELAY_MS = 850;
 
 @Component({
   selector: 'app-goal-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, StudentSelectorPanelComponent],
+  imports: [CommonModule, FormsModule, RouterModule, StudentSelectorPanelComponent, TranslatePipe],
   templateUrl: './goal-management.component.html',
   styleUrl: './goal-management.component.scss',
 })
 export class GoalManagementComponent implements OnInit, OnDestroy {
+  readonly ui = {
+    teacherTaskTracking: uiText('老师端完成记录', 'Teacher Completion Tracking'),
+    taskCompletionWorkspace: uiText('任务完成记录工作台', 'Task Completion Workspace'),
+    pageSubtitle: uiText(
+      '记录学生是否完成教学活动。任务不会作为学生作业显示。',
+      'Record whether selected students completed a teaching activity. Tasks are not shown as student assignments.'
+    ),
+    back: uiText('返回', 'Back'),
+    trackingTasks: uiText('记录任务', 'Tracking Tasks'),
+    newTrackingTask: uiText('新建记录任务', 'New Tracking Task'),
+    teacherTaskRecords: uiText('老师端记录任务', 'Teacher Tracking Records'),
+    listDescription: uiText(
+      '打开记录任务，更新学生名单和完成状态。',
+      'Open a tracking task to update students and completion status.'
+    ),
+    allStudents: uiText('全部学生', 'All Students'),
+    allStatus: uiText('全部状态', 'All Status'),
+    completed: uiText('已完成', 'Completed'),
+    notCompleted: uiText('未完成', 'Not Completed'),
+    partiallyCompleted: uiText('部分完成', 'Partially Completed'),
+    searchPlaceholder: uiText('搜索记录任务名称或说明', 'Search tracking task name or description'),
+    search: uiText('搜索', 'Search'),
+    reset: uiText('重置', 'Reset'),
+    loadingTasks: uiText('正在加载记录任务...', 'Loading tracking tasks...'),
+    noTrackingTasks: uiText('还没有记录任务。', 'No tracking tasks yet.'),
+    openWorkspace: uiText('打开工作台', 'Open Workspace'),
+    delete: uiText('删除', 'Delete'),
+    updateTask: uiText('更新记录任务', 'Update Tracking Task'),
+    createTask: uiText('创建记录任务', 'Create Tracking Task'),
+    untitledTrackingTask: uiText('未命名记录任务', 'Untitled tracking task'),
+    newTrackingTaskTitle: uiText('新的记录任务', 'New tracking task'),
+    retry: uiText('重试', 'Retry'),
+    sendNotice: uiText('发送通知', 'Send Notice'),
+    newPeriodInstance: uiText('新建周期实例', 'New Period Instance'),
+    deleteTask: uiText('删除记录任务', 'Delete Tracking Task'),
+    creating: uiText('创建中...', 'Creating...'),
+    close: uiText('关闭', 'Close'),
+    saving: uiText('保存中...', 'Saving...'),
+    allChangesSaved: uiText('已自动保存', 'All changes saved'),
+    saveFailed: uiText('保存失败', 'Save failed'),
+    readyToCreate: uiText('准备创建', 'Ready to create'),
+    sent: uiText('已发送', 'Sent'),
+    pending: uiText('未发送', 'Pending'),
+    pendingSend: uiText('待发送', 'Pending send'),
+    basicInfo: uiText('记录任务基本信息', 'Tracking Task Details'),
+    taskName: uiText('记录任务名称', 'Tracking Task Name'),
+    taskNamePlaceholder: uiText('每日词汇检查', 'Daily vocabulary check'),
+    description: uiText('记录说明', 'Description'),
+    descriptionPlaceholder: uiText(
+      '说明老师要记录的学习活动',
+      'Describe the learning activity the teacher is tracking'
+    ),
+    startDate: uiText('开始日期', 'Start Date'),
+    cyclePeriod: uiText('周期 / 阶段', 'Cycle / Period'),
+    oneTime: uiText('一次性', 'One-time'),
+    routine: uiText('重复记录', 'Routine'),
+    frequency: uiText('频率', 'Frequency'),
+    daily: uiText('每天', 'Daily'),
+    weekly: uiText('每周', 'Weekly'),
+    custom: uiText('自定义', 'Custom'),
+    every: uiText('每', 'Every'),
+    unit: uiText('单位', 'Unit'),
+    days: uiText('天', 'Days'),
+    weeks: uiText('周', 'Weeks'),
+    label: uiText('标签', 'Label'),
+    labelPlaceholder: uiText('Week 1、Daily Practice、Midterm Review', 'Week 1, Daily Practice, Midterm Review'),
+    cycleHelper: uiText(
+      '周期只是用于表达教学节奏和后续筛选，不会自动生成记录任务。',
+      'Cycle is a reporting dimension for teaching rhythm and filtering. It does not auto-generate tracking tasks.'
+    ),
+    selectedStudents: uiText('已选择学生', 'Selected Students'),
+    noStudentsSelected: uiText('还没有选择学生。', 'No students selected yet.'),
+    manageStudents: uiText('管理学生', 'Manage Students'),
+    studentSelector: uiText('学生选择器', 'Student Selector'),
+    chooseStudentsToTrack: uiText('选择要记录的学生', 'Choose students to track'),
+    done: uiText('完成', 'Done'),
+    completionTracking: uiText('完成状态记录', 'Completion Tracking'),
+    markAllCompleted: uiText('全部标记为已完成', 'Mark All Completed'),
+    markAllNotCompleted: uiText('全部标记为未完成', 'Mark All Not Completed'),
+    collapse: uiText('收起', 'Collapse'),
+    expand: uiText('展开', 'Expand'),
+    completionRate: uiText('完成率', 'Completion Rate'),
+    loadingStatuses: uiText('正在加载学生完成状态...', 'Loading student statuses...'),
+    selectStudentsToStart: uiText(
+      '请选择学生后开始记录完成状态。',
+      'Select students to start tracking completion.'
+    ),
+    student: uiText('学生', 'Student'),
+    studentInfo: uiText('学生信息', 'Student Info'),
+    status: uiText('状态', 'Status'),
+    confirm: uiText('确认', 'Confirm'),
+    sendTaskUpdate: uiText('发送记录通知？', 'Send tracking notice?'),
+    untitledTask: uiText('未命名记录任务', 'Untitled tracking task'),
+    cycleLabel: uiText('周期 / 标签', 'Cycle / Label'),
+    recipients: uiText('接收人', 'Recipients'),
+    sendWarning: uiText(
+      '此操作会向选中的学生发送通知。发送前请确认对象和内容。',
+      'This sends a notice to the selected students. Confirm the audience and content before sending.'
+    ),
+    sending: uiText('发送中...', 'Sending...'),
+    send: uiText('发送', 'Send'),
+    cancel: uiText('取消', 'Cancel'),
+    newPeriodInstanceTitle: uiText('新建周期实例', 'New Period Instance'),
+    periodInstanceHelper: uiText(
+      '这会为同一批学生手动创建另一个记录周期，不会安排或自动生成后续任务。',
+      'This manually creates another tracking period for the same students. It does not schedule or auto-generate future tracking tasks.'
+    ),
+    periodLabel: uiText('周期标签', 'Period Label'),
+    periodLabelPlaceholder: uiText('Week 2', 'Week 2'),
+    createPeriod: uiText('创建周期', 'Create Period'),
+    deleteTrackingTask: uiText('删除记录任务？', 'Delete tracking task?'),
+    task: uiText('记录任务', 'Tracking Task'),
+    students: uiText('学生', 'Students'),
+    deleteWarning: uiText(
+      '这会删除该记录任务下老师端的完成记录，不会发送任何通知。',
+      'This deletes the teacher-side completion records for this tracking task. It does not send any notice.'
+    ),
+    deleting: uiText('删除中...', 'Deleting...'),
+    noStartDate: uiText('无开始日期', 'No start date'),
+    noticeTitle: uiText('学习进度通知', 'Learning Progress Notice'),
+    noticeTag: uiText('通知', 'Notice'),
+    noticeFallbackContent: uiText(
+      '老师已更新你的学习状态，请登录学生平台查看通知。',
+      'Your teacher updated your learning status. Please sign in to view the notice.'
+    ),
+    errorSelectStudent: uiText('请至少选择 1 位学生。', 'Select at least one student.'),
+    errorTaskNameRequired: uiText('请填写记录任务名称。', 'Tracking task name is required.'),
+    errorDescriptionRequired: uiText('请填写记录说明。', 'Description is required.'),
+    errorCreateFailed: uiText('创建记录任务失败。', 'Could not create the tracking task.'),
+    errorLoadStudents: uiText('加载学生列表失败。', 'Could not load the student list.'),
+    errorLoadTasks: uiText('加载记录任务失败。', 'Could not load tracking tasks.'),
+    errorLoadStatuses: uiText(
+      '加载学生完成状态失败。',
+      'Could not load student completion statuses.'
+    ),
+    errorSaveChanges: uiText('保存修改失败。', 'Could not save changes.'),
+    errorUpdateCompletion: uiText(
+      '更新完成状态失败。',
+      'Failed to update completion status.'
+    ),
+    errorMissingTaskGroup: uiText(
+      '当前记录任务缺少 taskGroupId，无法安全操作。',
+      'This tracking task is missing taskGroupId and cannot be handled safely.'
+    ),
+    errorMissingTaskGroupEdit: uiText(
+      '当前记录任务缺少 taskGroupId，无法进入编辑模式。',
+      'This tracking task is missing taskGroupId and cannot be opened for editing.'
+    ),
+    errorDeleteFailed: uiText('删除记录任务失败。', 'Could not delete this tracking task.'),
+    errorPeriodLabelRequired: uiText(
+      '请填写新周期实例的标签。',
+      'Enter a label for the new period instance.'
+    ),
+    errorCreatePeriodNoStudent: uiText(
+      '创建新周期前，请至少选择 1 位学生。',
+      'Select at least one student before creating a new period.'
+    ),
+    errorCreatePeriodFailed: uiText(
+      '创建周期实例失败。',
+      'Could not create the period instance.'
+    ),
+    errorSendNoStudent: uiText(
+      '发送前请至少选择 1 位学生。',
+      'Select at least one student before sending.'
+    ),
+    errorSendFailed: uiText('发送通知失败。', 'Failed to send notification.'),
+    errorTimeout: uiText(
+      '请求超时，请检查后端服务或网络连接。',
+      'Request timed out. Please check the backend service or network connection.'
+    ),
+  };
+
   private readonly selectorContext = 'goal-create' as const;
   readonly createStudentColumns: readonly GoalStudentSelectorColumnConfig[] =
     buildGoalStudentSelectorColumns(
@@ -190,7 +374,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     STUDENT_SELECTOR_FILTER_FIELDS_BY_CONTEXT[this.selectorContext];
   studentOptions: AssignableStudentOptionVm[] = [];
   studentsLoading = false;
-  studentsError = '';
+  studentsError: UiMessage = '';
   private readonly studentDetails = new Map<number, StudentDetailVm>();
   private readonly studentOptionStatus = new Map<number, 'ACTIVE' | 'ARCHIVED' | ''>();
   private readonly profileLoadInFlight = new Set<number>();
@@ -250,12 +434,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   goals: GoalTaskVm[] = [];
   goalsLoading = false;
-  goalsError = '';
+  goalsError: UiMessage = '';
   filterStudentId: number | null = null;
   filterStatus: GoalTaskStatus | 'ALL' = 'ALL';
   filterKeyword = '';
 
   createPanelExpanded = false;
+  studentSelectorModalOpen = false;
   studentPanelExpanded = false;
   studentFilterExpanded = false;
   createStudentColumnPanelExpanded = false;
@@ -270,27 +455,38 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createDueAt = '';
   cycleDraft: TaskCycleDraftVm = this.createDefaultCycleDraft();
   creating = false;
-  createError = '';
-  createSuccess = '';
+  createError: UiMessage = '';
+  createSuccess: UiMessage = '';
   editingTaskGroupId: string | null = null;
 
   selectedGoalId: number | null = null;
   updatingGoalGroupKey: string | null = null;
-  updateError = '';
+  updateError: UiMessage = '';
   trackingStudents: TrackingStudentVm[] = [];
+  trackingExpanded = true;
   trackingLoading = false;
-  trackingError = '';
+  trackingError: UiMessage = '';
   autoSaveStatus: TrackingSaveStatus = 'idle';
-  autoSaveError = '';
+  autoSaveError: UiMessage = '';
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private autoSaveRequestSeq = 0;
   private suppressAutoSave = false;
   private readonly pendingCompletionByStudentId = new Map<number, boolean>();
   sendConfirmOpen = false;
-  sendConfirmText = '';
   sendingNotification = false;
-  sendError = '';
-  sendSuccess = '';
+  sendError: UiMessage = '';
+  sendSuccess: UiMessage = '';
+  deleteConfirmOpen = false;
+  deletingTaskGroup = false;
+  deleteError: UiMessage = '';
+  deleteTargetTaskGroupId = '';
+  deleteTargetTitle = '';
+  deleteTargetStudentCount = 0;
+  periodInstanceOpen = false;
+  periodInstanceLabel = '';
+  creatingPeriodInstance = false;
+  periodInstanceError: UiMessage = '';
+  periodInstanceSuccess: UiMessage = '';
 
   constructor(
     private taskCenter: TaskCenterService,
@@ -298,6 +494,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     private studentProfile: StudentProfileService,
     private auth: AuthService,
     private teacherPreferenceApi: TeacherPreferenceService,
+    private language: AppLanguageService,
     private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
@@ -385,11 +582,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return this.isEditMode && !this.creating;
   }
 
-  get saveStatusLabel(): string {
-    if (this.autoSaveStatus === 'saving') return 'Saving...';
-    if (this.autoSaveStatus === 'saved') return 'All changes saved';
-    if (this.autoSaveStatus === 'failed') return 'Save failed';
-    return this.isEditMode ? 'All changes saved' : 'Ready to create';
+  get saveStatusLabel(): LocalizedText {
+    if (this.autoSaveStatus === 'saving') return this.ui.saving;
+    if (this.autoSaveStatus === 'saved') return this.ui.allChangesSaved;
+    if (this.autoSaveStatus === 'failed') return this.ui.saveFailed;
+    return this.isEditMode ? this.ui.allChangesSaved : this.ui.readyToCreate;
   }
 
   get saveStatusClass(): string {
@@ -402,8 +599,74 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     ).length;
   }
 
-  get isSendConfirmationReady(): boolean {
-    return this.sendConfirmText.trim().toUpperCase() === 'SEND';
+  get canCreateRoutinePeriodInstance(): boolean {
+    return this.isEditMode && this.cycleDraft.cycleType === 'ROUTINE';
+  }
+
+  taskGroupCountText(count: number): LocalizedText {
+    return uiText(`${count} 个记录任务组`, `${count} tracking task group(s)`);
+  }
+
+  studentCountText(count: number): LocalizedText {
+    return uiText(`${count} 位学生`, `${count} student(s)`);
+  }
+
+  completedCountText(completed: number, total: number): LocalizedText {
+    return uiText(`${completed}/${total} 已完成`, `${completed}/${total} completed`);
+  }
+
+  selectedCountText(count: number): LocalizedText {
+    return uiText(`已选择 ${count} 位`, `${count} selected`);
+  }
+
+  selectedStudentCountText(count: number): LocalizedText {
+    return uiText(`${count} 位学生`, `${count} student(s)`);
+  }
+
+  moreStudentsText(count: number): LocalizedText {
+    return uiText(`另有 ${count} 位`, `+${count} more`);
+  }
+
+  selectedStudentLabel(student: AssignableStudentOptionVm): UiMessage {
+    return student.studentName || uiText(`学生 #${student.studentId}`, `Student #${student.studentId}`);
+  }
+
+  trackingStudentName(student: TrackingStudentVm): UiMessage {
+    const name = String(student.studentName || '').trim();
+    if (name && !/^Student #\d+$/i.test(name)) {
+      return name;
+    }
+    return uiText(`学生 #${student.studentId}`, `Student #${student.studentId}`);
+  }
+
+  recipientCountText(count: number): LocalizedText {
+    return uiText(`${count} 位已选择学生`, `${count} selected student(s)`);
+  }
+
+  trackingRecordCountText(count: number): LocalizedText {
+    return uiText(`${count} 条记录`, `${count} tracking record(s)`);
+  }
+
+  notificationSentText(count: number, id: unknown): LocalizedText {
+    return uiText(`通知已发送给 ${count} 位学生。编号 #${id}`, `Notification sent to ${count} student(s). Ref #${id}`);
+  }
+
+  createdTaskText(goalId: unknown, title: unknown): LocalizedText {
+    const suffix = `#${goalId || ''} ${title || ''}`.trim();
+    return uiText(`记录任务已创建：${suffix}`.trim(), `Tracking task created: ${suffix}`.trim());
+  }
+
+  createdTaskGroupText(count: number): LocalizedText {
+    return uiText(`已为 ${count} 位学生创建记录任务。`, `Tracking task created for ${count} student(s).`);
+  }
+
+  periodInstanceCreatedText(label: string): LocalizedText {
+    return uiText(`周期实例已创建：${label}`, `Period instance created: ${label}`);
+  }
+
+  statusCountText(status: GoalTaskStatus, completed: number, total: number): LocalizedText {
+    const base = this.goalStatusLabel(status);
+    return uiText(`${base.zh}（${completed}/${total}）`, `${base.en} (${completed}/${total} completed)`);
   }
 
   get goalGroups(): GoalGroupRowVm[] {
@@ -497,18 +760,25 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.editingTaskGroupId = null;
     this.resetCreateForm();
     this.createPanelExpanded = true;
+    this.studentSelectorModalOpen = false;
     this.autoSaveStatus = 'idle';
     this.autoSaveError = '';
     this.trackingStudents = [];
+    this.trackingExpanded = true;
     this.trackingError = '';
+    this.deleteError = '';
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
     this.closeSendConfirmation();
+    this.closeDeleteConfirmation();
+    this.closePeriodInstanceModal();
     this.suppressAutoSave = false;
   }
   openEditPanel(goal: GoalTaskVm): void {
     if (this.creating) return;
     const taskGroupId = this.resolveGoalTaskGroupId(goal);
     if (!taskGroupId) {
-      this.createError = '当前 Task 缺少 taskGroupId，无法进入编辑模式。';
+      this.createError = this.ui.errorMissingTaskGroupEdit;
       this.createSuccess = '';
       this.cdr.detectChanges();
       return;
@@ -518,6 +788,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.editingTaskGroupId = taskGroupId;
     this.selectedGoalId = goal.id;
     this.createPanelExpanded = true;
+    this.studentSelectorModalOpen = false;
     this.studentPanelExpanded = true;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
@@ -529,9 +800,15 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.cycleDraft = this.resolveCycleDraftForGoal(taskGroupId, goal);
     this.autoSaveStatus = 'saved';
     this.autoSaveError = '';
+    this.trackingExpanded = true;
     this.sendError = '';
     this.sendSuccess = '';
+    this.deleteError = '';
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
     this.closeSendConfirmation();
+    this.closeDeleteConfirmation();
+    this.closePeriodInstanceModal();
     this.selectedCreateStudentIds = new Set<number>(
       this.collectTaskGroupStudentIds(this.goals, taskGroupId, goal.assignedStudentId)
     );
@@ -562,7 +839,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (this.creating && !force) return;
     this.clearTrackingAutoSaveTimer();
     this.closeSendConfirmation();
+    this.closeDeleteConfirmation(force);
+    this.closePeriodInstanceModal(force);
     this.createPanelExpanded = false;
+    this.studentSelectorModalOpen = false;
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
@@ -571,6 +851,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.trackingError = '';
     this.autoSaveStatus = 'idle';
     this.autoSaveError = '';
+    this.deleteError = '';
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
   }
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
@@ -579,6 +862,26 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (this.createPanelExpanded) this.closeCreatePanel();
     else this.openCreatePanel();
   }
+
+  openStudentSelectorModal(): void {
+    if (this.creating) return;
+    this.studentSelectorModalOpen = true;
+    this.studentPanelExpanded = true;
+    this.loadMissingProfilesForVisibleRows();
+    this.cdr.detectChanges();
+  }
+
+  closeStudentSelectorModal(): void {
+    this.studentSelectorModalOpen = false;
+    this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
+    this.cdr.detectChanges();
+  }
+
+  onStudentSelectorBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeStudentSelectorModal();
+  }
+
   toggleStudentPanel(): void {
     this.studentPanelExpanded = !this.studentPanelExpanded;
     if (this.studentPanelExpanded) this.loadMissingProfilesForVisibleRows();
@@ -628,6 +931,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   retryAutoSave(): void {
     this.flushTrackingAutoSave(true);
+  }
+
+  toggleTrackingExpanded(): void {
+    this.trackingExpanded = !this.trackingExpanded;
   }
 
   private getOrderedCreateStudentColumns(): GoalStudentSelectorColumnConfig[] {
@@ -1123,16 +1430,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .filter((studentId) => this.isCreateStudentSelectable(studentId))
       .sort((a, b) => a - b);
     if (selectedIds.length === 0) {
-      this.studentPanelExpanded = true;
-      this.createError = '请至少选择 1 位学生。';
+      this.openStudentSelectorModal();
+      this.createError = this.ui.errorSelectStudent;
       this.createSuccess = '';
       return;
     }
 
     const title = this.createTitle.trim();
-    if (!title) { this.createError = '请填写 Task 标题。'; this.createSuccess = ''; return; }
+    if (!title) { this.createError = this.ui.errorTaskNameRequired; this.createSuccess = ''; return; }
     const description = this.createDescription.trim();
-    if (!description) { this.createError = '请填写 Task 描述。'; this.createSuccess = ''; return; }
+    if (!description) { this.createError = this.ui.errorDescriptionRequired; this.createSuccess = ''; return; }
 
     const dueAt = this.createDueAt.trim() || null;
     if (this.isEditMode) {
@@ -1177,12 +1484,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         this.autoSaveStatus = 'saved';
         this.createSuccess =
           rows.length === 1
-            ? `Task已创建：#${first?.id || ''} ${first?.title || ''}`.trim()
-            : `Task已为 ${rows.length} 位学生发布。`;
+            ? this.createdTaskText(first?.id, first?.title)
+            : this.createdTaskGroupText(rows.length);
         this.loadGoals();
       },
       error: (error: unknown) => {
-        this.createError = this.extractErrorMessage(error) || '发布 Task 失败。';
+        this.createError = this.extractErrorMessage(error) || this.ui.errorCreateFailed;
         this.cdr.detectChanges();
       },
     });
@@ -1220,10 +1527,10 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (!title || !description || selectedIds.length === 0) {
       this.autoSaveStatus = 'failed';
       this.autoSaveError = !title
-        ? 'Task name is required.'
+        ? this.ui.errorTaskNameRequired
         : !description
-          ? 'Description is required.'
-          : 'Select at least one student.';
+          ? this.ui.errorDescriptionRequired
+          : this.ui.errorSelectStudent;
       this.cdr.detectChanges();
       return;
     }
@@ -1262,7 +1569,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         error: (error: unknown) => {
           if (requestSeq !== this.autoSaveRequestSeq) return;
           this.autoSaveStatus = 'failed';
-          this.autoSaveError = this.extractErrorMessage(error) || 'Could not save changes.';
+          this.autoSaveError = this.extractErrorMessage(error) || this.ui.errorSaveChanges;
           this.cdr.detectChanges();
         },
       });
@@ -1322,7 +1629,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         },
         error: (error: unknown) => {
           this.trackingError =
-            this.extractErrorMessage(error) || 'Could not load student completion statuses.';
+            this.extractErrorMessage(error) || this.ui.errorLoadStatuses;
           this.rebuildTrackingStudentsFromSelection();
           this.cdr.detectChanges();
         },
@@ -1386,7 +1693,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.taskCenter
       .updateTeacherGoalStatus(student.goalId, {
         status: completed ? 'COMPLETED' : 'NOT_STARTED',
-        progressNote: completed ? 'Teacher marked this student Completed in Task Tracking.' : '',
+        progressNote: completed ? 'Teacher marked this student Completed in Completion Tracking.' : '',
       })
       .pipe(
         finalize(() => {
@@ -1405,7 +1712,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         },
         error: (error: unknown) => {
           student.completed = !completed;
-          this.updateError = this.extractErrorMessage(error) || 'Failed to update completion status.';
+          this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
           this.cdr.detectChanges();
         },
       });
@@ -1436,21 +1743,21 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     };
   }
 
-  private buildCycleRequestPayload(): {
+  private buildCycleRequestPayload(draft: TaskCycleDraftVm = this.cycleDraft): {
     cycleType: TaskCycleType;
     cycleFrequency: TaskCycleFrequency | null;
     cycleInterval: number | null;
     cycleUnit: TaskCycleUnit | null;
     cycleLabel: string | null;
   } {
-    const isRoutine = this.cycleDraft.cycleType === 'ROUTINE';
-    const isCustom = isRoutine && this.cycleDraft.frequency === 'CUSTOM';
+    const isRoutine = draft.cycleType === 'ROUTINE';
+    const isCustom = isRoutine && draft.frequency === 'CUSTOM';
     return {
-      cycleType: this.cycleDraft.cycleType,
-      cycleFrequency: isRoutine ? this.cycleDraft.frequency : null,
-      cycleInterval: isCustom ? this.cycleDraft.customInterval : null,
-      cycleUnit: isCustom ? this.cycleDraft.customUnit : null,
-      cycleLabel: this.cycleDraft.label.trim() || null,
+      cycleType: draft.cycleType,
+      cycleFrequency: isRoutine ? draft.frequency : null,
+      cycleInterval: isCustom ? draft.customInterval : null,
+      cycleUnit: isCustom ? draft.customUnit : null,
+      cycleLabel: draft.label.trim() || null,
     };
   }
 
@@ -1474,10 +1781,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   private persistCycleMeta(taskGroupId: string): void {
+    this.persistCycleMetaValue(taskGroupId, this.cycleDraft);
+  }
+
+  private persistCycleMetaValue(taskGroupId: string, draft: TaskCycleDraftVm): void {
     try {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return;
-      storage.setItem(this.resolveCycleMetaStorageKey(taskGroupId), JSON.stringify(this.cycleDraft));
+      storage.setItem(this.resolveCycleMetaStorageKey(taskGroupId), JSON.stringify(draft));
     } catch {}
   }
 
@@ -1512,32 +1823,87 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return `${TASK_CYCLE_META_STORAGE_KEY_PREFIX}.${TASK_CYCLE_META_STORAGE_VERSION}.${taskGroupId}`;
   }
 
-  resolveCycleSummaryText(): string {
-    const label = this.cycleDraft.label.trim();
-    if (this.cycleDraft.cycleType === 'ONE_TIME') {
-      return label ? `One-time / ${label}` : 'One-time';
-    }
-    if (this.cycleDraft.frequency === 'CUSTOM') {
-      const unit = this.cycleDraft.customUnit === 'WEEKS' ? 'weeks' : 'days';
-      const customText = `Every ${this.cycleDraft.customInterval} ${unit}`;
-      return label ? `${customText} / ${label}` : customText;
-    }
-    const frequency = this.cycleDraft.frequency === 'WEEKLY' ? 'Weekly' : 'Daily';
-    return label ? `${frequency} / ${label}` : frequency;
+  private clearCycleMeta(taskGroupId: string): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.removeItem(this.resolveCycleMetaStorageKey(taskGroupId));
+    } catch {}
   }
 
-  private buildTaskNotificationContent(): string {
-    const title = this.createTitle.trim() || 'Untitled task';
-    const description = this.createDescription.trim() || '-';
-    const dueAt = this.createDueAt.trim() || 'No date';
-    const cycle = this.resolveCycleSummaryText();
-    return [
-      `Task: ${title}`,
-      `Cycle / Label: ${cycle}`,
-      `Period date: ${dueAt}`,
-      '',
-      description,
-    ].join('\n');
+  private persistTaskNotificationMeta(
+    taskGroupId: string,
+    meta: TaskNotificationMetaVm
+  ): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.setItem(this.resolveTaskNotificationMetaStorageKey(taskGroupId), JSON.stringify(meta));
+    } catch {}
+  }
+
+  private readTaskNotificationMeta(taskGroupId: string): TaskNotificationMetaVm | null {
+    try {
+      const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+      if (!normalizedTaskGroupId) return null;
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveTaskNotificationMetaStorageKey(normalizedTaskGroupId));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<TaskNotificationMetaVm>;
+      const sentAt = String(parsed?.sentAt || '').trim();
+      if (!sentAt) return null;
+      const infoId = Number(parsed?.infoId);
+      const recipientCount = Number(parsed?.recipientCount);
+      return {
+        sentAt,
+        infoId: Number.isFinite(infoId) && infoId > 0 ? Math.trunc(infoId) : null,
+        recipientCount:
+          Number.isFinite(recipientCount) && recipientCount >= 0
+            ? Math.trunc(recipientCount)
+            : 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private clearTaskNotificationMeta(taskGroupId: string): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.removeItem(this.resolveTaskNotificationMetaStorageKey(taskGroupId));
+    } catch {}
+  }
+
+  private resolveTaskNotificationMetaStorageKey(taskGroupId: string): string {
+    return `${TASK_NOTIFICATION_META_STORAGE_KEY_PREFIX}.${TASK_NOTIFICATION_META_STORAGE_VERSION}.${taskGroupId}`;
+  }
+
+  resolveCycleSummaryText(): LocalizedText {
+    const label = this.cycleDraft.label.trim();
+    if (this.cycleDraft.cycleType === 'ONE_TIME') {
+      return label ? uiText(`一次性 / ${label}`, `One-time / ${label}`) : this.ui.oneTime;
+    }
+    if (this.cycleDraft.frequency === 'CUSTOM') {
+      const interval = this.cycleDraft.customInterval;
+      const unitZh = this.cycleDraft.customUnit === 'WEEKS' ? '周' : '天';
+      const unitEn = this.cycleDraft.customUnit === 'WEEKS' ? 'weeks' : 'days';
+      const customText = uiText(`每 ${interval} ${unitZh}`, `Every ${interval} ${unitEn}`);
+      return label
+        ? uiText(`${customText.zh} / ${label}`, `${customText.en} / ${label}`)
+        : customText;
+    }
+    const frequency = this.cycleDraft.frequency === 'WEEKLY' ? this.ui.weekly : this.ui.daily;
+    return label ? uiText(`${frequency.zh} / ${label}`, `${frequency.en} / ${label}`) : frequency;
+  }
+
+  private resolveCycleSummaryPlain(): string {
+    return this.language.translate(this.resolveCycleSummaryText());
+  }
+
+  private buildNoticeContent(): string {
+    return this.language.translate(this.ui.noticeFallbackContent);
   }
 
   private findStudentOption(studentId: number): AssignableStudentOptionVm | null {
@@ -1593,12 +1959,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return group.goals.some((goal) => goal.id === this.selectedGoalId);
   }
 
-  goalGroupStatusLabel(group: GoalGroupRowVm): string {
-    const baseStatus = this.goalStatusLabel(group.status);
+  goalGroupStatusLabel(group: GoalGroupRowVm): LocalizedText {
     if (group.studentCount <= 1) {
-      return baseStatus;
+      return this.goalStatusLabel(group.status);
     }
-    return `${baseStatus}（${group.completedCount}/${group.studentCount} Completed）`;
+    return this.statusCountText(group.status, group.completedCount, group.studentCount);
   }
 
   goalGroupStudentLabel(group: GoalGroupRowVm): string {
@@ -1609,6 +1974,22 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       return group.studentNames.join('、');
     }
     return `${group.studentNames.slice(0, 3).join('、')} 等${group.studentCount}人`;
+  }
+
+  isGoalGroupNotificationSent(group: GoalGroupRowVm): boolean {
+    return !!this.readTaskNotificationMeta(group.taskGroupId || '');
+  }
+
+  notificationStatusLabel(group: GoalGroupRowVm): LocalizedText {
+    return this.isGoalGroupNotificationSent(group) ? this.ui.sent : this.ui.pending;
+  }
+
+  workspaceNotificationStatusLabel(): LocalizedText {
+    if (!this.editingTaskGroupId) return this.ui.pending;
+    const meta = this.readTaskNotificationMeta(this.editingTaskGroupId);
+    if (!meta) return this.ui.pendingSend;
+    const sentAt = this.displayUpdatedAt(meta.sentAt);
+    return sentAt ? uiText(`已发送 - ${sentAt}`, `Sent - ${sentAt}`) : this.ui.sent;
   }
 
   setGoalStatus(group: GoalGroupRowVm, status: GoalTaskStatus): void {
@@ -1625,7 +2006,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         concatMap((goal) =>
           this.taskCenter.updateTeacherGoalStatus(goal.id, {
             status,
-            progressNote: status === 'COMPLETED' ? '老师已在 Task 系统页标记 Completed。' : goal.progressNote,
+            progressNote: status === 'COMPLETED' ? '老师已在完成状态记录中标记为已完成。' : goal.progressNote,
           })
         ),
         toArray(),
@@ -1646,7 +2027,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.updateError = this.extractErrorMessage(error) || '更新 Task 状态失败。';
+          this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
           this.cdr.detectChanges();
         },
       });
@@ -1694,7 +2075,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           this.taskCenter.updateTeacherGoalStatus(student.goalId as number, {
             status: completed ? 'COMPLETED' : 'NOT_STARTED',
             progressNote: completed
-              ? 'Teacher marked this student Completed in Task Tracking.'
+              ? 'Teacher marked this student Completed in Completion Tracking.'
               : '',
           })
         ),
@@ -1724,42 +2105,210 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.updateError = this.extractErrorMessage(error) || 'Failed to update completion status.';
+          this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
           this.rebuildTrackingStudentsFromGoals();
           this.cdr.detectChanges();
         },
       });
   }
 
+  openDeleteConfirmation(group?: GoalGroupRowVm): void {
+    if (this.deletingTaskGroup) return;
+
+    const taskGroupId = group?.taskGroupId || this.editingTaskGroupId || '';
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      this.deleteError = this.ui.errorMissingTaskGroup;
+      return;
+    }
+
+    this.deleteTargetTaskGroupId = normalizedTaskGroupId;
+    this.deleteTargetTitle = group?.representativeGoal.title || this.createTitle || this.language.translate(this.ui.untitledTask);
+    this.deleteTargetStudentCount = group?.studentCount || this.selectedCreateStudentCount || 0;
+    this.deleteError = '';
+    this.deleteConfirmOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  closeDeleteConfirmation(force = false): void {
+    if (this.deletingTaskGroup && !force) return;
+    this.deleteConfirmOpen = false;
+    this.deleteTargetTaskGroupId = '';
+    this.deleteTargetTitle = '';
+    this.deleteTargetStudentCount = 0;
+  }
+
+  confirmDeleteTaskGroup(): void {
+    if (this.deletingTaskGroup) return;
+
+    const taskGroupId = this.normalizeTaskGroupId(this.deleteTargetTaskGroupId);
+    if (!taskGroupId) {
+      this.deleteError = this.ui.errorMissingTaskGroup;
+      return;
+    }
+
+    this.deletingTaskGroup = true;
+    this.deleteError = '';
+    this.taskCenter
+      .deleteGoalGroup(taskGroupId)
+      .pipe(
+        finalize(() => {
+          this.deletingTaskGroup = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.goals = this.goals.filter((goal) => this.resolveGoalTaskGroupId(goal) !== taskGroupId);
+          this.clearCycleMeta(taskGroupId);
+          this.clearTaskNotificationMeta(taskGroupId);
+          const wasEditingDeletedGroup = this.editingTaskGroupId === taskGroupId;
+          this.closeDeleteConfirmation(true);
+          if (wasEditingDeletedGroup) {
+            this.closeCreatePanel(true);
+          }
+          this.loadGoals();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.deleteError = this.extractErrorMessage(error) || this.ui.errorDeleteFailed;
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  openPeriodInstanceModal(): void {
+    if (!this.canCreateRoutinePeriodInstance || this.creatingPeriodInstance) return;
+    this.periodInstanceOpen = true;
+    this.periodInstanceLabel = this.suggestNextPeriodLabel();
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
+    this.cdr.detectChanges();
+  }
+
+  closePeriodInstanceModal(force = false): void {
+    if (this.creatingPeriodInstance && !force) return;
+    this.periodInstanceOpen = false;
+    this.periodInstanceLabel = '';
+    this.periodInstanceError = '';
+  }
+
+  createRoutinePeriodInstance(): void {
+    if (!this.canCreateRoutinePeriodInstance || this.creatingPeriodInstance) return;
+
+    const label = this.periodInstanceLabel.trim();
+    if (!label) {
+      this.periodInstanceError = this.ui.errorPeriodLabelRequired;
+      return;
+    }
+
+    const selectedIds = this.getSelectedCreateStudentIds();
+    if (selectedIds.length === 0) {
+      this.periodInstanceError = this.ui.errorCreatePeriodNoStudent;
+      return;
+    }
+
+    const title = this.createTitle.trim();
+    const description = this.createDescription.trim();
+    if (!title || !description) {
+      this.periodInstanceError = !title ? this.ui.errorTaskNameRequired : this.ui.errorDescriptionRequired;
+      return;
+    }
+
+    const nextCycleDraft: TaskCycleDraftVm = {
+      ...this.cycleDraft,
+      cycleType: 'ROUTINE',
+      label,
+    };
+
+    this.creatingPeriodInstance = true;
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
+    this.taskCenter
+      .createGoalGroup({
+        title,
+        description,
+        dueAt: this.createDueAt.trim() || null,
+        studentIds: selectedIds,
+        ...this.buildCycleRequestPayload(nextCycleDraft),
+      })
+      .pipe(
+        finalize(() => {
+          this.creatingPeriodInstance = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          const rows = this.sortGoals(resp.items || []);
+          const first = rows[0];
+          const taskGroupId = this.normalizeTaskGroupId(resp.taskGroupId || first?.taskGroupId);
+          if (taskGroupId) {
+            this.persistCycleMetaValue(taskGroupId, nextCycleDraft);
+            this.editingTaskGroupId = taskGroupId;
+            this.cycleDraft = nextCycleDraft;
+          }
+          if (first) {
+            this.selectedGoalId = first.id;
+          }
+          this.goals = this.sortGoals([
+            ...rows,
+            ...this.goals.filter((row) => this.resolveGoalTaskGroupId(row) !== taskGroupId),
+          ]);
+          this.trackingStudents = [];
+          this.rebuildTrackingStudentsFromSelection();
+          if (taskGroupId) {
+            this.loadTrackingStudents(taskGroupId);
+          }
+          this.periodInstanceSuccess = this.periodInstanceCreatedText(label);
+          this.periodInstanceOpen = false;
+          this.loadGoals();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.periodInstanceError =
+            this.extractErrorMessage(error) || this.ui.errorCreatePeriodFailed;
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private suggestNextPeriodLabel(): string {
+    const label = this.cycleDraft.label.trim();
+    const weekMatch = label.match(/^(.*?\bweek\s*)(\d+)(.*)$/i);
+    if (weekMatch) {
+      return `${weekMatch[1]}${Number(weekMatch[2]) + 1}${weekMatch[3]}`.trim();
+    }
+    return '';
+  }
+
   openSendConfirmation(): void {
     if (!this.isEditMode || this.sendRecipientCount === 0) return;
     this.sendConfirmOpen = true;
-    this.sendConfirmText = '';
     this.sendError = '';
     this.sendSuccess = '';
   }
 
   closeSendConfirmation(): void {
     this.sendConfirmOpen = false;
-    this.sendConfirmText = '';
   }
 
   confirmSendNotification(): void {
-    if (!this.isSendConfirmationReady || this.sendingNotification || !this.editingTaskGroupId) {
+    if (this.sendingNotification || !this.editingTaskGroupId) {
       return;
     }
 
     const selectedIds = this.getSelectedCreateStudentIds();
     if (selectedIds.length === 0) {
-      this.sendError = 'Select at least one student before sending.';
+      this.sendError = this.ui.errorSendNoStudent;
       return;
     }
 
     const request: CreateInfoRequestVm = {
       category: 'ACTIVITY',
-      title: `Task update: ${this.createTitle.trim() || 'Untitled task'}`,
-      content: this.buildTaskNotificationContent(),
-      tags: ['Task Tracking', this.resolveCycleSummaryText()].filter(Boolean),
+      title: this.language.translate(this.ui.noticeTitle),
+      content: this.buildNoticeContent(),
+      tags: [this.language.translate(this.ui.noticeTag)].filter(Boolean),
       studentIds: selectedIds,
       taskGroupId: this.editingTaskGroupId,
     };
@@ -1777,12 +2326,17 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (info) => {
-          this.sendSuccess = `Notification sent to ${selectedIds.length} student(s). Ref #${info.id}`;
+          this.persistTaskNotificationMeta(this.editingTaskGroupId || '', {
+            sentAt: new Date().toISOString(),
+            infoId: Number.isFinite(Number(info.id)) ? Math.trunc(Number(info.id)) : null,
+            recipientCount: selectedIds.length,
+          });
+          this.sendSuccess = this.notificationSentText(selectedIds.length, info.id);
           this.closeSendConfirmation();
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.sendError = this.extractErrorMessage(error) || 'Failed to send notification.';
+          this.sendError = this.extractErrorMessage(error) || this.ui.errorSendFailed;
           this.cdr.detectChanges();
         },
       });
@@ -1791,9 +2345,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   trackStudent = (_: number, student: AssignableStudentOptionVm): number => student.studentId;
   trackGoal = (_: number, group: GoalGroupRowVm): string => group.taskGroupKey;
   trackTrackingStudent = (_: number, student: TrackingStudentVm): number => student.studentId;
-  goalStatusLabel(status: GoalTaskStatus): string { return status === 'COMPLETED' ? 'Completed' : 'Not Completed'; }
-  displayDueAt(goal: GoalTaskVm): string { if (!goal.dueAt) return '无截止日期'; const ts = Date.parse(goal.dueAt); return Number.isFinite(ts) ? new Date(ts).toLocaleDateString() : goal.dueAt; }
-  displayUpdatedAt(value: string): string { const ts = Date.parse(value); return Number.isFinite(ts) ? new Date(ts).toLocaleString() : value; }
+  goalStatusLabel(status: GoalTaskStatus): LocalizedText {
+    if (status === 'COMPLETED') return this.ui.completed;
+    if (status === 'IN_PROGRESS') return this.ui.partiallyCompleted;
+    return this.ui.notCompleted;
+  }
+  displayDueAt(goal: GoalTaskVm): string { if (!goal.dueAt) return this.language.translate(this.ui.noStartDate); const ts = Date.parse(goal.dueAt); return Number.isFinite(ts) ? new Date(ts).toLocaleDateString(this.language.locale()) : goal.dueAt; }
+  displayUpdatedAt(value: string): string { const ts = Date.parse(value); return Number.isFinite(ts) ? new Date(ts).toLocaleString(this.language.locale()) : value; }
 
   private loadAssignableStudents(): void {
     this.studentsLoading = true;
@@ -1801,7 +2359,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.taskCenter.listAssignableStudents().pipe(finalize(() => { this.studentsLoading = false; this.cdr.detectChanges(); }))
       .subscribe({
         next: (rows) => { this.studentOptions = [...rows].sort((a, b) => a.studentId - b.studentId); this.rebuildStudentOptionStatusMap(); this.syncSelectedStudents(); this.pruneStudentDetails(); this.hydrateStudentDetailsFromAccounts(); this.loadMissingProfilesForVisibleRows(); this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.studentsError = this.extractErrorMessage(error) || '加载学生列表失败。'; this.studentOptions = []; this.studentOptionStatus.clear(); this.selectedCreateStudentIds.clear(); this.studentDetails.clear(); this.rebuildMetaFilterOptions(); this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.studentsError = this.extractErrorMessage(error) || this.ui.errorLoadStudents; this.studentOptions = []; this.studentOptionStatus.clear(); this.selectedCreateStudentIds.clear(); this.studentDetails.clear(); this.rebuildMetaFilterOptions(); this.cdr.detectChanges(); },
       });
   }
 
@@ -1898,7 +2456,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }).pipe(finalize(() => { this.goalsLoading = false; this.cdr.detectChanges(); }))
       .subscribe({
         next: (resp) => { this.goals = this.sortGoals(resp.items || []); if (this.selectedGoalId && !this.goals.some((row) => row.id === this.selectedGoalId)) this.selectedGoalId = this.goals.length > 0 ? this.goals[0].id : null; if (!this.selectedGoalId && this.goals.length > 0) this.selectedGoalId = this.goals[0].id; this.cdr.detectChanges(); },
-        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || '加载 Task 列表失败。'; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
+        error: (error: unknown) => { this.goalsError = this.extractErrorMessage(error) || this.ui.errorLoadTasks; this.goals = []; this.selectedGoalId = null; this.cdr.detectChanges(); },
       });
   }
 
@@ -3948,11 +4506,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .trim();
   }
 
-  private extractErrorMessage(error: unknown): string {
+  private extractErrorMessage(error: unknown): UiMessage {
     if (typeof error === 'string') return error;
     if (!error || typeof error !== 'object') return '';
     const obj = error as { name?: unknown; message?: unknown; error?: unknown; status?: unknown };
-    if (String(obj.name || '').toLowerCase() === 'timeouterror') return '请求超时，请检查后端服务或网络连接。';
+    if (String(obj.name || '').toLowerCase() === 'timeouterror') return this.ui.errorTimeout;
     if (obj.error && typeof obj.error === 'object') {
       const payload = obj.error as { message?: unknown; error?: unknown };
       if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim();
@@ -3961,7 +4519,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     if (typeof obj.error === 'string' && obj.error.trim()) return obj.error.trim();
     if (typeof obj.message === 'string' && obj.message.trim()) return obj.message.trim();
     const status = Number(obj.status);
-    if (Number.isFinite(status) && status > 0) return `请求失败（HTTP ${status}）。`;
+    if (Number.isFinite(status) && status > 0) return uiText(`请求失败（HTTP ${status}）。`, `Request failed (HTTP ${status}).`);
     return '';
   }
 }

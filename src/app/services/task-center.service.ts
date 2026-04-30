@@ -437,6 +437,24 @@ export class TaskCenterService {
     );
   }
 
+  deleteGoalGroup(taskGroupId: string): Observable<void> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    if (this.useMock) {
+      return this.deleteGoalGroupFromMock(normalizedTaskGroupId);
+    }
+
+    return this.withRequestTimeout(
+      this.http.delete<void>(
+        `${this.teacherBaseUrl}/goal-groups/${encodeURIComponent(normalizedTaskGroupId)}`,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
   getGoalGroupStudentStatuses(
     taskGroupId: string
   ): Observable<GoalGroupStudentStatusResponseVm> {
@@ -934,6 +952,32 @@ export class TaskCenterService {
       items: nextGroupRows.map((row) => ({ ...row })),
       total: nextGroupRows.length,
     }).pipe(delay(120));
+  }
+
+  private deleteGoalGroupFromMock(taskGroupId: string): Observable<void> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    const rows = this.mockGoals$.value;
+    const groupRows = rows.filter(
+      (goal) => this.normalizeTaskGroupId(goal.taskGroupId) === normalizedTaskGroupId
+    );
+    if (groupRows.length === 0) {
+      return throwError(() => new Error('Goal task group not found.'));
+    }
+
+    const scopedTeacherId = this.resolveTeacherScopeTeacherId(true);
+    if (scopedTeacherId !== null && groupRows.some((goal) => goal.assignedByTeacherId !== scopedTeacherId)) {
+      return throwError(() => new Error('Permission denied for this goal task group.'));
+    }
+
+    this.mockGoals$.next(
+      rows.filter((goal) => this.normalizeTaskGroupId(goal.taskGroupId) !== normalizedTaskGroupId)
+    );
+
+    return of(void 0).pipe(delay(120));
   }
 
   private getGoalGroupStudentStatusesFromMock(

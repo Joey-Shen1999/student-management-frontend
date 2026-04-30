@@ -2,14 +2,14 @@
   *ngIf="shouldShowFilterField('country')"
   class="student-filter-item"
 >
-  &#22269;&#23478;
+  {{ ui.country | appTranslate }}
   <input
     class="student-filter-input country-filter-input"
     [ngModel]="countryFilterInput"
     (ngModelChange)="countryFilterInputChange.emit($event)"
     [name]="idPrefix + '-country-filter'"
     [attr.list]="idPrefix + '-country-options'"
-    placeholder="All"
+    [placeholder]="ui.all | appTranslate"
     [disabled]="disabled"
   />
   <datalist [attr.id]="idPrefix + '-country-options'">
@@ -21,14 +21,14 @@
   *ngIf="shouldShowFilterField('province')"
   class="student-filter-item"
 >
-  &#30465;&#20221;
+  {{ ui.province | appTranslate }}
   <input
     class="student-filter-input province-filter-input"
     [ngModel]="provinceFilterInput"
     (ngModelChange)="provinceFilterInputChange.emit($event)"
     [name]="idPrefix + '-province-filter'"
     [attr.list]="idPrefix + '-province-options'"
-    placeholder="All"
+    [placeholder]="ui.all | appTranslate"
     [disabled]="disabled"
   />
   <datalist [attr.id]="idPrefix + '-province-options'">
@@ -40,14 +40,14 @@
   *ngIf="shouldShowFilterField('city')"
   class="student-filter-item"
 >
-  &#22478;&#24066;
+  {{ ui.city | appTranslate }}
   <input
     class="student-filter-input city-filter-input"
     [ngModel]="cityFilterInput"
     (ngModelChange)="cityFilterInputChange.emit($event)"
     [name]="idPrefix + '-city-filter'"
     [attr.list]="idPrefix + '-city-options'"
-    placeholder="All"
+    [placeholder]="ui.all | appTranslate"
     [disabled]="disabled"
   />
   <datalist [attr.id]="idPrefix + '-city-options'">
@@ -59,14 +59,14 @@
   *ngIf="shouldShowFilterField('schoolBoard')"
   class="student-filter-item"
 >
-  &#25152;&#23646;&#25945;&#32946;&#23616;
+  {{ ui.schoolBoard | appTranslate }}
   <input
     class="student-filter-input school-board-filter-input"
     [ngModel]="schoolBoardFilterInput"
     (ngModelChange)="schoolBoardFilterInputChange.emit($event)"
     [name]="idPrefix + '-school-board-filter'"
     [attr.list]="idPrefix + '-school-board-options'"
-    placeholder="All"
+    [placeholder]="ui.all | appTranslate"
     [disabled]="disabled"
   />
   <datalist [attr.id]="idPrefix + '-school-board-options'">
@@ -78,14 +78,14 @@
   *ngIf="shouldShowFilterField('graduationSeason')"
   class="student-filter-item"
 >
-  {{ graduationSeasonLabel }}
+  {{ graduationSeasonLabel | appTranslate }}
   <input
     class="student-filter-input graduation-season-filter-input"
     [ngModel]="graduationSeasonFilterInput"
     (ngModelChange)="graduationSeasonFilterInputChange.emit($event)"
     [name]="idPrefix + '-graduation-season-filter'"
     [attr.list]="idPrefix + '-graduation-season-options'"
-    placeholder="All"
+    [placeholder]="ui.all | appTranslate"
     [disabled]="disabled"
   />
   <datalist [attr.id]="idPrefix + '-graduation-season-options'">
@@ -97,19 +97,19 @@
   *ngIf="shouldShowFilterField('languageScore')"
   class="student-filter-item"
 >
-  &#35821;&#35328;&#25104;&#32489;
+  {{ ui.languageScore | appTranslate }}
   <select
     class="student-filter-select language-score-filter-select"
     [ngModel]="languageScoreFilter"
     (ngModelChange)="onLanguageScoreFilterSelect($event)"
     [disabled]="disabled"
   >
-    <option [ngValue]="''">All</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
     <option
       *ngFor="let option of languageScoreFilterOptions"
       [ngValue]="option"
     >
-      {{ resolveLanguageScoreFilterOptionLabel(option) }}
+      {{ resolveLanguageScoreFilterOptionLabel(option) | appTranslate }}
     </option>
   </select>
 </label>
@@ -118,19 +118,19 @@
   *ngIf="shouldShowFilterField('languageTracking')"
   class="student-filter-item"
 >
-  &#35821;&#35328;&#25104;&#32489;&#36319;&#36394;
+  {{ ui.languageTracking | appTranslate }}
   <select
     class="student-filter-select language-tracking-filter-select"
     [ngModel]="languageTrackingFilter"
     (ngModelChange)="onLanguageTrackingFilterSelect($event)"
     [disabled]="disabled"
   >
-    <option [ngValue]="''">All</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
     <option
       *ngFor="let option of languageTrackingFilterOptions"
       [ngValue]="option"
     >
-      {{ resolveLanguageTrackingFilterOptionLabel(option) }}
+      {{ resolveLanguageTrackingFilterOptionLabel(option) | appTranslate }}
     </option>
   </select>
 </label>
@@ -139,19 +139,19 @@
   *ngIf="shouldShowFilterField('languageCourseStatus')"
   class="student-filter-item"
 >
-  语言报课情况
+  {{ ui.languageCourseStatus | appTranslate }}
   <select
     class="student-filter-select language-course-status-filter-select"
     [ngModel]="languageCourseStatusFilter"
     (ngModelChange)="onLanguageCourseStatusFilterSelect($event)"
     [disabled]="disabled"
   >
-    <option [ngValue]="''">All</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
     <option
       *ngFor="let option of languageCourseStatusFilterOptions"
       [ngValue]="option"
     >
-      {{ resolveLanguageCourseStatusFilterOptionLabel(option) }}
+      {{ resolveLanguageCourseStatusFilterOptionLabel(option) | appTranslate }}
     </option>
   </select>
 </label>
@@ -160,19 +160,19 @@
   *ngIf="shouldShowFilterField('ossltResult')"
   class="student-filter-item"
 >
-  OSSLT &#25104;&#32489;
+  {{ ui.ossltResult | appTranslate }}
   <select
     class="student-filter-select osslt-result-filter-select"
     [ngModel]="ossltResultFilter"
     (ngModelChange)="onOssltResultFilterSelect($event)"
     [disabled]="disabled"
   >
-    <option [ngValue]="''">All</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
     <option
       *ngFor="let option of ossltResultFilterOptions"
       [ngValue]="option"
     >
-      {{ resolveOssltResultFilterOptionLabel(option) }}
+      {{ resolveOssltResultFilterOptionLabel(option) | appTranslate }}
     </option>
   </select>
 </label>
@@ -181,19 +181,19 @@
   *ngIf="shouldShowFilterField('ossltTracking')"
   class="student-filter-item"
 >
-  OSSLT &#36319;&#36827;&#29366;&#24577;
+  {{ ui.ossltTracking | appTranslate }}
   <select
     class="student-filter-select osslt-tracking-filter-select"
     [ngModel]="ossltTrackingFilter"
     (ngModelChange)="onOssltTrackingFilterSelect($event)"
     [disabled]="disabled"
   >
-    <option [ngValue]="''">All</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
     <option
       *ngFor="let option of ossltTrackingFilterOptions"
       [ngValue]="option"
     >
-      {{ resolveOssltTrackingFilterOptionLabel(option) }}
+      {{ resolveOssltTrackingFilterOptionLabel(option) | appTranslate }}
     </option>
   </select>
 </label>
@@ -203,7 +203,7 @@
   class="student-filter-item course-plan-filter-item"
 >
   <label class="course-plan-filter-label">
-    Course Code / 课程代码
+    {{ ui.courseCode | appTranslate }}
     <input
       class="student-filter-input course-code-filter-input"
       [ngModel]="courseCodeFilterInput"
@@ -219,19 +219,19 @@
   </label>
 
   <label class="course-plan-filter-label">
-    Status / 状态
+    {{ ui.status | appTranslate }}
     <select
       class="student-filter-select course-status-filter-select"
       [ngModel]="courseStatusFilter"
       (ngModelChange)="onCourseStatusFilterSelect($event)"
       [disabled]="disabled"
     >
-      <option [ngValue]="''">Any / 全部</option>
+      <option [ngValue]="''">{{ ui.any | appTranslate }}</option>
       <option
         *ngFor="let option of courseStatusFilterOptions"
         [ngValue]="option"
       >
-        {{ resolveCourseStatusFilterOptionLabel(option) }}
+        {{ resolveCourseStatusFilterOptionLabel(option) | appTranslate }}
       </option>
     </select>
   </label>
@@ -241,17 +241,17 @@
   *ngIf="shouldShowFilterField('volunteerCompleted')"
   class="student-filter-item"
 >
-  &#20041;&#24037;&#23436;&#25104;
+  {{ ui.volunteerCompleted | appTranslate }}
   <select
     class="student-filter-select volunteer-completed-filter-select"
     [ngModel]="volunteerCompletedFilter"
     (ngModelChange)="onVolunteerCompletedFilterSelect($event)"
     [disabled]="disabled || volunteerCompletedDisabled"
-    [attr.title]="volunteerCompletedTitle"
+    [attr.title]="volunteerCompletedTitle | appTranslate"
   >
-    <option [ngValue]="''">&#20840;&#37096;</option>
-    <option [ngValue]="'COMPLETED'">&#24050;&#23436;&#25104;</option>
-    <option [ngValue]="'NOT_COMPLETED'">&#26410;&#23436;&#25104;</option>
+    <option [ngValue]="''">{{ ui.all | appTranslate }}</option>
+    <option [ngValue]="'COMPLETED'">{{ ui.completed | appTranslate }}</option>
+    <option [ngValue]="'NOT_COMPLETED'">{{ ui.notCompleted | appTranslate }}</option>
   </select>
 </label>
 
@@ -262,5 +262,5 @@
   [ngModel]="studentKeyword"
   (ngModelChange)="studentKeywordChange.emit($event)"
   [disabled]="disabled"
-  [placeholder]="keywordPlaceholder"
+  [placeholder]="keywordPlaceholder | appTranslate"
 />

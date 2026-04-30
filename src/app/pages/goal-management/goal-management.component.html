@@ -1,20 +1,21 @@
 <div class="page task-tracking-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Teacher Task Tracking</p>
-      <h2>Task Completion Workspace</h2>
+      <p class="eyebrow">{{ ui.teacherTaskTracking | appTranslate }}</p>
+      <h2>{{ ui.taskCompletionWorkspace | appTranslate }}</h2>
       <p class="page-subtitle">
-        Record whether selected students completed a teaching activity. Tasks are not shown as
-        student assignments.
+        {{ ui.pageSubtitle | appTranslate }}
       </p>
     </div>
-    <button type="button" class="btn secondary" (click)="goDashboard()">Back</button>
+    <button type="button" class="btn secondary" (click)="goDashboard()">
+      {{ ui.back | appTranslate }}
+    </button>
   </header>
 
   <section class="toolbar-section">
     <div class="toolbar-copy">
-      <strong>Tracking tasks</strong>
-      <span>{{ goalGroups.length }} task group(s)</span>
+      <strong>{{ ui.trackingTasks | appTranslate }}</strong>
+      <span>{{ taskGroupCountText(goalGroups.length) | appTranslate }}</span>
     </div>
     <button
       type="button"
@@ -22,19 +23,19 @@
       (click)="openCreatePanel()"
       [disabled]="creating"
     >
-      New Tracking Task
+      {{ ui.newTrackingTask | appTranslate }}
     </button>
   </section>
 
   <section class="task-list-section">
     <div class="list-tools">
       <div>
-        <h3>Teacher Task Records</h3>
-        <p>Open a task to update students and completion status.</p>
+        <h3>{{ ui.teacherTaskRecords | appTranslate }}</h3>
+        <p>{{ ui.listDescription | appTranslate }}</p>
       </div>
       <div class="filter-row">
         <select [(ngModel)]="filterStudentId" [disabled]="goalsLoading">
-          <option [ngValue]="null">All students</option>
+          <option [ngValue]="null">{{ ui.allStudents | appTranslate }}</option>
           <option
             *ngFor="let student of studentOptions; trackBy: trackStudent"
             [ngValue]="student.studentId"
@@ -43,29 +44,29 @@
           </option>
         </select>
         <select [(ngModel)]="filterStatus" [disabled]="goalsLoading">
-          <option value="ALL">All status</option>
-          <option value="NOT_STARTED">Not Completed</option>
-          <option value="COMPLETED">Completed</option>
+          <option value="ALL">{{ ui.allStatus | appTranslate }}</option>
+          <option value="NOT_STARTED">{{ ui.notCompleted | appTranslate }}</option>
+          <option value="COMPLETED">{{ ui.completed | appTranslate }}</option>
         </select>
         <input
           type="search"
           [(ngModel)]="filterKeyword"
           [disabled]="goalsLoading"
-          placeholder="Search task name or description"
+          [placeholder]="ui.searchPlaceholder | appTranslate"
         />
         <button type="button" class="btn secondary" (click)="applyFilters()" [disabled]="goalsLoading">
-          Search
+          {{ ui.search | appTranslate }}
         </button>
         <button type="button" class="btn ghost" (click)="clearFilters()" [disabled]="goalsLoading">
-          Reset
+          {{ ui.reset | appTranslate }}
         </button>
       </div>
     </div>
 
-    <div *ngIf="goalsLoading" class="state-text">Loading tasks...</div>
-    <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError }}</div>
+    <div *ngIf="goalsLoading" class="state-text">{{ ui.loadingTasks | appTranslate }}</div>
+    <div *ngIf="!goalsLoading && goalsError" class="error-text">{{ goalsError | appTranslate }}</div>
     <div *ngIf="!goalsLoading && !goalsError && goalGroups.length === 0" class="state-text">
-      No tracking tasks yet.
+      {{ ui.noTrackingTasks | appTranslate }}
     </div>
 
     <div class="task-grid" *ngIf="!goalsLoading && !goalsError && goalGroups.length > 0">
@@ -77,28 +78,43 @@
       >
         <div class="task-card-head">
           <h4>{{ goal.representativeGoal.title }}</h4>
-          <span class="status-chip" [class.done]="goal.status === 'COMPLETED'">
-            {{ goalGroupStatusLabel(goal) }}
-          </span>
+          <div class="task-card-chips">
+            <span class="status-chip" [class.done]="goal.status === 'COMPLETED'">
+              {{ goalGroupStatusLabel(goal) | appTranslate }}
+            </span>
+            <span class="notification-chip" [class.sent]="isGoalGroupNotificationSent(goal)">
+              {{ notificationStatusLabel(goal) | appTranslate }}
+            </span>
+          </div>
         </div>
         <p>{{ goal.representativeGoal.description }}</p>
         <div class="task-card-meta">
-          <span>{{ goal.studentCount }} student(s)</span>
-          <span>{{ goal.completedCount }}/{{ goal.studentCount }} completed</span>
+          <span>{{ studentCountText(goal.studentCount) | appTranslate }}</span>
+          <span>{{ completedCountText(goal.completedCount, goal.studentCount) | appTranslate }}</span>
           <span>{{ displayUpdatedAt(goal.updatedAt) }}</span>
         </div>
-        <button
-          type="button"
-          class="btn secondary compact"
-          (click)="$event.stopPropagation(); openEditPanel(goal.representativeGoal)"
-          [disabled]="creating || updatingGoalGroupKey === goal.taskGroupKey"
-        >
-          Open Workspace
-        </button>
+        <div class="task-card-actions">
+          <button
+            type="button"
+            class="btn secondary compact"
+            (click)="$event.stopPropagation(); openEditPanel(goal.representativeGoal)"
+            [disabled]="creating || updatingGoalGroupKey === goal.taskGroupKey"
+          >
+            {{ ui.openWorkspace | appTranslate }}
+          </button>
+          <button
+            type="button"
+            class="btn danger compact"
+            (click)="$event.stopPropagation(); openDeleteConfirmation(goal)"
+            [disabled]="creating || deletingTaskGroup"
+          >
+            {{ ui.delete | appTranslate }}
+          </button>
+        </div>
       </article>
     </div>
 
-    <div *ngIf="updateError" class="error-text">{{ updateError }}</div>
+    <div *ngIf="updateError" class="error-text">{{ updateError | appTranslate }}</div>
   </section>
 
   <div
@@ -109,18 +125,21 @@
     <div class="workspace-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
       <header class="workspace-header">
         <div>
-          <p class="eyebrow">{{ isEditMode ? 'Update Task' : 'Create Task' }}</p>
-          <h3>{{ isEditMode ? createTitle || 'Untitled tracking task' : 'New tracking task' }}</h3>
+          <p class="eyebrow">{{ (isEditMode ? ui.updateTask : ui.createTask) | appTranslate }}</p>
+          <h3>{{ isEditMode ? createTitle || (ui.untitledTrackingTask | appTranslate) : (ui.newTrackingTaskTitle | appTranslate) }}</h3>
         </div>
         <div class="workspace-actions">
-          <span [class]="saveStatusClass">{{ saveStatusLabel }}</span>
+          <span [class]="saveStatusClass">{{ saveStatusLabel | appTranslate }}</span>
+          <span *ngIf="isEditMode" class="notification-pill">
+            {{ workspaceNotificationStatusLabel() | appTranslate }}
+          </span>
           <button
             type="button"
             class="btn ghost compact"
             *ngIf="autoSaveStatus === 'failed'"
             (click)="retryAutoSave()"
           >
-            Retry
+            {{ ui.retry | appTranslate }}
           </button>
           <button
             type="button"
@@ -129,7 +148,25 @@
             (click)="openSendConfirmation()"
             [disabled]="sendingNotification || sendRecipientCount === 0"
           >
-            Send Update
+            {{ ui.sendNotice | appTranslate }}
+          </button>
+          <button
+            type="button"
+            class="btn secondary compact"
+            *ngIf="canCreateRoutinePeriodInstance"
+            (click)="openPeriodInstanceModal()"
+            [disabled]="creatingPeriodInstance"
+          >
+            {{ ui.newPeriodInstance | appTranslate }}
+          </button>
+          <button
+            type="button"
+            class="btn danger compact"
+            *ngIf="isEditMode"
+            (click)="openDeleteConfirmation()"
+            [disabled]="deletingTaskGroup"
+          >
+            {{ ui.deleteTask | appTranslate }}
           </button>
           <button
             type="button"
@@ -138,53 +175,56 @@
             (click)="createGoal()"
             [disabled]="creating || studentsLoading"
           >
-            {{ creating ? 'Creating...' : 'Create Task' }}
+            {{ (creating ? ui.creating : ui.createTask) | appTranslate }}
           </button>
           <button type="button" class="btn ghost compact" (click)="closeCreatePanel()" [disabled]="creating">
-            Close
+            {{ ui.close | appTranslate }}
           </button>
         </div>
       </header>
 
-      <div *ngIf="autoSaveError" class="error-text">{{ autoSaveError }}</div>
-      <div *ngIf="createError" class="error-text">{{ createError }}</div>
-      <div *ngIf="createSuccess" class="success-text">{{ createSuccess }}</div>
-      <div *ngIf="sendSuccess" class="success-text">{{ sendSuccess }}</div>
-      <div *ngIf="sendError" class="error-text">{{ sendError }}</div>
+      <div *ngIf="autoSaveError" class="error-text">{{ autoSaveError | appTranslate }}</div>
+      <div *ngIf="createError" class="error-text">{{ createError | appTranslate }}</div>
+      <div *ngIf="createSuccess" class="success-text">{{ createSuccess | appTranslate }}</div>
+      <div *ngIf="sendSuccess" class="success-text">{{ sendSuccess | appTranslate }}</div>
+      <div *ngIf="sendError" class="error-text">{{ sendError | appTranslate }}</div>
+      <div *ngIf="periodInstanceSuccess" class="success-text">{{ periodInstanceSuccess | appTranslate }}</div>
+      <div *ngIf="periodInstanceError" class="error-text">{{ periodInstanceError | appTranslate }}</div>
+      <div *ngIf="deleteError" class="error-text">{{ deleteError | appTranslate }}</div>
 
       <div class="workspace-layout">
         <section class="workspace-section basic-section">
           <div class="section-heading">
             <div>
               <span class="section-kicker">A</span>
-              <h4>Task Basic Information</h4>
+              <h4>{{ ui.basicInfo | appTranslate }}</h4>
             </div>
-            <small>{{ resolveCycleSummaryText() }}</small>
+            <small>{{ resolveCycleSummaryText() | appTranslate }}</small>
           </div>
 
           <label class="field">
-            <span>Task Name</span>
+            <span>{{ ui.taskName | appTranslate }}</span>
             <input
               [(ngModel)]="createTitle"
               (ngModelChange)="onTrackingDraftChange()"
               [disabled]="creating"
-              placeholder="Daily vocabulary check"
+              [placeholder]="ui.taskNamePlaceholder | appTranslate"
             />
           </label>
 
           <label class="field">
-            <span>Description</span>
+            <span>{{ ui.description | appTranslate }}</span>
             <textarea
               [(ngModel)]="createDescription"
               (ngModelChange)="onTrackingDraftChange()"
               [disabled]="creating"
               rows="4"
-              placeholder="What did the teacher track for this activity?"
+              [placeholder]="ui.descriptionPlaceholder | appTranslate"
             ></textarea>
           </label>
 
           <label class="field compact-field">
-            <span>Period Date</span>
+            <span>{{ ui.startDate | appTranslate }}</span>
             <input
               type="date"
               [(ngModel)]="createDueAt"
@@ -198,7 +238,7 @@
           <div class="section-heading">
             <div>
               <span class="section-kicker">B</span>
-              <h4>Cycle / Period</h4>
+              <h4>{{ ui.cyclePeriod | appTranslate }}</h4>
             </div>
           </div>
 
@@ -208,33 +248,33 @@
               [class.active]="cycleDraft.cycleType === 'ONE_TIME'"
               (click)="onCycleTypeChange('ONE_TIME')"
             >
-              One-time
+              {{ ui.oneTime | appTranslate }}
             </button>
             <button
               type="button"
               [class.active]="cycleDraft.cycleType === 'ROUTINE'"
               (click)="onCycleTypeChange('ROUTINE')"
             >
-              Routine
+              {{ ui.routine | appTranslate }}
             </button>
           </div>
 
           <div class="field-grid" *ngIf="cycleDraft.cycleType === 'ROUTINE'">
             <label class="field">
-              <span>Frequency</span>
+              <span>{{ ui.frequency | appTranslate }}</span>
               <select
                 [ngModel]="cycleDraft.frequency"
                 (ngModelChange)="onCycleFrequencyChange($event)"
               >
-                <option value="DAILY">Daily</option>
-                <option value="WEEKLY">Weekly</option>
-                <option value="CUSTOM">Custom</option>
+                <option value="DAILY">{{ ui.daily | appTranslate }}</option>
+                <option value="WEEKLY">{{ ui.weekly | appTranslate }}</option>
+                <option value="CUSTOM">{{ ui.custom | appTranslate }}</option>
               </select>
             </label>
 
             <div class="custom-frequency" *ngIf="cycleDraft.frequency === 'CUSTOM'">
               <label class="field">
-                <span>Every</span>
+                <span>{{ ui.every | appTranslate }}</span>
                 <input
                   type="number"
                   min="1"
@@ -244,25 +284,25 @@
                 />
               </label>
               <label class="field">
-                <span>Unit</span>
+                <span>{{ ui.unit | appTranslate }}</span>
                 <select
                   [ngModel]="cycleDraft.customUnit"
                   (ngModelChange)="onCustomCycleUnitChange($event)"
                 >
-                  <option value="DAYS">Days</option>
-                  <option value="WEEKS">Weeks</option>
+                  <option value="DAYS">{{ ui.days | appTranslate }}</option>
+                  <option value="WEEKS">{{ ui.weeks | appTranslate }}</option>
                 </select>
               </label>
             </div>
           </div>
 
           <label class="field">
-            <span>Label</span>
+            <span>{{ ui.label | appTranslate }}</span>
             <input
               list="task-cycle-labels"
               [(ngModel)]="cycleDraft.label"
               (ngModelChange)="onTrackingDraftChange()"
-              placeholder="Week 1, Daily Practice, Midterm Review"
+              [placeholder]="ui.labelPlaceholder | appTranslate"
             />
             <datalist id="task-cycle-labels">
               <option value="Week 1"></option>
@@ -274,19 +314,62 @@
           </label>
 
           <p class="helper-text">
-            Cycle is a reporting dimension for filtering and future analytics. It does not auto-generate tasks.
+            {{ ui.cycleHelper | appTranslate }}
           </p>
         </section>
       </div>
 
       <section class="workspace-section selector-section">
         <div class="section-heading">
-          <div>
-            <span class="section-kicker">C</span>
-            <h4>Selected Students</h4>
+            <div>
+              <span class="section-kicker">C</span>
+            <h4>{{ ui.selectedStudents | appTranslate }}</h4>
           </div>
-          <small>{{ selectedCreateStudentCount }} selected</small>
+          <small>{{ selectedCountText(selectedCreateStudentCount) | appTranslate }}</small>
         </div>
+
+        <div class="selected-students-summary">
+          <div>
+            <strong>{{ selectedStudentCountText(selectedCreateStudentCount) | appTranslate }}</strong>
+            <span *ngIf="selectedCreateStudentCount === 0">{{ ui.noStudentsSelected | appTranslate }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn secondary compact"
+            (click)="openStudentSelectorModal()"
+            [disabled]="creating"
+          >
+            {{ ui.manageStudents | appTranslate }}
+          </button>
+        </div>
+
+        <div class="selected-chip-list" *ngIf="selectedCreateStudentCount > 0">
+          <span
+            class="selected-chip"
+            *ngFor="let student of selectedCreateStudentOptions | slice:0:8; trackBy: trackStudent"
+          >
+            {{ selectedStudentLabel(student) | appTranslate }}
+          </span>
+          <span class="selected-chip muted" *ngIf="selectedCreateStudentCount > 8">
+            {{ moreStudentsText(selectedCreateStudentCount - 8) | appTranslate }}
+          </span>
+        </div>
+
+        <div
+          *ngIf="studentSelectorModalOpen"
+          class="student-selector-backdrop"
+          (click)="onStudentSelectorBackdropClick($event)"
+        >
+          <div class="student-selector-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+            <header class="student-selector-modal-header">
+              <div>
+                <p class="eyebrow">{{ ui.studentSelector | appTranslate }}</p>
+                <h4>{{ ui.chooseStudentsToTrack | appTranslate }}</h4>
+              </div>
+              <button type="button" class="btn primary compact" (click)="closeStudentSelectorModal()">
+                {{ ui.done | appTranslate }}
+              </button>
+            </header>
 
         <app-student-selector-panel
           [disabled]="creating"
@@ -360,22 +443,24 @@
           (teacherNoteChange)="onTeacherNoteCellChange($event.studentId, $event.value)"
           (teacherNoteBlur)="onTeacherNoteCellBlur($event)"
         ></app-student-selector-panel>
+          </div>
+        </div>
       </section>
 
       <section class="workspace-section tracking-section">
         <div class="section-heading">
-          <div>
-            <span class="section-kicker">D</span>
-            <h4>Completion Tracking</h4>
+            <div>
+              <span class="section-kicker">D</span>
+            <h4>{{ ui.completionTracking | appTranslate }}</h4>
           </div>
-          <div class="tracking-actions">
+          <div class="tracking-actions" *ngIf="trackingExpanded">
             <button
               type="button"
               class="btn secondary compact"
               (click)="markAllTrackingStudents(true)"
               [disabled]="trackingStudents.length === 0"
             >
-              Mark All Completed
+              {{ ui.markAllCompleted | appTranslate }}
             </button>
             <button
               type="button"
@@ -383,37 +468,41 @@
               (click)="markAllTrackingStudents(false)"
               [disabled]="trackingStudents.length === 0"
             >
-              Mark All Not Completed
+              {{ ui.markAllNotCompleted | appTranslate }}
             </button>
           </div>
+          <button type="button" class="btn ghost compact" (click)="toggleTrackingExpanded()">
+            {{ (trackingExpanded ? ui.collapse : ui.expand) | appTranslate }}
+          </button>
         </div>
 
         <div class="tracking-summary">
           <div>
             <strong>{{ completedTrackingCount }}</strong>
-            <span>Completed</span>
+            <span>{{ ui.completed | appTranslate }}</span>
           </div>
           <div>
             <strong>{{ pendingTrackingCount }}</strong>
-            <span>Not Completed</span>
+            <span>{{ ui.notCompleted | appTranslate }}</span>
           </div>
           <div>
             <strong>{{ completionPercent }}%</strong>
-            <span>Completion Rate</span>
+            <span>{{ ui.completionRate | appTranslate }}</span>
           </div>
         </div>
 
-        <div *ngIf="trackingLoading" class="state-text">Loading student statuses...</div>
-        <div *ngIf="trackingError" class="error-text">{{ trackingError }}</div>
-        <div *ngIf="!trackingLoading && trackingStudents.length === 0" class="state-text">
-          Select students to start tracking completion.
-        </div>
+        <div class="tracking-collapsible" *ngIf="trackingExpanded">
+          <div *ngIf="trackingLoading" class="state-text">{{ ui.loadingStatuses | appTranslate }}</div>
+          <div *ngIf="trackingError" class="error-text">{{ trackingError | appTranslate }}</div>
+          <div *ngIf="!trackingLoading && trackingStudents.length === 0" class="state-text">
+            {{ ui.selectStudentsToStart | appTranslate }}
+          </div>
 
-        <div class="tracking-table" *ngIf="trackingStudents.length > 0">
+          <div class="tracking-table" *ngIf="trackingStudents.length > 0">
           <div class="tracking-row heading">
-            <span>Student</span>
-            <span>Student Info</span>
-            <span>Status</span>
+            <span>{{ ui.student | appTranslate }}</span>
+            <span>{{ ui.studentInfo | appTranslate }}</span>
+            <span>{{ ui.status | appTranslate }}</span>
           </div>
 
           <div
@@ -421,7 +510,7 @@
             *ngFor="let student of trackingStudents; trackBy: trackTrackingStudent"
           >
             <div class="student-name">
-              <strong>{{ student.studentName }}</strong>
+              <strong>{{ trackingStudentName(student) | appTranslate }}</strong>
               <small *ngIf="student.email">{{ student.email }}</small>
             </div>
             <div class="student-meta">
@@ -438,8 +527,9 @@
                 (change)="updateTrackingStudentStatus(student, $any($event.target).checked)"
               />
               <span></span>
-              <strong>{{ student.completed ? 'Completed' : 'Not Completed' }}</strong>
+              <strong>{{ (student.completed ? ui.completed : ui.notCompleted) | appTranslate }}</strong>
             </label>
+          </div>
           </div>
         </div>
       </section>
@@ -450,47 +540,128 @@
     <div class="confirm-panel">
       <div class="section-heading">
         <div>
-          <span class="section-kicker">Confirm</span>
-          <h4>Send task update?</h4>
+          <span class="section-kicker">{{ ui.confirm | appTranslate }}</span>
+          <h4>{{ ui.sendTaskUpdate | appTranslate }}</h4>
         </div>
-        <button type="button" class="btn ghost compact" (click)="closeSendConfirmation()">Close</button>
+        <button type="button" class="btn ghost compact" (click)="closeSendConfirmation()">
+          {{ ui.close | appTranslate }}
+        </button>
       </div>
 
       <dl class="confirm-list">
         <div>
-          <dt>Task name</dt>
-          <dd>{{ createTitle || 'Untitled task' }}</dd>
+          <dt>{{ ui.taskName | appTranslate }}</dt>
+          <dd>{{ createTitle || (ui.untitledTask | appTranslate) }}</dd>
         </div>
         <div>
-          <dt>Cycle / Label</dt>
-          <dd>{{ resolveCycleSummaryText() }}</dd>
+          <dt>{{ ui.cycleLabel | appTranslate }}</dt>
+          <dd>{{ resolveCycleSummaryText() | appTranslate }}</dd>
         </div>
         <div>
-          <dt>Recipients</dt>
-          <dd>{{ sendRecipientCount }} selected student(s)</dd>
+          <dt>{{ ui.recipients | appTranslate }}</dt>
+          <dd>{{ recipientCountText(sendRecipientCount) | appTranslate }}</dd>
         </div>
       </dl>
 
       <p class="warning-text">
-        This action sends a notification to selected students. Confirm the audience and content before sending.
+        {{ ui.sendWarning | appTranslate }}
       </p>
-
-      <label class="field">
-        <span>Type SEND to confirm</span>
-        <input [(ngModel)]="sendConfirmText" placeholder="SEND" />
-      </label>
 
       <div class="confirm-actions">
         <button
           type="button"
           class="btn primary"
           (click)="confirmSendNotification()"
-          [disabled]="!isSendConfirmationReady || sendingNotification"
+          [disabled]="sendingNotification"
         >
-          {{ sendingNotification ? 'Sending...' : 'Confirm Send' }}
+          {{ (sendingNotification ? ui.sending : ui.send) | appTranslate }}
         </button>
         <button type="button" class="btn ghost" (click)="closeSendConfirmation()" [disabled]="sendingNotification">
-          Cancel
+          {{ ui.cancel | appTranslate }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="periodInstanceOpen" class="confirm-backdrop" role="dialog" aria-modal="true">
+    <div class="confirm-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">{{ ui.routine | appTranslate }}</span>
+          <h4>{{ ui.newPeriodInstanceTitle | appTranslate }}</h4>
+        </div>
+        <button type="button" class="btn ghost compact" (click)="closePeriodInstanceModal()">
+          {{ ui.close | appTranslate }}
+        </button>
+      </div>
+
+      <p class="helper-text">
+        {{ ui.periodInstanceHelper | appTranslate }}
+      </p>
+
+      <label class="field">
+        <span>{{ ui.periodLabel | appTranslate }}</span>
+        <input [(ngModel)]="periodInstanceLabel" [placeholder]="ui.periodLabelPlaceholder | appTranslate" />
+      </label>
+
+      <div *ngIf="periodInstanceError" class="error-text">{{ periodInstanceError | appTranslate }}</div>
+
+      <div class="confirm-actions">
+        <button
+          type="button"
+          class="btn primary"
+          (click)="createRoutinePeriodInstance()"
+          [disabled]="creatingPeriodInstance"
+        >
+          {{ (creatingPeriodInstance ? ui.creating : ui.createPeriod) | appTranslate }}
+        </button>
+        <button type="button" class="btn ghost" (click)="closePeriodInstanceModal()" [disabled]="creatingPeriodInstance">
+          {{ ui.cancel | appTranslate }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="deleteConfirmOpen" class="confirm-backdrop" role="dialog" aria-modal="true">
+    <div class="confirm-panel danger-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">{{ ui.delete | appTranslate }}</span>
+          <h4>{{ ui.deleteTrackingTask | appTranslate }}</h4>
+        </div>
+        <button type="button" class="btn ghost compact" (click)="closeDeleteConfirmation()">
+          {{ ui.close | appTranslate }}
+        </button>
+      </div>
+
+      <dl class="confirm-list">
+        <div>
+          <dt>{{ ui.task | appTranslate }}</dt>
+          <dd>{{ deleteTargetTitle || (ui.untitledTask | appTranslate) }}</dd>
+        </div>
+        <div>
+          <dt>{{ ui.students | appTranslate }}</dt>
+          <dd>{{ trackingRecordCountText(deleteTargetStudentCount) | appTranslate }}</dd>
+        </div>
+      </dl>
+
+      <p class="warning-text danger">
+        {{ ui.deleteWarning | appTranslate }}
+      </p>
+
+      <div *ngIf="deleteError" class="error-text">{{ deleteError | appTranslate }}</div>
+
+      <div class="confirm-actions">
+        <button
+          type="button"
+          class="btn danger"
+          (click)="confirmDeleteTaskGroup()"
+          [disabled]="deletingTaskGroup"
+        >
+          {{ (deletingTaskGroup ? ui.deleting : ui.delete) | appTranslate }}
+        </button>
+        <button type="button" class="btn ghost" (click)="closeDeleteConfirmation()" [disabled]="deletingTaskGroup">
+          {{ ui.cancel | appTranslate }}
         </button>
       </div>
     </div>

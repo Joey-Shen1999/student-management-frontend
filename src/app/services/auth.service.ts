@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, of, tap, catchError, throwError } from 'rxjs';
+import { Observable, of, tap, catchError, throwError, timeout } from 'rxjs';
 
 export type UserRole = 'STUDENT' | 'TEACHER' | 'ADMIN' | string;
 
@@ -87,6 +87,8 @@ export interface ApiResponse {
 export class AuthService {
   private readonly baseUrl = '/api/auth';
   private readonly sessionKey = 'sm_session';
+  private readonly registerTimeoutMs = 15000;
+  private readonly invitePreviewTimeoutMs = 10000;
 
   constructor(private http: HttpClient) {}
 
@@ -97,14 +99,16 @@ export class AuthService {
   }
 
   register(req: RegisterRequest): Observable<RegisterResponse> {
-    return this.http.post<RegisterResponse>(`${this.baseUrl}/register`, req);
+    return this.http
+      .post<RegisterResponse>(`${this.baseUrl}/register`, req)
+      .pipe(timeout({ first: this.registerTimeoutMs }));
   }
 
   getStudentInvitePreview(inviteToken: string): Observable<StudentInvitePreviewResponse> {
     const normalizedToken = encodeURIComponent(String(inviteToken || '').trim());
-    return this.http.get<StudentInvitePreviewResponse>(
-      `${this.baseUrl}/student-invites/${normalizedToken}`
-    );
+    return this.http
+      .get<StudentInvitePreviewResponse>(`${this.baseUrl}/student-invites/${normalizedToken}`)
+      .pipe(timeout({ first: this.invitePreviewTimeoutMs }));
   }
 
   setPassword(req: SetPasswordRequest): Observable<ApiResponse> {

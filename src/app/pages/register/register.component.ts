@@ -54,6 +54,10 @@ export class RegisterComponent implements OnInit {
       '请输入用户名和密码。',
       'Please enter your username and password.'
     ),
+    studentNameRequired: uiText(
+      '请填写学生的姓和名。',
+      'Please enter the student first and last name.'
+    ),
     passwordMismatch: uiText(
       '两次输入的密码不一致。',
       'The password and confirmation password do not match.'
@@ -66,6 +70,10 @@ export class RegisterComponent implements OnInit {
     inviteInvalid: uiText(
       '该邀请链接无效、已过期或已被使用。',
       'This invite link is invalid, expired, or already used.'
+    ),
+    requestTimedOut: uiText(
+      '请求超时。请检查服务器是否运行，或稍后重试。',
+      'Request timed out. Please check the server or try again shortly.'
     ),
   };
 
@@ -150,6 +158,11 @@ export class RegisterComponent implements OnInit {
       return;
     }
 
+    if (!payload.firstName || !payload.lastName) {
+      this.error = this.ui.studentNameRequired;
+      return;
+    }
+
     const policy = evaluatePasswordPolicy(this.password, this.username);
     if (!policy.isValid && policy.message) {
       this.error = policy.message;
@@ -171,12 +184,12 @@ export class RegisterComponent implements OnInit {
           this.success = this.ui.registrationSuccess;
           setTimeout(() => this.router.navigate(['/login']), 600);
         },
-        error: (err: { error?: { message?: string; error?: string }; message?: string }) => {
-          this.error =
-            err?.error?.message ||
-            err?.error?.error ||
-            err?.message ||
-            this.ui.registrationFailed;
+        error: (err: {
+          name?: string;
+          error?: { message?: string; error?: string } | string;
+          message?: string;
+        }) => {
+          this.error = this.extractErrorMessage(err) || this.ui.registrationFailed;
         },
       });
   }
@@ -198,12 +211,12 @@ export class RegisterComponent implements OnInit {
 
           this.invitePreview = resp;
         },
-        error: (err: { error?: { message?: string; error?: string }; message?: string }) => {
-          this.inviteValidationError =
-            err?.error?.message ||
-            err?.error?.error ||
-            err?.message ||
-            this.ui.inviteInvalid;
+        error: (err: {
+          name?: string;
+          error?: { message?: string; error?: string } | string;
+          message?: string;
+        }) => {
+          this.inviteValidationError = this.extractErrorMessage(err) || this.ui.inviteInvalid;
         },
       });
   }
@@ -217,5 +230,22 @@ export class RegisterComponent implements OnInit {
       .toUpperCase();
 
     return status === 'EXPIRED' || status === 'USED' || status === 'INVALID' || status === 'ARCHIVED';
+  }
+
+  private extractErrorMessage(err: {
+    name?: string;
+    error?: { message?: string; error?: string } | string;
+    message?: string;
+  }): string | LocalizedText {
+    if (String(err?.name || '').toLowerCase() === 'timeouterror') {
+      return this.ui.requestTimedOut;
+    }
+    if (err?.error && typeof err.error === 'object') {
+      return err.error.message || err.error.error || '';
+    }
+    if (typeof err?.error === 'string') {
+      return err.error;
+    }
+    return err?.message || '';
   }
 }
