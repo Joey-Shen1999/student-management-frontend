@@ -1,6 +1,6 @@
 ﻿import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, delay, of, throwError, timeout } from 'rxjs';
+import { BehaviorSubject, Observable, delay, map, of, throwError, timeout } from 'rxjs';
 
 import { AuthService } from './auth.service';
 
@@ -31,6 +31,11 @@ export interface GoalTaskVm {
   cycleInterval?: number | null;
   cycleUnit?: TaskCycleUnit | null;
   cycleLabel?: string | null;
+  cycleEndAt?: string | null;
+  cycleNoEnd?: boolean | null;
+  enrollmentStartAt?: string | null;
+  enrollmentEndAt?: string | null;
+  active?: boolean | null;
 }
 
 export interface GoalListQueryVm {
@@ -83,6 +88,8 @@ export interface GoalGroupUpsertRequestVm {
   cycleInterval?: number | null;
   cycleUnit?: TaskCycleUnit | null;
   cycleLabel?: string | null;
+  cycleEndAt?: string | null;
+  cycleNoEnd?: boolean | null;
 }
 
 export interface GoalGroupResponseVm {
@@ -103,6 +110,27 @@ export interface GoalGroupStudentStatusVm {
   completedAt: string | null;
   updatedAt: string | null;
   progressNote: string;
+  active?: boolean | null;
+  enrollmentStartAt?: string | null;
+  enrollmentEndAt?: string | null;
+  completedOccurrences?: number | null;
+  totalOccurrences?: number | null;
+  completions?: GoalTaskCompletionVm[];
+}
+
+export interface GoalTaskCompletionColumnVm {
+  occurrenceKey: string;
+  label: string;
+  startAt: string | null;
+  endAt: string | null;
+}
+
+export interface GoalTaskCompletionVm extends GoalTaskCompletionColumnVm {
+  id: number | null;
+  completed: boolean;
+  completedAt: string | null;
+  updatedAt: string | null;
+  progressNote: string;
 }
 
 export interface GoalGroupStudentStatusResponseVm {
@@ -119,6 +147,9 @@ export interface GoalGroupStudentStatusResponseVm {
   cycleInterval?: number | null;
   cycleUnit?: TaskCycleUnit | null;
   cycleLabel?: string | null;
+  cycleEndAt?: string | null;
+  cycleNoEnd?: boolean | null;
+  completionColumns?: GoalTaskCompletionColumnVm[];
 }
 
 export interface AssignableStudentOptionVm {
@@ -506,6 +537,28 @@ export class TaskCenterService {
     );
   }
 
+  updateTeacherGoalCompletion(
+    goalId: number,
+    request: { occurrenceKey: string; completed: boolean; progressNote?: string }
+  ): Observable<GoalTaskCompletionVm> {
+    const normalizedGoalId = Math.trunc(Number(goalId));
+    if (!Number.isFinite(normalizedGoalId) || normalizedGoalId <= 0) {
+      return throwError(() => new Error('goalId is invalid.'));
+    }
+
+    if (this.useMock) {
+      return this.updateTeacherGoalCompletionFromMock(normalizedGoalId, request);
+    }
+
+    return this.withRequestTimeout(
+      this.http.patch<GoalTaskCompletionVm>(
+        `${this.teacherBaseUrl}/goals/${encodeURIComponent(String(normalizedGoalId))}/completions`,
+        request,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
   listAssignableStudents(query: AssignableStudentQueryVm = {}): Observable<AssignableStudentOptionVm[]> {
     if (this.useMock) {
       return this.listAssignableStudentsFromMock(query);
@@ -770,6 +823,10 @@ export class TaskCenterService {
       status: 'NOT_STARTED',
       dueAt: dueAtText || null,
       taskGroupId,
+      cycleType: 'ONE_TIME',
+      cycleNoEnd: true,
+      enrollmentStartAt: dueAtText || new Date().toISOString().slice(0, 10),
+      active: true,
       assignedStudentId: studentId,
       assignedStudentName: student?.studentName || `学生 #${studentId}`,
       assignedByTeacherId: this.resolveSessionTeacherId() || 0,
@@ -834,6 +891,15 @@ export class TaskCenterService {
         status: 'NOT_STARTED',
         dueAt,
         taskGroupId,
+        cycleType: request.cycleType || 'ONE_TIME',
+        cycleFrequency: request.cycleFrequency || null,
+        cycleInterval: request.cycleInterval || null,
+        cycleUnit: request.cycleUnit || null,
+        cycleLabel: request.cycleLabel || null,
+        cycleEndAt: request.cycleEndAt || null,
+        cycleNoEnd: request.cycleNoEnd !== false,
+        enrollmentStartAt: dueAt || new Date().toISOString().slice(0, 10),
+        active: true,
         assignedStudentId: studentId,
         assignedStudentName: student?.studentName || `学生 #${studentId}`,
         assignedByTeacherId: teacherId,
@@ -916,6 +982,16 @@ export class TaskCenterService {
           description,
           dueAt,
           taskGroupId: normalizedTaskGroupId,
+          cycleType: request.cycleType || existing.cycleType || 'ONE_TIME',
+          cycleFrequency: request.cycleFrequency || null,
+          cycleInterval: request.cycleInterval || null,
+          cycleUnit: request.cycleUnit || null,
+          cycleLabel: request.cycleLabel || null,
+          cycleEndAt: request.cycleEndAt || null,
+          cycleNoEnd: request.cycleNoEnd !== false,
+          enrollmentStartAt: existing.enrollmentStartAt || dueAt || new Date().toISOString().slice(0, 10),
+          enrollmentEndAt: null,
+          active: true,
           assignedStudentName: student?.studentName || `学生 #${studentId}`,
           updatedAt: timestamp,
         };
@@ -931,6 +1007,15 @@ export class TaskCenterService {
         status: 'NOT_STARTED',
         dueAt,
         taskGroupId: normalizedTaskGroupId,
+        cycleType: request.cycleType || 'ONE_TIME',
+        cycleFrequency: request.cycleFrequency || null,
+        cycleInterval: request.cycleInterval || null,
+        cycleUnit: request.cycleUnit || null,
+        cycleLabel: request.cycleLabel || null,
+        cycleEndAt: request.cycleEndAt || null,
+        cycleNoEnd: request.cycleNoEnd !== false,
+        enrollmentStartAt: dueAt || new Date().toISOString().slice(0, 10),
+        active: true,
         assignedStudentId: studentId,
         assignedStudentName: student?.studentName || `学生 #${studentId}`,
         assignedByTeacherId: fallbackTeacherId || this.resolveSessionTeacherId() || 0,
@@ -942,15 +1027,34 @@ export class TaskCenterService {
       };
     });
 
+    const selectedIdSet = new Set(studentIds);
+    const removedRows = groupRows
+      .filter((goal) => !selectedIdSet.has(goal.assignedStudentId))
+      .map((goal) => ({
+        ...goal,
+        title,
+        description,
+        dueAt,
+        cycleType: request.cycleType || goal.cycleType || 'ONE_TIME',
+        cycleFrequency: request.cycleFrequency || null,
+        cycleInterval: request.cycleInterval || null,
+        cycleUnit: request.cycleUnit || null,
+        cycleLabel: request.cycleLabel || null,
+        cycleEndAt: request.cycleEndAt || null,
+        cycleNoEnd: request.cycleNoEnd !== false,
+        active: false,
+        enrollmentEndAt: new Date().toISOString().slice(0, 10),
+        updatedAt: timestamp,
+      }));
     const nonGroupRows = rows.filter(
       (goal) => this.normalizeTaskGroupId(goal.taskGroupId) !== normalizedTaskGroupId
     );
-    this.mockGoals$.next([...nextGroupRows, ...nonGroupRows]);
+    this.mockGoals$.next([...nextGroupRows, ...removedRows, ...nonGroupRows]);
 
     return of({
       taskGroupId: normalizedTaskGroupId,
-      items: nextGroupRows.map((row) => ({ ...row })),
-      total: nextGroupRows.length,
+      items: [...nextGroupRows, ...removedRows].map((row) => ({ ...row })),
+      total: nextGroupRows.length + removedRows.length,
     }).pipe(delay(120));
   }
 
@@ -999,15 +1103,31 @@ export class TaskCenterService {
     const sortedRows = this.sortGoalsForGroupStatus(groupRows);
     const completedCount = sortedRows.filter((goal) => goal.status === 'COMPLETED').length;
     const representative = sortedRows[0];
+    const completionColumns: GoalTaskCompletionColumnVm[] = [
+      {
+        occurrenceKey: 'once',
+        label: representative.cycleLabel || representative.dueAt || 'Once',
+        startAt: representative.dueAt,
+        endAt: representative.dueAt,
+      },
+    ];
 
     return of({
       taskGroupId: normalizedTaskGroupId,
       title: representative.title,
       description: representative.description,
       dueAt: representative.dueAt,
+      cycleType: representative.cycleType || 'ONE_TIME',
+      cycleFrequency: representative.cycleFrequency || null,
+      cycleInterval: representative.cycleInterval || null,
+      cycleUnit: representative.cycleUnit || null,
+      cycleLabel: representative.cycleLabel || null,
+      cycleEndAt: representative.cycleEndAt || null,
+      cycleNoEnd: representative.cycleNoEnd !== false,
       totalAssigned: sortedRows.length,
       completedCount,
       pendingCount: sortedRows.length - completedCount,
+      completionColumns,
       students: sortedRows.map((goal) => {
         const student = this.resolveStudentOption(goal.assignedStudentId);
         return {
@@ -1022,9 +1142,53 @@ export class TaskCenterService {
           completedAt: goal.completedAt,
           updatedAt: goal.updatedAt,
           progressNote: goal.progressNote,
+          active: goal.active !== false,
+          enrollmentStartAt: goal.enrollmentStartAt || goal.dueAt,
+          enrollmentEndAt: goal.enrollmentEndAt || null,
+          completedOccurrences: goal.status === 'COMPLETED' ? 1 : 0,
+          totalOccurrences: 1,
+          completions: [
+            {
+              id: null,
+              occurrenceKey: 'once',
+              label: representative.cycleLabel || representative.dueAt || 'Once',
+              startAt: representative.dueAt,
+              endAt: representative.dueAt,
+              completed: goal.status === 'COMPLETED',
+              completedAt: goal.completedAt,
+              updatedAt: goal.updatedAt,
+              progressNote: goal.progressNote,
+            },
+          ],
         };
       }),
     }).pipe(delay(120));
+  }
+
+  private updateTeacherGoalCompletionFromMock(
+    goalId: number,
+    request: { occurrenceKey: string; completed: boolean; progressNote?: string }
+  ): Observable<GoalTaskCompletionVm> {
+    return this.updateGoalStatusFromMock(
+      goalId,
+      {
+        status: request.completed ? 'COMPLETED' : 'NOT_STARTED',
+        progressNote: request.progressNote || '',
+      },
+      false
+    ).pipe(
+      map((goal) => ({
+        id: null,
+        occurrenceKey: request.occurrenceKey || 'once',
+        label: goal.cycleLabel || goal.dueAt || 'Once',
+        startAt: goal.dueAt,
+        endAt: goal.dueAt,
+        completed: goal.status === 'COMPLETED',
+        completedAt: goal.completedAt,
+        updatedAt: goal.updatedAt,
+        progressNote: goal.progressNote,
+      }))
+    );
   }
 
   private updateTeacherGoalFromMock(

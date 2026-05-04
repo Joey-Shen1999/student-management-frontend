@@ -134,16 +134,10 @@
   padding: 14px;
   background: #fbfcfe;
   cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
 
   &:hover,
   &.selected {
     border-color: #39746d;
-    box-shadow: 0 10px 22px rgba(35, 88, 80, 0.11);
-    transform: translateY(-1px);
   }
 
   h4,
@@ -212,16 +206,6 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-
-  &:hover:not(:disabled) {
-    box-shadow: 0 8px 18px rgba(22, 38, 58, 0.12);
-    transform: translateY(-1px);
-  }
 
   &:disabled {
     cursor: not-allowed;
@@ -249,6 +233,11 @@
   border-color: #d3dce7;
   background: #ffffff;
   color: #26364a;
+}
+
+.btn.danger {
+  background: #b42318;
+  color: #ffffff;
 }
 
 .workspace-backdrop,
@@ -440,14 +429,14 @@
 
 .tracking-table {
   display: grid;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid #dfe7ef;
   border-radius: 8px;
 }
 
 .tracking-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) minmax(200px, 1fr) minmax(210px, 0.75fr);
+  min-width: max-content;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -464,6 +453,11 @@
     font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
+  }
+
+  &.inactive {
+    background: #f8fafc;
+    color: #6b7888;
   }
 }
 
@@ -484,6 +478,12 @@
 .student-meta {
   color: #61728a;
   font-size: 12px;
+}
+
+.completion-cell {
+  display: flex;
+  justify-content: center;
+  min-width: 92px;
 }
 
 .completion-switch {
@@ -539,6 +539,20 @@
   }
 }
 
+.muted-cell {
+  color: #9aa8b8;
+}
+
+.occurrence-count {
+  display: grid;
+  gap: 2px;
+
+  small {
+    color: #61728a;
+    font-size: 12px;
+  }
+}
+
 .confirm-panel {
   width: min(520px, 100%);
   display: grid;
@@ -581,6 +595,11 @@
   color: #74480b;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.warning-text.danger {
+  background: #fff1ef;
+  color: #9f2a1f;
 }
 
 .state-text,
@@ -638,7 +657,8 @@
   }
 
   .tracking-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    min-width: 0;
 
     &.heading {
       display: none;

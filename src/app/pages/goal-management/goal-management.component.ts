@@ -8,7 +8,8 @@ import { catchError, concatMap, finalize, map, mergeMap, toArray } from 'rxjs/op
 import { type LanguageCourseStatus } from '../../features/ielts/ielts-types';
 import {
   type AssignableStudentOptionVm,
-  type CreateInfoRequestVm,
+  type GoalTaskCompletionColumnVm,
+  type GoalTaskCompletionVm,
   type GoalTaskStatus,
   type GoalTaskVm,
   type TaskCycleFrequency,
@@ -103,12 +104,18 @@ interface TaskCycleDraftVm {
   customInterval: number;
   customUnit: TaskCycleUnit;
   label: string;
+  endDate: string;
+  noEnd: boolean;
 }
 
-interface TaskNotificationMetaVm {
-  sentAt: string;
-  infoId: number | null;
-  recipientCount: number;
+interface GoalCreateDraftStorageVm {
+  version: string;
+  updatedAt: string;
+  title: string;
+  description: string;
+  dueAt: string;
+  cycleDraft: TaskCycleDraftVm;
+  selectedStudentIds: number[];
 }
 
 interface TrackingStudentVm {
@@ -120,6 +127,12 @@ interface TrackingStudentVm {
   schoolName: string;
   graduation: string;
   completed: boolean;
+  active: boolean;
+  enrollmentStartAt: string | null;
+  enrollmentEndAt: string | null;
+  completedOccurrences: number;
+  totalOccurrences: number;
+  completions: GoalTaskCompletionVm[];
   saving: boolean;
 }
 
@@ -177,9 +190,10 @@ const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
 const GOAL_STUDENT_SELECTOR_FILTER_PREFERENCE_VERSION = 'v4';
 const TASK_CYCLE_META_STORAGE_KEY_PREFIX = 'goal-management.task-cycle-meta';
 const TASK_CYCLE_META_STORAGE_VERSION = 'v1';
-const TASK_NOTIFICATION_META_STORAGE_KEY_PREFIX = 'goal-management.task-notification-meta';
-const TASK_NOTIFICATION_META_STORAGE_VERSION = 'v1';
+const GOAL_CREATE_DRAFT_STORAGE_KEY_PREFIX = 'goal-management.create-goal.draft';
+const GOAL_CREATE_DRAFT_STORAGE_VERSION = 'v1';
 const TRACKING_AUTO_SAVE_DELAY_MS = 850;
+const CREATE_DRAFT_AUTO_SAVE_DELAY_MS = 350;
 
 @Component({
   selector: 'app-goal-management',
@@ -221,7 +235,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     untitledTrackingTask: uiText('未命名记录任务', 'Untitled tracking task'),
     newTrackingTaskTitle: uiText('新的记录任务', 'New tracking task'),
     retry: uiText('重试', 'Retry'),
-    sendNotice: uiText('发送通知', 'Send Notice'),
+    publishTask: uiText('发布任务', 'Publish Task'),
+    publishTaskConfirmTitle: uiText('确认发布任务？', 'Publish this task?'),
+    publishWarning: uiText(
+      '发布后会自动给选中的学生发送邮件。发布后继续修改会自动保存；只有新增学生会收到后续邮件。',
+      'Publishing sends email to the selected students. Later edits save automatically; only newly added students receive later emails.'
+    ),
+    publishing: uiText('发布中...', 'Publishing...'),
     newPeriodInstance: uiText('新建周期实例', 'New Period Instance'),
     deleteTask: uiText('删除记录任务', 'Delete Tracking Task'),
     creating: uiText('创建中...', 'Creating...'),
@@ -242,6 +262,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       'Describe the learning activity the teacher is tracking'
     ),
     startDate: uiText('开始日期', 'Start Date'),
+    endDate: uiText('结束日期', 'End Date'),
+    noEnd: uiText('持续', 'Ongoing'),
     cyclePeriod: uiText('周期 / 阶段', 'Cycle / Period'),
     oneTime: uiText('一次性', 'One-time'),
     routine: uiText('重复记录', 'Routine'),
@@ -279,17 +301,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     student: uiText('学生', 'Student'),
     studentInfo: uiText('学生信息', 'Student Info'),
     status: uiText('状态', 'Status'),
+    occurrences: uiText('完成次数', 'Occurrences'),
+    currentCheckIn: uiText('当前签到', 'Current Check-in'),
+    allCheckInRecords: uiText('全部签到记录', 'All Check-in Records'),
+    checkInRecords: uiText('签到记录', 'Check-in Records'),
+    noCheckInRecords: uiText('暂无签到记录', 'No check-in records yet.'),
+    removed: uiText('已移出', 'Removed'),
     confirm: uiText('确认', 'Confirm'),
-    sendTaskUpdate: uiText('发送记录通知？', 'Send tracking notice?'),
     untitledTask: uiText('未命名记录任务', 'Untitled tracking task'),
     cycleLabel: uiText('周期 / 标签', 'Cycle / Label'),
     recipients: uiText('接收人', 'Recipients'),
-    sendWarning: uiText(
-      '此操作会向选中的学生发送通知。发送前请确认对象和内容。',
-      'This sends a notice to the selected students. Confirm the audience and content before sending.'
-    ),
-    sending: uiText('发送中...', 'Sending...'),
-    send: uiText('发送', 'Send'),
     cancel: uiText('取消', 'Cancel'),
     newPeriodInstanceTitle: uiText('新建周期实例', 'New Period Instance'),
     periodInstanceHelper: uiText(
@@ -306,14 +327,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       '这会删除该记录任务下老师端的完成记录，不会发送任何通知。',
       'This deletes the teacher-side completion records for this tracking task. It does not send any notice.'
     ),
+    deleteSecondWarning: uiText(
+      '再次确认后才会永久删除这些完成记录。',
+      'Confirm again to permanently delete these completion records.'
+    ),
+    confirmDeleteAgain: uiText('再次确认删除', 'Confirm Delete Again'),
     deleting: uiText('删除中...', 'Deleting...'),
     noStartDate: uiText('无开始日期', 'No start date'),
-    noticeTitle: uiText('学习进度通知', 'Learning Progress Notice'),
-    noticeTag: uiText('通知', 'Notice'),
-    noticeFallbackContent: uiText(
-      '老师已更新你的学习状态，请登录学生平台查看通知。',
-      'Your teacher updated your learning status. Please sign in to view the notice.'
-    ),
     errorSelectStudent: uiText('请至少选择 1 位学生。', 'Select at least one student.'),
     errorTaskNameRequired: uiText('请填写记录任务名称。', 'Tracking task name is required.'),
     errorDescriptionRequired: uiText('请填写记录说明。', 'Description is required.'),
@@ -350,15 +370,18 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       '创建周期实例失败。',
       'Could not create the period instance.'
     ),
-    errorSendNoStudent: uiText(
-      '发送前请至少选择 1 位学生。',
-      'Select at least one student before sending.'
-    ),
-    errorSendFailed: uiText('发送通知失败。', 'Failed to send notification.'),
     errorTimeout: uiText(
       '请求超时，请检查后端服务或网络连接。',
       'Request timed out. Please check the backend service or network connection.'
     ),
+    draftSaved: uiText('草稿已保存', 'Draft saved'),
+    draftPending: uiText('草稿待保存', 'Draft pending'),
+    saveDraft: uiText('保存草稿', 'Save Draft'),
+    drafts: uiText('草稿', 'Drafts'),
+    draftHelper: uiText('未发布的任务会保存在这里，点开后继续编辑。', 'Unpublished tasks are saved here. Open a draft to continue editing.'),
+    continueDraft: uiText('继续编辑', 'Continue Editing'),
+    discardDraft: uiText('删除草稿', 'Discard Draft'),
+    untitledDraft: uiText('未命名草稿', 'Untitled draft'),
   };
 
   private readonly selectorContext = 'goal-create' as const;
@@ -458,11 +481,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   createError: UiMessage = '';
   createSuccess: UiMessage = '';
   editingTaskGroupId: string | null = null;
+  createDraftPreview: GoalCreateDraftStorageVm | null = null;
 
   selectedGoalId: number | null = null;
   updatingGoalGroupKey: string | null = null;
   updateError: UiMessage = '';
   trackingStudents: TrackingStudentVm[] = [];
+  trackingCompletionColumns: GoalTaskCompletionColumnVm[] = [];
+  completionHistoryStudent: TrackingStudentVm | null = null;
   trackingExpanded = true;
   trackingLoading = false;
   trackingError: UiMessage = '';
@@ -470,13 +496,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   autoSaveError: UiMessage = '';
   private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private autoSaveRequestSeq = 0;
+  private trackingDraftVersion = 0;
+  private trackingSelectionDirty = false;
   private suppressAutoSave = false;
   private readonly pendingCompletionByStudentId = new Map<number, boolean>();
-  sendConfirmOpen = false;
-  sendingNotification = false;
-  sendError: UiMessage = '';
-  sendSuccess: UiMessage = '';
+  publishConfirmOpen = false;
   deleteConfirmOpen = false;
+  deleteConfirmArmed = false;
   deletingTaskGroup = false;
   deleteError: UiMessage = '';
   deleteTargetTaskGroupId = '';
@@ -502,12 +528,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initializeCreateStudentVisibleColumns();
     this.initializeCreateStudentFiltersFromPreference();
+    this.refreshCreateDraftPreview();
     this.loadCreateStudentVisibleColumnsPreferenceFromServer();
     this.loadAssignableStudents();
     this.loadGoals();
   }
 
   ngOnDestroy(): void {
+    if (!this.isEditMode && this.createPanelExpanded) {
+      this.flushCreateDraftSave(true);
+    }
     this.clearTrackingAutoSaveTimer();
     this.clearAllTeacherNoteAutoSaveTimers();
   }
@@ -566,16 +596,52 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
 
   get completedTrackingCount(): number {
-    return this.trackingStudents.filter((student) => student.completed).length;
+    return this.trackingStudents.reduce(
+      (sum, student) => sum + this.resolveStudentCompletedOccurrences(student),
+      0
+    );
+  }
+
+  get totalTrackingOccurrences(): number {
+    return this.trackingStudents.reduce(
+      (sum, student) => sum + this.resolveStudentTotalOccurrences(student),
+      0
+    );
   }
 
   get pendingTrackingCount(): number {
-    return Math.max(0, this.trackingStudents.length - this.completedTrackingCount);
+    return Math.max(0, this.totalTrackingOccurrences - this.completedTrackingCount);
   }
 
   get completionPercent(): number {
-    if (this.trackingStudents.length === 0) return 0;
-    return Math.round((this.completedTrackingCount / this.trackingStudents.length) * 100);
+    if (this.totalTrackingOccurrences === 0) return 0;
+    return Math.round((this.completedTrackingCount / this.totalTrackingOccurrences) * 100);
+  }
+
+  studentCompletionPercent(student: TrackingStudentVm): number {
+    const totalOccurrences = this.resolveStudentTotalOccurrences(student);
+    if (totalOccurrences <= 0) return 0;
+    return Math.round((this.resolveStudentCompletedOccurrences(student) / totalOccurrences) * 100);
+  }
+
+  get completionColumnCount(): number {
+    return 1;
+  }
+
+  get trackingGridColumns(): string {
+    return 'minmax(180px, 1.05fr) minmax(190px, 1fr) minmax(170px, 0.55fr) minmax(92px, 0.28fr) minmax(92px, 0.28fr) minmax(128px, 0.36fr)';
+  }
+
+  get visibleTrackingCompletionColumns(): GoalTaskCompletionColumnVm[] {
+    if (this.trackingCompletionColumns.length > 0) return this.trackingCompletionColumns;
+    return [
+      {
+        occurrenceKey: 'once',
+        label: 'Once',
+        startAt: this.createDueAt || null,
+        endAt: this.createDueAt || null,
+      },
+    ];
   }
 
   get canAutoSaveTrackingDraft(): boolean {
@@ -584,8 +650,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   get saveStatusLabel(): LocalizedText {
     if (this.autoSaveStatus === 'saving') return this.ui.saving;
-    if (this.autoSaveStatus === 'saved') return this.ui.allChangesSaved;
+    if (this.autoSaveStatus === 'saved') {
+      return this.isEditMode ? this.ui.allChangesSaved : this.ui.draftSaved;
+    }
     if (this.autoSaveStatus === 'failed') return this.ui.saveFailed;
+    if (!this.isEditMode && this.hasCreateDraftContent()) return this.ui.draftPending;
     return this.isEditMode ? this.ui.allChangesSaved : this.ui.readyToCreate;
   }
 
@@ -645,10 +714,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   trackingRecordCountText(count: number): LocalizedText {
     return uiText(`${count} 条记录`, `${count} tracking record(s)`);
-  }
-
-  notificationSentText(count: number, id: unknown): LocalizedText {
-    return uiText(`通知已发送给 ${count} 位学生。编号 #${id}`, `Notification sent to ${count} student(s). Ref #${id}`);
   }
 
   createdTaskText(goalId: unknown, title: unknown): LocalizedText {
@@ -759,20 +824,51 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.clearTrackingAutoSaveTimer();
     this.editingTaskGroupId = null;
     this.resetCreateForm();
+    this.refreshCreateDraftPreview();
     this.createPanelExpanded = true;
     this.studentSelectorModalOpen = false;
     this.autoSaveStatus = 'idle';
     this.autoSaveError = '';
+    this.trackingSelectionDirty = false;
     this.trackingStudents = [];
+    this.trackingCompletionColumns = [];
     this.trackingExpanded = true;
     this.trackingError = '';
     this.deleteError = '';
     this.periodInstanceError = '';
     this.periodInstanceSuccess = '';
-    this.closeSendConfirmation();
+    this.closePublishConfirmation();
     this.closeDeleteConfirmation();
     this.closePeriodInstanceModal();
     this.suppressAutoSave = false;
+  }
+
+  openCreateDraftPanel(): void {
+    if (this.creating) return;
+    this.suppressAutoSave = true;
+    this.clearTrackingAutoSaveTimer();
+    this.editingTaskGroupId = null;
+    this.resetCreateForm();
+    if (!this.applySavedCreateDraft()) {
+      this.suppressAutoSave = false;
+      this.openCreatePanel();
+      return;
+    }
+    this.createPanelExpanded = true;
+    this.studentSelectorModalOpen = false;
+    this.autoSaveStatus = 'saved';
+    this.autoSaveError = '';
+    this.trackingSelectionDirty = false;
+    this.trackingExpanded = true;
+    this.trackingError = '';
+    this.deleteError = '';
+    this.periodInstanceError = '';
+    this.periodInstanceSuccess = '';
+    this.closePublishConfirmation();
+    this.closeDeleteConfirmation();
+    this.closePeriodInstanceModal();
+    this.suppressAutoSave = false;
+    this.cdr.detectChanges();
   }
   openEditPanel(goal: GoalTaskVm): void {
     if (this.creating) return;
@@ -798,15 +894,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createDescription = goal.description;
     this.createDueAt = goal.dueAt || '';
     this.cycleDraft = this.resolveCycleDraftForGoal(taskGroupId, goal);
+    this.trackingSelectionDirty = false;
     this.autoSaveStatus = 'saved';
     this.autoSaveError = '';
     this.trackingExpanded = true;
-    this.sendError = '';
-    this.sendSuccess = '';
     this.deleteError = '';
     this.periodInstanceError = '';
     this.periodInstanceSuccess = '';
-    this.closeSendConfirmation();
+    this.closePublishConfirmation();
     this.closeDeleteConfirmation();
     this.closePeriodInstanceModal();
     this.selectedCreateStudentIds = new Set<number>(
@@ -837,8 +932,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   }
   closeCreatePanel(force = false): void {
     if (this.creating && !force) return;
+    if (this.isEditMode) {
+      this.flushTrackingAutoSave(true);
+    } else {
+      this.flushCreateDraftSave(true);
+    }
     this.clearTrackingAutoSaveTimer();
-    this.closeSendConfirmation();
+    this.closePublishConfirmation(force);
     this.closeDeleteConfirmation(force);
     this.closePeriodInstanceModal(force);
     this.createPanelExpanded = false;
@@ -848,9 +948,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.createStudentColumnPanelExpanded = false;
     this.editingTaskGroupId = null;
     this.trackingStudents = [];
+    this.trackingCompletionColumns = [];
     this.trackingError = '';
     this.autoSaveStatus = 'idle';
     this.autoSaveError = '';
+    this.trackingSelectionDirty = false;
     this.deleteError = '';
     this.periodInstanceError = '';
     this.periodInstanceSuccess = '';
@@ -875,6 +977,9 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.studentSelectorModalOpen = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
+    if (this.isEditMode) {
+      this.flushTrackingAutoSave(true);
+    }
     this.cdr.detectChanges();
   }
 
@@ -897,6 +1002,11 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   onTrackingDraftChange(): void {
     if (this.suppressAutoSave) return;
+    if (!this.isEditMode) {
+      this.scheduleCreateDraftSave();
+      return;
+    }
+    this.markTrackingDraftChanged();
     this.scheduleTrackingAutoSave();
   }
 
@@ -929,8 +1039,43 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.onTrackingDraftChange();
   }
 
+  onCycleEndDateChange(value: string): void {
+    this.cycleDraft.endDate = String(value || '').trim();
+    if (this.cycleDraft.endDate) {
+      this.cycleDraft.noEnd = false;
+    }
+    this.onTrackingDraftChange();
+  }
+
+  onCycleNoEndChange(value: boolean): void {
+    this.cycleDraft.noEnd = value;
+    if (value) {
+      this.cycleDraft.endDate = '';
+    }
+    this.onTrackingDraftChange();
+  }
+
   retryAutoSave(): void {
-    this.flushTrackingAutoSave(true);
+    if (this.isEditMode) {
+      this.flushTrackingAutoSave(true);
+    } else {
+      this.flushCreateDraftSave(true);
+    }
+  }
+
+  saveCreateDraftNow(): void {
+    if (this.creating || this.isEditMode) return;
+    this.flushCreateDraftSave(true);
+  }
+
+  discardCreateDraft(): void {
+    if (this.creating) return;
+    this.removeCreateDraft();
+    if (this.createPanelExpanded && !this.isEditMode) {
+      this.resetCreateForm();
+      this.autoSaveStatus = 'idle';
+    }
+    this.cdr.detectChanges();
   }
 
   toggleTrackingExpanded(): void {
@@ -1203,12 +1348,184 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.autoSaveStatus = 'idle';
     this.autoSaveError = '';
     this.trackingStudents = [];
+    this.trackingCompletionColumns = [];
     this.trackingError = '';
-    this.sendError = '';
-    this.sendSuccess = '';
-    this.closeSendConfirmation();
+    this.closePublishConfirmation();
     this.createError = '';
     this.createSuccess = '';
+  }
+
+  private applySavedCreateDraft(): boolean {
+    const draft = this.createDraftPreview || this.readCreateDraft();
+    if (!draft) return false;
+
+    this.createTitle = draft.title;
+    this.createDescription = draft.description;
+    this.createDueAt = draft.dueAt;
+    this.cycleDraft = draft.cycleDraft;
+    this.selectedCreateStudentIds = new Set<number>(draft.selectedStudentIds);
+    this.rebuildTrackingStudentsFromSelection();
+    this.loadMissingProfilesForVisibleRows();
+    return true;
+  }
+
+  private scheduleCreateDraftSave(): void {
+    if (this.isEditMode || this.creating || this.suppressAutoSave) return;
+    this.clearTrackingAutoSaveTimer();
+    if (!this.hasCreateDraftContent()) {
+      this.removeCreateDraft();
+      this.autoSaveStatus = 'idle';
+      this.autoSaveError = '';
+      return;
+    }
+    this.autoSaveStatus = 'saving';
+    this.autoSaveError = '';
+    this.autoSaveTimer = setTimeout(
+      () => this.flushCreateDraftSave(),
+      CREATE_DRAFT_AUTO_SAVE_DELAY_MS
+    );
+  }
+
+  private flushCreateDraftSave(force = false): void {
+    if (this.isEditMode || (this.creating && !force)) return;
+    this.clearTrackingAutoSaveTimer();
+    if (!this.hasCreateDraftContent()) {
+      this.removeCreateDraft();
+      this.autoSaveStatus = 'idle';
+      this.autoSaveError = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.setItem(
+        this.resolveCreateDraftStorageKey(),
+        JSON.stringify(this.buildCreateDraftStorageValue())
+      );
+      this.refreshCreateDraftPreview();
+      this.autoSaveStatus = 'saved';
+      this.autoSaveError = '';
+    } catch {
+      this.autoSaveStatus = 'failed';
+      this.autoSaveError = this.ui.errorSaveChanges;
+    }
+    this.cdr.detectChanges();
+  }
+
+  private readCreateDraft(): GoalCreateDraftStorageVm | null {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return null;
+      const raw = storage.getItem(this.resolveCreateDraftStorageKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<GoalCreateDraftStorageVm>;
+      if (!parsed || parsed.version !== GOAL_CREATE_DRAFT_STORAGE_VERSION) {
+        return null;
+      }
+      return {
+        version: GOAL_CREATE_DRAFT_STORAGE_VERSION,
+        updatedAt: String(parsed.updatedAt || ''),
+        title: String(parsed.title || ''),
+        description: String(parsed.description || ''),
+        dueAt: String(parsed.dueAt || ''),
+        cycleDraft: this.normalizeCycleDraft(parsed.cycleDraft),
+        selectedStudentIds: this.normalizeDraftStudentIds(parsed.selectedStudentIds),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private refreshCreateDraftPreview(): void {
+    this.createDraftPreview = this.readCreateDraft();
+  }
+
+  private removeCreateDraft(): void {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      if (!storage) return;
+      storage.removeItem(this.resolveCreateDraftStorageKey());
+    } catch {}
+    this.createDraftPreview = null;
+  }
+
+  private hasCreateDraftContent(
+    draft: GoalCreateDraftStorageVm = this.buildCreateDraftStorageValue()
+  ): boolean {
+    return (
+      !!draft.title.trim() ||
+      !!draft.description.trim() ||
+      !!draft.dueAt.trim() ||
+      draft.selectedStudentIds.length > 0 ||
+      !this.isDefaultCycleDraft(draft.cycleDraft)
+    );
+  }
+
+  private buildCreateDraftStorageValue(): GoalCreateDraftStorageVm {
+    return {
+      version: GOAL_CREATE_DRAFT_STORAGE_VERSION,
+      updatedAt: new Date().toISOString(),
+      title: this.createTitle,
+      description: this.createDescription,
+      dueAt: this.createDueAt,
+      cycleDraft: { ...this.cycleDraft },
+      selectedStudentIds: this.normalizeDraftStudentIds(
+        Array.from(this.selectedCreateStudentIds.values())
+      ),
+    };
+  }
+
+  private normalizeDraftStudentIds(studentIds: unknown): number[] {
+    if (!Array.isArray(studentIds)) return [];
+    return Array.from(
+      new Set(
+        studentIds
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    ).sort((a, b) => a - b);
+  }
+
+  private normalizeCycleDraft(raw: Partial<TaskCycleDraftVm> | null | undefined): TaskCycleDraftVm {
+    const draft = this.createDefaultCycleDraft();
+    if (!raw || typeof raw !== 'object') return draft;
+    const customInterval = Math.trunc(Number(raw.customInterval));
+    return {
+      cycleType: raw.cycleType === 'ROUTINE' ? 'ROUTINE' : draft.cycleType,
+      frequency:
+        raw.frequency === 'WEEKLY' || raw.frequency === 'CUSTOM'
+          ? raw.frequency
+          : draft.frequency,
+      customInterval:
+        Number.isFinite(customInterval) && customInterval > 0
+          ? Math.min(customInterval, 99)
+          : draft.customInterval,
+      customUnit: raw.customUnit === 'WEEKS' ? 'WEEKS' : draft.customUnit,
+      label: String(raw.label || '').trim(),
+      endDate: String(raw.endDate || '').trim(),
+      noEnd: raw.noEnd !== false,
+    };
+  }
+
+  private isDefaultCycleDraft(draft: TaskCycleDraftVm): boolean {
+    const base = this.createDefaultCycleDraft();
+    return (
+      draft.cycleType === base.cycleType &&
+      draft.frequency === base.frequency &&
+      draft.customInterval === base.customInterval &&
+      draft.customUnit === base.customUnit &&
+      draft.label === base.label &&
+      draft.endDate === base.endDate &&
+      draft.noEnd === base.noEnd
+    );
+  }
+
+  private resolveCreateDraftStorageKey(): string {
+    const session = this.auth.getSession();
+    const ownerId = session?.teacherId || session?.userId || 'anonymous';
+    return `${GOAL_CREATE_DRAFT_STORAGE_KEY_PREFIX}.${GOAL_CREATE_DRAFT_STORAGE_VERSION}.${ownerId}`;
   }
 
   onCreateStudentCheckboxChange(studentId: number, event: Event | boolean): void {
@@ -1229,14 +1546,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       this.selectedCreateStudentIds.delete(studentId);
     }
     this.rebuildTrackingStudentsFromSelection();
-    this.scheduleTrackingAutoSave();
+    this.markTrackingDraftChanged(true);
+    this.scheduleTrackingSelectionSave();
   }
 
   clearSelectedStudents(): void {
     if (this.creating) return;
     this.selectedCreateStudentIds.clear();
     this.rebuildTrackingStudentsFromSelection();
-    this.scheduleTrackingAutoSave();
+    this.markTrackingDraftChanged(true);
+    this.scheduleTrackingSelectionSave();
   }
 
   onToggleSelectAll(event: Event | boolean): void {
@@ -1257,7 +1576,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       }
     }
     this.rebuildTrackingStudentsFromSelection();
-    this.scheduleTrackingAutoSave();
+    this.markTrackingDraftChanged(true);
+    this.scheduleTrackingSelectionSave();
   }
 
   isCreateStudentSelected(studentId: number): boolean { return this.selectedCreateStudentIds.has(studentId); }
@@ -1424,8 +1744,44 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.flushTeacherNoteAutoSave(studentId);
   }
 
+  openPublishConfirmation(): void {
+    if (this.creating || this.isEditMode) return;
+    const draft = this.resolveGoalDraft();
+    if (!draft) return;
+    this.publishConfirmOpen = true;
+    this.createError = '';
+    this.createSuccess = '';
+  }
+
+  closePublishConfirmation(force = false): void {
+    if (this.creating && !force) return;
+    this.publishConfirmOpen = false;
+  }
+
+  confirmPublishTask(): void {
+    if (this.creating) return;
+    this.closePublishConfirmation(true);
+    this.createGoal();
+  }
+
   createGoal(): void {
     if (this.creating) return;
+    const draft = this.resolveGoalDraft();
+    if (!draft) return;
+    if (this.isEditMode) {
+      this.flushTrackingAutoSave(true);
+      return;
+    }
+
+    this.createNewGoals(draft.selectedIds, draft.title, draft.description, draft.dueAt);
+  }
+
+  private resolveGoalDraft(): {
+    selectedIds: number[];
+    title: string;
+    description: string;
+    dueAt: string | null;
+  } | null {
     const selectedIds = Array.from(this.selectedCreateStudentIds.values())
       .filter((studentId) => this.isCreateStudentSelectable(studentId))
       .sort((a, b) => a - b);
@@ -1433,21 +1789,29 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       this.openStudentSelectorModal();
       this.createError = this.ui.errorSelectStudent;
       this.createSuccess = '';
-      return;
+      return null;
     }
 
     const title = this.createTitle.trim();
-    if (!title) { this.createError = this.ui.errorTaskNameRequired; this.createSuccess = ''; return; }
-    const description = this.createDescription.trim();
-    if (!description) { this.createError = this.ui.errorDescriptionRequired; this.createSuccess = ''; return; }
-
-    const dueAt = this.createDueAt.trim() || null;
-    if (this.isEditMode) {
-      this.flushTrackingAutoSave(true);
-      return;
+    if (!title) {
+      this.createError = this.ui.errorTaskNameRequired;
+      this.createSuccess = '';
+      return null;
     }
 
-    this.createNewGoals(selectedIds, title, description, dueAt);
+    const description = this.createDescription.trim();
+    if (!description) {
+      this.createError = this.ui.errorDescriptionRequired;
+      this.createSuccess = '';
+      return null;
+    }
+
+    return {
+      selectedIds,
+      title,
+      description,
+      dueAt: this.createDueAt.trim() || null,
+    };
   }
 
   private createNewGoals(
@@ -1456,6 +1820,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     description: string,
     dueAt: string | null
   ): void {
+    this.clearTrackingAutoSaveTimer();
     this.creating = true;
     this.createError = '';
     this.createSuccess = '';
@@ -1471,12 +1836,14 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       finalize(() => { this.creating = false; this.cdr.detectChanges(); })
     ).subscribe({
       next: (resp) => {
+        this.removeCreateDraft();
         const rows = this.sortGoals(resp.items || []);
         const first = rows[0];
         if (first) this.selectedGoalId = first.id;
         const taskGroupId = String(resp.taskGroupId || first?.taskGroupId || '').trim();
         if (taskGroupId) {
           this.editingTaskGroupId = taskGroupId;
+          this.trackingSelectionDirty = false;
           this.persistCycleMeta(taskGroupId);
           this.rebuildTrackingStudentsFromSelection();
           this.loadTrackingStudents(taskGroupId);
@@ -1507,12 +1874,39 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.flushTrackingAutoSave(true);
   }
 
+  private markTrackingDraftChanged(selectionChanged = false): void {
+    if (!this.isEditMode) return;
+    this.trackingDraftVersion += 1;
+    if (selectionChanged) {
+      this.trackingSelectionDirty = true;
+    }
+  }
+
   private scheduleTrackingAutoSave(): void {
+    if (!this.isEditMode) {
+      this.scheduleCreateDraftSave();
+      return;
+    }
     if (!this.canAutoSaveTrackingDraft || this.suppressAutoSave) return;
     this.clearTrackingAutoSaveTimer();
     this.autoSaveStatus = 'saving';
     this.autoSaveError = '';
     this.autoSaveTimer = setTimeout(() => this.flushTrackingAutoSave(), TRACKING_AUTO_SAVE_DELAY_MS);
+  }
+
+  private scheduleTrackingSelectionSave(): void {
+    if (!this.isEditMode) {
+      this.scheduleCreateDraftSave();
+      return;
+    }
+    if (!this.canAutoSaveTrackingDraft || this.suppressAutoSave) return;
+    if (this.studentSelectorModalOpen) {
+      this.clearTrackingAutoSaveTimer();
+      this.autoSaveStatus = 'saving';
+      this.autoSaveError = '';
+      return;
+    }
+    this.scheduleTrackingAutoSave();
   }
 
   private flushTrackingAutoSave(force = false): void {
@@ -1536,6 +1930,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     }
 
     const requestSeq = ++this.autoSaveRequestSeq;
+    const draftVersionAtRequest = this.trackingDraftVersion;
     this.autoSaveStatus = 'saving';
     this.autoSaveError = '';
     this.taskCenter
@@ -1549,20 +1944,37 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (updatedGroup) => {
           if (requestSeq !== this.autoSaveRequestSeq) return;
+          if (draftVersionAtRequest !== this.trackingDraftVersion) {
+            this.autoSaveStatus = 'saving';
+            this.cdr.detectChanges();
+            return;
+          }
           const updatedRows = this.sortGoals(updatedGroup.items || []);
           this.goals = this.sortGoals([
             ...updatedRows,
             ...this.goals.filter((row) => this.resolveGoalTaskGroupId(row) !== taskGroupId),
           ]);
-          const selectedInGroup =
-            updatedRows.find((row) => row.id === this.selectedGoalId) || updatedRows[0];
-          if (selectedInGroup) {
-            this.selectedGoalId = selectedInGroup.id;
+          const isCurrentTaskGroup = this.editingTaskGroupId === taskGroupId;
+          if (isCurrentTaskGroup) {
+            const selectedInGroup =
+              updatedRows.find((row) => row.id === this.selectedGoalId) || updatedRows[0];
+            if (selectedInGroup) {
+              this.selectedGoalId = selectedInGroup.id;
+            }
+            this.selectedCreateStudentIds = new Set(
+              updatedRows
+                .filter((row) => row.active !== false)
+                .map((row) => row.assignedStudentId)
+            );
+            this.rebuildTrackingStudentsFromGoals();
           }
           this.persistCycleMeta(taskGroupId);
-          this.autoSaveStatus = 'saved';
-          this.autoSaveError = '';
-          this.loadTrackingStudents(taskGroupId);
+          if (isCurrentTaskGroup) {
+            this.trackingSelectionDirty = false;
+            this.autoSaveStatus = 'saved';
+            this.autoSaveError = '';
+            this.loadTrackingStudents(taskGroupId);
+          }
           this.loadGoals();
           this.cdr.detectChanges();
         },
@@ -1604,8 +2016,30 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (resp) => {
           if (this.editingTaskGroupId !== normalizedTaskGroupId) return;
-          this.trackingStudents = (resp.students || []).map((student) => {
+          if (this.trackingSelectionDirty) {
+            this.applyPendingCompletionUpdates();
+            this.cdr.detectChanges();
+            return;
+          }
+          this.trackingCompletionColumns = resp.completionColumns || [];
+          this.cycleDraft = {
+            cycleType: resp.cycleType === 'ROUTINE' ? 'ROUTINE' : this.cycleDraft.cycleType,
+            frequency:
+              resp.cycleFrequency === 'WEEKLY' || resp.cycleFrequency === 'CUSTOM'
+                ? resp.cycleFrequency
+                : this.cycleDraft.frequency,
+            customInterval:
+              Number.isFinite(Number(resp.cycleInterval)) && Number(resp.cycleInterval) > 0
+                ? Math.min(99, Math.trunc(Number(resp.cycleInterval)))
+                : this.cycleDraft.customInterval,
+            customUnit: resp.cycleUnit === 'WEEKS' ? 'WEEKS' : this.cycleDraft.customUnit,
+            label: String(resp.cycleLabel || this.cycleDraft.label || '').trim(),
+            endDate: String(resp.cycleEndAt || '').trim(),
+            noEnd: resp.cycleNoEnd !== false,
+          };
+            this.trackingStudents = (resp.students || []).map((student) => {
             const option = this.findStudentOption(student.studentId);
+            const completions = student.completions || [];
             return {
               goalId: student.goalId,
               studentId: student.studentId,
@@ -1618,12 +2052,27 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
               schoolName: this.detailSchoolName(student.studentId),
               graduation: this.detailGraduation(student.studentId),
               completed: student.completed || student.status === 'COMPLETED',
-              saving: false,
-            };
-          });
-          this.selectedCreateStudentIds = new Set(
-            this.trackingStudents.map((student) => student.studentId)
-          );
+              active: student.active !== false,
+              enrollmentStartAt: student.enrollmentStartAt || null,
+              enrollmentEndAt: student.enrollmentEndAt || null,
+              completedOccurrences:
+                Number.isFinite(Number(student.completedOccurrences))
+                  ? Math.trunc(Number(student.completedOccurrences))
+                  : completions.filter((completion) => completion.completed).length,
+              totalOccurrences:
+                Number.isFinite(Number(student.totalOccurrences))
+                  ? Math.trunc(Number(student.totalOccurrences))
+                  : completions.length,
+              completions,
+                saving: false,
+              };
+            });
+            this.syncCompletionHistoryStudentFromRows();
+            this.selectedCreateStudentIds = new Set(
+              this.trackingStudents
+                .filter((student) => student.active)
+                .map((student) => student.studentId)
+            );
           this.applyPendingCompletionUpdates();
           this.cdr.detectChanges();
         },
@@ -1659,9 +2108,16 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         schoolName: this.detailSchoolName(goal.assignedStudentId),
         graduation: this.detailGraduation(goal.assignedStudentId),
         completed: goal.status === 'COMPLETED',
+        active: goal.active !== false,
+        enrollmentStartAt: goal.enrollmentStartAt || null,
+        enrollmentEndAt: goal.enrollmentEndAt || null,
+        completedOccurrences: goal.status === 'COMPLETED' ? 1 : 0,
+        totalOccurrences: this.trackingCompletionColumns.length || 1,
+        completions: this.buildFallbackCompletions(goal.status === 'COMPLETED'),
         saving: false,
       };
     });
+    this.syncCompletionHistoryStudentFromRows();
   }
 
   private rebuildTrackingStudentsFromSelection(): void {
@@ -1680,42 +2136,189 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         schoolName: this.detailSchoolName(studentId),
         graduation: this.detailGraduation(studentId),
         completed: previous?.completed || this.pendingCompletionByStudentId.get(studentId) === true,
+        active: true,
+        enrollmentStartAt: previous?.enrollmentStartAt || null,
+        enrollmentEndAt: null,
+        completedOccurrences: previous?.completedOccurrences || 0,
+        totalOccurrences: previous?.totalOccurrences || this.trackingCompletionColumns.length || 1,
+        completions: previous?.completions || this.buildFallbackCompletions(false),
         saving: previous?.saving || false,
       };
     });
+    this.syncCompletionHistoryStudentFromRows();
+  }
+
+  private buildFallbackCompletions(completed: boolean): GoalTaskCompletionVm[] {
+    const columns =
+      this.trackingCompletionColumns.length > 0
+        ? this.trackingCompletionColumns
+        : [{ occurrenceKey: 'once', label: 'Once', startAt: this.createDueAt || null, endAt: this.createDueAt || null }];
+    return columns.map((column) => ({
+      ...column,
+      id: null,
+      completed,
+      completedAt: null,
+      updatedAt: null,
+      progressNote: '',
+    }));
+  }
+
+  trackingCompletionFor(
+    student: TrackingStudentVm,
+    column: GoalTaskCompletionColumnVm
+  ): GoalTaskCompletionVm | null {
+    const occurrenceKey = String(column?.occurrenceKey || '').trim();
+    if (!occurrenceKey) return null;
+    return (
+      (student.completions || []).find(
+        (completion) => completion.occurrenceKey === occurrenceKey
+      ) || null
+    );
+  }
+
+  trackingDisplayCompletionFor(student: TrackingStudentVm): GoalTaskCompletionVm | null {
+    const completions = this.completionHistoryFor(student);
+    if (completions.length === 0) return null;
+
+    const referenceDate = this.resolveCompletionReferenceDate(student);
+    let selected: GoalTaskCompletionVm | null = null;
+    for (const completion of completions) {
+      const startAt = String(completion.startAt || completion.endAt || '').trim();
+      if (!startAt || startAt <= referenceDate) {
+        selected = completion;
+      }
+    }
+    return selected || completions[0] || null;
+  }
+
+  completionHistoryFor(student: TrackingStudentVm): GoalTaskCompletionVm[] {
+    return this.sortTrackingCompletions(student.completions || []);
+  }
+
+  openCompletionHistory(student: TrackingStudentVm): void {
+    this.completionHistoryStudent = student;
+    this.cdr.detectChanges();
+  }
+
+  closeCompletionHistory(): void {
+    this.completionHistoryStudent = null;
+    this.cdr.detectChanges();
+  }
+
+  trackCompletion = (index: number, completion: GoalTaskCompletionVm): string =>
+    completion.occurrenceKey || String(completion.id || index);
+
+  private sortTrackingCompletions(completions: GoalTaskCompletionVm[]): GoalTaskCompletionVm[] {
+    return [...completions].sort((left, right) => {
+      const leftKey = String(left.startAt || left.endAt || left.occurrenceKey || '').trim();
+      const rightKey = String(right.startAt || right.endAt || right.occurrenceKey || '').trim();
+      return leftKey.localeCompare(rightKey);
+    });
+  }
+
+  private resolveCompletionReferenceDate(student: TrackingStudentVm): string {
+    const today = this.localDateKey(new Date());
+    const enrollmentEndAt = String(student.enrollmentEndAt || '').trim();
+    if (student.active === false && enrollmentEndAt && enrollmentEndAt < today) {
+      return enrollmentEndAt;
+    }
+    return today;
+  }
+
+  private localDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private syncCompletionHistoryStudentFromRows(): void {
+    if (!this.completionHistoryStudent) return;
+    const studentId = this.completionHistoryStudent.studentId;
+    this.completionHistoryStudent =
+      this.trackingStudents.find((student) => student.studentId === studentId) || null;
+  }
+
+  private resolveStudentCompletedOccurrences(student: TrackingStudentVm): number {
+    const completions = student.completions || [];
+    if (completions.length > 0) {
+      return completions.filter((completion) => completion.completed).length;
+    }
+    if (Number.isFinite(Number(student.completedOccurrences))) {
+      return Math.max(0, Math.trunc(Number(student.completedOccurrences)));
+    }
+    return student.completed ? 1 : 0;
+  }
+
+  private resolveStudentTotalOccurrences(student: TrackingStudentVm): number {
+    const completions = student.completions || [];
+    if (completions.length > 0) return completions.length;
+    if (Number.isFinite(Number(student.totalOccurrences))) {
+      return Math.max(0, Math.trunc(Number(student.totalOccurrences)));
+    }
+    return 1;
+  }
+
+  private refreshTrackingStudentCompletionSummary(student: TrackingStudentVm): void {
+    const totalOccurrences = this.resolveStudentTotalOccurrences(student);
+    const completedOccurrences = this.resolveStudentCompletedOccurrences(student);
+    student.totalOccurrences = totalOccurrences;
+    student.completedOccurrences = completedOccurrences;
+    student.completed = totalOccurrences > 0 && completedOccurrences >= totalOccurrences;
+  }
+
+  private replaceTrackingStudentCompletion(
+    student: TrackingStudentVm,
+    updatedCompletion: GoalTaskCompletionVm
+  ): void {
+    const occurrenceKey = String(updatedCompletion.occurrenceKey || '').trim();
+    if (!occurrenceKey) return;
+    const index = (student.completions || []).findIndex(
+      (completion) => completion.occurrenceKey === occurrenceKey
+    );
+    if (index >= 0) {
+      student.completions = student.completions.map((completion, currentIndex) =>
+        currentIndex === index ? { ...completion, ...updatedCompletion } : completion
+      );
+    } else {
+      student.completions = [...(student.completions || []), updatedCompletion];
+    }
+    this.refreshTrackingStudentCompletionSummary(student);
+  }
+
+  private resolveGoalStatusFromTrackingStudent(student: TrackingStudentVm): GoalTaskStatus {
+    const totalOccurrences = this.resolveStudentTotalOccurrences(student);
+    const completedOccurrences = this.resolveStudentCompletedOccurrences(student);
+    if (totalOccurrences <= 0 || completedOccurrences <= 0) return 'NOT_STARTED';
+    if (completedOccurrences >= totalOccurrences) return 'COMPLETED';
+    return 'IN_PROGRESS';
+  }
+
+  private syncGoalRowFromTrackingStudent(student: TrackingStudentVm): void {
+    if (!student.goalId) return;
+    const nextStatus = this.resolveGoalStatusFromTrackingStudent(student);
+    const timestamp = new Date().toISOString();
+    this.goals = this.sortGoals(
+      this.goals.map((goal) =>
+        goal.id === student.goalId
+          ? {
+              ...goal,
+              status: nextStatus,
+              completedAt: nextStatus === 'COMPLETED' ? goal.completedAt || timestamp : null,
+              updatedAt: timestamp,
+            }
+          : goal
+      )
+    );
   }
 
   private persistTrackingStudentStatus(student: TrackingStudentVm, completed: boolean): void {
-    if (!student.goalId) return;
-
-    student.saving = true;
-    this.updateError = '';
-    this.taskCenter
-      .updateTeacherGoalStatus(student.goalId, {
-        status: completed ? 'COMPLETED' : 'NOT_STARTED',
-        progressNote: completed ? 'Teacher marked this student Completed in Completion Tracking.' : '',
-      })
-      .pipe(
-        finalize(() => {
-          student.saving = false;
-          this.cdr.detectChanges();
-        })
-      )
-      .subscribe({
-        next: (updatedGoal) => {
-          this.mergeUpdatedGoalRows([updatedGoal]);
-          student.goalId = updatedGoal.id;
-          student.completed = updatedGoal.status === 'COMPLETED';
-          student.saving = false;
-          this.pendingCompletionByStudentId.delete(student.studentId);
-          this.cdr.detectChanges();
-        },
-        error: (error: unknown) => {
-          student.completed = !completed;
-          this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
-          this.cdr.detectChanges();
-        },
-      });
+    if (!student.completions || student.completions.length === 0) {
+      student.completions = this.buildFallbackCompletions(student.completed);
+    }
+    const completion = this.trackingDisplayCompletionFor(student) || student.completions[0];
+    if (!completion) return;
+    this.updateTrackingStudentCompletion(student, completion, completed);
   }
 
   private applyPendingCompletionUpdates(): void {
@@ -1724,7 +2327,12 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       if (!student.goalId || !this.pendingCompletionByStudentId.has(student.studentId)) continue;
       const completed = this.pendingCompletionByStudentId.get(student.studentId) === true;
       this.pendingCompletionByStudentId.delete(student.studentId);
-      this.updateTrackingStudentStatus(student, completed);
+      if (!student.completions || student.completions.length === 0) {
+        student.completions = this.buildFallbackCompletions(student.completed);
+      }
+      const completion = this.trackingDisplayCompletionFor(student) || student.completions[0];
+      if (!completion) continue;
+      this.updateTrackingStudentCompletion(student, completion, completed);
     }
   }
 
@@ -1740,6 +2348,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       customInterval: 1,
       customUnit: 'DAYS',
       label: '',
+      endDate: '',
+      noEnd: true,
     };
   }
 
@@ -1749,6 +2359,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     cycleInterval: number | null;
     cycleUnit: TaskCycleUnit | null;
     cycleLabel: string | null;
+    cycleEndAt: string | null;
+    cycleNoEnd: boolean | null;
   } {
     const isRoutine = draft.cycleType === 'ROUTINE';
     const isCustom = isRoutine && draft.frequency === 'CUSTOM';
@@ -1758,6 +2370,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       cycleInterval: isCustom ? draft.customInterval : null,
       cycleUnit: isCustom ? draft.customUnit : null,
       cycleLabel: draft.label.trim() || null,
+      cycleEndAt: isRoutine && !draft.noEnd ? draft.endDate.trim() || null : null,
+      cycleNoEnd: isRoutine ? draft.noEnd : true,
     };
   }
 
@@ -1777,6 +2391,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
           : 1,
       customUnit: goal.cycleUnit === 'WEEKS' ? 'WEEKS' : 'DAYS',
       label: String(goal.cycleLabel || '').trim(),
+      endDate: String(goal.cycleEndAt || '').trim(),
+      noEnd: goal.cycleNoEnd !== false,
     };
   }
 
@@ -1813,6 +2429,8 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
             : draft.customInterval,
         customUnit: parsed.customUnit === 'WEEKS' ? 'WEEKS' : draft.customUnit,
         label: String(parsed.label || '').trim(),
+        endDate: String(parsed.endDate || '').trim(),
+        noEnd: parsed.noEnd !== false,
       };
     } catch {
       return null;
@@ -1829,55 +2447,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       if (!storage) return;
       storage.removeItem(this.resolveCycleMetaStorageKey(taskGroupId));
     } catch {}
-  }
-
-  private persistTaskNotificationMeta(
-    taskGroupId: string,
-    meta: TaskNotificationMetaVm
-  ): void {
-    try {
-      const storage = (globalThis as { localStorage?: Storage }).localStorage;
-      if (!storage) return;
-      storage.setItem(this.resolveTaskNotificationMetaStorageKey(taskGroupId), JSON.stringify(meta));
-    } catch {}
-  }
-
-  private readTaskNotificationMeta(taskGroupId: string): TaskNotificationMetaVm | null {
-    try {
-      const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
-      if (!normalizedTaskGroupId) return null;
-      const storage = (globalThis as { localStorage?: Storage }).localStorage;
-      if (!storage) return null;
-      const raw = storage.getItem(this.resolveTaskNotificationMetaStorageKey(normalizedTaskGroupId));
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Partial<TaskNotificationMetaVm>;
-      const sentAt = String(parsed?.sentAt || '').trim();
-      if (!sentAt) return null;
-      const infoId = Number(parsed?.infoId);
-      const recipientCount = Number(parsed?.recipientCount);
-      return {
-        sentAt,
-        infoId: Number.isFinite(infoId) && infoId > 0 ? Math.trunc(infoId) : null,
-        recipientCount:
-          Number.isFinite(recipientCount) && recipientCount >= 0
-            ? Math.trunc(recipientCount)
-            : 0,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  private clearTaskNotificationMeta(taskGroupId: string): void {
-    try {
-      const storage = (globalThis as { localStorage?: Storage }).localStorage;
-      if (!storage) return;
-      storage.removeItem(this.resolveTaskNotificationMetaStorageKey(taskGroupId));
-    } catch {}
-  }
-
-  private resolveTaskNotificationMetaStorageKey(taskGroupId: string): string {
-    return `${TASK_NOTIFICATION_META_STORAGE_KEY_PREFIX}.${TASK_NOTIFICATION_META_STORAGE_VERSION}.${taskGroupId}`;
   }
 
   resolveCycleSummaryText(): LocalizedText {
@@ -1900,10 +2469,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
 
   private resolveCycleSummaryPlain(): string {
     return this.language.translate(this.resolveCycleSummaryText());
-  }
-
-  private buildNoticeContent(): string {
-    return this.language.translate(this.ui.noticeFallbackContent);
   }
 
   private findStudentOption(studentId: number): AssignableStudentOptionVm | null {
@@ -1976,22 +2541,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     return `${group.studentNames.slice(0, 3).join('、')} 等${group.studentCount}人`;
   }
 
-  isGoalGroupNotificationSent(group: GoalGroupRowVm): boolean {
-    return !!this.readTaskNotificationMeta(group.taskGroupId || '');
-  }
-
-  notificationStatusLabel(group: GoalGroupRowVm): LocalizedText {
-    return this.isGoalGroupNotificationSent(group) ? this.ui.sent : this.ui.pending;
-  }
-
-  workspaceNotificationStatusLabel(): LocalizedText {
-    if (!this.editingTaskGroupId) return this.ui.pending;
-    const meta = this.readTaskNotificationMeta(this.editingTaskGroupId);
-    if (!meta) return this.ui.pendingSend;
-    const sentAt = this.displayUpdatedAt(meta.sentAt);
-    return sentAt ? uiText(`已发送 - ${sentAt}`, `Sent - ${sentAt}`) : this.ui.sent;
-  }
-
   setGoalStatus(group: GoalGroupRowVm, status: GoalTaskStatus): void {
     if (this.updatingGoalGroupKey !== null) return;
     const goalsToUpdate = group.goals.filter((goal) => goal.status !== status);
@@ -2033,10 +2582,19 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       });
   }
 
-  updateTrackingStudentStatus(student: TrackingStudentVm, completed: boolean): void {
-    if (student.saving || this.creating) return;
+  updateTrackingStudentCompletion(
+    student: TrackingStudentVm,
+    completion: GoalTaskCompletionVm,
+    completed: boolean
+  ): void {
+    if (student.saving || this.creating || student.active === false || !completion) return;
 
-    student.completed = completed;
+    const previousCompletion = { ...completion };
+    completion.completed = completed;
+    completion.completedAt = completed ? completion.completedAt || new Date().toISOString() : null;
+    completion.updatedAt = new Date().toISOString();
+    this.refreshTrackingStudentCompletionSummary(student);
+
     if (!student.goalId) {
       this.pendingCompletionByStudentId.set(student.studentId, completed);
       this.scheduleTrackingAutoSave();
@@ -2044,40 +2602,103 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       return;
     }
 
+    student.saving = true;
+    this.updateError = '';
+    this.taskCenter
+      .updateTeacherGoalCompletion(student.goalId, {
+        occurrenceKey: completion.occurrenceKey,
+        completed,
+        progressNote: completed ? 'Teacher marked this occurrence Completed.' : '',
+      })
+      .pipe(
+        finalize(() => {
+          student.saving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (updatedCompletion) => {
+          this.replaceTrackingStudentCompletion(student, updatedCompletion);
+          this.syncGoalRowFromTrackingStudent(student);
+          this.pendingCompletionByStudentId.delete(student.studentId);
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          Object.assign(completion, previousCompletion);
+          this.refreshTrackingStudentCompletionSummary(student);
+          this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  updateTrackingStudentStatus(student: TrackingStudentVm, completed: boolean): void {
+    if (student.saving || this.creating) return;
     this.persistTrackingStudentStatus(student, completed);
   }
 
   markAllTrackingStudents(completed: boolean): void {
     if (this.creating || this.trackingStudents.length === 0) return;
 
-    const persistedRows = this.trackingStudents.filter((student) => student.goalId);
-    const pendingRows = this.trackingStudents.filter((student) => !student.goalId);
+    const activeRows = this.trackingStudents.filter((student) => student.active !== false);
+    const persistedRows = activeRows.filter((student) => student.goalId);
+    const pendingRows = activeRows.filter((student) => !student.goalId);
+    const completionTargets: Array<{ student: TrackingStudentVm; completion: GoalTaskCompletionVm }> = [];
+    const snapshots = new Map<
+      number,
+      {
+        completed: boolean;
+        completedOccurrences: number;
+        totalOccurrences: number;
+        completions: GoalTaskCompletionVm[];
+      }
+    >();
 
-    for (const student of this.trackingStudents) {
-      student.completed = completed;
+    for (const student of activeRows) {
+      snapshots.set(student.studentId, {
+        completed: student.completed,
+        completedOccurrences: student.completedOccurrences,
+        totalOccurrences: student.totalOccurrences,
+        completions: (student.completions || []).map((completion) => ({ ...completion })),
+      });
+      if (!student.completions || student.completions.length === 0) {
+        student.completions = this.buildFallbackCompletions(false);
+      }
+      const completion = this.trackingDisplayCompletionFor(student) || student.completions[0];
+      if (completion) {
+        completion.completed = completed;
+        completion.completedAt = completed ? completion.completedAt || new Date().toISOString() : null;
+        completion.updatedAt = new Date().toISOString();
+        if (student.goalId) {
+          completionTargets.push({ student, completion });
+        }
+      }
+      this.refreshTrackingStudentCompletionSummary(student);
       student.saving = !!student.goalId;
     }
+
     for (const student of pendingRows) {
       this.pendingCompletionByStudentId.set(student.studentId, completed);
     }
     if (pendingRows.length > 0) {
       this.scheduleTrackingAutoSave();
     }
-    if (persistedRows.length === 0) {
+    if (completionTargets.length === 0) {
       this.cdr.detectChanges();
       return;
     }
 
     this.updateError = '';
-    from(persistedRows)
+    from(completionTargets)
       .pipe(
-        concatMap((student) =>
-          this.taskCenter.updateTeacherGoalStatus(student.goalId as number, {
-            status: completed ? 'COMPLETED' : 'NOT_STARTED',
-            progressNote: completed
-              ? 'Teacher marked this student Completed in Completion Tracking.'
-              : '',
-          })
+        concatMap(({ student, completion }) =>
+          this.taskCenter
+            .updateTeacherGoalCompletion(student.goalId as number, {
+              occurrenceKey: completion.occurrenceKey,
+              completed,
+              progressNote: completed ? 'Teacher marked this occurrence Completed.' : '',
+            })
+            .pipe(map((updatedCompletion) => ({ studentId: student.studentId, updatedCompletion })))
         ),
         toArray(),
         finalize(() => {
@@ -2089,24 +2710,28 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (updatedRows) => {
-          this.mergeUpdatedGoalRows(updatedRows);
-          const updatedByStudentId = new Map(
-            updatedRows.map((row) => [row.assignedStudentId, row])
-          );
-          this.trackingStudents = this.trackingStudents.map((student) => {
-            const updated = updatedByStudentId.get(student.studentId);
-            if (!updated) return student;
-            return {
-              ...student,
-              goalId: updated.id,
-              completed: updated.status === 'COMPLETED',
-            };
-          });
+          for (const { studentId, updatedCompletion } of updatedRows) {
+            const student = this.trackingStudents.find((row) => row.studentId === studentId);
+            if (student) {
+              this.replaceTrackingStudentCompletion(student, updatedCompletion);
+            }
+          }
+          for (const student of persistedRows) {
+            this.syncGoalRowFromTrackingStudent(student);
+          }
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
+          for (const student of activeRows) {
+            const snapshot = snapshots.get(student.studentId);
+            if (!snapshot) continue;
+            student.completed = snapshot.completed;
+            student.completedOccurrences = snapshot.completedOccurrences;
+            student.totalOccurrences = snapshot.totalOccurrences;
+            student.completions = snapshot.completions;
+            student.saving = false;
+          }
           this.updateError = this.extractErrorMessage(error) || this.ui.errorUpdateCompletion;
-          this.rebuildTrackingStudentsFromGoals();
           this.cdr.detectChanges();
         },
       });
@@ -2126,6 +2751,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     this.deleteTargetTitle = group?.representativeGoal.title || this.createTitle || this.language.translate(this.ui.untitledTask);
     this.deleteTargetStudentCount = group?.studentCount || this.selectedCreateStudentCount || 0;
     this.deleteError = '';
+    this.deleteConfirmArmed = false;
     this.deleteConfirmOpen = true;
     this.cdr.detectChanges();
   }
@@ -2133,6 +2759,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   closeDeleteConfirmation(force = false): void {
     if (this.deletingTaskGroup && !force) return;
     this.deleteConfirmOpen = false;
+    this.deleteConfirmArmed = false;
     this.deleteTargetTaskGroupId = '';
     this.deleteTargetTitle = '';
     this.deleteTargetStudentCount = 0;
@@ -2144,6 +2771,13 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
     const taskGroupId = this.normalizeTaskGroupId(this.deleteTargetTaskGroupId);
     if (!taskGroupId) {
       this.deleteError = this.ui.errorMissingTaskGroup;
+      return;
+    }
+
+    if (!this.deleteConfirmArmed) {
+      this.deleteConfirmArmed = true;
+      this.deleteError = '';
+      this.cdr.detectChanges();
       return;
     }
 
@@ -2161,7 +2795,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
         next: () => {
           this.goals = this.goals.filter((goal) => this.resolveGoalTaskGroupId(goal) !== taskGroupId);
           this.clearCycleMeta(taskGroupId);
-          this.clearTaskNotificationMeta(taskGroupId);
           const wasEditingDeletedGroup = this.editingTaskGroupId === taskGroupId;
           this.closeDeleteConfirmation(true);
           if (wasEditingDeletedGroup) {
@@ -2280,66 +2913,6 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
       return `${weekMatch[1]}${Number(weekMatch[2]) + 1}${weekMatch[3]}`.trim();
     }
     return '';
-  }
-
-  openSendConfirmation(): void {
-    if (!this.isEditMode || this.sendRecipientCount === 0) return;
-    this.sendConfirmOpen = true;
-    this.sendError = '';
-    this.sendSuccess = '';
-  }
-
-  closeSendConfirmation(): void {
-    this.sendConfirmOpen = false;
-  }
-
-  confirmSendNotification(): void {
-    if (this.sendingNotification || !this.editingTaskGroupId) {
-      return;
-    }
-
-    const selectedIds = this.getSelectedCreateStudentIds();
-    if (selectedIds.length === 0) {
-      this.sendError = this.ui.errorSendNoStudent;
-      return;
-    }
-
-    const request: CreateInfoRequestVm = {
-      category: 'ACTIVITY',
-      title: this.language.translate(this.ui.noticeTitle),
-      content: this.buildNoticeContent(),
-      tags: [this.language.translate(this.ui.noticeTag)].filter(Boolean),
-      studentIds: selectedIds,
-      taskGroupId: this.editingTaskGroupId,
-    };
-
-    this.sendingNotification = true;
-    this.sendError = '';
-    this.sendSuccess = '';
-    this.taskCenter
-      .createInfo(request)
-      .pipe(
-        finalize(() => {
-          this.sendingNotification = false;
-          this.cdr.detectChanges();
-        })
-      )
-      .subscribe({
-        next: (info) => {
-          this.persistTaskNotificationMeta(this.editingTaskGroupId || '', {
-            sentAt: new Date().toISOString(),
-            infoId: Number.isFinite(Number(info.id)) ? Math.trunc(Number(info.id)) : null,
-            recipientCount: selectedIds.length,
-          });
-          this.sendSuccess = this.notificationSentText(selectedIds.length, info.id);
-          this.closeSendConfirmation();
-          this.cdr.detectChanges();
-        },
-        error: (error: unknown) => {
-          this.sendError = this.extractErrorMessage(error) || this.ui.errorSendFailed;
-          this.cdr.detectChanges();
-        },
-      });
   }
 
   trackStudent = (_: number, student: AssignableStudentOptionVm): number => student.studentId;

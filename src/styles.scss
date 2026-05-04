@@ -132,6 +132,48 @@
   color: #8f2b1d;
 }
 
+.task-tracking-page .no-end-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: #4a5c72;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.task-tracking-page .no-end-toggle span {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #cfd8e4;
+}
+
+.task-tracking-page .no-end-toggle span::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(21, 30, 42, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.task-tracking-page .no-end-toggle[aria-checked='true'] span {
+  background: #2f7d54;
+}
+
+.task-tracking-page .no-end-toggle[aria-checked='true'] span::after {
+  transform: translateX(16px);
+}
+
 @media (max-width: 920px) {
   .selected-students-summary,
   .student-selector-modal-header {
