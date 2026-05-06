@@ -1,7 +1,9 @@
-name: Legacy Manual Deploy Frontend to AWS
+name: Deploy Test Frontend to AWS
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 concurrency:
   group: frontend-deploy-${{ github.ref }}
