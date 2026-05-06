@@ -1,0 +1,129 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_FRONTEND_PATH: ${{ secrets.PROD_FRONTEND_PATH }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in PROD_HOST PROD_USER PROD_PORT PROD_SSH_KEY PROD_FRONTEND_PATH; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("${name}")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+
+      - name: Build Angular production bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build -- --configuration production
+
+      - name: Detect dist output
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist_index="$(find dist -type f -name index.html | sort | head -n 1)"
+          if [[ -z "${dist_index}" ]]; then
+            echo "No Angular dist index.html found." >&2
+            exit 1
+          fi
+          dist_dir="$(dirname "${dist_index}")"
+          echo "DIST_DIR=${dist_dir}" >> "${GITHUB_ENV}"
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${HOME}/.ssh"
+          chmod 700 "${HOME}/.ssh"
+          SSH_KEY_PATH="${RUNNER_TEMP}/prod_deploy_key"
+          umask 077
+          printf '%s\n' "${PROD_SSH_KEY}" > "${SSH_KEY_PATH}"
+          chmod 600 "${SSH_KEY_PATH}"
+          ssh-keyscan -p "${PROD_PORT}" -H "${PROD_HOST}" >> "${HOME}/.ssh/known_hosts" 2>/dev/null
+          echo "SSH_KEY_PATH=${SSH_KEY_PATH}" >> "${GITHUB_ENV}"
+
+      - name: Deploy frontend to EC2
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_FRONTEND_PATH: ${{ secrets.PROD_FRONTEND_PATH }}
+        run: |
+          set -euo pipefail
+          remote_tmp="/tmp/student-management-frontend-${GITHUB_SHA}"
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+            "rm -rf '${remote_tmp}' && mkdir -p '${remote_tmp}' && sudo mkdir -p '${PROD_FRONTEND_PATH}' /var/www/student-management-frontend-backups"
+          rsync -az --delete -e "ssh -i ${SSH_KEY_PATH} -p ${PROD_PORT}" \
+            "${DIST_DIR}/" \
+            "${PROD_USER}@${PROD_HOST}:${remote_tmp}/"
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+            "if [ -f '${PROD_FRONTEND_PATH}/index.html' ]; then sudo rsync -a --delete '${PROD_FRONTEND_PATH}/' '/var/www/student-management-frontend-backups/${GITHUB_SHA}/'; fi && sudo rsync -a --delete '${remote_tmp}/' '${PROD_FRONTEND_PATH}/' && sudo chown -R ubuntu:www-data '${PROD_FRONTEND_PATH}' && sudo chmod -R g+rwX '${PROD_FRONTEND_PATH}' && rm -rf '${remote_tmp}'"
+
+      - name: Reload Nginx and verify frontend
+        shell: bash
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+        run: |
+          set -euo pipefail
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+            "sudo nginx -t && sudo systemctl reload nginx"
+          curl -fsS --retry 10 --retry-delay 3 "http://${PROD_HOST}/" >/dev/null
+
+      - name: Cleanup SSH key
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${SSH_KEY_PATH:-}" && -f "${SSH_KEY_PATH}" ]]; then
+            shred -u "${SSH_KEY_PATH}" 2>/dev/null || rm -f "${SSH_KEY_PATH}"
+          fi
