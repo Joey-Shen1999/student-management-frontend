@@ -11,7 +11,7 @@
 ## 正确的路径分工
 
 - `/`：前端静态文件（`root /var/www/student-management-frontend` + `try_files`）
-- `/api/`：仅 API 请求反向代理到 `http://127.0.0.1:8080/`
+- `/api/`：仅 API 请求反向代理到 `http://127.0.0.1:8080`，保留 `/api/...` 路径。
 
 ## 如何验证修复成功
 
@@ -25,4 +25,4 @@
 - `/etc/nginx/sites-enabled` 是否仍存在 `default` 软链接
 - `/var/www/student-management-frontend/index.html` 是否存在
 - 后端 8080 是否仍在监听（如 `ss -lntp | grep 8080`）
-- `proxy_pass` 是否为 `http://127.0.0.1:8080/`
+- `proxy_pass` 是否为 `http://127.0.0.1:8080`

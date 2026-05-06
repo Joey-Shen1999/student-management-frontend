@@ -113,6 +113,9 @@ import {
             <button type="button" class="action-btn primary" (click)="goVolunteerRecords()">
               义工记录
             </button>
+            <button type="button" class="action-btn primary" (click)="goExtracurricularRecords()">
+              课外活动
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
               姓名设置
             </button>
@@ -187,6 +190,10 @@ export class DashboardComponent implements OnInit {
 
   goVolunteerRecords() {
     this.router.navigate(['/student/volunteer']);
+  }
+
+  goExtracurricularRecords() {
+    this.router.navigate(['/student/extracurricular']);
   }
 
   goAccountProfile() {

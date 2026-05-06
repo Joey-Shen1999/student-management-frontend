@@ -1815,6 +1815,36 @@ describe('StudentManagementComponent', () => {
     );
   });
 
+  it('page title should be extracurricular activities on /teacher/extracurricular', () => {
+    router.url = '/teacher/extracurricular';
+    expect(component.pageTitle).toBe('\u8bfe\u5916\u6d3b\u52a8');
+  });
+
+  it('page title should be extracurricular activities on stable students route context', () => {
+    router.url = '/teacher/students?context=extracurricular';
+    expect(component.pageTitle).toBe('\u8bfe\u5916\u6d3b\u52a8');
+  });
+
+  it('default columns on extracurricular context should match extracurricular defaults', () => {
+    router.url = '/teacher/students?context=extracurricular';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'email',
+        'phone',
+        'graduation',
+        'city',
+        'teacherNote',
+        'extracurricular',
+      ].sort()
+    );
+  });
+
   it('languageTracking column label on /teacher/students should be 语言成绩跟踪', () => {
     router.url = '/teacher/students';
     const column = component.columnToggleOptions.find((item) => item.key === 'languageTracking');

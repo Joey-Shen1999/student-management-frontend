@@ -91,6 +91,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/extracurricular',
+    loadComponent: () =>
+      import('./pages/extracurricular-tracking/extracurricular-tracking.component').then(
+        (m) => m.ExtracurricularTrackingComponent
+      ),
+  },
+
+  {
     path: 'teacher',
     canActivateChild: [teacherRouteGuard],
     children: [
@@ -153,6 +161,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/extracurricular',
+        loadComponent: () =>
+          import('./pages/extracurricular-tracking/extracurricular-tracking.component').then(
+            (m) => m.ExtracurricularTrackingComponent
+          ),
+      },
+
+      {
         path: 'students',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
@@ -186,6 +202,14 @@ export const routes: Routes = [
 
       {
         path: 'volunteer',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
+        path: 'extracurricular',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
             (m) => m.StudentManagementComponent
