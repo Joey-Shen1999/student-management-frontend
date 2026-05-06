@@ -42,3 +42,14 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Production secrets and private keys
+*.pem
+*.ppk
+*.key
+*_openssh
+id_rsa
+id_ed25519
+.env
+.env.*
+application-prod.properties
