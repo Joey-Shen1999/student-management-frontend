@@ -2,7 +2,7 @@
 
 ## 为什么会看到 Welcome to nginx 页面
 
-出现 Welcome 页面通常是因为 Nginx 仍在使用默认站点（`/etc/nginx/sites-enabled/default`），而不是你的前端站点配置。此时请求 `http://3.23.21.144` 会命中默认 root（常见是 `/var/www/html`）。
+出现 Welcome 页面通常是因为 Nginx 仍在使用默认站点（`/etc/nginx/sites-enabled/default`），而不是你的前端站点配置。此时请求 `http://3.149.1.120` 会命中默认 root（常见是 `/var/www/html`）。
 
 ## 为什么删除 /etc/nginx/sites-enabled/default 可以解决
 
@@ -24,7 +24,7 @@ Nginx 只加载启用目录中的站点配置。
 2. 执行：`sudo nginx -t`，确认语法通过。
 3. 执行：`sudo systemctl reload nginx`，确认成功。
 4. 执行：`curl -I http://127.0.0.1`，应返回前端站点响应（非 welcome 页）。
-5. 浏览器访问 `http://3.23.21.144`，应加载前端应用。
+5. 浏览器访问 `http://3.149.1.120`，应加载前端应用。
 
 ## 仍显示默认页时应检查
 
