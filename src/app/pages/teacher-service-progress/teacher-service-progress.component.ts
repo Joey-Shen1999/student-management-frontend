@@ -43,38 +43,29 @@ interface ServiceProgressFormModel {
           <button type="button" (click)="toggleAdvisorSettings()">
             顾问设置
           </button>
+          <div *ngIf="advisorSettingsOpen" class="advisor-popover">
+            <input
+              [(ngModel)]="teacherKeyword"
+              type="search"
+              placeholder="搜索老师"
+              class="advisor-search"
+            />
+            <div *ngIf="teacherLoading" class="advisor-muted">加载中...</div>
+            <div *ngIf="teacherError" class="advisor-error">{{ teacherError }}</div>
+            <button
+              *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher"
+              type="button"
+              class="advisor-row"
+              (click)="toggleTeacherAdvisor(teacher, !isAdvisorEnabled(teacher))"
+              [disabled]="advisorUpdatingTeacherId === resolveTeacherId(teacher)"
+            >
+              <span>{{ displayTeacherName(teacher) }}</span>
+              <span class="advisor-check">{{ isAdvisorEnabled(teacher) ? '✓' : '' }}</span>
+            </button>
+          </div>
           <button type="button" routerLink="/teacher/dashboard">返回</button>
         </div>
       </header>
-
-      <section *ngIf="advisorSettingsOpen" class="advisor-settings">
-        <div class="panel-title">
-          <strong>选择可作为顾问的老师</strong>
-          <button type="button" (click)="toggleAdvisorSettings()">关闭</button>
-        </div>
-        <input
-          [(ngModel)]="teacherKeyword"
-          type="search"
-          placeholder="搜索老师姓名、用户名、邮箱"
-          class="student-search"
-        />
-        <div *ngIf="teacherLoading" class="muted">正在加载老师...</div>
-        <div *ngIf="teacherError" class="error">{{ teacherError }}</div>
-        <div class="teacher-list">
-          <label *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher" class="teacher-option">
-            <input
-              type="checkbox"
-              [ngModel]="isAdvisorEnabled(teacher)"
-              (ngModelChange)="toggleTeacherAdvisor(teacher, $event)"
-              [disabled]="advisorUpdatingTeacherId === resolveTeacherId(teacher)"
-            />
-            <span>
-              <strong>{{ displayTeacherName(teacher) }}</strong>
-              <small>{{ displayTeacherMeta(teacher) }}</small>
-            </span>
-          </label>
-        </div>
-      </section>
 
       <div class="layout">
         <aside class="student-panel">
@@ -231,9 +222,65 @@ interface ServiceProgressFormModel {
         gap: 12px;
       }
       .header-actions {
+        position: relative;
         display: flex;
         gap: 8px;
         align-items: center;
+      }
+      .advisor-popover {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 74px;
+        z-index: 20;
+        width: 260px;
+        max-height: 360px;
+        overflow: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+        padding: 8px;
+      }
+      .advisor-search {
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 6px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 7px 8px;
+        font: inherit;
+      }
+      .advisor-row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 24px;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+        padding: 7px 8px;
+        border: 0;
+        border-radius: 6px;
+        background: #fff;
+        text-align: left;
+      }
+      .advisor-row:hover:not(:disabled) {
+        background: #f1f5f9;
+      }
+      .advisor-check {
+        text-align: center;
+        color: #2563eb;
+        font-weight: 700;
+      }
+      .advisor-muted,
+      .advisor-error {
+        padding: 7px 8px;
+        font-size: 13px;
+      }
+      .advisor-muted {
+        color: #667085;
+      }
+      .advisor-error {
+        color: #b00020;
       }
       h2,
       h3,
@@ -257,15 +304,10 @@ interface ServiceProgressFormModel {
       .record-panel,
       .remark-block,
       .form-block,
-      .advisor-settings,
       .record-card {
         border: 1px solid #d8e2f0;
         border-radius: 8px;
         background: #fff;
-      }
-      .advisor-settings {
-        margin-top: 14px;
-        padding: 14px;
       }
       .student-panel,
       .record-panel {
@@ -302,30 +344,6 @@ interface ServiceProgressFormModel {
         background: #eff6ff;
       }
       .student-row small {
-        color: #667085;
-      }
-      .teacher-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 8px;
-      }
-      .teacher-option {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        border: 1px solid #e4e9f2;
-        border-radius: 6px;
-        padding: 9px;
-      }
-      .teacher-option input {
-        width: auto;
-        margin-top: 3px;
-      }
-      .teacher-option span {
-        display: grid;
-        gap: 3px;
-      }
-      .teacher-option small {
         color: #667085;
       }
       .remark-block,
