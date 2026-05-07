@@ -97,6 +97,105 @@
   </div>
 </section>
 
+<section
+  *ngIf="managedMode && !invalidManagedStudentId"
+  style="border:1px solid #ddd;padding:12px;margin-bottom:16px;background:#fff;border-radius:8px;"
+>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+    <h3 style="margin:0;">服务进度档</h3>
+    <button type="button" (click)="openAddServiceProgress()" [disabled]="serviceProgressLoading || serviceProgressSaving">
+      新增服务记录
+    </button>
+  </div>
+
+  <div *ngIf="serviceProgressError" style="color:#b00020;margin-top:10px;">{{ serviceProgressError }}</div>
+  <div *ngIf="serviceProgressLoading" style="color:#666;margin-top:10px;">正在加载服务进度档...</div>
+
+  <div style="margin-top:12px;border:1px solid #e5e5e5;border-radius:8px;padding:10px;background:#fafbfe;">
+    <label style="display:grid;gap:6px;">
+      <strong>学生备注信息</strong>
+      <textarea
+        [(ngModel)]="serviceProgressRemarkDraft"
+        rows="3"
+        [disabled]="serviceProgressSaving"
+        style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ccd6e3;border-radius:6px;"
+      ></textarea>
+    </label>
+    <button
+      type="button"
+      style="margin-top:8px;"
+      (click)="saveServiceProgressRemark()"
+      [disabled]="serviceProgressSaving"
+    >
+      {{ serviceProgressSaving ? '保存中...' : '保存备注' }}
+    </button>
+  </div>
+
+  <div
+    *ngIf="serviceProgressFormOpen"
+    style="margin-top:12px;border:1px solid #d8e2f0;border-radius:8px;padding:10px;background:#fbfdff;"
+  >
+    <h4 style="margin:0 0 10px;">{{ serviceProgressForm.id ? '编辑服务记录' : '新增服务记录' }}</h4>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px;">
+      <label style="display:grid;gap:6px;">
+        约见时间
+        <input type="datetime-local" [(ngModel)]="serviceProgressForm.appointmentTime" [disabled]="serviceProgressSaving" />
+      </label>
+      <label style="display:grid;gap:6px;">
+        约见顾问
+        <select [(ngModel)]="serviceProgressForm.advisorId" [disabled]="serviceProgressSaving">
+          <option [ngValue]="null">请选择</option>
+          <option *ngFor="let advisor of serviceProgressAdvisors" [ngValue]="resolveAdvisorId(advisor)">
+            {{ displayAdvisorName(advisor) }}
+          </option>
+        </select>
+      </label>
+      <label style="display:grid;gap:6px;grid-column:1 / -1;">
+        跟进内容
+        <textarea [(ngModel)]="serviceProgressForm.followUpContent" rows="3" [disabled]="serviceProgressSaving"></textarea>
+      </label>
+      <label style="display:grid;gap:6px;grid-column:1 / -1;">
+        后续方案
+        <textarea [(ngModel)]="serviceProgressForm.nextPlan" rows="3" [disabled]="serviceProgressSaving"></textarea>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+      <button type="button" (click)="closeServiceProgressForm()" [disabled]="serviceProgressSaving">取消</button>
+      <button type="button" (click)="saveServiceProgressRecord()" [disabled]="serviceProgressSaving">
+        {{ serviceProgressSaving ? '保存中...' : '保存记录' }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="!serviceProgressLoading && serviceProgressRecords.length === 0" style="color:#666;margin-top:12px;">
+    暂无服务记录。
+  </div>
+
+  <div *ngFor="let record of serviceProgressRecords" style="border-top:1px solid #eee;margin-top:12px;padding-top:12px;">
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div>
+        <strong>{{ displayDateTime(record.appointmentTime || '') }}</strong>
+        <span style="color:#666;margin-left:8px;">顾问：{{ record.advisorName || advisorName(record.advisorId) }}</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" (click)="openEditServiceProgress(record)" [disabled]="serviceProgressSaving">编辑</button>
+        <button type="button" (click)="deleteServiceProgressRecord(record)" [disabled]="serviceProgressSaving">删除</button>
+      </div>
+    </div>
+    <div style="margin-top:8px;">
+      <strong>跟进内容：</strong>
+      <div style="white-space:pre-wrap;color:#333;">{{ displayText(record.followUpContent) }}</div>
+    </div>
+    <div style="margin-top:8px;">
+      <strong>后续方案：</strong>
+      <div style="white-space:pre-wrap;color:#333;">{{ displayText(record.nextPlan) }}</div>
+    </div>
+    <div style="margin-top:8px;color:#777;font-size:12px;">
+      创建：{{ displayDateTime(record.createdAt || '') }}；更新：{{ displayDateTime(record.updatedAt || '') }}
+    </div>
+  </div>
+</section>
+
 <ng-container *ngIf="!editing; else editModeTpl">
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>

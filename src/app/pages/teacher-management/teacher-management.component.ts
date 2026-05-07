@@ -143,6 +143,7 @@ interface StatusUpdateResult {
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">管理员</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">可选顾问</th>
               <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">启用</th>
             </tr>
           </thead>
@@ -214,6 +215,20 @@ interface StatusUpdateResult {
                 </div>
               </td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
+                <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                  <input
+                    type="checkbox"
+                    [checked]="isAdvisorEnabled(teacher)"
+                    (change)="toggleAdvisorEnabled(teacher)"
+                    [disabled]="
+                      !resolveTeacherId(teacher) ||
+                      advisorUpdatingTeacherId === resolveTeacherId(teacher)
+                    "
+                  />
+                  <span>{{ advisorUpdatingTeacherId === resolveTeacherId(teacher) ? '保存中...' : '可作为顾问' }}</span>
+                </label>
+              </td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
                 <label
                   style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;"
                   [style.opacity]="
@@ -256,7 +271,7 @@ interface StatusUpdateResult {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleTeachers.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">未找到教师账号。</td>
+              <td colspan="7" style="padding:14px;color:#666;text-align:center;">未找到教师账号。</td>
             </tr>
           </tbody>
         </table>
@@ -354,6 +369,7 @@ export class TeacherManagementComponent implements OnInit {
   roleTarget: TeacherRole | null = null;
   statusUpdatingTeacherId: number | null = null;
   statusTarget: TeacherAccountStatus | null = null;
+  advisorUpdatingTeacherId: number | null = null;
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   roleResult: RoleUpdateResult | null = null;
@@ -510,6 +526,47 @@ export class TeacherManagementComponent implements OnInit {
   toggleArchiveStatus(teacher: TeacherAccount): void {
     const targetStatus: TeacherAccountStatus = this.isArchived(teacher) ? 'ACTIVE' : 'ARCHIVED';
     this.setTeacherStatus(teacher, targetStatus);
+  }
+
+  isAdvisorEnabled(teacher: TeacherAccount): boolean {
+    return !!teacher.advisorEnabled;
+  }
+
+  toggleAdvisorEnabled(teacher: TeacherAccount): void {
+    const teacherId = this.resolveTeacherId(teacher);
+    if (!teacherId) {
+      this.actionError = '缺少教师 ID，无法更新顾问设置。';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const target = !this.isAdvisorEnabled(teacher);
+    this.actionError = '';
+    this.resetResult = null;
+    this.roleResult = null;
+    this.statusResult = null;
+    this.advisorUpdatingTeacherId = teacherId;
+    this.cdr.detectChanges();
+
+    this.teacherApi
+      .updateTeacherAdvisorEnabled(teacherId, target)
+      .pipe(
+        finalize(() => {
+          this.advisorUpdatingTeacherId = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          teacher.advisorEnabled = !!resp?.advisorEnabled;
+          this.applyListView();
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.actionError = this.extractErrorMessage(err) || '更新顾问设置失败。';
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   setTeacherStatus(teacher: TeacherAccount, targetStatus: TeacherAccountStatus): void {
