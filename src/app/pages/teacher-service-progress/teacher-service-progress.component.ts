@@ -15,6 +15,10 @@ import {
   StudentAccount,
   StudentManagementService,
 } from '../../services/student-management.service';
+import {
+  TeacherAccount,
+  TeacherManagementService,
+} from '../../services/teacher-management.service';
 
 interface ServiceProgressFormModel {
   id: number | null;
@@ -35,8 +39,42 @@ interface ServiceProgressFormModel {
           <h2>服务进度档</h2>
           <p>老师端独立维护顾问咨询记录，学生端不可见。</p>
         </div>
-        <button type="button" routerLink="/teacher/dashboard">返回</button>
+        <div class="header-actions">
+          <button type="button" (click)="toggleAdvisorSettings()">
+            顾问设置
+          </button>
+          <button type="button" routerLink="/teacher/dashboard">返回</button>
+        </div>
       </header>
+
+      <section *ngIf="advisorSettingsOpen" class="advisor-settings">
+        <div class="panel-title">
+          <strong>选择可作为顾问的老师</strong>
+          <button type="button" (click)="toggleAdvisorSettings()">关闭</button>
+        </div>
+        <input
+          [(ngModel)]="teacherKeyword"
+          type="search"
+          placeholder="搜索老师姓名、用户名、邮箱"
+          class="student-search"
+        />
+        <div *ngIf="teacherLoading" class="muted">正在加载老师...</div>
+        <div *ngIf="teacherError" class="error">{{ teacherError }}</div>
+        <div class="teacher-list">
+          <label *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher" class="teacher-option">
+            <input
+              type="checkbox"
+              [ngModel]="isAdvisorEnabled(teacher)"
+              (ngModelChange)="toggleTeacherAdvisor(teacher, $event)"
+              [disabled]="advisorUpdatingTeacherId === resolveTeacherId(teacher)"
+            />
+            <span>
+              <strong>{{ displayTeacherName(teacher) }}</strong>
+              <small>{{ displayTeacherMeta(teacher) }}</small>
+            </span>
+          </label>
+        </div>
+      </section>
 
       <div class="layout">
         <aside class="student-panel">
@@ -192,6 +230,11 @@ interface ServiceProgressFormModel {
         justify-content: space-between;
         gap: 12px;
       }
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
       h2,
       h3,
       h4,
@@ -214,10 +257,15 @@ interface ServiceProgressFormModel {
       .record-panel,
       .remark-block,
       .form-block,
+      .advisor-settings,
       .record-card {
         border: 1px solid #d8e2f0;
         border-radius: 8px;
         background: #fff;
+      }
+      .advisor-settings {
+        margin-top: 14px;
+        padding: 14px;
       }
       .student-panel,
       .record-panel {
@@ -254,6 +302,30 @@ interface ServiceProgressFormModel {
         background: #eff6ff;
       }
       .student-row small {
+        color: #667085;
+      }
+      .teacher-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 8px;
+      }
+      .teacher-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        border: 1px solid #e4e9f2;
+        border-radius: 6px;
+        padding: 9px;
+      }
+      .teacher-option input {
+        width: auto;
+        margin-top: 3px;
+      }
+      .teacher-option span {
+        display: grid;
+        gap: 3px;
+      }
+      .teacher-option small {
         color: #667085;
       }
       .remark-block,
@@ -327,6 +399,12 @@ export class TeacherServiceProgressComponent implements OnInit {
   selectedStudentId: number | null = null;
   studentLoading = false;
   studentError = '';
+  teachers: TeacherAccount[] = [];
+  teacherKeyword = '';
+  teacherLoading = false;
+  teacherError = '';
+  advisorSettingsOpen = false;
+  advisorUpdatingTeacherId: number | null = null;
 
   recordLoading = false;
   saving = false;
@@ -341,6 +419,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     private route: ActivatedRoute,
     private studentApi: StudentManagementService,
     private serviceProgressApi: ServiceProgressService,
+    private teacherApi: TeacherManagementService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -368,6 +447,56 @@ export class TeacherServiceProgressComponent implements OnInit {
   get selectedStudent(): StudentAccount | null {
     if (!this.selectedStudentId) return null;
     return this.students.find((student) => this.resolveStudentId(student) === this.selectedStudentId) ?? null;
+  }
+
+  get filteredTeachers(): TeacherAccount[] {
+    const keyword = this.normalizeText(this.teacherKeyword).toLowerCase();
+    if (!keyword) return this.teachers;
+    return this.teachers.filter((teacher) =>
+      [
+        this.displayTeacherName(teacher),
+        teacher.username,
+        teacher.email,
+        teacher.displayName,
+      ]
+        .map((value) => this.normalizeText(value).toLowerCase())
+        .some((value) => value.includes(keyword))
+    );
+  }
+
+  toggleAdvisorSettings(): void {
+    this.advisorSettingsOpen = !this.advisorSettingsOpen;
+    if (this.advisorSettingsOpen && this.teachers.length === 0 && !this.teacherLoading) {
+      this.loadTeachers();
+    }
+  }
+
+  toggleTeacherAdvisor(teacher: TeacherAccount, enabled: boolean): void {
+    const teacherId = this.resolveTeacherId(teacher);
+    if (!teacherId) return;
+
+    this.advisorUpdatingTeacherId = teacherId;
+    this.teacherError = '';
+    this.teacherApi
+      .updateTeacherAdvisorEnabled(teacherId, !!enabled)
+      .pipe(finalize(() => {
+        this.advisorUpdatingTeacherId = null;
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (response) => {
+          const normalizedEnabled = !!response.advisorEnabled;
+          this.teachers = this.teachers.map((item) =>
+            this.resolveTeacherId(item) === teacherId
+              ? { ...item, advisorEnabled: normalizedEnabled }
+              : item
+          );
+          this.loadAdvisors();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.teacherError = this.extractErrorMessage(err) || '更新顾问设置失败。';
+        },
+      });
   }
 
   selectStudent(student: StudentAccount): void {
@@ -491,6 +620,26 @@ export class TeacherServiceProgressComponent implements OnInit {
     return [student.email, student.phone].map((value) => this.normalizeText(value)).filter(Boolean).join(' · ') || '无联系方式';
   }
 
+  displayTeacherName(teacher: TeacherAccount): string {
+    const fullName = [teacher.firstName, teacher.lastName]
+      .map((part) => this.normalizeText(part))
+      .filter(Boolean)
+      .join(' ');
+    return this.normalizeText(teacher.displayName) || fullName || this.normalizeText(teacher.username) || `老师 #${this.resolveTeacherId(teacher) || '-'}`;
+  }
+
+  displayTeacherMeta(teacher: TeacherAccount): string {
+    return [teacher.email, teacher.username].map((value) => this.normalizeText(value)).filter(Boolean).join(' · ') || '无账号信息';
+  }
+
+  isAdvisorEnabled(teacher: TeacherAccount): boolean {
+    return !!teacher.advisorEnabled;
+  }
+
+  resolveTeacherId(teacher: TeacherAccount | null | undefined): number | null {
+    return this.toOptionalNumber(teacher?.teacherId ?? teacher?.id ?? teacher?.userId);
+  }
+
   displayAdvisorName(advisor: ServiceProgressAdvisor): string {
     return this.normalizeText(advisor.displayName) || this.normalizeText(advisor.username) || `#${this.resolveAdvisorId(advisor) || '-'}`;
   }
@@ -520,6 +669,9 @@ export class TeacherServiceProgressComponent implements OnInit {
 
   trackStudent = (_index: number, student: StudentAccount): number | string =>
     this.resolveStudentId(student) ?? student.username ?? _index;
+
+  trackTeacher = (_index: number, teacher: TeacherAccount): number | string =>
+    this.resolveTeacherId(teacher) ?? teacher.username ?? _index;
 
   private loadStudents(): void {
     this.studentLoading = true;
@@ -591,11 +743,38 @@ export class TeacherServiceProgressComponent implements OnInit {
     });
   }
 
+  private loadTeachers(): void {
+    this.teacherLoading = true;
+    this.teacherError = '';
+    this.teacherApi
+      .listTeachers()
+      .pipe(finalize(() => {
+        this.teacherLoading = false;
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (payload) => {
+          this.teachers = this.normalizeTeachers(payload);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.teacherError = this.extractErrorMessage(err) || '加载老师列表失败。';
+          this.teachers = [];
+        },
+      });
+  }
+
   private normalizeStudents(payload: StudentAccount[] | { items?: StudentAccount[]; data?: StudentAccount[] }): StudentAccount[] {
     const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.items ?? [];
     return rows
       .filter((student) => !!this.resolveStudentId(student))
       .sort((a, b) => this.displayStudentName(a).localeCompare(this.displayStudentName(b)));
+  }
+
+  private normalizeTeachers(payload: TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] }): TeacherAccount[] {
+    const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.items ?? [];
+    return rows
+      .filter((teacher) => !!this.resolveTeacherId(teacher))
+      .sort((a, b) => this.displayTeacherName(a).localeCompare(this.displayTeacherName(b)));
   }
 
   private normalizeRecords(records: ServiceProgressRecord[] | null | undefined): ServiceProgressRecord[] {
