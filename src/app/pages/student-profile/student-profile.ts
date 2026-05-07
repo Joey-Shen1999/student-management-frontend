@@ -713,6 +713,11 @@ export class StudentProfile implements OnInit {
   }
 
   back(): void {
+    const returnTo = this.route.snapshot.queryParamMap.get('returnTo') || '';
+    if (this.managedMode && returnTo.startsWith('/teacher/')) {
+      this.router.navigateByUrl(returnTo);
+      return;
+    }
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
   }
 

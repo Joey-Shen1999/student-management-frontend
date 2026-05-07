@@ -61,6 +61,9 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             >
               课外活动
             </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/service-progress']">
+              服务进度档
+            </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
               账号设置
             </button>
