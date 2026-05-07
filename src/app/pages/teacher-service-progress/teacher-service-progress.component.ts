@@ -6,6 +6,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { AppLanguageService } from '../../services/app-language.service';
+import { AuthService } from '../../services/auth.service';
 import {
   ServiceProgressAdvisor,
   ServiceProgressRecord,
@@ -42,10 +43,10 @@ interface ServiceProgressFormModel {
           <h2>{{ ui.title | appTranslate }}</h2>
         </div>
         <div class="header-actions">
-          <button type="button" (click)="toggleAdvisorSettings()">
+          <button *ngIf="isAdmin" type="button" (click)="toggleAdvisorSettings()">
             {{ ui.advisorSettings | appTranslate }}
           </button>
-          <div *ngIf="advisorSettingsOpen" class="advisor-popover">
+          <div *ngIf="isAdmin && advisorSettingsOpen" class="advisor-popover">
             <input
               [(ngModel)]="teacherKeyword"
               type="search"
@@ -472,6 +473,7 @@ export class TeacherServiceProgressComponent implements OnInit {
   teacherError = '';
   advisorSettingsOpen = false;
   advisorUpdatingTeacherId: number | null = null;
+  isAdmin = false;
 
   recordLoading = false;
   saving = false;
@@ -487,11 +489,13 @@ export class TeacherServiceProgressComponent implements OnInit {
     private studentApi: StudentManagementService,
     private serviceProgressApi: ServiceProgressService,
     private teacherApi: TeacherManagementService,
+    private auth: AuthService,
     private language: AppLanguageService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.isAdmin = this.currentUserIsAdmin();
     this.loadStudents();
     this.loadAdvisors();
   }
@@ -533,6 +537,11 @@ export class TeacherServiceProgressComponent implements OnInit {
   }
 
   toggleAdvisorSettings(): void {
+    if (!this.isAdmin) {
+      this.advisorSettingsOpen = false;
+      return;
+    }
+
     this.advisorSettingsOpen = !this.advisorSettingsOpen;
     if (this.advisorSettingsOpen && this.teachers.length === 0 && !this.teacherLoading) {
       this.loadTeachers();
@@ -540,6 +549,8 @@ export class TeacherServiceProgressComponent implements OnInit {
   }
 
   toggleTeacherAdvisor(teacher: TeacherAccount, enabled: boolean): void {
+    if (!this.isAdmin) return;
+
     const teacherId = this.resolveTeacherId(teacher);
     if (!teacherId) return;
 
@@ -950,6 +961,10 @@ export class TeacherServiceProgressComponent implements OnInit {
 
   private t(value: LocalizedText): string {
     return this.language.translate(value);
+  }
+
+  private currentUserIsAdmin(): boolean {
+    return String(this.auth.getSession()?.role || '').trim().toUpperCase() === 'ADMIN';
   }
 
   private extractErrorMessage(error: HttpErrorResponse): string {
