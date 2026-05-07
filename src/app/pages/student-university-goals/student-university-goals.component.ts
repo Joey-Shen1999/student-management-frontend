@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { finalize } from 'rxjs/operators';
+import { finalize, timeout } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
 import {
@@ -29,6 +29,8 @@ interface UniversityGoalFormModel {
   styleUrl: './student-university-goals.component.scss',
 })
 export class StudentUniversityGoalsComponent implements OnInit {
+  private readonly loadTimeoutMs = 8000;
+
   studentId: number | null = null;
   teacherMode = false;
   invalidStudentId = false;
@@ -84,7 +86,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   get pageSubtitle(): string {
-    return this.teacherMode && this.studentId ? `学生 #${this.studentId}` : '记录想去的大学和想读的专业';
+    return this.teacherMode && this.studentId ? `学生 #${this.studentId}` : '';
   }
 
   goBack(): void {
@@ -278,13 +280,16 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.catalogLoading = true;
     this.goalsApi
       .listUniversities()
-      .pipe(finalize(() => (this.catalogLoading = false)))
+      .pipe(
+        timeout({ first: this.loadTimeoutMs }),
+        finalize(() => (this.catalogLoading = false))
+      )
       .subscribe({
         next: (items) => {
           this.universities = this.normalizeUniversities(items);
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '加载大学列表失败。';
+          this.error = this.extractErrorMessage(err) || '加载大学列表超时，请刷新重试。';
           this.universities = [];
         },
       });
@@ -296,14 +301,17 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.programsLoading = true;
     this.goalsApi
       .listPrograms(universityId)
-      .pipe(finalize(() => (this.programsLoading = false)))
+      .pipe(
+        timeout({ first: this.loadTimeoutMs }),
+        finalize(() => (this.programsLoading = false))
+      )
       .subscribe({
         next: (items) => {
           if (this.form.universityId !== requestedUniversityId) return;
           this.programs = this.normalizePrograms(items);
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '加载专业列表失败。';
+          this.error = this.extractErrorMessage(err) || '加载专业列表超时，请刷新重试。';
           this.programs = [];
         },
       });
@@ -325,13 +333,16 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.error = '';
     this.goalsApi
       .listAspirations(studentId)
-      .pipe(finalize(() => (this.loading = false)))
+      .pipe(
+        timeout({ first: this.loadTimeoutMs }),
+        finalize(() => (this.loading = false))
+      )
       .subscribe({
         next: (items) => {
           this.goals = this.normalizeGoals(items);
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '加载大学目标失败。';
+          this.error = this.extractErrorMessage(err) || '加载大学目标超时，请刷新重试。';
           this.goals = [];
         },
       });

@@ -3,7 +3,7 @@
     <div class="header-row">
       <div>
         <h2>大学目标</h2>
-        <p>{{ pageSubtitle }}</p>
+        <p *ngIf="pageSubtitle">{{ pageSubtitle }}</p>
       </div>
       <div class="header-actions">
         <button type="button" class="ghost-btn" (click)="refresh()" [disabled]="loading || saving">
