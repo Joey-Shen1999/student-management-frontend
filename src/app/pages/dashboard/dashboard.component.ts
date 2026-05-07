@@ -101,6 +101,9 @@ import {
               上传材料
             </button>
             <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
+            <button type="button" class="action-btn primary" (click)="goUniversityGoals()">
+              大学目标
+            </button>
             <button type="button" class="action-btn primary" (click)="goCoursePlanner()">
               课程规划
             </button>
@@ -170,6 +173,10 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  goUniversityGoals() {
+    this.router.navigate(['/student/profile'], { fragment: 'university-goals' });
   }
 
   goDocumentUpload() {

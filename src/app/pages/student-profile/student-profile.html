@@ -21,6 +21,9 @@
   <button type="button" (click)="openHistory()" [disabled]="loading || invalidManagedStudentId">
     修改记录
   </button>
+  <button type="button" (click)="scrollToUniversityGoals()" [disabled]="loading || invalidManagedStudentId">
+    大学目标
+  </button>
   <button type="button" (click)="loadProfile()" [disabled]="loading || saving">
     {{ loading ? '加载中...' : '重新加载' }}
   </button>
@@ -759,10 +762,10 @@
   </form>
 </ng-template>
 
-<section class="university-aspiration-section">
+<section id="university-goals" class="university-aspiration-section">
   <div class="university-aspiration-header">
     <div>
-      <h3>大学志向</h3>
+      <h3>大学目标</h3>
       <p>每条记录对应一个大学和一个专业/科系，可拖动调整志愿顺序。</p>
     </div>
     <button
@@ -770,19 +773,19 @@
       (click)="openAddUniversityAspiration()"
       [disabled]="aspirationLoading || aspirationSaving || invalidManagedStudentId"
     >
-      添加大学志向
+      添加大学目标
     </button>
   </div>
 
   <div *ngIf="aspirationLoading" class="university-aspiration-muted">
-    正在加载大学志向...
+    正在加载大学目标...
   </div>
   <div *ngIf="aspirationError" class="university-aspiration-error">
     {{ aspirationError }}
   </div>
 
   <div *ngIf="aspirationFormOpen" class="university-aspiration-form">
-    <h4>{{ aspirationForm.id ? '编辑大学志向' : '新增大学志向' }}</h4>
+    <h4>{{ aspirationForm.id ? '编辑大学目标' : '新增大学目标' }}</h4>
     <div class="university-aspiration-grid">
       <label>
         <span>大学</span>
@@ -842,13 +845,13 @@
         取消
       </button>
       <button type="button" (click)="saveUniversityAspiration()" [disabled]="aspirationSaving">
-        {{ aspirationSaving ? '保存中...' : '保存大学志向' }}
+        {{ aspirationSaving ? '保存中...' : '保存大学目标' }}
       </button>
     </div>
   </div>
 
   <div *ngIf="!aspirationLoading && universityAspirations.length === 0" class="university-aspiration-muted">
-    暂无大学志向。
+    暂无大学目标。
   </div>
 
   <div class="university-aspiration-list">

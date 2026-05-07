@@ -713,6 +713,7 @@ export class StudentProfile implements OnInit {
 
   ngOnInit(): void {
     this.loadUniversities();
+    this.subscribeToProfileFragment();
     this.route.paramMap.subscribe((params: ParamMap) => {
       this.applyRouteContext(params);
     });
@@ -720,6 +721,10 @@ export class StudentProfile implements OnInit {
 
   back(): void {
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
+  }
+
+  scrollToUniversityGoals(): void {
+    this.scrollToSection('university-goals');
   }
 
   get filteredUniversities(): University[] {
@@ -2752,6 +2757,24 @@ export class StudentProfile implements OnInit {
 
   private resolveAspirationId(aspiration: UniversityAspiration | null | undefined): number | null {
     return this.toOptionalNumber(aspiration?.aspirationId ?? aspiration?.id);
+  }
+
+  private subscribeToProfileFragment(): void {
+    const fragment$ = (this.route as ActivatedRoute & { fragment?: { subscribe?: (handler: (value: string | null) => void) => void } }).fragment;
+    if (!fragment$ || typeof fragment$.subscribe !== 'function') return;
+    fragment$.subscribe((fragment) => {
+      const normalized = this.toText(fragment).toLowerCase();
+      if (normalized === 'university-goals' || normalized === 'university-aspirations') {
+        this.scrollToUniversityGoals();
+      }
+    });
+  }
+
+  private scrollToSection(sectionId: string): void {
+    setTimeout(() => {
+      if (typeof document === 'undefined') return;
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
   }
 
   private resolveCurrentStudentId(): number | null {
