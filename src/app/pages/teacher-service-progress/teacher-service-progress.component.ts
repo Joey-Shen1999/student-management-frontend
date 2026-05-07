@@ -37,7 +37,6 @@ interface ServiceProgressFormModel {
       <header class="page-header">
         <div>
           <h2>服务进度档</h2>
-          <p>老师端独立维护顾问咨询记录，学生端不可见。</p>
         </div>
         <div class="header-actions">
           <button type="button" (click)="toggleAdvisorSettings()">
@@ -121,7 +120,7 @@ interface ServiceProgressFormModel {
                   [(ngModel)]="remarkDraft"
                   rows="4"
                   [disabled]="saving"
-                  placeholder="这里复用学生档案里的唯一备注，保存后会同步到学生档案。"
+                  placeholder="填写学生备注信息"
                 ></textarea>
               </label>
               <button type="button" (click)="saveRemark()" [disabled]="saving || !selectedStudentId">
