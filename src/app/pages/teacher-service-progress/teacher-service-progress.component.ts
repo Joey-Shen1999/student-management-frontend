@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
+import { AppLanguageService } from '../../services/app-language.service';
 import {
   ServiceProgressAdvisor,
   ServiceProgressRecord,
@@ -19,6 +20,8 @@ import {
   TeacherAccount,
   TeacherManagementService,
 } from '../../services/teacher-management.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 interface ServiceProgressFormModel {
   id: number | null;
@@ -31,25 +34,25 @@ interface ServiceProgressFormModel {
 @Component({
   selector: 'app-teacher-service-progress',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div class="service-progress-page">
       <header class="page-header">
         <div>
-          <h2>服务进度档</h2>
+          <h2>{{ ui.title | appTranslate }}</h2>
         </div>
         <div class="header-actions">
           <button type="button" (click)="toggleAdvisorSettings()">
-            顾问设置
+            {{ ui.advisorSettings | appTranslate }}
           </button>
           <div *ngIf="advisorSettingsOpen" class="advisor-popover">
             <input
               [(ngModel)]="teacherKeyword"
               type="search"
-              placeholder="搜索老师"
+              [placeholder]="ui.searchTeachers | appTranslate"
               class="advisor-search"
             />
-            <div *ngIf="teacherLoading" class="advisor-muted">加载中...</div>
+            <div *ngIf="teacherLoading" class="advisor-muted">{{ ui.loading | appTranslate }}</div>
             <div *ngIf="teacherError" class="advisor-error">{{ teacherError }}</div>
             <button
               *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher"
@@ -59,27 +62,27 @@ interface ServiceProgressFormModel {
               [disabled]="advisorUpdatingTeacherId === resolveTeacherId(teacher)"
             >
               <span>{{ displayTeacherName(teacher) }}</span>
-              <span class="advisor-check">{{ isAdvisorEnabled(teacher) ? '✓' : '' }}</span>
+              <span class="advisor-check"><ng-container *ngIf="isAdvisorEnabled(teacher)">&#10003;</ng-container></span>
             </button>
           </div>
-          <button type="button" routerLink="/teacher/dashboard">返回</button>
+          <button type="button" routerLink="/teacher/dashboard">{{ ui.back | appTranslate }}</button>
         </div>
       </header>
 
       <div class="layout">
         <aside class="student-panel">
           <div class="panel-title">
-            <strong>学生</strong>
+            <strong>{{ ui.students | appTranslate }}</strong>
             <span>{{ filteredStudents.length }}</span>
           </div>
           <input
             [(ngModel)]="studentKeyword"
             type="search"
-            placeholder="搜索姓名、邮箱、电话"
+            [placeholder]="ui.searchStudents | appTranslate"
             class="student-search"
           />
 
-          <div *ngIf="studentLoading" class="muted">正在加载学生...</div>
+          <div *ngIf="studentLoading" class="muted">{{ ui.loadingStudents | appTranslate }}</div>
           <div *ngIf="studentError" class="error">{{ studentError }}</div>
 
           <button
@@ -106,96 +109,96 @@ interface ServiceProgressFormModel {
                 (click)="openAddRecord()"
                 [disabled]="recordLoading || saving"
               >
-                新增服务记录
+                {{ ui.addRecord | appTranslate }}
               </button>
             </div>
 
             <div *ngIf="recordError" class="error">{{ recordError }}</div>
-            <div *ngIf="recordLoading" class="muted">正在加载服务进度档...</div>
+            <div *ngIf="recordLoading" class="muted">{{ ui.loadingRecords | appTranslate }}</div>
 
             <section class="remark-block">
               <label>
-                <span>学生备注信息</span>
+                <span>{{ ui.studentRemark | appTranslate }}</span>
                 <textarea
                   [(ngModel)]="remarkDraft"
                   rows="4"
                   [disabled]="saving"
-                  placeholder="填写学生备注信息"
+                  [placeholder]="ui.studentRemarkPlaceholder | appTranslate"
                 ></textarea>
               </label>
               <button type="button" (click)="saveRemark()" [disabled]="saving || !selectedStudentId">
-                {{ saving ? '保存中...' : '保存备注' }}
+                {{ (saving ? ui.saving : ui.saveRemark) | appTranslate }}
               </button>
             </section>
 
             <section *ngIf="formOpen" class="form-block">
-              <h4>{{ form.id ? '编辑服务记录' : '新增服务记录' }}</h4>
+              <h4>{{ (form.id ? ui.editRecord : ui.addRecord) | appTranslate }}</h4>
               <div class="form-grid">
                 <label>
-                  <span>约见时间</span>
+                  <span>{{ ui.appointmentTime | appTranslate }}</span>
                   <input type="datetime-local" [(ngModel)]="form.appointmentTime" [disabled]="saving" />
                 </label>
                 <label>
-                  <span>约见顾问</span>
+                  <span>{{ ui.appointmentAdvisor | appTranslate }}</span>
                   <select [(ngModel)]="form.advisorId" [disabled]="saving">
-                    <option [ngValue]="null">请选择</option>
+                    <option [ngValue]="null">{{ ui.pleaseSelect | appTranslate }}</option>
                     <option *ngFor="let advisor of advisors" [ngValue]="resolveAdvisorId(advisor)">
                       {{ displayAdvisorName(advisor) }}
                     </option>
                   </select>
                 </label>
                 <label class="wide">
-                  <span>跟进内容</span>
+                  <span>{{ ui.followUpContent | appTranslate }}</span>
                   <textarea [(ngModel)]="form.followUpContent" rows="4" [disabled]="saving"></textarea>
                 </label>
                 <label class="wide">
-                  <span>后续方案</span>
+                  <span>{{ ui.nextPlan | appTranslate }}</span>
                   <textarea [(ngModel)]="form.nextPlan" rows="4" [disabled]="saving"></textarea>
                 </label>
               </div>
               <div class="form-actions">
-                <button type="button" (click)="closeForm()" [disabled]="saving">取消</button>
+                <button type="button" (click)="closeForm()" [disabled]="saving">{{ ui.cancel | appTranslate }}</button>
                 <button type="button" (click)="saveRecord()" [disabled]="saving">
-                  {{ saving ? '保存中...' : '保存记录' }}
+                  {{ (saving ? ui.saving : ui.saveRecord) | appTranslate }}
                 </button>
               </div>
             </section>
 
             <section class="record-list">
               <div *ngIf="!recordLoading && records.length === 0" class="muted">
-                暂无服务记录。
+                {{ ui.noRecords | appTranslate }}
               </div>
 
               <article *ngFor="let record of records" class="record-card">
                 <div class="record-card-header">
                   <div>
                     <strong>{{ displayDateTime(record.appointmentTime) }}</strong>
-                    <span>顾问：{{ record.advisorName || advisorName(record.advisorId) }}</span>
+                    <span>{{ ui.advisor | appTranslate }}: {{ record.advisorName || advisorName(record.advisorId) }}</span>
                   </div>
                   <div class="record-actions">
-                    <button type="button" (click)="openEditRecord(record)" [disabled]="saving">编辑</button>
-                    <button type="button" (click)="deleteRecord(record)" [disabled]="saving">删除</button>
+                    <button type="button" (click)="openEditRecord(record)" [disabled]="saving">{{ ui.edit | appTranslate }}</button>
+                    <button type="button" (click)="deleteRecord(record)" [disabled]="saving">{{ ui.delete | appTranslate }}</button>
                   </div>
                 </div>
                 <div class="record-body">
                   <div>
-                    <strong>跟进内容</strong>
+                    <strong>{{ ui.followUpContent | appTranslate }}</strong>
                     <p>{{ displayMultiline(record.followUpContent) }}</p>
                   </div>
                   <div>
-                    <strong>后续方案</strong>
+                    <strong>{{ ui.nextPlan | appTranslate }}</strong>
                     <p>{{ displayMultiline(record.nextPlan) }}</p>
                   </div>
                 </div>
                 <footer>
-                  创建：{{ displayDateTime(record.createdAt) }}；更新：{{ displayDateTime(record.updatedAt) }}
+                  {{ ui.created | appTranslate }}: {{ displayDateTime(record.createdAt) }}; {{ ui.updated | appTranslate }}: {{ displayDateTime(record.updatedAt) }}
                 </footer>
               </article>
             </section>
           </ng-container>
 
           <ng-template #emptyState>
-            <div class="empty-state">请选择一个学生查看服务进度档。</div>
+            <div class="empty-state">{{ ui.selectStudentEmpty | appTranslate }}</div>
           </ng-template>
         </main>
       </div>
@@ -411,6 +414,53 @@ interface ServiceProgressFormModel {
   ],
 })
 export class TeacherServiceProgressComponent implements OnInit {
+  readonly ui = {
+    title: uiText('服务进度档', 'Service Progress'),
+    advisorSettings: uiText('顾问设置', 'Advisor Settings'),
+    searchTeachers: uiText('搜索老师', 'Search teachers'),
+    loading: uiText('加载中...', 'Loading...'),
+    back: uiText('返回', 'Back'),
+    students: uiText('学生', 'Students'),
+    searchStudents: uiText('搜索姓名、邮箱、电话', 'Search name, email, or phone'),
+    loadingStudents: uiText('正在加载学生...', 'Loading students...'),
+    addRecord: uiText('新增服务记录', 'Add Service Record'),
+    editRecord: uiText('编辑服务记录', 'Edit Service Record'),
+    loadingRecords: uiText('正在加载服务进度档...', 'Loading service progress...'),
+    studentRemark: uiText('学生备注信息', 'Student Notes'),
+    studentRemarkPlaceholder: uiText('填写学生备注信息', 'Enter student notes'),
+    saving: uiText('保存中...', 'Saving...'),
+    saveRemark: uiText('保存备注', 'Save Notes'),
+    appointmentTime: uiText('约见时间', 'Appointment Time'),
+    appointmentAdvisor: uiText('约见顾问', 'Advisor'),
+    pleaseSelect: uiText('请选择', 'Please Select'),
+    followUpContent: uiText('跟进内容', 'Follow-up Content'),
+    nextPlan: uiText('后续方案', 'Next Plan'),
+    cancel: uiText('取消', 'Cancel'),
+    saveRecord: uiText('保存记录', 'Save Record'),
+    noRecords: uiText('暂无服务记录。', 'No service records yet.'),
+    advisor: uiText('顾问', 'Advisor'),
+    edit: uiText('编辑', 'Edit'),
+    delete: uiText('删除', 'Delete'),
+    created: uiText('创建', 'Created'),
+    updated: uiText('更新', 'Updated'),
+    selectStudentEmpty: uiText('请选择一个学生查看服务进度档。', 'Select a student to view service progress.'),
+    noContact: uiText('无联系方式', 'No contact info'),
+    noAccountInfo: uiText('无账号信息', 'No account info'),
+    studentFallback: uiText('学生', 'Student'),
+    teacherFallback: uiText('老师', 'Teacher'),
+    advisorFallback: uiText('顾问', 'Advisor'),
+    updateAdvisorFailed: uiText('更新顾问设置失败。', 'Failed to update advisor settings.'),
+    saveRemarkFailed: uiText('保存学生备注失败。', 'Failed to save student notes.'),
+    saveRecordFailed: uiText('保存服务记录失败。', 'Failed to save service record.'),
+    deleteConfirm: uiText('确定删除这条服务记录吗？', 'Delete this service record?'),
+    deleteRecordFailed: uiText('删除服务记录失败。', 'Failed to delete service record.'),
+    loadStudentsFailed: uiText('加载学生列表失败。', 'Failed to load students.'),
+    loadRecordsFailed: uiText('加载服务进度档失败。', 'Failed to load service progress.'),
+    loadTeachersFailed: uiText('加载老师列表失败。', 'Failed to load teachers.'),
+    appointmentTimeRequired: uiText('请填写约见时间。', 'Please enter an appointment time.'),
+    advisorRequired: uiText('请选择约见顾问。', 'Please select an advisor.'),
+  };
+
   students: StudentAccount[] = [];
   studentKeyword = '';
   selectedStudentId: number | null = null;
@@ -437,6 +487,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     private studentApi: StudentManagementService,
     private serviceProgressApi: ServiceProgressService,
     private teacherApi: TeacherManagementService,
+    private language: AppLanguageService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -511,7 +562,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           this.loadAdvisors();
         },
         error: (err: HttpErrorResponse) => {
-          this.teacherError = this.extractErrorMessage(err) || '更新顾问设置失败。';
+          this.teacherError = this.extractErrorMessage(err) || this.t(this.ui.updateAdvisorFailed);
         },
       });
   }
@@ -567,7 +618,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           this.records = this.normalizeRecords(state.records);
         },
         error: (err: HttpErrorResponse) => {
-          this.recordError = this.extractErrorMessage(err) || '保存学生备注失败。';
+          this.recordError = this.extractErrorMessage(err) || this.t(this.ui.saveRemarkFailed);
         },
       });
   }
@@ -595,7 +646,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           this.loadRecords();
         },
         error: (err: HttpErrorResponse) => {
-          this.recordError = this.extractErrorMessage(err) || '保存服务记录失败。';
+          this.recordError = this.extractErrorMessage(err) || this.t(this.ui.saveRecordFailed);
         },
       });
   }
@@ -603,7 +654,7 @@ export class TeacherServiceProgressComponent implements OnInit {
   deleteRecord(record: ServiceProgressRecord): void {
     const recordId = this.toOptionalNumber(record.id);
     if (!recordId) return;
-    if (!confirm('确定删除这条服务记录吗？')) return;
+    if (!confirm(this.t(this.ui.deleteConfirm))) return;
 
     this.saving = true;
     this.recordError = '';
@@ -616,7 +667,7 @@ export class TeacherServiceProgressComponent implements OnInit {
       .subscribe({
         next: () => this.loadRecords(),
         error: (err: HttpErrorResponse) => {
-          this.recordError = this.extractErrorMessage(err) || '删除服务记录失败。';
+          this.recordError = this.extractErrorMessage(err) || this.t(this.ui.deleteRecordFailed);
         },
       });
   }
@@ -634,7 +685,7 @@ export class TeacherServiceProgressComponent implements OnInit {
       this.localizeVisibleText(student.displayName) ||
       this.localizeVisibleText(fullName) ||
       this.localizeVisibleText(student.username) ||
-      `学生 #${this.resolveStudentId(student) || '-'}`
+      `${this.t(this.ui.studentFallback)} #${this.resolveStudentId(student) || '-'}`
     );
   }
 
@@ -643,7 +694,7 @@ export class TeacherServiceProgressComponent implements OnInit {
       [student.email, student.phone]
         .map((value) => this.localizeVisibleText(value))
         .filter(Boolean)
-        .join(' · ') || '无联系方式'
+        .join(' · ') || this.t(this.ui.noContact)
     );
   }
 
@@ -656,7 +707,7 @@ export class TeacherServiceProgressComponent implements OnInit {
       this.localizeVisibleText(teacher.displayName) ||
       this.localizeVisibleText(fullName) ||
       this.localizeVisibleText(teacher.username) ||
-      `老师 #${this.resolveTeacherId(teacher) || '-'}`
+      `${this.t(this.ui.teacherFallback)} #${this.resolveTeacherId(teacher) || '-'}`
     );
   }
 
@@ -665,7 +716,7 @@ export class TeacherServiceProgressComponent implements OnInit {
       [teacher.email, teacher.username]
         .map((value) => this.localizeVisibleText(value))
         .filter(Boolean)
-        .join(' · ') || '无账号信息'
+        .join(' · ') || this.t(this.ui.noAccountInfo)
     );
   }
 
@@ -681,7 +732,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     return (
       this.localizeVisibleText(advisor.displayName) ||
       this.localizeVisibleText(advisor.username) ||
-      `顾问 #${this.resolveAdvisorId(advisor) || '-'}`
+      `${this.t(this.ui.advisorFallback)} #${this.resolveAdvisorId(advisor) || '-'}`
     );
   }
 
@@ -689,7 +740,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     const id = this.toOptionalNumber(advisorId);
     if (!id) return '-';
     const advisor = this.advisors.find((item) => this.resolveAdvisorId(item) === id);
-    return advisor ? this.displayAdvisorName(advisor) : `顾问 #${id}`;
+    return advisor ? this.displayAdvisorName(advisor) : `${this.t(this.ui.advisorFallback)} #${id}`;
   }
 
   resolveAdvisorId(advisor: ServiceProgressAdvisor): number | null {
@@ -701,7 +752,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     if (!raw) return '-';
     const parsed = new Date(raw);
     if (Number.isNaN(parsed.getTime())) return raw.replace('T', ' ').slice(0, 16);
-    return parsed.toLocaleString();
+    return parsed.toLocaleString(this.language.locale());
   }
 
   displayMultiline(value: unknown): string {
@@ -737,7 +788,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           }
         },
         error: (err: HttpErrorResponse) => {
-          this.studentError = this.extractErrorMessage(err) || '加载学生列表失败。';
+          this.studentError = this.extractErrorMessage(err) || this.t(this.ui.loadStudentsFailed);
           this.students = [];
         },
       });
@@ -759,7 +810,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           this.records = this.normalizeRecords(state.records);
         },
         error: (err: HttpErrorResponse) => {
-          this.recordError = this.extractErrorMessage(err) || '加载服务进度档失败。';
+          this.recordError = this.extractErrorMessage(err) || this.t(this.ui.loadRecordsFailed);
           this.records = [];
         },
       });
@@ -798,7 +849,7 @@ export class TeacherServiceProgressComponent implements OnInit {
           this.teachers = this.normalizeTeachers(payload);
         },
         error: (err: HttpErrorResponse) => {
-          this.teacherError = this.extractErrorMessage(err) || '加载老师列表失败。';
+          this.teacherError = this.extractErrorMessage(err) || this.t(this.ui.loadTeachersFailed);
           this.teachers = [];
         },
       });
@@ -839,11 +890,11 @@ export class TeacherServiceProgressComponent implements OnInit {
     const appointmentTime = this.normalizeText(this.form.appointmentTime);
     const advisorId = this.toOptionalNumber(this.form.advisorId);
     if (!appointmentTime) {
-      this.recordError = '请填写约见时间。';
+      this.recordError = this.t(this.ui.appointmentTimeRequired);
       return null;
     }
     if (!advisorId) {
-      this.recordError = '请选择约见顾问。';
+      this.recordError = this.t(this.ui.advisorRequired);
       return null;
     }
     return {
@@ -881,17 +932,24 @@ export class TeacherServiceProgressComponent implements OnInit {
   }
 
   private localizeVisibleText(value: unknown): string {
+    const student = this.t(this.ui.studentFallback);
+    const teacher = this.t(this.ui.teacherFallback);
+    const advisor = this.t(this.ui.advisorFallback);
     return this.normalizeText(value)
-      .replace(/\bStudent\s*#/gi, '学生 #')
-      .replace(/\bStudent\b/gi, '学生')
-      .replace(/\bTeacher\s*#/gi, '老师 #')
-      .replace(/\bTeacher\b/gi, '老师')
-      .replace(/\bAdvisor\s*#/gi, '顾问 #')
-      .replace(/\bAdvisor\b/gi, '顾问')
-      .replace(/\bNo contact info\b/gi, '无联系方式')
-      .replace(/\bNo contact\b/gi, '无联系方式')
-      .replace(/\bNo account info\b/gi, '无账号信息')
-      .replace(/\bNone\b/gi, '无');
+      .replace(/\bStudent\s*#/gi, `${student} #`)
+      .replace(/\bStudent\b/gi, student)
+      .replace(/\bTeacher\s*#/gi, `${teacher} #`)
+      .replace(/\bTeacher\b/gi, teacher)
+      .replace(/\bAdvisor\s*#/gi, `${advisor} #`)
+      .replace(/\bAdvisor\b/gi, advisor)
+      .replace(/\bNo contact info\b/gi, this.t(this.ui.noContact))
+      .replace(/\bNo contact\b/gi, this.t(this.ui.noContact))
+      .replace(/\bNo account info\b/gi, this.t(this.ui.noAccountInfo))
+      .replace(/\bNone\b/gi, this.language.language() === 'en' ? 'None' : '无');
+  }
+
+  private t(value: LocalizedText): string {
+    return this.language.translate(value);
   }
 
   private extractErrorMessage(error: HttpErrorResponse): string {
