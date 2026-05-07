@@ -21,14 +21,11 @@ interface ActivityDraft {
   role: string;
   activityLevel: ExtracurricularActivityLevel;
   awardOrResult: string;
-  competitionCategory: string;
   activityDate: string;
   startDate: string;
   endDate: string;
   description: string;
-  admissionRelevance: string;
   proofContact: string;
-  proofUrl: string;
 }
 
 @Component({
@@ -140,10 +137,6 @@ interface ActivityDraft {
                   竞赛日期
                   <input [(ngModel)]="activity.activityDate" [disabled]="saving" type="date" />
                 </label>
-                <label>
-                  项目 / 组别
-                  <input [(ngModel)]="activity.competitionCategory" [disabled]="saving" />
-                </label>
               </ng-container>
               <ng-template #rangeDates>
                 <label>
@@ -160,17 +153,9 @@ interface ActivityDraft {
                 活动内容
                 <textarea [(ngModel)]="activity.description" [disabled]="saving" rows="2"></textarea>
               </label>
-              <label class="span-2">
-                升学相关性
-                <textarea [(ngModel)]="activity.admissionRelevance" [disabled]="saving" rows="2"></textarea>
-              </label>
               <label>
                 证明人 / 联系方式
                 <input [(ngModel)]="activity.proofContact" [disabled]="saving" />
-              </label>
-              <label>
-                证明链接
-                <input [(ngModel)]="activity.proofUrl" [disabled]="saving" />
               </label>
             </div>
           </article>
@@ -320,7 +305,6 @@ export class ExtracurricularTrackingComponent implements OnInit {
       return;
     }
     activity.activityDate = '';
-    activity.competitionCategory = '';
   }
 
   saveTracking(): void {
@@ -432,14 +416,14 @@ export class ExtracurricularTrackingComponent implements OnInit {
       role: activity.role.trim(),
       activityLevel: activity.activityLevel || '',
       awardOrResult: activity.awardOrResult.trim(),
-      competitionCategory: activity.competitionCategory.trim(),
+      competitionCategory: '',
       activityDate: activity.activityType === 'COMPETITION' ? activity.activityDate.trim() : '',
       startDate: activity.activityType === 'COMPETITION' ? '' : activity.startDate.trim(),
       endDate: activity.activityType === 'COMPETITION' ? '' : activity.endDate.trim(),
       description: activity.description.trim(),
-      admissionRelevance: activity.admissionRelevance.trim(),
+      admissionRelevance: '',
       proofContact: activity.proofContact.trim(),
-      proofUrl: activity.proofUrl.trim(),
+      proofUrl: '',
     };
   }
 
@@ -451,14 +435,11 @@ export class ExtracurricularTrackingComponent implements OnInit {
       role: activity.role || '',
       activityLevel: activity.activityLevel || '',
       awardOrResult: activity.awardOrResult || '',
-      competitionCategory: activity.competitionCategory || '',
       activityDate: activity.activityDate || '',
       startDate: activity.startDate || '',
       endDate: activity.endDate || '',
       description: activity.description || '',
-      admissionRelevance: activity.admissionRelevance || '',
       proofContact: activity.proofContact || '',
-      proofUrl: activity.proofUrl || '',
     };
   }
 
@@ -482,14 +463,11 @@ export class ExtracurricularTrackingComponent implements OnInit {
       role: '',
       activityLevel: '',
       awardOrResult: '',
-      competitionCategory: '',
       activityDate: '',
       startDate: '',
       endDate: '',
       description: '',
-      admissionRelevance: '',
       proofContact: '',
-      proofUrl: '',
     };
   }
 
