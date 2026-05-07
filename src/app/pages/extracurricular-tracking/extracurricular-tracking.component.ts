@@ -418,7 +418,7 @@ export class ExtracurricularTrackingComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(this.teacherMode ? ['/teacher/students'] : ['/dashboard']);
+    this.router.navigate(this.teacherMode ? ['/teacher/extracurricular'] : ['/dashboard']);
   }
 
   trackActivity = (index: number): number => index;
