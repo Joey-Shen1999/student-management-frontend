@@ -14,6 +14,9 @@ import {
   UpdateTeacherRoleResponse,
   UpdateTeacherStatusResponse,
 } from '../../services/teacher-management.service';
+import { AppLanguageService } from '../../services/app-language.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 interface PasswordResetResult {
   teacherId: number;
@@ -36,24 +39,24 @@ interface StatusUpdateResult {
 @Component({
   selector: 'app-teacher-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
   template: `
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h2 style="margin:0;">Teacher账号管理</h2>
+        <h2 style="margin:0;">{{ ui.title | appTranslate }}</h2>
         <button type="button" routerLink="/teacher/dashboard" class="teacher-back-btn" style="margin-left:auto;">
-          返回
+          {{ ui.back | appTranslate }}
         </button>
       </div>
 
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 8px;">
         <button type="button" (click)="loadTeachers()" [disabled]="loadingList">
-          {{ loadingList ? '加载中...' : '刷新列表' }}
+          {{ (loadingList ? ui.loading : ui.refreshList) | appTranslate }}
         </button>
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto;">
-          <span style="color:#666;font-size:13px;">总数：{{ teachers.length }}</span>
-          <button type="button" routerLink="/teacher/invites">新增Teacher</button>
+          <span style="color:#666;font-size:13px;">{{ ui.total | appTranslate }}: {{ teachers.length }}</span>
+          <button type="button" routerLink="/teacher/invites">{{ ui.addTeacher | appTranslate }}</button>
         </div>
       </div>
 
@@ -73,26 +76,26 @@ interface StatusUpdateResult {
       >
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            角色
+            {{ ui.role | appTranslate }}
             <select
               [(ngModel)]="roleFilter"
               (ngModelChange)="applyListView()"
               [disabled]="loadingList"
               style="padding:4px 6px;"
             >
-              <option value="ALL">全部</option>
-              <option value="ADMIN">管理员</option>
-              <option value="TEACHER">教师</option>
+              <option value="ALL">{{ ui.all | appTranslate }}</option>
+              <option value="ADMIN">{{ ui.admin | appTranslate }}</option>
+              <option value="TEACHER">{{ ui.teacher | appTranslate }}</option>
             </select>
           </label>
 
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? '隐藏已' : '显示已' }}
+            {{ (showInactive ? ui.hideArchived : ui.showArchived) | appTranslate }}
           </button>
 
           <input
             type="search"
-            placeholder="按 ID、用户名、姓名、邮箱搜索"
+            [placeholder]="ui.searchPlaceholder | appTranslate"
             [(ngModel)]="searchKeyword"
             (ngModelChange)="applyListView()"
             [disabled]="loadingList"
@@ -104,17 +107,17 @@ interface StatusUpdateResult {
             (click)="clearListControls()"
             [disabled]="loadingList || (listLimit === 20 && roleFilter === 'ALL' && !showInactive && !searchKeyword.trim())"
           >
-            清空
+            {{ ui.clear | appTranslate }}
           </button>
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
           <span style="color:#666;font-size:13px;white-space:nowrap;">
-            显示：{{ visibleTeachers.length }} / 筛选后：{{ filteredCount }}
+            {{ ui.showing | appTranslate }}: {{ visibleTeachers.length }} / {{ ui.filtered | appTranslate }}: {{ filteredCount }}
           </span>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            数量
+            {{ ui.limit | appTranslate }}
             <select
               [(ngModel)]="listLimit"
               (ngModelChange)="applyListView()"
@@ -138,12 +141,13 @@ interface StatusUpdateResult {
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead style="background:#f6f7fb;">
             <tr>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">教师 ID</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">用户名</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">显示名称</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">邮箱</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">管理员</th>
-              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">启用</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.teacherId | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.username | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.displayName | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.email | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.admin | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.optionalAdvisor | appTranslate }}</th>
+              <th style="text-align:left;padding:10px;border-bottom:1px solid #e5e5e5;">{{ ui.enabled | appTranslate }}</th>
             </tr>
           </thead>
           <tbody>
@@ -205,13 +209,27 @@ interface StatusUpdateResult {
                     >
                       {{
                         resettingTeacherId === resolveTeacherId(teacher)
-                          ? '重置中...'
-                          : '重置密码'
+                          ? (ui.resetting | appTranslate)
+                          : (ui.resetPassword | appTranslate)
                       }}
                     </button>
                   </div>
 
                 </div>
+              </td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
+                <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                  <input
+                    type="checkbox"
+                    [checked]="isAdvisorEnabled(teacher)"
+                    (change)="toggleAdvisorEnabled(teacher)"
+                    [disabled]="
+                      !resolveTeacherId(teacher) ||
+                      advisorUpdatingTeacherId === resolveTeacherId(teacher)
+                    "
+                  />
+                  <span>{{ (advisorUpdatingTeacherId === resolveTeacherId(teacher) ? ui.saving : ui.canBeAdvisor) | appTranslate }}</span>
+                </label>
               </td>
               <td style="padding:10px;border-bottom:1px solid #f0f0f0;">
                 <label
@@ -222,7 +240,7 @@ interface StatusUpdateResult {
                       ? '0.7'
                       : '1'
                   "
-                  title="启用"
+                  [title]="ui.enabled | appTranslate"
                 >
                   <input
                     type="checkbox"
@@ -256,7 +274,7 @@ interface StatusUpdateResult {
               </td>
             </tr>
             <tr *ngIf="!loadingList && visibleTeachers.length === 0">
-              <td colspan="6" style="padding:14px;color:#666;text-align:center;">未找到教师账号。</td>
+              <td colspan="7" style="padding:14px;color:#666;text-align:center;">{{ ui.noTeachers | appTranslate }}</td>
             </tr>
           </tbody>
         </table>
@@ -273,34 +291,34 @@ interface StatusUpdateResult {
         *ngIf="roleResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">角色更新成功</div>
-        <div style="margin-top:8px;"><b>教师：</b> {{ roleResult.username }}</div>
-        <div style="margin-top:8px;"><b>新角色：</b> {{ roleResult.role === 'ADMIN' ? '管理员' : '教师' }}</div>
+        <div style="font-weight:bold;">{{ ui.roleUpdateSuccess | appTranslate }}</div>
+        <div style="margin-top:8px;"><b>{{ ui.teacher | appTranslate }}:</b> {{ roleResult.username }}</div>
+        <div style="margin-top:8px;"><b>{{ ui.newRole | appTranslate }}:</b> {{ roleResult.role === 'ADMIN' ? (ui.admin | appTranslate) : (ui.teacher | appTranslate) }}</div>
       </div>
 
       <div
         *ngIf="statusResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">账号状态更新成功</div>
-        <div style="margin-top:8px;"><b>教师：</b> {{ statusResult.username }}</div>
-        <div style="margin-top:8px;"><b>新状态：</b> {{ statusResult.status === 'ACTIVE' ? '启用' : '归档' }}</div>
+        <div style="font-weight:bold;">{{ ui.statusUpdateSuccess | appTranslate }}</div>
+        <div style="margin-top:8px;"><b>{{ ui.teacher | appTranslate }}:</b> {{ statusResult.username }}</div>
+        <div style="margin-top:8px;"><b>{{ ui.newStatus | appTranslate }}:</b> {{ statusResult.status === 'ACTIVE' ? (ui.enabled | appTranslate) : (ui.archived | appTranslate) }}</div>
       </div>
 
       <div
         *ngIf="resetResult"
         style="margin-top:14px;padding:12px;border:1px solid #cfe8cf;background:#f3fff3;border-radius:8px;"
       >
-        <div style="font-weight:bold;">临时密码重置成功</div>
-        <div style="margin-top:8px;"><b>教师：</b> {{ resetResult.username }}</div>
+        <div style="font-weight:bold;">{{ ui.tempPasswordResetSuccess | appTranslate }}</div>
+        <div style="margin-top:8px;"><b>{{ ui.teacher | appTranslate }}:</b> {{ resetResult.username }}</div>
         <div style="margin-top:8px;">
-          <b>临时密码（仅显示一次）：</b>
+          <b>{{ ui.tempPasswordOnce | appTranslate }}:</b>
           <pre
             style="margin:8px 0 0;padding:10px;background:#fff;border:1px solid #ddd;border-radius:6px;font-size:16px;"
           >{{ resetResult.tempPassword }}</pre>
         </div>
         <div style="margin-top:8px;color:#666;">
-          请通过安全方式发送给教师。首次登录将强制修改密码。
+          {{ ui.shareTempPasswordSafely | appTranslate }}
         </div>
       </div>
     </div>
@@ -338,6 +356,50 @@ interface StatusUpdateResult {
   ],
 })
 export class TeacherManagementComponent implements OnInit {
+  readonly ui = {
+    title: uiText('Teacher账号管理', 'Teacher Account Management'),
+    back: uiText('返回', 'Back'),
+    loading: uiText('加载中...', 'Loading...'),
+    refreshList: uiText('刷新列表', 'Refresh List'),
+    total: uiText('总数', 'Total'),
+    addTeacher: uiText('新增Teacher', 'Add Teacher'),
+    role: uiText('角色', 'Role'),
+    all: uiText('全部', 'All'),
+    admin: uiText('管理员', 'Admin'),
+    teacher: uiText('教师', 'Teacher'),
+    hideArchived: uiText('隐藏已归档', 'Hide Archived'),
+    showArchived: uiText('显示已归档', 'Show Archived'),
+    searchPlaceholder: uiText('按 ID、用户名、姓名、邮箱搜索', 'Search by ID, username, name, or email'),
+    clear: uiText('清空', 'Clear'),
+    showing: uiText('显示', 'Showing'),
+    filtered: uiText('筛选后', 'Filtered'),
+    limit: uiText('数量', 'Limit'),
+    teacherId: uiText('教师 ID', 'Teacher ID'),
+    username: uiText('用户名', 'Username'),
+    displayName: uiText('显示名称', 'Display Name'),
+    email: uiText('邮箱', 'Email'),
+    optionalAdvisor: uiText('可选顾问', 'Optional Advisor'),
+    canBeAdvisor: uiText('可作为顾问', 'Can Be Advisor'),
+    enabled: uiText('启用', 'Enabled'),
+    resetting: uiText('重置中...', 'Resetting...'),
+    resetPassword: uiText('重置密码', 'Reset Password'),
+    noTeachers: uiText('未找到教师账号。', 'No teacher accounts found.'),
+    roleUpdateSuccess: uiText('角色更新成功', 'Role updated successfully'),
+    newRole: uiText('新角色', 'New Role'),
+    statusUpdateSuccess: uiText('账号状态更新成功', 'Account status updated successfully'),
+    newStatus: uiText('新状态', 'New Status'),
+    archived: uiText('归档', 'Archived'),
+    tempPasswordResetSuccess: uiText('临时密码重置成功', 'Temporary password reset successfully'),
+    tempPasswordOnce: uiText('临时密码（仅显示一次）', 'Temporary Password (shown once)'),
+    shareTempPasswordSafely: uiText(
+      '请通过安全方式发送给教师。首次登录将强制修改密码。',
+      'Send this to the teacher securely. First login will require a password change.'
+    ),
+    saving: uiText('保存中...', 'Saving...'),
+    missingTeacherForAdvisor: uiText('缺少教师 ID，无法更新顾问设置。', 'Missing teacher ID. Cannot update advisor settings.'),
+    advisorUpdateFailed: uiText('更新顾问设置失败。', 'Failed to update advisor settings.'),
+  };
+
   readonly limitOptions: number[] = [20, 50, 100];
   teachers: TeacherAccount[] = [];
   visibleTeachers: TeacherAccount[] = [];
@@ -354,6 +416,7 @@ export class TeacherManagementComponent implements OnInit {
   roleTarget: TeacherRole | null = null;
   statusUpdatingTeacherId: number | null = null;
   statusTarget: TeacherAccountStatus | null = null;
+  advisorUpdatingTeacherId: number | null = null;
   actionError = '';
   resetResult: PasswordResetResult | null = null;
   roleResult: RoleUpdateResult | null = null;
@@ -361,6 +424,7 @@ export class TeacherManagementComponent implements OnInit {
 
   constructor(
     private teacherApi: TeacherManagementService,
+    private language: AppLanguageService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
@@ -510,6 +574,51 @@ export class TeacherManagementComponent implements OnInit {
   toggleArchiveStatus(teacher: TeacherAccount): void {
     const targetStatus: TeacherAccountStatus = this.isArchived(teacher) ? 'ACTIVE' : 'ARCHIVED';
     this.setTeacherStatus(teacher, targetStatus);
+  }
+
+  isAdvisorEnabled(teacher: TeacherAccount): boolean {
+    return !!teacher.advisorEnabled;
+  }
+
+  toggleAdvisorEnabled(teacher: TeacherAccount): void {
+    const teacherId = this.resolveTeacherId(teacher);
+    if (!teacherId) {
+      this.actionError = this.t(this.ui.missingTeacherForAdvisor);
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const target = !this.isAdvisorEnabled(teacher);
+    this.actionError = '';
+    this.resetResult = null;
+    this.roleResult = null;
+    this.statusResult = null;
+    this.advisorUpdatingTeacherId = teacherId;
+    this.cdr.detectChanges();
+
+    this.teacherApi
+      .updateTeacherAdvisorEnabled(teacherId, target)
+      .pipe(
+        finalize(() => {
+          this.advisorUpdatingTeacherId = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          teacher.advisorEnabled = !!resp?.advisorEnabled;
+          this.applyListView();
+          this.cdr.detectChanges();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.actionError = this.extractErrorMessage(err) || this.t(this.ui.advisorUpdateFailed);
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private t(value: LocalizedText): string {
+    return this.language.translate(value);
   }
 
   setTeacherStatus(teacher: TeacherAccount, targetStatus: TeacherAccountStatus): void {

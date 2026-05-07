@@ -19,7 +19,6 @@ import {
   SchoolTranscriptUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
-
 type Gender = '' | 'Male' | 'Female' | 'Other';
 type StudentRegion =
   | ''
@@ -115,6 +114,7 @@ interface StudentProfileModel {
   ap: boolean;
   serviceItems: string[];
   identityFiles: IdentityFileModel[];
+  teacherNote: string;
 
   highSchools: HighSchoolModel[];
   externalCourses: ExternalCourseModel[];
@@ -1059,6 +1059,13 @@ export class StudentProfile implements OnInit {
   displayText(value: unknown): string {
     const text = this.toText(value);
     return text || '-';
+  }
+
+  displayDateTime(value: unknown): string {
+    const text = this.toText(value);
+    if (!text) return '-';
+    const parsed = Date.parse(text);
+    return Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : text.replace('T', ' ');
   }
 
   displayNumber(value: number | null | undefined): string {
@@ -2746,6 +2753,7 @@ export class StudentProfile implements OnInit {
       ap: false,
       serviceItems: [],
       identityFiles: [],
+      teacherNote: '',
       highSchools: [this.createCurrentHighSchool()],
       externalCourses: [],
     };
@@ -2830,6 +2838,7 @@ export class StudentProfile implements OnInit {
       ap: this.toBoolean(source.ap),
       serviceItems: this.normalizeServiceItems(this.extractServiceItems(source)),
       identityFiles: this.normalizeIdentityFiles(this.extractIdentityFiles(source)),
+      teacherNote: this.toText(source.teacherNote),
 
       highSchools: this.normalizeHighSchools(rawSchools.map((school: unknown) => this.normalizeHighSchool(school))),
       externalCourses: rawCourses.map((course: unknown) => this.normalizeExternalCourse(course)),
@@ -3032,6 +3041,7 @@ export class StudentProfile implements OnInit {
       ap: !!model.ap,
       serviceItems: normalizedServiceItems,
       serviceProjects: normalizedServiceItems,
+      teacherNote: this.toText(model.teacherNote),
       identityFiles: this.normalizeIdentityFiles(model.identityFiles).map((file) => ({
         identityFileId: this.toOptionalNumber(file.identityFileId),
         id: this.toOptionalNumber(file.identityFileId),
@@ -3968,4 +3978,3 @@ export class StudentProfile implements OnInit {
     return messages;
   }
 }
-

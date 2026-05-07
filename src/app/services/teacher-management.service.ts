@@ -14,6 +14,7 @@ export interface TeacherAccount {
   firstName?: string;
   lastName?: string;
   email?: string;
+  advisorEnabled?: boolean;
   createdAt?: string;
   [key: string]: any;
 }
@@ -44,6 +45,14 @@ export interface UpdateTeacherStatusResponse {
   archived?: boolean;
   active?: boolean;
   enabled?: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
+export interface UpdateTeacherAdvisorEnabledResponse {
+  teacherId?: number;
+  username?: string;
+  advisorEnabled?: boolean;
   message?: string;
   [key: string]: any;
 }
@@ -102,6 +111,17 @@ export class TeacherManagementService {
     return this.http.patch<UpdateTeacherStatusResponse>(
       `${this.baseUrl}/${teacherId}/status`,
       { status: normalizedStatus },
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateTeacherAdvisorEnabled(
+    teacherId: number,
+    advisorEnabled: boolean
+  ): Observable<UpdateTeacherAdvisorEnabledResponse> {
+    return this.http.put<UpdateTeacherAdvisorEnabledResponse>(
+      `${this.baseUrl}/${teacherId}/advisor-enabled`,
+      { advisorEnabled: !!advisorEnabled },
       this.withAuthHeaderIfAvailable()
     );
   }

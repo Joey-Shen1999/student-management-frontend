@@ -4,17 +4,19 @@ import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { AuthService, type LoginResponse } from '../../services/auth.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { uiText } from '../../shared/i18n/ui-translations';
 
 @Component({
   selector: 'app-teacher-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, TranslatePipe],
   template: `
     <div class="dashboard-page">
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
-            <h2>教师工作台</h2>
+            <h2>{{ ui.title | appTranslate }}</h2>
           </div>
           <button
             type="button"
@@ -22,36 +24,36 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
             [disabled]="signingOut"
             (click)="logout()"
           >
-            {{ signingOut ? '退出中...' : '退出登录' }}
+            {{ (signingOut ? ui.signingOut : ui.signOut) | appTranslate }}
           </button>
         </div>
 
         <section class="dashboard-card">
-          <h3>快捷操作</h3>
+          <h3>{{ ui.quickActions | appTranslate }}</h3>
           <div class="quick-actions">
             <button *ngIf="isAdmin" type="button" class="action-btn secondary" (click)="goTeachers()">
-              教师管理
+              {{ ui.teacherManagement | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" (click)="goGoals()">
-              任务系统
+              {{ ui.taskCenter | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" (click)="goTasks()">
-              通知管理
+              {{ ui.noticeManagement | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/students']">
-              学生管理
+              {{ ui.studentManagement | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/courses']">
-              课程管理
+              {{ ui.courseManagement | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/osslt']">
-              OSSLT 跟踪
+              {{ ui.ossltTracking | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/ielts']">
-              语言成绩跟踪
+              {{ ui.languageTracking | appTranslate }}
             </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/volunteer']">
-              义工跟踪
+              {{ ui.volunteerTracking | appTranslate }}
             </button>
             <button
               type="button"
@@ -59,10 +61,13 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
               [routerLink]="['/teacher/students']"
               [queryParams]="{ context: 'extracurricular' }"
             >
-              课外活动
+              {{ ui.extracurricular | appTranslate }}
+            </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/service-progress']">
+              {{ ui.serviceProgress | appTranslate }}
             </button>
             <button type="button" class="action-btn secondary" (click)="goAccount()">
-              账号设置
+              {{ ui.accountSettings | appTranslate }}
             </button>
           </div>
         </section>
@@ -72,6 +77,24 @@ import { AuthService, type LoginResponse } from '../../services/auth.service';
   styleUrl: './teacher-dashboard.component.scss',
 })
 export class TeacherDashboardComponent {
+  readonly ui = {
+    title: uiText('教师工作台', 'Teacher Dashboard'),
+    signingOut: uiText('退出中...', 'Signing out...'),
+    signOut: uiText('退出登录', 'Sign Out'),
+    quickActions: uiText('快捷操作', 'Quick Actions'),
+    teacherManagement: uiText('教师管理', 'Teacher Management'),
+    taskCenter: uiText('任务系统', 'Task Center'),
+    noticeManagement: uiText('通知管理', 'Notice Management'),
+    studentManagement: uiText('学生管理', 'Student Management'),
+    courseManagement: uiText('课程管理', 'Course Management'),
+    ossltTracking: uiText('OSSLT 跟踪', 'OSSLT Tracking'),
+    languageTracking: uiText('语言成绩跟踪', 'Language Score Tracking'),
+    volunteerTracking: uiText('义工跟踪', 'Volunteer Tracking'),
+    extracurricular: uiText('课外活动', 'Extracurricular Activities'),
+    serviceProgress: uiText('服务进度档', 'Service Progress'),
+    accountSettings: uiText('账号设置', 'Account Settings'),
+  };
+
   session: LoginResponse | null;
   isAdmin = false;
   signingOut = false;
