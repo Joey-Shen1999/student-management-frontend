@@ -630,11 +630,21 @@ export class TeacherServiceProgressComponent implements OnInit {
       .map((part) => this.normalizeText(part))
       .filter(Boolean)
       .join(' ');
-    return this.normalizeText(student.displayName) || fullName || this.normalizeText(student.username) || `学生 #${this.resolveStudentId(student) || '-'}`;
+    return (
+      this.localizeVisibleText(student.displayName) ||
+      this.localizeVisibleText(fullName) ||
+      this.localizeVisibleText(student.username) ||
+      `学生 #${this.resolveStudentId(student) || '-'}`
+    );
   }
 
   displayStudentMeta(student: StudentAccount): string {
-    return [student.email, student.phone].map((value) => this.normalizeText(value)).filter(Boolean).join(' · ') || '无联系方式';
+    return (
+      [student.email, student.phone]
+        .map((value) => this.localizeVisibleText(value))
+        .filter(Boolean)
+        .join(' · ') || '无联系方式'
+    );
   }
 
   displayTeacherName(teacher: TeacherAccount): string {
@@ -642,11 +652,21 @@ export class TeacherServiceProgressComponent implements OnInit {
       .map((part) => this.normalizeText(part))
       .filter(Boolean)
       .join(' ');
-    return this.normalizeText(teacher.displayName) || fullName || this.normalizeText(teacher.username) || `老师 #${this.resolveTeacherId(teacher) || '-'}`;
+    return (
+      this.localizeVisibleText(teacher.displayName) ||
+      this.localizeVisibleText(fullName) ||
+      this.localizeVisibleText(teacher.username) ||
+      `老师 #${this.resolveTeacherId(teacher) || '-'}`
+    );
   }
 
   displayTeacherMeta(teacher: TeacherAccount): string {
-    return [teacher.email, teacher.username].map((value) => this.normalizeText(value)).filter(Boolean).join(' · ') || '无账号信息';
+    return (
+      [teacher.email, teacher.username]
+        .map((value) => this.localizeVisibleText(value))
+        .filter(Boolean)
+        .join(' · ') || '无账号信息'
+    );
   }
 
   isAdvisorEnabled(teacher: TeacherAccount): boolean {
@@ -658,14 +678,18 @@ export class TeacherServiceProgressComponent implements OnInit {
   }
 
   displayAdvisorName(advisor: ServiceProgressAdvisor): string {
-    return this.normalizeText(advisor.displayName) || this.normalizeText(advisor.username) || `#${this.resolveAdvisorId(advisor) || '-'}`;
+    return (
+      this.localizeVisibleText(advisor.displayName) ||
+      this.localizeVisibleText(advisor.username) ||
+      `顾问 #${this.resolveAdvisorId(advisor) || '-'}`
+    );
   }
 
   advisorName(advisorId: number | null | undefined): string {
     const id = this.toOptionalNumber(advisorId);
     if (!id) return '-';
     const advisor = this.advisors.find((item) => this.resolveAdvisorId(item) === id);
-    return advisor ? this.displayAdvisorName(advisor) : `#${id}`;
+    return advisor ? this.displayAdvisorName(advisor) : `顾问 #${id}`;
   }
 
   resolveAdvisorId(advisor: ServiceProgressAdvisor): number | null {
@@ -854,6 +878,20 @@ export class TeacherServiceProgressComponent implements OnInit {
 
   private normalizeText(value: unknown): string {
     return value === null || value === undefined ? '' : String(value).trim();
+  }
+
+  private localizeVisibleText(value: unknown): string {
+    return this.normalizeText(value)
+      .replace(/\bStudent\s*#/gi, '学生 #')
+      .replace(/\bStudent\b/gi, '学生')
+      .replace(/\bTeacher\s*#/gi, '老师 #')
+      .replace(/\bTeacher\b/gi, '老师')
+      .replace(/\bAdvisor\s*#/gi, '顾问 #')
+      .replace(/\bAdvisor\b/gi, '顾问')
+      .replace(/\bNo contact info\b/gi, '无联系方式')
+      .replace(/\bNo contact\b/gi, '无联系方式')
+      .replace(/\bNo account info\b/gi, '无账号信息')
+      .replace(/\bNone\b/gi, '无');
   }
 
   private extractErrorMessage(error: HttpErrorResponse): string {
