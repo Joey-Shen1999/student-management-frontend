@@ -6,8 +6,6 @@ import { vi } from 'vitest';
 
 import { StudentProfile } from './student-profile';
 import { StudentProfileService } from '../../services/student-profile.service';
-import { AuthService } from '../../services/auth.service';
-import { UniversityAspirationService } from '../../services/university-aspiration.service';
 
 describe('StudentProfile', () => {
   let component: StudentProfile;
@@ -31,17 +29,6 @@ describe('StudentProfile', () => {
     | 'downloadMyIdentityFile'
     | 'downloadStudentIdentityFileForTeacher'
   >;
-  let aspirationApi: Pick<
-    UniversityAspirationService,
-    | 'listUniversities'
-    | 'listPrograms'
-    | 'listAspirations'
-    | 'createAspiration'
-    | 'updateAspiration'
-    | 'deleteAspiration'
-    | 'reorderAspirations'
-  >;
-  let auth: Pick<AuthService, 'getSession' | 'getAuthorizationHeaderValue'>;
   let routeParams$: BehaviorSubject<any>;
   let activatedRouteStub: {
     paramMap: ReturnType<BehaviorSubject<any>['asObservable']>;
@@ -117,27 +104,6 @@ describe('StudentProfile', () => {
         of(new HttpResponse<Blob>({ body: new Blob(['x']), status: 200 }))
       ),
     };
-    aspirationApi = {
-      listUniversities: vi.fn(() => of([])),
-      listPrograms: vi.fn(() => of([])),
-      listAspirations: vi.fn(() => of([])),
-      createAspiration: vi.fn(() => of({})),
-      updateAspiration: vi.fn(() => of({})),
-      deleteAspiration: vi.fn(() => of(void 0)),
-      reorderAspirations: vi.fn(() => of([])),
-    };
-    auth = {
-      getSession: vi.fn(() => ({
-        userId: 1,
-        role: 'STUDENT',
-        studentId: 1,
-        teacherId: null,
-        accessToken: 'test-token',
-        tokenType: 'Bearer',
-        tokenExpiresAt: '2099-01-01T00:00:00',
-      })),
-      getAuthorizationHeaderValue: vi.fn(() => 'Bearer test-token'),
-    };
     routeParams$ = new BehaviorSubject(convertToParamMap({}));
     activatedRouteStub = {
       paramMap: routeParams$.asObservable(),
@@ -151,8 +117,6 @@ describe('StudentProfile', () => {
       imports: [StudentProfile],
       providers: [
         { provide: StudentProfileService, useValue: profileApi },
-        { provide: UniversityAspirationService, useValue: aspirationApi },
-        { provide: AuthService, useValue: auth },
         { provide: Router, useValue: router },
         {
           provide: ActivatedRoute,

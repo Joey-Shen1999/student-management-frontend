@@ -178,6 +178,11 @@ describe('DashboardComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/student/profile']);
   });
 
+  it('goUniversityGoals should navigate to standalone university goals page', () => {
+    component.goUniversityGoals();
+    expect(router.navigate).toHaveBeenCalledWith(['/student/university-goals']);
+  });
+
   it('goDocumentUpload should navigate to dedicated student documents page', () => {
     component.goDocumentUpload();
     expect(router.navigate).toHaveBeenCalledWith(['/student/documents']);

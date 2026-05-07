@@ -176,7 +176,7 @@ export class DashboardComponent implements OnInit {
   }
 
   goUniversityGoals() {
-    this.router.navigate(['/student/profile'], { fragment: 'university-goals' });
+    this.router.navigate(['/student/university-goals']);
   }
 
   goDocumentUpload() {

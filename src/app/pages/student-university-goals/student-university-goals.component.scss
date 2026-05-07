@@ -1,0 +1,219 @@
+.university-goals-page {
+  min-height: 100vh;
+  background: #f4f7fb;
+  color: #1f2f47;
+  padding: 32px 16px;
+}
+
+.university-goals-shell {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.header-row,
+.toolbar-card,
+.editor-head,
+.editor-actions,
+.goal-card,
+.goal-card-head,
+.goal-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-row h2,
+.header-row p,
+.editor-head strong {
+  margin: 0;
+}
+
+.header-row p,
+.state-text,
+.goal-card-head span {
+  color: #667085;
+}
+
+.header-actions,
+.goal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-card,
+.editor-card,
+.goal-card {
+  border: 1px solid #d8e2f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(31, 47, 71, 0.06);
+}
+
+.toolbar-card {
+  padding: 14px;
+}
+
+.toolbar-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.toolbar-card span {
+  color: #667085;
+  font-size: 13px;
+}
+
+.toolbar-card strong {
+  font-size: 28px;
+}
+
+.editor-card {
+  padding: 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 7px;
+  font-weight: 600;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px;
+  font: inherit;
+  font-weight: 400;
+  background: #fff;
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.editor-actions {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.goals-list {
+  display: grid;
+  gap: 10px;
+}
+
+.goal-card {
+  align-items: stretch;
+  padding: 10px;
+}
+
+.goal-card.dragging {
+  opacity: 0.55;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  color: #667085;
+  cursor: grab;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.goal-content {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 5px;
+}
+
+.goal-actions {
+  align-items: flex-start;
+}
+
+.primary-btn,
+.ghost-btn {
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-btn {
+  border: 1px solid #1d4ed8;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.ghost-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1f2f47;
+}
+
+.compact {
+  padding: 5px 9px;
+  font-size: 13px;
+}
+
+.danger {
+  color: #b00020;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.error-banner,
+.success-banner,
+.state-text {
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.error-banner {
+  border: 1px solid #fecaca;
+  color: #b00020;
+}
+
+.success-banner {
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+@media (max-width: 760px) {
+  .header-row,
+  .toolbar-card,
+  .goal-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-actions {
+    justify-content: flex-end;
+  }
+}
