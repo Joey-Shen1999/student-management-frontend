@@ -19,13 +19,6 @@ import {
   SchoolTranscriptUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
-import {
-  ServiceProgressAdvisor,
-  ServiceProgressRecord,
-  ServiceProgressRecordRequest,
-  ServiceProgressService,
-} from '../../services/service-progress.service';
-
 type Gender = '' | 'Male' | 'Female' | 'Other';
 type StudentRegion =
   | ''
@@ -125,14 +118,6 @@ interface StudentProfileModel {
 
   highSchools: HighSchoolModel[];
   externalCourses: ExternalCourseModel[];
-}
-
-interface ServiceProgressFormModel {
-  id: number | null;
-  appointmentTime: string;
-  advisorId: number | null;
-  followUpContent: string;
-  nextPlan: string;
 }
 
 interface IdentityFileModel {
@@ -671,14 +656,6 @@ export class StudentProfile implements OnInit {
   historyPage = 0;
   historySize = this.historyPageSize;
   profileVersion: number | null = null;
-  serviceProgressLoading = false;
-  serviceProgressSaving = false;
-  serviceProgressError = '';
-  serviceProgressRecords: ServiceProgressRecord[] = [];
-  serviceProgressAdvisors: ServiceProgressAdvisor[] = [];
-  serviceProgressRemarkDraft = '';
-  serviceProgressFormOpen = false;
-  serviceProgressForm: ServiceProgressFormModel = this.createEmptyServiceProgressForm();
 
   model: StudentProfileModel = this.defaultModel();
   highSchoolLookupOptions: CanadianHighSchoolLookupItem[][] = [[]];
@@ -702,7 +679,6 @@ export class StudentProfile implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private profileApi: StudentProfileService,
-    private serviceProgressApi: ServiceProgressService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -713,126 +689,7 @@ export class StudentProfile implements OnInit {
   }
 
   back(): void {
-    const returnTo = this.route.snapshot.queryParamMap.get('returnTo') || '';
-    if (this.managedMode && returnTo.startsWith('/teacher/')) {
-      this.router.navigateByUrl(returnTo);
-      return;
-    }
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
-  }
-
-  openAddServiceProgress(): void {
-    this.serviceProgressError = '';
-    this.serviceProgressForm = this.createEmptyServiceProgressForm();
-    this.serviceProgressFormOpen = true;
-  }
-
-  openEditServiceProgress(record: ServiceProgressRecord): void {
-    this.serviceProgressError = '';
-    this.serviceProgressForm = {
-      id: this.toOptionalNumber(record.id),
-      appointmentTime: this.toDateTimeLocalValue(record.appointmentTime),
-      advisorId: this.toOptionalNumber(record.advisorId),
-      followUpContent: this.toText(record.followUpContent),
-      nextPlan: this.toText(record.nextPlan),
-    };
-    this.serviceProgressFormOpen = true;
-  }
-
-  closeServiceProgressForm(): void {
-    if (this.serviceProgressSaving) return;
-    this.serviceProgressFormOpen = false;
-    this.serviceProgressForm = this.createEmptyServiceProgressForm();
-  }
-
-  saveServiceProgressRecord(): void {
-    if (!this.managedStudentId) return;
-    const payload = this.buildServiceProgressPayload();
-    if (!payload) return;
-
-    this.serviceProgressSaving = true;
-    this.serviceProgressError = '';
-    const request$ = this.serviceProgressForm.id
-      ? this.serviceProgressApi.updateRecord(this.serviceProgressForm.id, payload)
-      : this.serviceProgressApi.createRecord(this.managedStudentId, payload);
-
-    request$
-      .pipe(finalize(() => {
-        this.serviceProgressSaving = false;
-        this.cdr.detectChanges();
-      }))
-      .subscribe({
-        next: () => {
-          this.serviceProgressFormOpen = false;
-          this.serviceProgressForm = this.createEmptyServiceProgressForm();
-          this.loadServiceProgress();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.serviceProgressError = this.extractErrorMessage(err) || '保存服务进度记录失败。';
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  deleteServiceProgressRecord(record: ServiceProgressRecord): void {
-    const recordId = this.toOptionalNumber(record.id);
-    if (!recordId) return;
-    this.serviceProgressSaving = true;
-    this.serviceProgressError = '';
-    this.serviceProgressApi
-      .deleteRecord(recordId)
-      .pipe(finalize(() => {
-        this.serviceProgressSaving = false;
-        this.cdr.detectChanges();
-      }))
-      .subscribe({
-        next: () => this.loadServiceProgress(),
-        error: (err: HttpErrorResponse) => {
-          this.serviceProgressError = this.extractErrorMessage(err) || '删除服务进度记录失败。';
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  saveServiceProgressRemark(): void {
-    if (!this.managedStudentId) return;
-    this.serviceProgressSaving = true;
-    this.serviceProgressError = '';
-    this.serviceProgressApi
-      .updateStudentRemark(this.managedStudentId, this.serviceProgressRemarkDraft)
-      .pipe(finalize(() => {
-        this.serviceProgressSaving = false;
-        this.cdr.detectChanges();
-      }))
-      .subscribe({
-        next: (state) => {
-          this.serviceProgressRemarkDraft = this.toText(state.studentRemark);
-          this.model.teacherNote = this.serviceProgressRemarkDraft;
-          this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
-          this.serviceProgressRecords = this.normalizeServiceProgressRecords(state.records);
-          this.saved = true;
-          this.cdr.detectChanges();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.serviceProgressError = this.extractErrorMessage(err) || '保存学生备注失败。';
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  advisorName(advisorId: number | null | undefined): string {
-    const id = this.toOptionalNumber(advisorId);
-    if (!id) return '-';
-    const advisor = this.serviceProgressAdvisors.find((item) => this.resolveAdvisorId(item) === id);
-    return advisor ? this.displayAdvisorName(advisor) : `#${id}`;
-  }
-
-  displayAdvisorName(advisor: ServiceProgressAdvisor): string {
-    return this.toText(advisor.displayName) || this.toText(advisor.username) || `#${this.resolveAdvisorId(advisor) || '-'}`;
-  }
-
-  resolveAdvisorId(advisor: ServiceProgressAdvisor): number | null {
-    return this.toOptionalNumber(advisor.teacherId ?? advisor.id);
   }
 
   enterEditMode(): void {
@@ -2555,11 +2412,6 @@ export class StudentProfile implements OnInit {
           this.syncStatusInCanadaControls();
           this.validateLocalStudentNumbers();
           this.lastSavedPayloadDigest = this.buildPayloadDigest(this.model);
-          this.serviceProgressRemarkDraft = this.model.teacherNote;
-          if (this.managedMode && this.managedStudentId) {
-            this.loadServiceProgress();
-            this.loadServiceProgressAdvisors();
-          }
           this.pendingAutoSave = false;
           if (this.pendingSelfOnboardingEdit && !this.managedMode && !this.invalidManagedStudentId) {
             this.saved = false;
@@ -2578,50 +2430,6 @@ export class StudentProfile implements OnInit {
           this.cdr.detectChanges();
         },
       });
-  }
-
-  private loadServiceProgress(): void {
-    if (!this.managedMode || !this.managedStudentId) return;
-    this.serviceProgressLoading = true;
-    this.serviceProgressError = '';
-    this.serviceProgressApi
-      .getStudentServiceProgress(this.managedStudentId)
-      .pipe(finalize(() => {
-        this.serviceProgressLoading = false;
-        this.cdr.detectChanges();
-      }))
-      .subscribe({
-        next: (state) => {
-          this.serviceProgressRecords = this.normalizeServiceProgressRecords(state.records);
-          this.serviceProgressRemarkDraft = this.toText(state.studentRemark);
-          this.model.teacherNote = this.serviceProgressRemarkDraft;
-          this.cdr.detectChanges();
-        },
-        error: (err: HttpErrorResponse) => {
-          this.serviceProgressError = this.extractErrorMessage(err) || '加载服务进度档失败。';
-          this.serviceProgressRecords = [];
-          this.cdr.detectChanges();
-        },
-      });
-  }
-
-  private loadServiceProgressAdvisors(): void {
-    this.serviceProgressApi.listAdvisors().subscribe({
-      next: (payload) => {
-        this.serviceProgressAdvisors = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.data)
-            ? payload.data
-            : Array.isArray(payload?.items)
-              ? payload.items
-              : [];
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.serviceProgressAdvisors = [];
-        this.cdr.detectChanges();
-      },
-    });
   }
 
   save(options: SaveOptions = {}): void {
@@ -2948,16 +2756,6 @@ export class StudentProfile implements OnInit {
       teacherNote: '',
       highSchools: [this.createCurrentHighSchool()],
       externalCourses: [],
-    };
-  }
-
-  private createEmptyServiceProgressForm(): ServiceProgressFormModel {
-    return {
-      id: null,
-      appointmentTime: '',
-      advisorId: null,
-      followUpContent: '',
-      nextPlan: '',
     };
   }
 
@@ -3316,50 +3114,6 @@ export class StudentProfile implements OnInit {
         endTime: this.normalizeDate(course.endTime),
       })),
     };
-  }
-
-  private buildServiceProgressPayload(): ServiceProgressRecordRequest | null {
-    const appointmentTime = this.toText(this.serviceProgressForm.appointmentTime);
-    const advisorId = this.toOptionalNumber(this.serviceProgressForm.advisorId);
-    if (!appointmentTime) {
-      this.serviceProgressError = '请填写约见时间。';
-      this.cdr.detectChanges();
-      return null;
-    }
-    if (!advisorId) {
-      this.serviceProgressError = '请选择约见顾问。';
-      this.cdr.detectChanges();
-      return null;
-    }
-    return {
-      appointmentTime,
-      advisorId,
-      followUpContent: this.toText(this.serviceProgressForm.followUpContent),
-      nextPlan: this.toText(this.serviceProgressForm.nextPlan),
-    };
-  }
-
-  private normalizeServiceProgressRecords(records: ServiceProgressRecord[] | null | undefined): ServiceProgressRecord[] {
-    if (!Array.isArray(records)) return [];
-    return records
-      .map((record) => ({
-        ...record,
-        id: this.toOptionalNumber(record.id) || undefined,
-        advisorId: this.toOptionalNumber(record.advisorId) || undefined,
-        appointmentTime: this.toText(record.appointmentTime),
-        advisorName: this.toText(record.advisorName),
-        followUpContent: this.toText(record.followUpContent),
-        nextPlan: this.toText(record.nextPlan),
-        createdAt: this.toText(record.createdAt),
-        updatedAt: this.toText(record.updatedAt),
-      }))
-      .sort((a, b) => this.toText(b.appointmentTime).localeCompare(this.toText(a.appointmentTime)));
-  }
-
-  private toDateTimeLocalValue(value: unknown): string {
-    const raw = this.toText(value);
-    if (!raw) return '';
-    return raw.length >= 16 ? raw.slice(0, 16) : raw;
   }
 
   private resolveExternalCourses(source: any): unknown[] {

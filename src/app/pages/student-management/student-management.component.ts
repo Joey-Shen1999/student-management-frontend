@@ -192,7 +192,6 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
   osslt: 'osslt-tracking.list-columns',
   volunteer: 'volunteer-tracking.list-columns',
   extracurricular: 'extracurricular-management.list-columns',
-  'service-progress': 'service-progress.list-columns',
 };
 
 const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
@@ -202,7 +201,6 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   osslt: 'OSSLT \u8ddf\u8e2a',
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
-  'service-progress': '\u670d\u52a1\u8fdb\u5ea6\u6863',
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
@@ -223,7 +221,6 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   serviceItems: '\u670d\u52a1\u9879\u76ee',
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
-  serviceProgress: '\u670d\u52a1\u8fdb\u5ea6\u6863',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
   documents: '\u6587\u6863',
   coursePlan: '\u8bfe\u7a0b\u8868',
@@ -458,16 +455,6 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: false,
     headerStyle:
       'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
-    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
-  },
-  {
-    key: 'serviceProgress',
-    label: '\u670d\u52a1\u8fdb\u5ea6\u6863',
-    defaultVisible: false,
-    hideable: true,
-    backendDependent: false,
-    headerStyle:
-      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:140px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -1000,19 +987,6 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       [disabled]="!resolveStudentId(student)"
                     >
                       编辑档案
-                    </button>
-                  </ng-container>
-
-                  <ng-container *ngSwitchCase="'serviceProgress'">
-                    <button
-                      type="button"
-                      [routerLink]="serviceProgressRoute(student)"
-                      [queryParams]="serviceProgressRouteQueryParams()"
-                      fragment="service-progress"
-                      style="min-width:100px;white-space:nowrap;"
-                      [disabled]="!resolveStudentId(student)"
-                    >
-                      服务进度档
                     </button>
                   </ng-container>
 
@@ -2847,18 +2821,6 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'volunteer'];
   }
 
-  serviceProgressRoute(student: StudentAccount): string[] {
-    const studentId = this.resolveStudentId(student);
-    if (!studentId) {
-      return ['/teacher/service-progress'];
-    }
-    return ['/teacher/students', String(studentId), 'profile'];
-  }
-
-  serviceProgressRouteQueryParams(): { returnTo: string } {
-    return { returnTo: '/teacher/service-progress' };
-  }
-
   extracurricularRoute(student: StudentAccount): string[] {
     const studentId = this.resolveStudentId(student);
     if (!studentId) {
@@ -4594,9 +4556,6 @@ export class StudentManagementComponent implements OnInit {
     }
     if (url.startsWith('/teacher/extracurricular')) {
       return 'extracurricular';
-    }
-    if (url.startsWith('/teacher/service-progress')) {
-      return 'service-progress';
     }
     return 'students';
   }

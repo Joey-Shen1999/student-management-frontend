@@ -219,8 +219,8 @@ export const routes: Routes = [
       {
         path: 'service-progress',
         loadComponent: () =>
-          import('./pages/student-management/student-management.component').then(
-            (m) => m.StudentManagementComponent
+          import('./pages/teacher-service-progress/teacher-service-progress.component').then(
+            (m) => m.TeacherServiceProgressComponent
           ),
       },
 
