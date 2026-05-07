@@ -758,3 +758,133 @@
     </button>
   </form>
 </ng-template>
+
+<section class="university-aspiration-section">
+  <div class="university-aspiration-header">
+    <div>
+      <h3>大学志向</h3>
+      <p>每条记录对应一个大学和一个专业/科系，可拖动调整志愿顺序。</p>
+    </div>
+    <button
+      type="button"
+      (click)="openAddUniversityAspiration()"
+      [disabled]="aspirationLoading || aspirationSaving || invalidManagedStudentId"
+    >
+      添加大学志向
+    </button>
+  </div>
+
+  <div *ngIf="aspirationLoading" class="university-aspiration-muted">
+    正在加载大学志向...
+  </div>
+  <div *ngIf="aspirationError" class="university-aspiration-error">
+    {{ aspirationError }}
+  </div>
+
+  <div *ngIf="aspirationFormOpen" class="university-aspiration-form">
+    <h4>{{ aspirationForm.id ? '编辑大学志向' : '新增大学志向' }}</h4>
+    <div class="university-aspiration-grid">
+      <label>
+        <span>大学</span>
+        <input
+          type="search"
+          [(ngModel)]="universitySearch"
+          [disabled]="aspirationSaving"
+          placeholder="搜索大学、城市、省份"
+        />
+        <select
+          [(ngModel)]="aspirationForm.universityId"
+          (ngModelChange)="onAspirationUniversityChange($event)"
+          [disabled]="aspirationSaving"
+        >
+          <option [ngValue]="null">请选择大学</option>
+          <option *ngFor="let university of filteredUniversities" [ngValue]="university.id">
+            {{ university.name }}{{ displayUniversityLocation(university) ? ' - ' + displayUniversityLocation(university) : '' }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        <span>专业/科系</span>
+        <input
+          type="search"
+          [(ngModel)]="programSearch"
+          [disabled]="!aspirationForm.universityId || aspirationSaving || aspirationProgramsLoading"
+          placeholder="搜索专业、Faculty、Degree"
+        />
+        <select
+          [(ngModel)]="aspirationForm.programId"
+          [disabled]="!aspirationForm.universityId || aspirationSaving || aspirationProgramsLoading"
+        >
+          <option [ngValue]="null">
+            {{ aspirationProgramsLoading ? '正在加载专业...' : '请选择专业/科系' }}
+          </option>
+          <option *ngFor="let program of filteredUniversityPrograms" [ngValue]="program.id">
+            {{ program.programName }}
+            {{ program.facultyName ? ' - ' + program.facultyName : '' }}
+            {{ program.degreeType ? ' / ' + program.degreeType : '' }}
+          </option>
+        </select>
+      </label>
+
+      <label class="university-aspiration-notes-field">
+        <span>备注</span>
+        <textarea
+          [(ngModel)]="aspirationForm.notes"
+          rows="3"
+          [disabled]="aspirationSaving"
+          placeholder="可填写偏好、原因或准备方向"
+        ></textarea>
+      </label>
+    </div>
+    <div class="university-aspiration-actions">
+      <button type="button" (click)="closeUniversityAspirationForm()" [disabled]="aspirationSaving">
+        取消
+      </button>
+      <button type="button" (click)="saveUniversityAspiration()" [disabled]="aspirationSaving">
+        {{ aspirationSaving ? '保存中...' : '保存大学志向' }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="!aspirationLoading && universityAspirations.length === 0" class="university-aspiration-muted">
+    暂无大学志向。
+  </div>
+
+  <div class="university-aspiration-list">
+    <article
+      *ngFor="let aspiration of universityAspirations; let i = index; trackBy: trackUniversityAspiration"
+      class="university-aspiration-card"
+      [class.dragging]="aspirationDragIndex === i"
+      draggable="true"
+      (dragstart)="onAspirationDragStart(i)"
+      (dragover)="onAspirationDragOver($event)"
+      (drop)="onAspirationDrop(i)"
+      (dragend)="onAspirationDragEnd()"
+    >
+      <div class="university-aspiration-drag-handle" title="拖动排序">::</div>
+      <div class="university-aspiration-content">
+        <div class="university-aspiration-card-header">
+          <strong>志向 {{ i + 1 }}</strong>
+          <span>排序 {{ aspiration.sortOrder || i + 1 }}</span>
+        </div>
+        <div><strong>大学：</strong>{{ aspiration.universityName || '-' }}</div>
+        <div><strong>专业/科系：</strong>{{ aspiration.programName || '-' }}</div>
+        <div *ngIf="displayAspirationProgramMeta(aspiration)">
+          <strong>Faculty / Degree：</strong>{{ displayAspirationProgramMeta(aspiration) }}
+        </div>
+        <div *ngIf="displayText(aspiration.notes) !== '-'">
+          <strong>备注：</strong>{{ displayText(aspiration.notes) }}
+        </div>
+      </div>
+      <div class="university-aspiration-card-actions">
+        <button type="button" (click)="openEditUniversityAspiration(aspiration)" [disabled]="aspirationSaving">
+          编辑
+        </button>
+        <button type="button" (click)="deleteUniversityAspiration(aspiration)" [disabled]="aspirationSaving">
+          删除
+        </button>
+      </div>
+    </article>
+  </div>
+</section>

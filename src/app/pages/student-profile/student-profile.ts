@@ -19,6 +19,14 @@ import {
   SchoolTranscriptUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
+import { AuthService } from '../../services/auth.service';
+import {
+  University,
+  UniversityAspiration,
+  UniversityAspirationRequest,
+  UniversityAspirationService,
+  UniversityProgram,
+} from '../../services/university-aspiration.service';
 type Gender = '' | 'Male' | 'Female' | 'Other';
 type StudentRegion =
   | ''
@@ -148,6 +156,13 @@ interface SchoolUploadHint {
 interface SchoolUploadTarget {
   index: number;
   schoolRecordId: number;
+}
+
+interface UniversityAspirationFormModel {
+  id: number | null;
+  universityId: number | null;
+  programId: number | null;
+  notes: string;
 }
 
 const TRANSCRIPT_UPLOAD_RETRY_DELAY_MS = 120;
@@ -668,6 +683,18 @@ export class StudentProfile implements OnInit {
   identityDocumentTypeSelection: IdentityDocumentType = 'Other';
   externalCourseProviderLookupOptions: CanadianHighSchoolLookupItem[][] = [];
   externalCourseProviderLookupLoading: boolean[] = [];
+  universities: University[] = [];
+  universityPrograms: UniversityProgram[] = [];
+  universityAspirations: UniversityAspiration[] = [];
+  universitySearch = '';
+  programSearch = '';
+  aspirationLoading = false;
+  aspirationProgramsLoading = false;
+  aspirationSaving = false;
+  aspirationError = '';
+  aspirationFormOpen = false;
+  aspirationDragIndex: number | null = null;
+  aspirationForm: UniversityAspirationFormModel = this.defaultUniversityAspirationForm();
   private lastSavedPayloadDigest = '';
   private pendingAutoSave = false;
   private saveInProgress = false;
@@ -679,10 +706,13 @@ export class StudentProfile implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private profileApi: StudentProfileService,
+    private aspirationApi: UniversityAspirationService,
+    private auth: AuthService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.loadUniversities();
     this.route.paramMap.subscribe((params: ParamMap) => {
       this.applyRouteContext(params);
     });
@@ -690,6 +720,186 @@ export class StudentProfile implements OnInit {
 
   back(): void {
     this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
+  }
+
+  get filteredUniversities(): University[] {
+    const keyword = this.toText(this.universitySearch).toLowerCase();
+    if (!keyword) return this.universities;
+    return this.universities.filter((university) =>
+      [university.name, university.city, university.province, university.country]
+        .map((value) => this.toText(value).toLowerCase())
+        .some((value) => value.includes(keyword))
+    );
+  }
+
+  get filteredUniversityPrograms(): UniversityProgram[] {
+    const keyword = this.toText(this.programSearch).toLowerCase();
+    if (!keyword) return this.universityPrograms;
+    return this.universityPrograms.filter((program) =>
+      [program.programName, program.facultyName, program.degreeType]
+        .map((value) => this.toText(value).toLowerCase())
+        .some((value) => value.includes(keyword))
+    );
+  }
+
+  openAddUniversityAspiration(): void {
+    this.aspirationForm = this.defaultUniversityAspirationForm();
+    this.universityPrograms = [];
+    this.universitySearch = '';
+    this.programSearch = '';
+    this.aspirationError = '';
+    this.aspirationFormOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  openEditUniversityAspiration(aspiration: UniversityAspiration): void {
+    const aspirationId = this.resolveAspirationId(aspiration);
+    const universityId = this.toOptionalNumber(aspiration.universityId);
+    const programId = this.toOptionalNumber(aspiration.programId);
+    if (!aspirationId || !universityId || !programId) return;
+
+    this.aspirationForm = {
+      id: aspirationId,
+      universityId,
+      programId,
+      notes: this.toText(aspiration.notes),
+    };
+    this.universitySearch = '';
+    this.programSearch = '';
+    this.aspirationError = '';
+    this.aspirationFormOpen = true;
+    this.loadProgramsForUniversity(universityId);
+  }
+
+  closeUniversityAspirationForm(): void {
+    if (this.aspirationSaving) return;
+    this.aspirationFormOpen = false;
+    this.aspirationForm = this.defaultUniversityAspirationForm();
+    this.universityPrograms = [];
+    this.universitySearch = '';
+    this.programSearch = '';
+  }
+
+  onAspirationUniversityChange(value: unknown): void {
+    const universityId = this.toOptionalNumber(value);
+    this.aspirationForm.universityId = universityId;
+    this.aspirationForm.programId = null;
+    this.universityPrograms = [];
+    this.programSearch = '';
+    if (universityId) {
+      this.loadProgramsForUniversity(universityId);
+    }
+  }
+
+  saveUniversityAspiration(): void {
+    const studentId = this.resolveCurrentStudentId();
+    if (!studentId) {
+      this.aspirationError = '无法识别当前学生，不能保存大学志向。';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const payload = this.buildUniversityAspirationPayload();
+    if (!payload) {
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.aspirationSaving = true;
+    this.aspirationError = '';
+    const request$ = this.aspirationForm.id
+      ? this.aspirationApi.updateAspiration(this.aspirationForm.id, payload)
+      : this.aspirationApi.createAspiration(studentId, payload);
+
+    request$
+      .pipe(
+        finalize(() => {
+          this.aspirationSaving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.aspirationFormOpen = false;
+          this.aspirationForm = this.defaultUniversityAspirationForm();
+          this.loadUniversityAspirations();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.aspirationError = this.extractErrorMessage(err) || '保存大学志向失败。';
+        },
+      });
+  }
+
+  deleteUniversityAspiration(aspiration: UniversityAspiration): void {
+    const aspirationId = this.resolveAspirationId(aspiration);
+    if (!aspirationId || this.aspirationSaving) return;
+    if (!confirm('确定删除这条大学志向吗？')) return;
+
+    this.aspirationSaving = true;
+    this.aspirationError = '';
+    this.aspirationApi
+      .deleteAspiration(aspirationId)
+      .pipe(
+        finalize(() => {
+          this.aspirationSaving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => this.loadUniversityAspirations(),
+        error: (err: HttpErrorResponse) => {
+          this.aspirationError = this.extractErrorMessage(err) || '删除大学志向失败。';
+        },
+      });
+  }
+
+  onAspirationDragStart(index: number): void {
+    if (this.aspirationSaving || this.universityAspirations.length <= 1) return;
+    this.aspirationDragIndex = index;
+  }
+
+  onAspirationDragOver(event: DragEvent): void {
+    if (this.aspirationDragIndex === null) return;
+    event.preventDefault();
+  }
+
+  onAspirationDrop(targetIndex: number): void {
+    const sourceIndex = this.aspirationDragIndex;
+    this.aspirationDragIndex = null;
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
+    if (sourceIndex < 0 || sourceIndex >= this.universityAspirations.length) return;
+    if (targetIndex < 0 || targetIndex >= this.universityAspirations.length) return;
+
+    const reordered = [...this.universityAspirations];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    this.universityAspirations = reordered.map((item, index) => ({
+      ...item,
+      sortOrder: index + 1,
+    }));
+    this.saveUniversityAspirationOrder();
+  }
+
+  onAspirationDragEnd(): void {
+    this.aspirationDragIndex = null;
+  }
+
+  trackUniversityAspiration(_index: number, aspiration: UniversityAspiration): number | string {
+    return this.resolveAspirationId(aspiration) || `${aspiration.universityName}-${aspiration.programName}`;
+  }
+
+  displayUniversityLocation(university: University): string {
+    return [university.city, university.province, university.country]
+      .map((value) => this.toText(value))
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  displayAspirationProgramMeta(aspiration: UniversityAspiration): string {
+    return [aspiration.facultyName, aspiration.degreeType]
+      .map((value) => this.toText(value))
+      .filter(Boolean)
+      .join(' · ');
   }
 
   enterEditMode(): void {
@@ -2382,6 +2592,174 @@ export class StudentProfile implements OnInit {
     this.historySize = this.historyPageSize;
   }
 
+  private loadUniversities(): void {
+    this.aspirationApi.listUniversities().subscribe({
+      next: (items) => {
+        this.universities = this.normalizeUniversities(items);
+        this.cdr.detectChanges();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.aspirationError = this.extractErrorMessage(err) || '加载大学列表失败。';
+        this.universities = [];
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private loadProgramsForUniversity(universityId: number): void {
+    if (!universityId) return;
+
+    const requestedUniversityId = universityId;
+    this.aspirationProgramsLoading = true;
+    this.aspirationApi
+      .listPrograms(universityId)
+      .pipe(
+        finalize(() => {
+          this.aspirationProgramsLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          if (this.aspirationForm.universityId !== requestedUniversityId) return;
+          this.universityPrograms = this.normalizePrograms(items);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.aspirationError = this.extractErrorMessage(err) || '加载专业列表失败。';
+          this.universityPrograms = [];
+        },
+      });
+  }
+
+  private loadUniversityAspirations(): void {
+    const studentId = this.resolveCurrentStudentId();
+    this.aspirationFormOpen = false;
+    this.aspirationForm = this.defaultUniversityAspirationForm();
+    this.universityPrograms = [];
+    this.aspirationDragIndex = null;
+    if (!studentId) {
+      this.universityAspirations = [];
+      this.aspirationLoading = false;
+      return;
+    }
+
+    this.aspirationLoading = true;
+    this.aspirationError = '';
+    this.aspirationApi
+      .listAspirations(studentId)
+      .pipe(
+        finalize(() => {
+          this.aspirationLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          this.universityAspirations = this.normalizeAspirations(items);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.aspirationError = this.extractErrorMessage(err) || '加载大学志向失败。';
+          this.universityAspirations = [];
+        },
+      });
+  }
+
+  private saveUniversityAspirationOrder(): void {
+    const studentId = this.resolveCurrentStudentId();
+    if (!studentId) return;
+
+    const payload = this.universityAspirations
+      .map((aspiration, index) => ({
+        id: this.resolveAspirationId(aspiration),
+        sortOrder: index + 1,
+      }))
+      .filter((item): item is { id: number; sortOrder: number } => !!item.id);
+
+    if (payload.length !== this.universityAspirations.length) {
+      this.aspirationError = '排序保存失败：存在无效的大学志向记录。';
+      this.loadUniversityAspirations();
+      return;
+    }
+
+    this.aspirationSaving = true;
+    this.aspirationError = '';
+    this.aspirationApi
+      .reorderAspirations(studentId, payload)
+      .pipe(
+        finalize(() => {
+          this.aspirationSaving = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          this.universityAspirations = this.normalizeAspirations(items);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.aspirationError = this.extractErrorMessage(err) || '保存大学志向排序失败。';
+          this.loadUniversityAspirations();
+        },
+      });
+  }
+
+  private buildUniversityAspirationPayload(): UniversityAspirationRequest | null {
+    const universityId = this.toOptionalNumber(this.aspirationForm.universityId);
+    const programId = this.toOptionalNumber(this.aspirationForm.programId);
+    if (!universityId) {
+      this.aspirationError = '请选择大学。';
+      return null;
+    }
+    if (!programId) {
+      this.aspirationError = '请选择专业/科系。';
+      return null;
+    }
+    return {
+      universityId,
+      programId,
+      notes: this.toText(this.aspirationForm.notes),
+    };
+  }
+
+  private normalizeUniversities(items: University[] | null | undefined): University[] {
+    return [...(Array.isArray(items) ? items : [])]
+      .filter((item) => this.toOptionalNumber(item.id))
+      .sort((left, right) => this.toText(left.name).localeCompare(this.toText(right.name)));
+  }
+
+  private normalizePrograms(items: UniversityProgram[] | null | undefined): UniversityProgram[] {
+    return [...(Array.isArray(items) ? items : [])]
+      .filter((item) => this.toOptionalNumber(item.id))
+      .sort((left, right) => this.toText(left.programName).localeCompare(this.toText(right.programName)));
+  }
+
+  private normalizeAspirations(items: UniversityAspiration[] | null | undefined): UniversityAspiration[] {
+    return [...(Array.isArray(items) ? items : [])].sort((left, right) => {
+      const leftOrder = this.toOptionalNumber(left.sortOrder) ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = this.toOptionalNumber(right.sortOrder) ?? Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return (this.resolveAspirationId(left) || 0) - (this.resolveAspirationId(right) || 0);
+    });
+  }
+
+  private defaultUniversityAspirationForm(): UniversityAspirationFormModel {
+    return {
+      id: null,
+      universityId: null,
+      programId: null,
+      notes: '',
+    };
+  }
+
+  private resolveAspirationId(aspiration: UniversityAspiration | null | undefined): number | null {
+    return this.toOptionalNumber(aspiration?.aspirationId ?? aspiration?.id);
+  }
+
+  private resolveCurrentStudentId(): number | null {
+    if (this.invalidManagedStudentId) return null;
+    if (this.managedMode) return this.managedStudentId;
+    return this.toOptionalNumber(this.auth.getSession()?.studentId);
+  }
+
   loadProfile(): void {
     if (this.invalidManagedStudentId) return;
     if (this.loading) return;
@@ -2677,6 +3055,7 @@ export class StudentProfile implements OnInit {
       this.resetProfileHistoryState();
       this.pendingSelfOnboardingEdit = this.shouldOpenSelfProfileInEditMode();
       this.loadProfile();
+      this.loadUniversityAspirations();
       return;
     }
 
@@ -2695,6 +3074,9 @@ export class StudentProfile implements OnInit {
       this.editing = false;
       this.pendingAutoSave = false;
       this.resetProfileHistoryState();
+      this.universityAspirations = [];
+      this.aspirationFormOpen = false;
+      this.aspirationError = '';
       this.pendingSelfOnboardingEdit = false;
       this.lastSavedPayloadDigest = '';
       this.error = '路由中的学生 ID 无效。';
@@ -2710,6 +3092,7 @@ export class StudentProfile implements OnInit {
     this.resetProfileHistoryState();
     this.pendingSelfOnboardingEdit = false;
     this.loadProfile();
+    this.loadUniversityAspirations();
   }
 
   private shouldOpenSelfProfileInEditMode(): boolean {

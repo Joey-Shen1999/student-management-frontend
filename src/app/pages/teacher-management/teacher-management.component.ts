@@ -424,7 +424,10 @@ export class TeacherManagementComponent implements OnInit {
 
   constructor(
     private teacherApi: TeacherManagementService,
-    private language: AppLanguageService,
+    private language: AppLanguageService = {
+      translate: (value: string | LocalizedText | null | undefined) =>
+        typeof value === 'object' && value ? value.zh || value.en || '' : String(value ?? ''),
+    } as AppLanguageService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
