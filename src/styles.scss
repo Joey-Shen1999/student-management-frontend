@@ -83,6 +83,130 @@
   font-size: 18px;
 }
 
+.readonly-note {
+  border-left: 3px solid #7aa7e8;
+  padding: 8px 10px;
+  background: #f6f9ff;
+}
+
+.activity-read-list,
+.activity-read-card,
+.activity-modal {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-read-card {
+  border: 1px solid #dfe7f5;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafcff;
+}
+
+.activity-read-head,
+.activity-card-actions,
+.activity-modal-head {
+  display: flex;
+  gap: 10px;
+}
+
+.activity-read-head,
+.activity-modal-head {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.activity-card-actions {
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.activity-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+
+.activity-detail-grid div {
+  display: grid;
+  gap: 4px;
+}
+
+.activity-detail-grid dt {
+  color: #6a7890;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.activity-detail-grid dd {
+  margin: 0;
+  color: #24334a;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.empty-activity-state {
+  padding: 18px 10px;
+  text-align: center;
+  border: 1px dashed #c8d5e8;
+  border-radius: 10px;
+  background: #fafcff;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(16, 28, 47, 0.42);
+}
+
+.activity-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 21;
+  width: min(760px, calc(100vw - 28px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid #dce4f0;
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(17, 40, 74, 0.24);
+  gap: 12px;
+}
+
+.modal-grid {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.modal-footer {
+  justify-content: flex-end;
+}
+
+.ghost-btn.danger {
+  border-color: #efc0bd;
+  color: #9f1d19;
+}
+
+@media (max-width: 760px) {
+  .activity-read-head {
+    flex-direction: column;
+  }
+
+  .activity-card-actions {
+    width: 100%;
+  }
+
+  .activity-detail-grid,
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .selected-students-summary {
   display: flex;
   align-items: center;

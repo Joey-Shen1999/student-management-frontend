@@ -37,7 +37,7 @@ interface ActivityDraft {
       <div class="volunteer-shell">
         <div class="header-row">
           <div>
-            <h2>{{ teacherMode ? '教师课外活动跟踪' : '我的课外活动' }}</h2>
+            <h2>{{ teacherMode ? '教师课外活动记录' : '我的课外活动' }}</h2>
             <p class="sub-title" *ngIf="teacherMode">学生：{{ studentDisplayName }}</p>
           </div>
           <div class="header-actions">
@@ -65,112 +65,69 @@ interface ActivityDraft {
 
         <section class="editor-card" *ngIf="!loading">
           <div class="editor-head">
-            <strong>{{ teacherMode ? '编辑课外活动记录' : '编辑我的课外活动' }}</strong>
-            <div class="editor-actions">
-              <button type="button" class="ghost-btn" (click)="addActivity()" [disabled]="saving">
-                添加活动
-              </button>
-              <button type="button" class="ghost-btn" (click)="resetEditor()" [disabled]="saving">
-                重置
-              </button>
+            <div>
+              <strong>{{ teacherMode ? '学生课外活动' : '课外活动' }}</strong>
+              <p class="sub-title">已填写的活动会显示在这里，新增和编辑请在弹窗中完成。</p>
             </div>
-          </div>
-
-          <label class="field-label">
-            总备注
-            <textarea [(ngModel)]="noteDraft" [disabled]="saving" rows="2"></textarea>
-          </label>
-
-          <article class="task-card" *ngFor="let activity of editorActivities; let index = index; trackBy: trackActivity">
-            <div class="task-head">
-              <strong>活动 {{ index + 1 }}</strong>
-              <button
-                type="button"
-                class="ghost-btn compact"
-                (click)="removeActivity(index)"
-                [disabled]="saving || editorActivities.length <= 1"
-              >
-                删除
-              </button>
-            </div>
-
-            <div class="task-grid">
-              <label>
-                活动类型
-                <select
-                  [(ngModel)]="activity.activityType"
-                  [disabled]="saving"
-                  (ngModelChange)="onActivityTypeChange(activity)"
-                >
-                  <option *ngFor="let option of activityTypeOptions" [ngValue]="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <label>
-                活动名称
-                <input [(ngModel)]="activity.activityName" [disabled]="saving" />
-              </label>
-              <label>
-                主办方 / 机构
-                <input [(ngModel)]="activity.organization" [disabled]="saving" />
-              </label>
-              <label>
-                角色 / 身份
-                <input [(ngModel)]="activity.role" [disabled]="saving" />
-              </label>
-              <label>
-                活动级别
-                <select [(ngModel)]="activity.activityLevel" [disabled]="saving">
-                  <option *ngFor="let option of activityLevelOptions" [ngValue]="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <label>
-                奖项 / 成绩
-                <input [(ngModel)]="activity.awardOrResult" [disabled]="saving" />
-              </label>
-
-              <ng-container *ngIf="activity.activityType === 'COMPETITION'; else rangeDates">
-                <label>
-                  竞赛日期
-                  <input [(ngModel)]="activity.activityDate" [disabled]="saving" type="date" />
-                </label>
-              </ng-container>
-              <ng-template #rangeDates>
-                <label>
-                  开始日期
-                  <input [(ngModel)]="activity.startDate" [disabled]="saving" type="date" />
-                </label>
-                <label>
-                  结束日期
-                  <input [(ngModel)]="activity.endDate" [disabled]="saving" type="date" />
-                </label>
-              </ng-template>
-
-              <label class="span-2">
-                活动内容
-                <textarea [(ngModel)]="activity.description" [disabled]="saving" rows="2"></textarea>
-              </label>
-              <label>
-                证明人 / 联系方式
-                <input [(ngModel)]="activity.proofContact" [disabled]="saving" />
-              </label>
-            </div>
-          </article>
-
-          <div class="editor-footer">
-            <div class="editor-total">
-              当前活动：{{ meaningfulEditorActivities.length }} 条，竞赛 {{ editorCompetitionCount }} 条
-            </div>
-            <button type="button" class="primary-btn" (click)="saveTracking()" [disabled]="saving">
-              {{ saving ? '保存中...' : '保存课外活动' }}
+            <button type="button" class="primary-btn" (click)="openAddActivityModal()" [disabled]="saving">
+              新增活动
             </button>
           </div>
+
+          <div *ngIf="noteDraft" class="record-note readonly-note">{{ noteDraft }}</div>
+
+          <div *ngIf="displayedActivities.length > 0; else emptyActivities" class="activity-read-list">
+            <article class="activity-read-card" *ngFor="let activity of displayedActivities; let index = index; trackBy: trackActivity">
+              <div class="activity-read-head">
+                <div>
+                  <strong>{{ activity.activityName || '未命名活动' }}</strong>
+                  <div class="record-meta">
+                    <span>{{ activityTypeLabel(activity.activityType) }}</span>
+                    <span>{{ activityDateLabel(activity) }}</span>
+                    <span *ngIf="activity.activityLevel">{{ activityLevelLabel(activity.activityLevel) }}</span>
+                  </div>
+                </div>
+                <div class="activity-card-actions">
+                  <button type="button" class="ghost-btn compact" (click)="openEditActivityModal(index)" [disabled]="saving">
+                    编辑
+                  </button>
+                  <button type="button" class="ghost-btn compact danger" (click)="deleteActivity(index)" [disabled]="saving">
+                    删除
+                  </button>
+                </div>
+              </div>
+
+              <dl class="activity-detail-grid">
+                <div *ngIf="activity.organization">
+                  <dt>主办方 / 机构</dt>
+                  <dd>{{ activity.organization }}</dd>
+                </div>
+                <div *ngIf="activity.role">
+                  <dt>角色 / 身份</dt>
+                  <dd>{{ activity.role }}</dd>
+                </div>
+                <div *ngIf="activity.awardOrResult">
+                  <dt>奖项 / 成绩</dt>
+                  <dd>{{ activity.awardOrResult }}</dd>
+                </div>
+                <div *ngIf="activity.proofContact">
+                  <dt>证明人 / 联系方式</dt>
+                  <dd>{{ activity.proofContact }}</dd>
+                </div>
+                <div class="span-2" *ngIf="activity.description">
+                  <dt>活动内容</dt>
+                  <dd>{{ activity.description }}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+
+          <ng-template #emptyActivities>
+            <div class="state-text empty-activity-state">暂无课外活动，请点击“新增活动”添加第一条。</div>
+          </ng-template>
         </section>
 
-        <section class="record-list" *ngIf="!loading && records.length > 0">
+        <section class="record-list" *ngIf="!loading && records.length > 1">
           <h3>历史记录</h3>
           <article class="record-card" *ngFor="let record of records; trackBy: trackRecord">
             <div class="record-head">
@@ -184,27 +141,93 @@ interface ActivityDraft {
               <span *ngIf="record.updatedByTeacherName">最近更新老师：{{ record.updatedByTeacherName }}</span>
             </div>
             <p *ngIf="record.note" class="record-note">{{ record.note }}</p>
-
-            <div *ngIf="record.activities.length > 0" class="record-tasks">
-              <div class="record-task" *ngFor="let activity of record.activities; let activityIndex = index">
-                <strong>{{ activityIndex + 1 }}. {{ activity.activityName || '未命名活动' }}</strong>
-                <span>{{ activityTypeLabel(activity.activityType) }}</span>
-                <span>{{ activityDateLabel(activity) }}</span>
-                <span *ngIf="activity.awardOrResult">{{ activity.awardOrResult }}</span>
-              </div>
-            </div>
-
             <button type="button" class="ghost-btn compact" (click)="loadRecordToEditor(record)" [disabled]="saving">
-              载入到编辑区
+              载入此记录
             </button>
           </article>
         </section>
-
-        <div *ngIf="!loading && !error && records.length === 0" class="state-text">
-          暂无课外活动记录，请先新增一条。
-        </div>
       </div>
     </div>
+
+    <div class="modal-backdrop" *ngIf="activityModalOpen" (click)="closeActivityModal()"></div>
+    <section class="activity-modal" *ngIf="activityModalOpen" role="dialog" aria-modal="true" aria-label="课外活动编辑窗口">
+      <div class="activity-modal-head">
+        <strong>{{ editingActivityIndex === null ? '新增课外活动' : '编辑课外活动' }}</strong>
+        <button type="button" class="ghost-btn compact" (click)="closeActivityModal()" [disabled]="saving">关闭</button>
+      </div>
+
+      <div class="task-grid modal-grid">
+        <label>
+          活动类型
+          <select
+            [(ngModel)]="activityDraft.activityType"
+            [disabled]="saving"
+            (ngModelChange)="onActivityTypeChange(activityDraft)"
+          >
+            <option *ngFor="let option of activityTypeOptions" [ngValue]="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label>
+          活动名称
+          <input [(ngModel)]="activityDraft.activityName" [disabled]="saving" />
+        </label>
+        <label>
+          主办方 / 机构
+          <input [(ngModel)]="activityDraft.organization" [disabled]="saving" />
+        </label>
+        <label>
+          角色 / 身份
+          <input [(ngModel)]="activityDraft.role" [disabled]="saving" />
+        </label>
+        <label>
+          活动级别
+          <select [(ngModel)]="activityDraft.activityLevel" [disabled]="saving">
+            <option *ngFor="let option of activityLevelOptions" [ngValue]="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label>
+          奖项 / 成绩
+          <input [(ngModel)]="activityDraft.awardOrResult" [disabled]="saving" />
+        </label>
+
+        <ng-container *ngIf="activityDraft.activityType === 'COMPETITION'; else modalRangeDates">
+          <label>
+            竞赛日期
+            <input [(ngModel)]="activityDraft.activityDate" [disabled]="saving" type="date" />
+          </label>
+        </ng-container>
+        <ng-template #modalRangeDates>
+          <label>
+            开始日期
+            <input [(ngModel)]="activityDraft.startDate" [disabled]="saving" type="date" />
+          </label>
+          <label>
+            结束日期
+            <input [(ngModel)]="activityDraft.endDate" [disabled]="saving" type="date" />
+          </label>
+        </ng-template>
+
+        <label class="span-2">
+          活动内容
+          <textarea [(ngModel)]="activityDraft.description" [disabled]="saving" rows="3"></textarea>
+        </label>
+        <label>
+          证明人 / 联系方式
+          <input [(ngModel)]="activityDraft.proofContact" [disabled]="saving" />
+        </label>
+      </div>
+
+      <div class="editor-footer modal-footer">
+        <button type="button" class="ghost-btn" (click)="closeActivityModal()" [disabled]="saving">取消</button>
+        <button type="button" class="primary-btn" (click)="saveActivityDraft()" [disabled]="saving">
+          {{ saving ? '保存中...' : '保存活动' }}
+        </button>
+      </div>
+    </section>
   `,
   styleUrl: '../student-volunteer/student-volunteer.component.scss',
 })
@@ -239,6 +262,9 @@ export class ExtracurricularTrackingComponent implements OnInit {
   noteDraft = '';
   records: ExtracurricularTrackingRecordVm[] = [];
   editorActivities: ActivityDraft[] = [this.createEmptyActivity()];
+  activityModalOpen = false;
+  editingActivityIndex: number | null = null;
+  activityDraft: ActivityDraft = this.createEmptyActivity();
 
   constructor(
     private route: ActivatedRoute,
@@ -275,17 +301,60 @@ export class ExtracurricularTrackingComponent implements OnInit {
     return this.meaningfulEditorActivities.filter((activity) => activity.activityType === 'COMPETITION').length;
   }
 
+  get displayedActivities(): ExtracurricularActivityVm[] {
+    return this.meaningfulEditorActivities;
+  }
+
   refresh(): void {
     this.loadTracking();
   }
 
-  addActivity(): void {
-    this.editorActivities = [...this.editorActivities, this.createEmptyActivity()];
+  openAddActivityModal(): void {
+    this.error = '';
+    this.successMessage = '';
+    this.editingActivityIndex = null;
+    this.activityDraft = this.createEmptyActivity();
+    this.activityModalOpen = true;
   }
 
-  removeActivity(index: number): void {
-    if (this.editorActivities.length <= 1) return;
+  openEditActivityModal(index: number): void {
+    const activity = this.editorActivities[index];
+    if (!activity) return;
+    this.error = '';
+    this.successMessage = '';
+    this.editingActivityIndex = index;
+    this.activityDraft = { ...activity };
+    this.activityModalOpen = true;
+  }
+
+  closeActivityModal(): void {
+    if (this.saving) return;
+    this.activityModalOpen = false;
+    this.editingActivityIndex = null;
+    this.activityDraft = this.createEmptyActivity();
+  }
+
+  saveActivityDraft(): void {
+    const activity = this.toActivityVm(this.activityDraft);
+    if (!this.isMeaningful(activity)) {
+      this.error = '请至少填写活动名称、机构、奖项、内容或日期。';
+      return;
+    }
+
+    const nextActivities = [...this.editorActivities];
+    if (this.editingActivityIndex === null) {
+      nextActivities.push({ ...this.activityDraft });
+    } else {
+      nextActivities[this.editingActivityIndex] = { ...this.activityDraft };
+    }
+    this.editorActivities = nextActivities;
+    this.saveTracking(true);
+  }
+
+  deleteActivity(index: number): void {
+    if (!this.editorActivities[index]) return;
     this.editorActivities = this.editorActivities.filter((_, currentIndex) => currentIndex !== index);
+    this.saveTracking();
   }
 
   resetEditor(): void {
@@ -307,12 +376,8 @@ export class ExtracurricularTrackingComponent implements OnInit {
     activity.activityDate = '';
   }
 
-  saveTracking(): void {
+  saveTracking(closeModalAfterSave = false): void {
     const activities = this.meaningfulEditorActivities;
-    if (activities.length <= 0) {
-      this.error = '请至少填写一条课外活动。';
-      return;
-    }
 
     this.saving = true;
     this.error = '';
@@ -330,6 +395,11 @@ export class ExtracurricularTrackingComponent implements OnInit {
       .subscribe({
         next: (state) => {
           this.applyState(state);
+          if (closeModalAfterSave) {
+            this.activityModalOpen = false;
+            this.editingActivityIndex = null;
+            this.activityDraft = this.createEmptyActivity();
+          }
           this.successMessage = '课外活动记录已保存。';
           this.cdr.detectChanges();
         },
@@ -356,6 +426,10 @@ export class ExtracurricularTrackingComponent implements OnInit {
 
   activityTypeLabel(type: ExtracurricularActivityType): string {
     return this.activityTypeOptions.find((option) => option.value === type)?.label || type;
+  }
+
+  activityLevelLabel(level: ExtracurricularActivityLevel): string {
+    return this.activityLevelOptions.find((option) => option.value === level)?.label || level;
   }
 
   activityDateLabel(activity: ExtracurricularActivityVm): string {
@@ -390,7 +464,7 @@ export class ExtracurricularTrackingComponent implements OnInit {
         error: (error) => {
           this.error = this.extractErrorMessage(error) || '加载课外活动记录失败。';
           this.records = [];
-          this.editorActivities = [this.createEmptyActivity()];
+          this.editorActivities = [];
           this.cdr.detectChanges();
         },
       });
@@ -404,7 +478,7 @@ export class ExtracurricularTrackingComponent implements OnInit {
     } else if (state.records[0]?.activities?.length > 0) {
       this.editorActivities = state.records[0].activities.map((activity) => this.toDraft(activity));
     } else {
-      this.editorActivities = [this.createEmptyActivity()];
+      this.editorActivities = [];
     }
   }
 
