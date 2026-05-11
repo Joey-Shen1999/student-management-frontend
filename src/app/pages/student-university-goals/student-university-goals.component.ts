@@ -68,6 +68,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   choices: UniversityChoice[] = [];
   draft: ChoiceDraft = this.createEmptyDraft();
   modalOpen = false;
+  editingChoiceId: number | null = null;
   message = '';
   error = '';
   dragIndex: number | null = null;
@@ -114,14 +115,28 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   openModal(): void {
     this.draft = this.createEmptyDraft();
+    this.editingChoiceId = null;
     this.message = '';
     this.error = '';
     this.modalOpen = true;
   }
 
+  openEditModal(choice: UniversityChoice): void {
+    this.editingChoiceId = choice.id;
+    this.draft = {
+      universityName: choice.universityName,
+      programName: choice.programName,
+    };
+    this.message = '';
+    this.error = '';
+    this.modalOpen = true;
+    this.ensureProgramsLoaded(choice.universityId);
+  }
+
   closeModal(): void {
     if (this.saving) return;
     this.modalOpen = false;
+    this.editingChoiceId = null;
   }
 
   onUniversityInput(): void {
@@ -157,25 +172,35 @@ export class StudentUniversityGoalsComponent implements OnInit {
     }
 
     if (!this.studentId || this.usingLocalDraft) {
-      this.addLocalChoice(university, program);
+      this.saveLocalChoice(university, program);
       return;
     }
 
     this.saving = true;
     this.error = '';
-    this.universityApi
-      .createAspiration(this.studentId, {
-        universityId: university.id,
-        programId: program.id,
-      })
+    const payload = {
+      universityId: university.id,
+      programId: program.id,
+    };
+    const request = this.editingChoiceId
+      ? this.universityApi.updateAspiration(this.editingChoiceId, payload)
+      : this.universityApi.createAspiration(this.studentId, payload);
+
+    request
       .pipe(finalize(() => {
         this.saving = false;
         this.cdr.detectChanges();
       }))
       .subscribe({
         next: (saved) => {
-          this.choices = this.reorder([...this.choices, this.toChoice(saved)]);
+          const savedChoice = this.toChoice(saved);
+          this.choices = this.reorder(
+            this.editingChoiceId
+              ? this.choices.map((choice) => (choice.id === this.editingChoiceId ? savedChoice : choice))
+              : [...this.choices, savedChoice]
+          );
           this.modalOpen = false;
+          this.editingChoiceId = null;
           this.message = '已保存大学目标。';
         },
         error: (err: HttpErrorResponse) => {
@@ -354,7 +379,28 @@ export class StudentUniversityGoalsComponent implements OnInit {
     });
   }
 
-  private addLocalChoice(university: University, program: UniversityProgram): void {
+  private saveLocalChoice(university: University, program: UniversityProgram): void {
+    if (this.editingChoiceId) {
+      this.choices = this.reorder(
+        this.choices.map((choice) =>
+          choice.id === this.editingChoiceId
+            ? {
+                ...choice,
+                universityId: university.id,
+                universityName: university.name,
+                programId: program.id,
+                programName: program.programName,
+              }
+            : choice
+        )
+      );
+      this.saveLocalChoices();
+      this.modalOpen = false;
+      this.editingChoiceId = null;
+      this.message = '已保存大学目标。';
+      return;
+    }
+
     const nextChoice: UniversityChoice = {
       id: Date.now(),
       universityId: university.id,
@@ -367,6 +413,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.choices = this.reorder([...this.choices, nextChoice]);
     this.saveLocalChoices();
     this.modalOpen = false;
+    this.editingChoiceId = null;
     this.message = '已保存大学目标。';
   }
 

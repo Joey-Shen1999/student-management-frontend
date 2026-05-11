@@ -37,7 +37,10 @@
         </div>
       </dl>
 
-      <button type="button" class="delete-btn" (click)="removeChoice(choice)" [disabled]="saving">删除</button>
+      <div class="tile-actions">
+        <button type="button" class="edit-btn" (click)="openEditModal(choice)" [disabled]="saving">修改</button>
+        <button type="button" class="delete-btn" (click)="removeChoice(choice)" [disabled]="saving">删除</button>
+      </div>
     </article>
 
     <button type="button" class="add-tile" (click)="openModal()" aria-label="添加大学目标" [disabled]="saving">
@@ -50,7 +53,7 @@
     <section class="choice-modal" (click)="$event.stopPropagation()">
       <header>
         <div>
-          <h2>添加大学目标</h2>
+          <h2>{{ editingChoiceId ? '修改大学目标' : '添加大学目标' }}</h2>
         </div>
         <button type="button" class="close-btn" (click)="closeModal()">×</button>
       </header>

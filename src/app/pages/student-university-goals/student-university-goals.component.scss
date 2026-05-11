@@ -27,6 +27,7 @@ h1 {
 
 .plain-btn,
 .save-btn,
+.edit-btn,
 .delete-btn {
   border-radius: 6px;
   padding: 8px 12px;
@@ -45,6 +46,12 @@ h1 {
   border: 1px solid #155eef;
   background: #155eef;
   color: #fff;
+}
+
+.edit-btn {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #155eef;
 }
 
 .notice {
@@ -157,8 +164,13 @@ dd {
   line-height: 1.35;
 }
 
+.tile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .delete-btn {
-  justify-self: end;
   border: 1px solid #fecaca;
   background: #fff;
   color: #b42318;
