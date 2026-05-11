@@ -27,13 +27,13 @@
       </div>
 
       <div class="tile-main">
-        <h2>{{ choice.universityName }}</h2>
+        <h2 class="notranslate" translate="no" data-no-auto-translate>{{ choice.universityName }}</h2>
       </div>
 
       <dl>
         <div>
           <dt>{{ ui.program | appTranslate }}</dt>
-          <dd>{{ choice.programName }}</dd>
+          <dd class="notranslate" translate="no" data-no-auto-translate>{{ choice.programName }}</dd>
         </div>
       </dl>
 
@@ -80,6 +80,9 @@
               *ngFor="let university of visibleUniversities"
               (click)="selectUniversity(university)"
               [disabled]="saving"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
             >
               {{ university.name }}
             </button>
@@ -101,6 +104,9 @@
               *ngFor="let program of visiblePrograms"
               (click)="selectProgram(program)"
               [disabled]="saving"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
             >
               {{ program.programName }}
             </button>
