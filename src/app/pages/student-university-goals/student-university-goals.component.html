@@ -94,7 +94,7 @@
             [disabled]="!selectedUniversity || saving"
             [placeholder]="ui.programPlaceholder | appTranslate"
           />
-          <div *ngIf="draft.programName && visiblePrograms.length > 0" class="suggestion-list">
+          <div *ngIf="selectedUniversity && visiblePrograms.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let program of visiblePrograms"
