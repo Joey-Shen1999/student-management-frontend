@@ -102,6 +102,8 @@ export class StudentUniversityGoalsComponent implements OnInit {
   message: string | LocalizedText = '';
   error: string | LocalizedText = '';
   dragIndex: number | null = null;
+  universitySuggestionsOpen = false;
+  programSuggestionsOpen = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -120,7 +122,11 @@ export class StudentUniversityGoalsComponent implements OnInit {
   get selectedUniversity(): University | null {
     const universityName = this.draft.universityName.trim();
     if (!universityName) return null;
-    return this.rankedUniversityMatches(universityName).find((item) => this.isExactUniversityMatch(universityName, item)) ?? null;
+    return (
+      this.rankedUniversityMatches(universityName).find((item) =>
+        this.isExactUniversityMatch(universityName, item)
+      ) ?? null
+    );
   }
 
   get visibleUniversities(): University[] {
@@ -139,6 +145,21 @@ export class StudentUniversityGoalsComponent implements OnInit {
     });
   }
 
+  get selectedProgram(): UniversityProgram | null {
+    const university = this.selectedUniversity;
+    if (!university) return null;
+    const programName = this.draft.programName.trim();
+    if (!programName) return null;
+    const normalizedProgramName = this.normalizeSearchText(programName);
+    return (
+      (this.programsByUniversityId.get(university.id) ?? []).find(
+        (item) =>
+          item.universityId === university.id &&
+          this.normalizeSearchText(item.programName) === normalizedProgramName
+      ) ?? null
+    );
+  }
+
   goBack(): void {
     this.router.navigate([this.teacherMode ? '/teacher/students' : '/dashboard']);
   }
@@ -148,6 +169,8 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.editingChoiceId = null;
     this.message = '';
     this.error = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
     this.modalOpen = true;
   }
 
@@ -159,6 +182,8 @@ export class StudentUniversityGoalsComponent implements OnInit {
     };
     this.message = '';
     this.error = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
     this.modalOpen = true;
     this.ensureProgramsLoaded(choice.universityId);
   }
@@ -167,11 +192,15 @@ export class StudentUniversityGoalsComponent implements OnInit {
     if (this.saving) return;
     this.modalOpen = false;
     this.editingChoiceId = null;
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
   }
 
   onUniversityInput(): void {
     this.draft.programName = '';
     const university = this.selectedUniversity;
+    this.universitySuggestionsOpen = !!this.draft.universityName.trim() && !university;
+    this.programSuggestionsOpen = !!university;
     if (university) {
       this.ensureProgramsLoaded(university.id);
     }
@@ -180,18 +209,23 @@ export class StudentUniversityGoalsComponent implements OnInit {
   selectUniversity(university: University): void {
     this.draft.universityName = university.name;
     this.draft.programName = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = true;
     this.ensureProgramsLoaded(university.id);
+  }
+
+  onProgramInput(): void {
+    this.programSuggestionsOpen = !!this.selectedUniversity && !this.selectedProgram;
   }
 
   selectProgram(program: UniversityProgram): void {
     this.draft.programName = program.programName;
+    this.programSuggestionsOpen = false;
   }
 
   addChoice(): void {
     const university = this.selectedUniversity;
-    const programName = this.draft.programName.trim();
-    const normalizedProgramName = this.normalizeSearchText(programName);
-    const program = this.visiblePrograms.find((item) => this.normalizeSearchText(item.programName) === normalizedProgramName);
+    const program = this.selectedProgram;
 
     if (!university) {
       this.error = this.ui.universityRequired;

@@ -27,13 +27,13 @@
       </div>
 
       <div class="tile-main">
-        <h2>{{ choice.universityName }}</h2>
+        <h2 class="notranslate" translate="no" data-no-auto-translate>{{ choice.universityName }}</h2>
       </div>
 
       <dl>
         <div>
           <dt>{{ ui.program | appTranslate }}</dt>
-          <dd>{{ choice.programName }}</dd>
+          <dd class="notranslate" translate="no" data-no-auto-translate>{{ choice.programName }}</dd>
         </div>
       </dl>
 
@@ -74,12 +74,15 @@
             [placeholder]="ui.universityPlaceholder | appTranslate"
             [disabled]="saving"
           />
-          <div *ngIf="draft.universityName && visibleUniversities.length > 0" class="suggestion-list">
+          <div *ngIf="universitySuggestionsOpen && visibleUniversities.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let university of visibleUniversities"
               (click)="selectUniversity(university)"
               [disabled]="saving"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
             >
               {{ university.name }}
             </button>
@@ -91,15 +94,19 @@
           <input
             type="text"
             [(ngModel)]="draft.programName"
+            (ngModelChange)="onProgramInput()"
             [disabled]="!selectedUniversity || saving"
             [placeholder]="ui.programPlaceholder | appTranslate"
           />
-          <div *ngIf="selectedUniversity && visiblePrograms.length > 0" class="suggestion-list">
+          <div *ngIf="programSuggestionsOpen && selectedUniversity && visiblePrograms.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let program of visiblePrograms"
               (click)="selectProgram(program)"
               [disabled]="saving"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
             >
               {{ program.programName }}
             </button>
