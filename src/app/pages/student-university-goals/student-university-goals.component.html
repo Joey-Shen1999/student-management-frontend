@@ -53,8 +53,8 @@
     </button>
   </section>
 
-  <div *ngIf="modalOpen" class="modal-backdrop" (click)="closeModal()">
-    <section class="choice-modal" (click)="$event.stopPropagation()">
+  <div *ngIf="modalOpen" class="modal-backdrop">
+    <section class="choice-modal">
       <header>
         <div>
           <h2>{{ (editingChoiceId ? ui.editGoal : ui.addGoal) | appTranslate }}</h2>
