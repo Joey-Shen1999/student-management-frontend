@@ -58,6 +58,20 @@ h1 {
   font-weight: 700;
 }
 
+.notice.error,
+.inline-error {
+  border-color: #fecaca;
+  background: #fff;
+  color: #b42318;
+}
+
+.inline-error {
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+
 .choice-board {
   max-width: 1160px;
   margin: 0 auto;
@@ -246,7 +260,8 @@ textarea {
 }
 
 input:disabled,
-select:disabled {
+select:disabled,
+button:disabled {
   background: #f8fafc;
   color: #98a2b3;
   cursor: not-allowed;

@@ -6,7 +6,9 @@
     <button type="button" class="plain-btn" (click)="goBack()">返回</button>
   </header>
 
+  <p *ngIf="loading" class="notice">正在加载大学目标...</p>
   <p *ngIf="message" class="notice">{{ message }}</p>
+  <p *ngIf="error" class="notice error">{{ error }}</p>
 
   <section class="choice-board" aria-label="大学目标">
     <article
@@ -26,7 +28,6 @@
 
       <div class="tile-main">
         <h2>{{ choice.universityName }}</h2>
-        <p *ngIf="choice.campus">{{ choice.campus }}</p>
       </div>
 
       <dl>
@@ -36,10 +37,10 @@
         </div>
       </dl>
 
-      <button type="button" class="delete-btn" (click)="removeChoice(choice)">删除</button>
+      <button type="button" class="delete-btn" (click)="removeChoice(choice)" [disabled]="saving">删除</button>
     </article>
 
-    <button type="button" class="add-tile" (click)="openModal()" aria-label="添加大学目标">
+    <button type="button" class="add-tile" (click)="openModal()" aria-label="添加大学目标" [disabled]="saving">
       <span>+</span>
       <strong>添加大学目标</strong>
     </button>
@@ -55,6 +56,8 @@
       </header>
 
       <div class="form-body">
+        <p *ngIf="error" class="inline-error">{{ error }}</p>
+
         <label class="autocomplete-field">
           <span>大学</span>
           <input
@@ -63,6 +66,7 @@
             (ngModelChange)="onUniversityInput()"
             list="university-options"
             placeholder="输入或选择大学"
+            [disabled]="saving"
           />
           <datalist id="university-options">
             <option *ngFor="let university of universities" [value]="university.name"></option>
@@ -72,20 +76,11 @@
               type="button"
               *ngFor="let university of visibleUniversities"
               (click)="selectUniversity(university)"
+              [disabled]="saving"
             >
               {{ university.name }}
             </button>
           </div>
-        </label>
-
-        <label *ngIf="selectedUniversity?.campuses?.length">
-          <span>校区</span>
-          <select [(ngModel)]="draft.campus">
-            <option value="">请选择校区</option>
-            <option *ngFor="let campus of selectedUniversity?.campuses" [value]="campus">
-              {{ campus }}
-            </option>
-          </select>
         </label>
 
         <label>
@@ -93,29 +88,31 @@
           <input
             type="text"
             [(ngModel)]="draft.programName"
-            [disabled]="!selectedUniversity"
+            [disabled]="!selectedUniversity || saving"
             list="program-options"
             placeholder="输入或选择专业"
           />
           <datalist id="program-options">
-            <option *ngFor="let program of visiblePrograms" [value]="program.name"></option>
+            <option *ngFor="let program of visiblePrograms" [value]="program.programName"></option>
           </datalist>
           <div *ngIf="draft.programName && visiblePrograms.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let program of visiblePrograms"
               (click)="selectProgram(program)"
+              [disabled]="saving"
             >
-              {{ program.name }}
+              {{ program.programName }}
             </button>
           </div>
         </label>
-
       </div>
 
       <footer>
-        <button type="button" class="plain-btn" (click)="closeModal()">取消</button>
-        <button type="button" class="save-btn" (click)="addChoice()">添加</button>
+        <button type="button" class="plain-btn" (click)="closeModal()" [disabled]="saving">取消</button>
+        <button type="button" class="save-btn" (click)="addChoice()" [disabled]="saving">
+          {{ saving ? '保存中...' : '保存' }}
+        </button>
       </footer>
     </section>
   </div>
