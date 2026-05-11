@@ -71,13 +71,9 @@
             type="text"
             [(ngModel)]="draft.universityName"
             (ngModelChange)="onUniversityInput()"
-            list="university-options"
             [placeholder]="ui.universityPlaceholder | appTranslate"
             [disabled]="saving"
           />
-          <datalist id="university-options">
-            <option *ngFor="let university of universities" [value]="university.name"></option>
-          </datalist>
           <div *ngIf="draft.universityName && visibleUniversities.length > 0" class="suggestion-list">
             <button
               type="button"
@@ -96,12 +92,8 @@
             type="text"
             [(ngModel)]="draft.programName"
             [disabled]="!selectedUniversity || saving"
-            list="program-options"
             [placeholder]="ui.programPlaceholder | appTranslate"
           />
-          <datalist id="program-options">
-            <option *ngFor="let program of visiblePrograms" [value]="program.programName"></option>
-          </datalist>
           <div *ngIf="draft.programName && visiblePrograms.length > 0" class="suggestion-list">
             <button
               type="button"
