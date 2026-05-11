@@ -27,6 +27,7 @@ h1 {
 
 .plain-btn,
 .save-btn,
+.edit-btn,
 .delete-btn {
   border-radius: 6px;
   padding: 8px 12px;
@@ -47,6 +48,12 @@ h1 {
   color: #fff;
 }
 
+.edit-btn {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #155eef;
+}
+
 .notice {
   max-width: 1160px;
   margin: 0 auto 14px;
@@ -55,6 +62,20 @@ h1 {
   background: #fff;
   color: #067647;
   padding: 10px 12px;
+  font-weight: 700;
+}
+
+.notice.error,
+.inline-error {
+  border-color: #fecaca;
+  background: #fff;
+  color: #b42318;
+}
+
+.inline-error {
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 8px 10px;
   font-weight: 700;
 }
 
@@ -143,8 +164,13 @@ dd {
   line-height: 1.35;
 }
 
+.tile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .delete-btn {
-  justify-self: end;
   border: 1px solid #fecaca;
   background: #fff;
   color: #b42318;
@@ -246,7 +272,8 @@ textarea {
 }
 
 input:disabled,
-select:disabled {
+select:disabled,
+button:disabled {
   background: #f8fafc;
   color: #98a2b3;
   cursor: not-allowed;
