@@ -65,8 +65,10 @@ export class LegacyUiTranslationService {
   }
 
   private translateNode(node: Node, skip = false): void {
+    const skipNode = skip || this.hasNoAutoTranslateAncestor(node);
+
     if (node.nodeType === Node.TEXT_NODE) {
-      if (!skip) {
+      if (!skipNode) {
         this.translateTextNode(node as Text);
       }
       return;
@@ -77,12 +79,7 @@ export class LegacyUiTranslationService {
     }
 
     const element = node as Element;
-    const tagName = element.tagName;
-    const nextSkip =
-      skip ||
-      element.hasAttribute('data-no-auto-translate') ||
-      tagName === 'SCRIPT' ||
-      tagName === 'STYLE';
+    const nextSkip = skipNode || this.isNoAutoTranslateElement(element);
 
     if (!nextSkip) {
       this.translateAttributes(element);
@@ -91,6 +88,28 @@ export class LegacyUiTranslationService {
     for (const child of Array.from(node.childNodes)) {
       this.translateNode(child, nextSkip);
     }
+  }
+
+  private hasNoAutoTranslateAncestor(node: Node): boolean {
+    let current: Node | null = node.nodeType === Node.ELEMENT_NODE ? node : node.parentNode;
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      if (this.isNoAutoTranslateElement(current as Element)) {
+        return true;
+      }
+      current = current.parentNode;
+    }
+    return false;
+  }
+
+  private isNoAutoTranslateElement(element: Element): boolean {
+    const tagName = element.tagName;
+    return (
+      element.hasAttribute('data-no-auto-translate') ||
+      String(element.getAttribute('translate') || '').toLowerCase() === 'no' ||
+      element.classList.contains('notranslate') ||
+      tagName === 'SCRIPT' ||
+      tagName === 'STYLE'
+    );
   }
 
   private translateTextNode(node: Text): void {
