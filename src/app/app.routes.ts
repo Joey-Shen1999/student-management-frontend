@@ -55,6 +55,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/university-goals',
+    loadComponent: () =>
+      import('./pages/student-university-goals/student-university-goals.component').then(
+        (m) => m.StudentUniversityGoalsComponent
+      ),
+  },
+
+  {
     path: 'student/documents',
     loadComponent: () =>
       import('./pages/student-documents/student-documents.component').then(
@@ -126,6 +134,14 @@ export const routes: Routes = [
         path: 'students/:studentId/profile',
         loadComponent: () =>
           import('./pages/student-profile/student-profile').then((m) => m.StudentProfile),
+      },
+
+      {
+        path: 'students/:studentId/university-goals',
+        loadComponent: () =>
+          import('./pages/student-university-goals/student-university-goals.component').then(
+            (m) => m.StudentUniversityGoalsComponent
+          ),
       },
 
       {

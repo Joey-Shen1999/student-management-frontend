@@ -221,6 +221,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   serviceItems: '\u670d\u52a1\u9879\u76ee',
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
+  universityGoals: '\u5927\u5b66\u76ee\u6807',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
   documents: '\u6587\u6863',
   coursePlan: '\u8bfe\u7a0b\u8868',
@@ -440,6 +441,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
   {
     key: 'profile',
     label: '档案',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
+    key: 'universityGoals',
+    label: '大学目标',
     defaultVisible: true,
     hideable: true,
     backendDependent: false,
@@ -987,6 +998,17 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       [disabled]="!resolveStudentId(student)"
                     >
                       编辑档案
+                    </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'universityGoals'">
+                    <button
+                      type="button"
+                      [routerLink]="universityGoalsRoute(student)"
+                      style="min-width:86px;white-space:nowrap;"
+                      [disabled]="!resolveStudentId(student)"
+                    >
+                      大学目标
                     </button>
                   </ng-container>
 
@@ -2774,6 +2796,14 @@ export class StudentManagementComponent implements OnInit {
       return ['/teacher/students'];
     }
     return ['/teacher/students', String(studentId), 'profile'];
+  }
+
+  universityGoalsRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    return ['/teacher/students', String(studentId), 'university-goals'];
   }
 
   studentDocumentsRoute(_student: StudentAccount): string[] {

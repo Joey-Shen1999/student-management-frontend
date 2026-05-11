@@ -1808,6 +1808,7 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
+        'universityGoals',
         'documents',
         'resetPassword',
         'archive',
