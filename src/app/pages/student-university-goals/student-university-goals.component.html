@@ -1,16 +1,16 @@
 <main class="ouac-page">
   <header class="ouac-header">
     <div>
-      <h1>大学目标</h1>
+      <h1>{{ ui.title | appTranslate }}</h1>
     </div>
-    <button type="button" class="plain-btn" (click)="goBack()">返回</button>
+    <button type="button" class="plain-btn" (click)="goBack()">{{ ui.back | appTranslate }}</button>
   </header>
 
-  <p *ngIf="loading" class="notice">正在加载大学目标...</p>
-  <p *ngIf="message" class="notice">{{ message }}</p>
-  <p *ngIf="error" class="notice error">{{ error }}</p>
+  <p *ngIf="loading" class="notice">{{ ui.loadingGoals | appTranslate }}</p>
+  <p *ngIf="message" class="notice">{{ message | appTranslate }}</p>
+  <p *ngIf="error" class="notice error">{{ error | appTranslate }}</p>
 
-  <section class="choice-board" aria-label="大学目标">
+  <section class="choice-board" [attr.aria-label]="ui.title | appTranslate">
     <article
       *ngFor="let choice of choices; let i = index; trackBy: trackChoice"
       class="choice-tile"
@@ -22,8 +22,8 @@
       (dragend)="onDragEnd()"
     >
       <div class="tile-top">
-        <button type="button" class="drag-handle" title="拖动排序">⋮⋮</button>
-        <span>Choice {{ i + 1 }}</span>
+        <button type="button" class="drag-handle" [title]="ui.dragToReorder | appTranslate">⋮⋮</button>
+        <span>{{ ui.choice | appTranslate }} {{ i + 1 }}</span>
       </div>
 
       <div class="tile-main">
@@ -32,20 +32,24 @@
 
       <dl>
         <div>
-          <dt>专业</dt>
+          <dt>{{ ui.program | appTranslate }}</dt>
           <dd>{{ choice.programName }}</dd>
         </div>
       </dl>
 
       <div class="tile-actions">
-        <button type="button" class="edit-btn" (click)="openEditModal(choice)" [disabled]="saving">修改</button>
-        <button type="button" class="delete-btn" (click)="removeChoice(choice)" [disabled]="saving">删除</button>
+        <button type="button" class="edit-btn" (click)="openEditModal(choice)" [disabled]="saving">
+          {{ ui.edit | appTranslate }}
+        </button>
+        <button type="button" class="delete-btn" (click)="removeChoice(choice)" [disabled]="saving">
+          {{ ui.delete | appTranslate }}
+        </button>
       </div>
     </article>
 
-    <button type="button" class="add-tile" (click)="openModal()" aria-label="添加大学目标" [disabled]="saving">
+    <button type="button" class="add-tile" (click)="openModal()" [attr.aria-label]="ui.addGoal | appTranslate" [disabled]="saving">
       <span>+</span>
-      <strong>添加大学目标</strong>
+      <strong>{{ ui.addGoal | appTranslate }}</strong>
     </button>
   </section>
 
@@ -53,22 +57,22 @@
     <section class="choice-modal" (click)="$event.stopPropagation()">
       <header>
         <div>
-          <h2>{{ editingChoiceId ? '修改大学目标' : '添加大学目标' }}</h2>
+          <h2>{{ (editingChoiceId ? ui.editGoal : ui.addGoal) | appTranslate }}</h2>
         </div>
         <button type="button" class="close-btn" (click)="closeModal()">×</button>
       </header>
 
       <div class="form-body">
-        <p *ngIf="error" class="inline-error">{{ error }}</p>
+        <p *ngIf="error" class="inline-error">{{ error | appTranslate }}</p>
 
         <label class="autocomplete-field">
-          <span>大学</span>
+          <span>{{ ui.university | appTranslate }}</span>
           <input
             type="text"
             [(ngModel)]="draft.universityName"
             (ngModelChange)="onUniversityInput()"
             list="university-options"
-            placeholder="输入或选择大学"
+            [placeholder]="ui.universityPlaceholder | appTranslate"
             [disabled]="saving"
           />
           <datalist id="university-options">
@@ -87,13 +91,13 @@
         </label>
 
         <label>
-          <span>专业</span>
+          <span>{{ ui.program | appTranslate }}</span>
           <input
             type="text"
             [(ngModel)]="draft.programName"
             [disabled]="!selectedUniversity || saving"
             list="program-options"
-            placeholder="输入或选择专业"
+            [placeholder]="ui.programPlaceholder | appTranslate"
           />
           <datalist id="program-options">
             <option *ngFor="let program of visiblePrograms" [value]="program.programName"></option>
@@ -112,9 +116,11 @@
       </div>
 
       <footer>
-        <button type="button" class="plain-btn" (click)="closeModal()" [disabled]="saving">取消</button>
+        <button type="button" class="plain-btn" (click)="closeModal()" [disabled]="saving">
+          {{ ui.cancel | appTranslate }}
+        </button>
         <button type="button" class="save-btn" (click)="addChoice()" [disabled]="saving">
-          {{ saving ? '保存中...' : '保存' }}
+          {{ (saving ? ui.saving : ui.save) | appTranslate }}
         </button>
       </footer>
     </section>

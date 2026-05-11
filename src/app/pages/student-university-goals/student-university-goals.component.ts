@@ -12,6 +12,8 @@ import {
   UniversityAspirationService,
   UniversityProgram,
 } from '../../services/university-aspiration.service';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 
 interface UniversityChoice {
   id: number;
@@ -30,7 +32,7 @@ interface ChoiceDraft {
 @Component({
   selector: 'app-student-university-goals',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './student-university-goals.component.html',
   styleUrl: './student-university-goals.component.scss',
 })
@@ -57,6 +59,34 @@ export class StudentUniversityGoalsComponent implements OnInit {
     { id: 402, universityId: 4, programName: 'Early Childhood Education' },
   ];
 
+  readonly ui = {
+    title: uiText('大学目标', 'University Goals'),
+    back: uiText('返回', 'Back'),
+    loadingGoals: uiText('正在加载大学目标...', 'Loading university goals...'),
+    choice: uiText('Choice', 'Choice'),
+    dragToReorder: uiText('拖动排序', 'Drag to reorder'),
+    program: uiText('专业', 'Program'),
+    edit: uiText('修改', 'Edit'),
+    delete: uiText('删除', 'Delete'),
+    addGoal: uiText('添加大学目标', 'Add University Goal'),
+    editGoal: uiText('修改大学目标', 'Edit University Goal'),
+    university: uiText('大学', 'University'),
+    universityPlaceholder: uiText('输入或选择大学', 'Type or select a university'),
+    programPlaceholder: uiText('输入或选择专业', 'Type or select a program'),
+    cancel: uiText('取消', 'Cancel'),
+    save: uiText('保存', 'Save'),
+    saving: uiText('保存中...', 'Saving...'),
+    universityRequired: uiText('请选择大学。', 'Please select a university.'),
+    programRequired: uiText('请选择该大学下的专业。', 'Please select a program under this university.'),
+    goalSaved: uiText('已保存大学目标。', 'University goal saved.'),
+    goalDeleted: uiText('已删除大学目标。', 'University goal deleted.'),
+    orderSaved: uiText('顺序已保存。', 'Order saved.'),
+    saveFailed: uiText('保存失败，请稍后再试。', 'Save failed. Please try again later.'),
+    deleteFailed: uiText('删除失败，请稍后再试。', 'Delete failed. Please try again later.'),
+    reorderFailed: uiText('保存顺序失败，请刷新后重试。', 'Failed to save order. Please refresh and try again.'),
+    loadFailed: uiText('加载大学目标失败。', 'Failed to load university goals.'),
+  };
+
   studentKey = this.defaultStudentKey;
   studentId: number | null = null;
   teacherMode = false;
@@ -69,8 +99,8 @@ export class StudentUniversityGoalsComponent implements OnInit {
   draft: ChoiceDraft = this.createEmptyDraft();
   modalOpen = false;
   editingChoiceId: number | null = null;
-  message = '';
-  error = '';
+  message: string | LocalizedText = '';
+  error: string | LocalizedText = '';
   dragIndex: number | null = null;
 
   constructor(
@@ -163,11 +193,11 @@ export class StudentUniversityGoalsComponent implements OnInit {
     const program = this.visiblePrograms.find((item) => item.programName === programName);
 
     if (!university) {
-      this.error = '请选择大学。';
+      this.error = this.ui.universityRequired;
       return;
     }
     if (!program || program.universityId !== university.id) {
-      this.error = '请选择该大学下的专业。';
+      this.error = this.ui.programRequired;
       return;
     }
 
@@ -201,10 +231,10 @@ export class StudentUniversityGoalsComponent implements OnInit {
           );
           this.modalOpen = false;
           this.editingChoiceId = null;
-          this.message = '已保存大学目标。';
+          this.message = this.ui.goalSaved;
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '保存失败，请稍后再试。';
+          this.error = this.extractErrorMessage(err) || this.ui.saveFailed;
         },
       });
   }
@@ -213,7 +243,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
     if (!this.studentId || this.usingLocalDraft) {
       this.choices = this.reorder(this.choices.filter((item) => item.id !== choice.id));
       this.saveLocalChoices();
-      this.message = '已删除大学目标。';
+      this.message = this.ui.goalDeleted;
       return;
     }
 
@@ -228,10 +258,10 @@ export class StudentUniversityGoalsComponent implements OnInit {
       .subscribe({
         next: () => {
           this.choices = this.reorder(this.choices.filter((item) => item.id !== choice.id));
-          this.message = '已删除大学目标。';
+          this.message = this.ui.goalDeleted;
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '删除失败，请稍后再试。';
+          this.error = this.extractErrorMessage(err) || this.ui.deleteFailed;
         },
       });
   }
@@ -257,7 +287,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
     if (!this.studentId || this.usingLocalDraft) {
       this.saveLocalChoices();
-      this.message = '顺序已保存。';
+      this.message = this.ui.orderSaved;
       return;
     }
 
@@ -275,10 +305,10 @@ export class StudentUniversityGoalsComponent implements OnInit {
       .subscribe({
         next: (rows) => {
           this.choices = this.reorder(rows.map((row) => this.toChoice(row)));
-          this.message = '顺序已保存。';
+          this.message = this.ui.orderSaved;
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '保存顺序失败，请刷新后重试。';
+          this.error = this.extractErrorMessage(err) || this.ui.reorderFailed;
           this.loadChoices();
         },
       });
@@ -356,7 +386,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
           this.choices = this.reorder((rows || []).map((row) => this.toChoice(row)));
         },
         error: (err: HttpErrorResponse) => {
-          this.error = this.extractErrorMessage(err) || '加载大学目标失败。';
+          this.error = this.extractErrorMessage(err) || this.ui.loadFailed;
           this.usingLocalDraft = true;
           this.loadLocalChoices();
         },
@@ -397,7 +427,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
       this.saveLocalChoices();
       this.modalOpen = false;
       this.editingChoiceId = null;
-      this.message = '已保存大学目标。';
+      this.message = this.ui.goalSaved;
       return;
     }
 
@@ -414,7 +444,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.saveLocalChoices();
     this.modalOpen = false;
     this.editingChoiceId = null;
-    this.message = '已保存大学目标。';
+    this.message = this.ui.goalSaved;
   }
 
   private loadLocalChoices(): void {
