@@ -119,22 +119,14 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   get selectedUniversity(): University | null {
     const universityName = this.draft.universityName.trim();
-    const normalizedName = this.normalizeSearchText(universityName);
-    return (
-      this.universities.find((item) =>
-        this.universitySearchValues(item).some(
-          (value) => this.normalizeSearchText(value) === normalizedName
-        )
-      ) ?? null
-    );
+    if (!universityName) return null;
+    return this.rankedUniversityMatches(universityName).find((item) => this.isExactUniversityMatch(universityName, item)) ?? null;
   }
 
   get visibleUniversities(): University[] {
     const keyword = this.draft.universityName.trim();
     if (!keyword) return this.universities;
-    return this.universities.filter((item) =>
-      this.matchesSearch(keyword, this.universitySearchValues(item))
-    );
+    return this.rankedUniversityMatches(keyword);
   }
 
   get visiblePrograms(): UniversityProgram[] {
@@ -543,6 +535,55 @@ export class StudentUniversityGoalsComponent implements OnInit {
     ];
   }
 
+  private rankedUniversityMatches(query: string): University[] {
+    return this.universities
+      .filter((item) => this.matchesSearch(query, this.universitySearchValues(item)))
+      .sort((left, right) => {
+        const scoreDiff = this.universityMatchScore(query, right) - this.universityMatchScore(query, left);
+        if (scoreDiff !== 0) return scoreDiff;
+        return String(left.name || '').localeCompare(String(right.name || ''));
+      });
+  }
+
+  private isExactUniversityMatch(query: string, university: University): boolean {
+    const normalizedQuery = this.normalizeSearchText(query);
+    const compactQuery = this.compactSearchText(query);
+    return this.universitySearchValues(university).some((value) => {
+      const normalizedValue = this.normalizeSearchText(value);
+      return normalizedValue === normalizedQuery || this.compactSearchText(normalizedValue) === compactQuery;
+    });
+  }
+
+  private universityMatchScore(query: string, university: University): number {
+    const normalizedQuery = this.normalizeSearchText(query);
+    const compactQuery = this.compactSearchText(query);
+    const normalizedName = this.normalizeSearchText(university.name);
+    const compactName = this.compactSearchText(university.name);
+    const aliases = this.knownUniversityAliases(university.name || '');
+    const generatedAliases = this.generatedUniversityAliases(university.name || '');
+    const aliasValues = [...aliases, ...generatedAliases];
+    const exactAlias = aliasValues.some((alias) => {
+      const normalizedAlias = this.normalizeSearchText(alias);
+      return normalizedAlias === normalizedQuery || this.compactSearchText(normalizedAlias) === compactQuery;
+    });
+
+    let score = 0;
+    if (normalizedName === normalizedQuery || compactName === compactQuery) score += 1000;
+    if (exactAlias) score += 850;
+    if (normalizedName.startsWith(normalizedQuery) || compactName.startsWith(compactQuery)) score += 350;
+    if (normalizedName.includes(normalizedQuery) || compactName.includes(compactQuery)) score += 200;
+    score += this.universityCampusPriority(university);
+    return score;
+  }
+
+  private universityCampusPriority(university: University): number {
+    const name = this.normalizeSearchText(university.name);
+    if (name === 'university of toronto st george campus') return 80;
+    if (name === 'university of toronto mississauga') return 50;
+    if (name === 'university of toronto scarborough') return 40;
+    return 0;
+  }
+
   private generatedUniversityAliases(name: string): string[] {
     const normalizedName = this.normalizeSearchText(name);
     const compactName = this.compactSearchText(name);
@@ -565,15 +606,17 @@ export class StudentUniversityGoalsComponent implements OnInit {
       'university of toronto st george campus': [
         'uoft',
         'u of t',
+        'university of toronto',
         'utsg',
         'st george',
         'saint george',
         'toronto st george',
         'u toronto',
         'toronto main campus',
+        'uoft main campus',
       ],
-      'university of toronto mississauga': ['utm', 'uoft mississauga', 'u of t mississauga'],
-      'university of toronto scarborough': ['utsc', 'uoft scarborough', 'u of t scarborough'],
+      'university of toronto mississauga': ['uoft', 'u of t', 'utm', 'uoft mississauga', 'u of t mississauga'],
+      'university of toronto scarborough': ['uoft', 'u of t', 'utsc', 'uoft scarborough', 'u of t scarborough'],
       'university of waterloo': ['uw', 'u waterloo', 'waterloo'],
       'western university': ['western', 'uwo', 'western u', 'university of western ontario'],
       'mcmaster university': ['mac', 'macmaster', 'mcmaster', 'mcmaster u'],
