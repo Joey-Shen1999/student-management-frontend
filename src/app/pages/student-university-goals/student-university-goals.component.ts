@@ -119,23 +119,25 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   get selectedUniversity(): University | null {
     const universityName = this.draft.universityName.trim();
-    return this.universities.find((item) => item.name === universityName) ?? null;
+    const normalizedName = this.normalizeSearchText(universityName);
+    return this.universities.find((item) => this.normalizeSearchText(item.name) === normalizedName) ?? null;
   }
 
   get visibleUniversities(): University[] {
-    const keyword = this.draft.universityName.trim().toLowerCase();
+    const keyword = this.draft.universityName.trim();
     if (!keyword) return this.universities;
-    return this.universities.filter((item) => item.name.toLowerCase().includes(keyword));
+    return this.universities.filter((item) =>
+      this.matchesSearch(keyword, [item.name, item.city, item.province, item.country, item.website])
+    );
   }
 
   get visiblePrograms(): UniversityProgram[] {
     const university = this.selectedUniversity;
     if (!university) return [];
-    const keyword = this.draft.programName.trim().toLowerCase();
+    const keyword = this.draft.programName.trim();
     const programs = this.programsByUniversityId.get(university.id) ?? [];
     return programs.filter((item) => {
-      const label = `${item.programName || ''} ${item.facultyName || ''}`;
-      return !keyword || label.toLowerCase().includes(keyword);
+      return this.matchesSearch(keyword, [item.programName, item.facultyName, item.degreeType]);
     });
   }
 
@@ -190,7 +192,8 @@ export class StudentUniversityGoalsComponent implements OnInit {
   addChoice(): void {
     const university = this.selectedUniversity;
     const programName = this.draft.programName.trim();
-    const program = this.visiblePrograms.find((item) => item.programName === programName);
+    const normalizedProgramName = this.normalizeSearchText(programName);
+    const program = this.visiblePrograms.find((item) => this.normalizeSearchText(item.programName) === normalizedProgramName);
 
     if (!university) {
       this.error = this.ui.universityRequired;
@@ -519,6 +522,42 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   private storageKey(): string {
     return `${this.storagePrefix}-${this.studentKey}`;
+  }
+
+  private matchesSearch(query: string, values: Array<string | null | undefined>): boolean {
+    const tokens = this.searchTokens(query);
+    if (tokens.length === 0) return true;
+
+    const normalizedValues = values.map((value) => this.normalizeSearchText(value)).filter(Boolean);
+    const joined = normalizedValues.join(' ');
+    const compactJoined = this.compactSearchText(joined);
+
+    return tokens.every((token) => {
+      const normalizedToken = this.normalizeSearchText(token);
+      const compactToken = this.compactSearchText(normalizedToken);
+      return (
+        joined.includes(normalizedToken) ||
+        compactJoined.includes(compactToken) ||
+        normalizedValues.some((value) => value.includes(normalizedToken))
+      );
+    });
+  }
+
+  private searchTokens(value: string | null | undefined): string[] {
+    return this.normalizeSearchText(value).split(' ').filter(Boolean);
+  }
+
+  private normalizeSearchText(value: string | null | undefined): string {
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  private compactSearchText(value: string | null | undefined): string {
+    return this.normalizeSearchText(value).replace(/\s+/g, '');
   }
 
   private extractErrorMessage(error: HttpErrorResponse): string {
