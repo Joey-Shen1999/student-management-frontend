@@ -120,14 +120,20 @@ export class StudentUniversityGoalsComponent implements OnInit {
   get selectedUniversity(): University | null {
     const universityName = this.draft.universityName.trim();
     const normalizedName = this.normalizeSearchText(universityName);
-    return this.universities.find((item) => this.normalizeSearchText(item.name) === normalizedName) ?? null;
+    return (
+      this.universities.find((item) =>
+        this.universitySearchValues(item).some(
+          (value) => this.normalizeSearchText(value) === normalizedName
+        )
+      ) ?? null
+    );
   }
 
   get visibleUniversities(): University[] {
     const keyword = this.draft.universityName.trim();
     if (!keyword) return this.universities;
     return this.universities.filter((item) =>
-      this.matchesSearch(keyword, [item.name, item.city, item.province, item.country, item.website])
+      this.matchesSearch(keyword, this.universitySearchValues(item))
     );
   }
 
@@ -522,6 +528,83 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   private storageKey(): string {
     return `${this.storagePrefix}-${this.studentKey}`;
+  }
+
+  private universitySearchValues(university: University): Array<string | null | undefined> {
+    const name = university.name || '';
+    return [
+      name,
+      university.city,
+      university.province,
+      university.country,
+      university.website,
+      ...this.generatedUniversityAliases(name),
+      ...this.knownUniversityAliases(name),
+    ];
+  }
+
+  private generatedUniversityAliases(name: string): string[] {
+    const normalizedName = this.normalizeSearchText(name);
+    const compactName = this.compactSearchText(name);
+    const words = normalizedName
+      .split(' ')
+      .filter((word) => word && !['and', 'at', 'de', 'of', 'the'].includes(word));
+    const acronym = words.map((word) => word[0]).join('');
+    const withoutUniversity = normalizedName
+      .replace(/\buniversity\b/g, '')
+      .replace(/\bcampus\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return Array.from(new Set([acronym, compactName, withoutUniversity])).filter(Boolean);
+  }
+
+  private knownUniversityAliases(name: string): string[] {
+    const key = this.normalizeSearchText(name);
+    const aliases: Record<string, string[]> = {
+      'university of toronto st george campus': [
+        'uoft',
+        'u of t',
+        'utsg',
+        'st george',
+        'saint george',
+        'toronto st george',
+        'u toronto',
+        'toronto main campus',
+      ],
+      'university of toronto mississauga': ['utm', 'uoft mississauga', 'u of t mississauga'],
+      'university of toronto scarborough': ['utsc', 'uoft scarborough', 'u of t scarborough'],
+      'university of waterloo': ['uw', 'u waterloo', 'waterloo'],
+      'western university': ['western', 'uwo', 'western u', 'university of western ontario'],
+      'mcmaster university': ['mac', 'macmaster', 'mcmaster', 'mcmaster u'],
+      'queen s university': ['queens', "queen's", 'queens u'],
+      'university of british columbia': ['ubc'],
+      'simon fraser university': ['sfu'],
+      'university of victoria': ['uvic'],
+      'university of alberta': ['ualberta', 'uofa', 'u of a'],
+      'university of calgary': ['ucalgary', 'uofc', 'u of c'],
+      'university of ottawa': ['uottawa', 'u of o'],
+      'carleton university': ['carleton', 'cu'],
+      'york university': ['york', 'yorku'],
+      'toronto metropolitan university': ['tmu', 'ryerson'],
+      'wilfrid laurier university': ['laurier', 'wlu'],
+      'university of guelph': ['guelph', 'uog'],
+      'brock university': ['brock'],
+      'trent university': ['trent'],
+      'ontario tech university': ['ontario tech', 'uoit'],
+      'university of windsor': ['uwindsor', 'windsor'],
+      'lakehead university': ['lakehead'],
+      'laurentian university': ['laurentian'],
+      'nipissing university': ['nipissing'],
+      'ocad university': ['ocad'],
+      'emily carr university of art and design': ['ecuad', 'emily carr'],
+      'concordia university': ['concordia'],
+      'mcgill university': ['mcgill'],
+      'university of montreal': ['udem', 'montreal', 'universite de montreal'],
+      'university of laval': ['laval', 'ulaval'],
+    };
+
+    return aliases[key] ?? [];
   }
 
   private matchesSearch(query: string, values: Array<string | null | undefined>): boolean {
