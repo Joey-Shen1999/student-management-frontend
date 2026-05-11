@@ -1,155 +1,122 @@
-<div class="university-goals-page">
-  <div class="university-goals-shell">
-    <div class="header-row">
-      <div>
-        <h2>大学目标</h2>
-        <p *ngIf="pageSubtitle">{{ pageSubtitle }}</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="ghost-btn" (click)="refresh()" [disabled]="loading || saving">
-          刷新
-        </button>
-        <button type="button" class="ghost-btn" (click)="goBack()">返回</button>
-      </div>
+<main class="ouac-page">
+  <header class="ouac-header">
+    <div>
+      <h1>大学目标</h1>
     </div>
+    <button type="button" class="plain-btn" (click)="goBack()">返回</button>
+  </header>
 
-    <div *ngIf="invalidStudentId" class="error-banner">
-      无法识别当前学生，请重新登录后再试。
-    </div>
-    <div *ngIf="!invalidStudentId && loading" class="state-text">
-      正在加载大学目标...
-    </div>
-    <div *ngIf="!invalidStudentId && error" class="error-banner">
-      {{ error }}
-    </div>
-    <div *ngIf="successMessage" class="success-banner">
-      {{ successMessage }}
-    </div>
+  <p *ngIf="message" class="notice">{{ message }}</p>
 
-    <section class="toolbar-card" *ngIf="!invalidStudentId">
-      <div>
-        <span>目标数量</span>
-        <strong>{{ goals.length }}</strong>
-      </div>
-      <button type="button" class="primary-btn" (click)="openAddForm()" [disabled]="loading || saving || catalogLoading">
-        添加大学目标
-      </button>
-    </section>
-
-    <section *ngIf="formOpen" class="editor-card">
-      <div class="editor-head">
-        <strong>{{ form.id ? '编辑大学目标' : '新增大学目标' }}</strong>
-        <button type="button" class="ghost-btn compact" (click)="closeForm()" [disabled]="saving">
-          关闭
-        </button>
+  <section class="choice-board" aria-label="大学目标">
+    <article
+      *ngFor="let choice of choices; let i = index; trackBy: trackChoice"
+      class="choice-tile"
+      [class.dragging]="dragIndex === i"
+      draggable="true"
+      (dragstart)="onDragStart(i)"
+      (dragover)="onDragOver($event)"
+      (drop)="onDrop(i)"
+      (dragend)="onDragEnd()"
+    >
+      <div class="tile-top">
+        <button type="button" class="drag-handle" title="拖动排序">⋮⋮</button>
+        <span>Choice {{ i + 1 }}</span>
       </div>
 
-      <div class="form-grid">
-        <label>
+      <div class="tile-main">
+        <h2>{{ choice.universityName }}</h2>
+        <p *ngIf="choice.campus">{{ choice.campus }}</p>
+      </div>
+
+      <dl>
+        <div>
+          <dt>专业</dt>
+          <dd>{{ choice.programName }}</dd>
+        </div>
+      </dl>
+
+      <button type="button" class="delete-btn" (click)="removeChoice(choice)">删除</button>
+    </article>
+
+    <button type="button" class="add-tile" (click)="openModal()" aria-label="添加大学目标">
+      <span>+</span>
+      <strong>添加大学目标</strong>
+    </button>
+  </section>
+
+  <div *ngIf="modalOpen" class="modal-backdrop" (click)="closeModal()">
+    <section class="choice-modal" (click)="$event.stopPropagation()">
+      <header>
+        <div>
+          <h2>添加大学目标</h2>
+        </div>
+        <button type="button" class="close-btn" (click)="closeModal()">×</button>
+      </header>
+
+      <div class="form-body">
+        <label class="autocomplete-field">
           <span>大学</span>
           <input
-            type="search"
-            [(ngModel)]="universitySearch"
-            [disabled]="saving || catalogLoading"
-            placeholder="搜索大学、城市、省份"
+            type="text"
+            [(ngModel)]="draft.universityName"
+            (ngModelChange)="onUniversityInput()"
+            list="university-options"
+            placeholder="输入或选择大学"
           />
-          <select
-            [(ngModel)]="form.universityId"
-            (ngModelChange)="onUniversityChange($event)"
-            [disabled]="saving || catalogLoading"
-          >
-            <option [ngValue]="null">
-              {{ catalogLoading ? '正在加载大学...' : '请选择大学' }}
-            </option>
-            <option *ngFor="let university of filteredUniversities" [ngValue]="university.id">
-              {{ university.name }}{{ displayUniversityLocation(university) ? ' - ' + displayUniversityLocation(university) : '' }}
+          <datalist id="university-options">
+            <option *ngFor="let university of universities" [value]="university.name"></option>
+          </datalist>
+          <div *ngIf="draft.universityName && visibleUniversities.length > 0" class="suggestion-list">
+            <button
+              type="button"
+              *ngFor="let university of visibleUniversities"
+              (click)="selectUniversity(university)"
+            >
+              {{ university.name }}
+            </button>
+          </div>
+        </label>
+
+        <label *ngIf="selectedUniversity?.campuses?.length">
+          <span>校区</span>
+          <select [(ngModel)]="draft.campus">
+            <option value="">请选择校区</option>
+            <option *ngFor="let campus of selectedUniversity?.campuses" [value]="campus">
+              {{ campus }}
             </option>
           </select>
         </label>
 
         <label>
-          <span>专业/科系</span>
+          <span>专业</span>
           <input
-            type="search"
-            [(ngModel)]="programSearch"
-            [disabled]="!form.universityId || saving || programsLoading"
-            placeholder="搜索专业、Faculty、Degree"
+            type="text"
+            [(ngModel)]="draft.programName"
+            [disabled]="!selectedUniversity"
+            list="program-options"
+            placeholder="输入或选择专业"
           />
-          <select
-            [(ngModel)]="form.programId"
-            [disabled]="!form.universityId || saving || programsLoading"
-          >
-            <option [ngValue]="null">
-              {{ programsLoading ? '正在加载专业...' : '请选择专业/科系' }}
-            </option>
-            <option *ngFor="let program of filteredPrograms" [ngValue]="program.id">
-              {{ program.programName }}
-              {{ program.facultyName ? ' - ' + program.facultyName : '' }}
-              {{ program.degreeType ? ' / ' + program.degreeType : '' }}
-            </option>
-          </select>
+          <datalist id="program-options">
+            <option *ngFor="let program of visiblePrograms" [value]="program.name"></option>
+          </datalist>
+          <div *ngIf="draft.programName && visiblePrograms.length > 0" class="suggestion-list">
+            <button
+              type="button"
+              *ngFor="let program of visiblePrograms"
+              (click)="selectProgram(program)"
+            >
+              {{ program.name }}
+            </button>
+          </div>
         </label>
 
-        <label class="span-2">
-          <span>备注</span>
-          <textarea
-            [(ngModel)]="form.notes"
-            rows="3"
-            [disabled]="saving"
-            placeholder="可填写偏好、原因或准备方向"
-          ></textarea>
-        </label>
       </div>
 
-      <div class="editor-actions">
-        <button type="button" class="ghost-btn" (click)="closeForm()" [disabled]="saving">
-          取消
-        </button>
-        <button type="button" class="primary-btn" (click)="saveGoal()" [disabled]="saving">
-          {{ saving ? '保存中...' : '保存大学目标' }}
-        </button>
-      </div>
-    </section>
-
-    <section class="goals-list" *ngIf="!loading && !invalidStudentId">
-      <div *ngIf="goals.length === 0" class="state-text">
-        暂无大学目标，请点击“添加大学目标”创建第一条。
-      </div>
-
-      <article
-        *ngFor="let goal of goals; let i = index; trackBy: trackGoal"
-        class="goal-card"
-        [class.dragging]="dragIndex === i"
-        draggable="true"
-        (dragstart)="onDragStart(i)"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop(i)"
-        (dragend)="onDragEnd()"
-      >
-        <div class="drag-handle" title="拖动排序">::</div>
-        <div class="goal-content">
-          <div class="goal-card-head">
-            <strong>目标 {{ i + 1 }}</strong>
-            <span>排序 {{ goal.sortOrder || i + 1 }}</span>
-          </div>
-          <div><strong>大学：</strong>{{ goal.universityName || '-' }}</div>
-          <div><strong>专业/科系：</strong>{{ goal.programName || '-' }}</div>
-          <div *ngIf="displayProgramMeta(goal)">
-            <strong>Faculty / Degree：</strong>{{ displayProgramMeta(goal) }}
-          </div>
-          <div *ngIf="displayText(goal.notes) !== '-'">
-            <strong>备注：</strong>{{ displayText(goal.notes) }}
-          </div>
-        </div>
-        <div class="goal-actions">
-          <button type="button" class="ghost-btn compact" (click)="openEditForm(goal)" [disabled]="saving">
-            编辑
-          </button>
-          <button type="button" class="ghost-btn compact danger" (click)="deleteGoal(goal)" [disabled]="saving">
-            删除
-          </button>
-        </div>
-      </article>
+      <footer>
+        <button type="button" class="plain-btn" (click)="closeModal()">取消</button>
+        <button type="button" class="save-btn" (click)="addChoice()">添加</button>
+      </footer>
     </section>
   </div>
-</div>
+</main>
