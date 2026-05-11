@@ -9,6 +9,7 @@ export interface ServiceProgressAdvisor {
   id?: number;
   username?: string;
   displayName?: string;
+  status?: string;
   advisorEnabled?: boolean;
   [key: string]: any;
 }

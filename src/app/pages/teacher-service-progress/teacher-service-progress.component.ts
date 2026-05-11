@@ -830,13 +830,16 @@ export class TeacherServiceProgressComponent implements OnInit {
   private loadAdvisors(): void {
     this.serviceProgressApi.listAdvisors().subscribe({
       next: (payload) => {
-        this.advisors = Array.isArray(payload)
+        const rows = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.data)
             ? payload.data
             : Array.isArray(payload?.items)
               ? payload.items
               : [];
+        this.advisors = rows.filter(
+          (advisor) => !!this.resolveAdvisorId(advisor) && !this.isArchivedAccount(advisor)
+        );
         this.cdr.detectChanges();
       },
       error: () => {
@@ -876,8 +879,12 @@ export class TeacherServiceProgressComponent implements OnInit {
   private normalizeTeachers(payload: TeacherAccount[] | { items?: TeacherAccount[]; data?: TeacherAccount[] }): TeacherAccount[] {
     const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.items ?? [];
     return rows
-      .filter((teacher) => !!this.resolveTeacherId(teacher))
+      .filter((teacher) => !!this.resolveTeacherId(teacher) && !this.isArchivedAccount(teacher))
       .sort((a, b) => this.displayTeacherName(a).localeCompare(this.displayTeacherName(b)));
+  }
+
+  private isArchivedAccount(account: { status?: unknown } | null | undefined): boolean {
+    return String(account?.status || '').trim().toUpperCase() === 'ARCHIVED';
   }
 
   private normalizeRecords(records: ServiceProgressRecord[] | null | undefined): ServiceProgressRecord[] {

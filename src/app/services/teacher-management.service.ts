@@ -10,6 +10,7 @@ export interface TeacherAccount {
   id?: number;
   username: string;
   role?: 'TEACHER' | 'ADMIN' | string;
+  status?: TeacherAccountStatus | string;
   displayName?: string;
   firstName?: string;
   lastName?: string;
