@@ -57,7 +57,6 @@
         <section class="workspace-section">
           <div class="section-heading">
             <div>
-              <span class="section-kicker">A</span>
               <h4>基本信息</h4>
             </div>
             <small>{{ isEditMode ? '覆盖更新同组通知' : '发布给选中学生' }}</small>
@@ -89,7 +88,6 @@
         <section class="workspace-section">
           <div class="section-heading">
             <div>
-              <span class="section-kicker">B</span>
               <h4>{{ showVolunteerCollection ? '义工任务内容' : '通知内容' }}</h4>
             </div>
             <small *ngIf="showVolunteerCollection">总时长：{{ volunteerTotalDurationLabel }} 小时</small>
@@ -197,7 +195,6 @@
       <section class="workspace-section selector-section">
         <div class="section-heading">
           <div>
-            <span class="section-kicker">C</span>
             <h4>接收学生</h4>
           </div>
           <small>{{ selectedCountText(selectedCreateStudentSummaryCount) }}</small>
