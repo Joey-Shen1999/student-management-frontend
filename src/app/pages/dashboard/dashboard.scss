@@ -178,6 +178,11 @@
   background: #fafcff;
 }
 
+.info-item.read {
+  background: #f7f8fb;
+  border-color: #e4e9f2;
+}
+
 .info-head {
   display: flex;
   align-items: center;
@@ -248,6 +253,32 @@
   margin-top: 10px;
   display: flex;
   gap: 8px;
+}
+
+.read-info-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e1e8f3;
+
+  h4 {
+    margin: 0;
+    color: #4c5d73;
+    font-size: 14px;
+  }
+}
+
+.read-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #edf1f7;
+  color: #60718a;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {

@@ -49,10 +49,10 @@ import {
             <button
               type="button"
               class="action-btn ghost compact"
-              (click)="toggleUnreadOnly()"
+              (click)="toggleReadInfos()"
               [disabled]="infoLoading"
             >
-              {{ infoUnreadOnly ? '仅未读' : '全部' }}
+              {{ showReadInfos ? '收起已读通知' : '展开已读通知' }}
             </button>
           </div>
 
@@ -63,12 +63,12 @@ import {
             <button type="button" class="action-btn ghost compact" (click)="refreshInfos()">重试</button>
           </div>
 
-          <div *ngIf="!infoLoading && !infoError && infoItems.length === 0" class="state-text">
-            当前没有通知。
+          <div *ngIf="!infoLoading && !infoError && unreadInfoItems.length === 0" class="state-text">
+            当前没有未读通知。
           </div>
 
-          <div *ngIf="!infoLoading && !infoError && infoItems.length > 0" class="info-list">
-            <article class="info-item" *ngFor="let info of infoItems; trackBy: trackInfo">
+          <div *ngIf="!infoLoading && !infoError && unreadInfoItems.length > 0" class="info-list">
+            <article class="info-item" *ngFor="let info of unreadInfoItems; trackBy: trackInfo">
               <div class="info-head">
                 <h4>{{ info.title }}</h4>
               </div>
@@ -91,6 +91,29 @@ import {
                 </button>
               </div>
             </article>
+          </div>
+
+          <div *ngIf="!infoLoading && !infoError && showReadInfos" class="read-info-section">
+            <h4>已读通知</h4>
+            <div *ngIf="readInfoItems.length === 0" class="state-text">
+              暂无已读通知。
+            </div>
+            <div *ngIf="readInfoItems.length > 0" class="info-list">
+              <article class="info-item read" *ngFor="let info of readInfoItems; trackBy: trackInfo">
+                <div class="info-head">
+                  <h4>{{ info.title }}</h4>
+                  <span class="read-pill">已读</span>
+                </div>
+
+                <p class="info-content">{{ info.content }}</p>
+
+                <div class="info-meta">
+                  <span>发布时间：{{ displayUpdatedAt(info.createdAt) }}</span>
+                  <span>发布老师：{{ info.publishedByTeacherName }}</span>
+                  <span *ngIf="info.readAt">已读时间：{{ displayUpdatedAt(info.readAt) }}</span>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -139,7 +162,7 @@ export class DashboardComponent implements OnInit {
   infoError = '';
   infoItems: InfoTaskVm[] = [];
   infoUpdatingId: number | null = null;
-  infoUnreadOnly = false;
+  showReadInfos = false;
   signingOut = false;
   welcomeNameOverride = '';
 
@@ -173,6 +196,14 @@ export class DashboardComponent implements OnInit {
 
   goProfile() {
     this.router.navigate(['/student/profile']);
+  }
+
+  get unreadInfoItems(): InfoTaskVm[] {
+    return this.infoItems.filter((info) => !info.read);
+  }
+
+  get readInfoItems(): InfoTaskVm[] {
+    return this.showReadInfos ? this.infoItems.filter((info) => info.read) : [];
   }
 
   goUniversityGoals() {
@@ -243,8 +274,8 @@ export class DashboardComponent implements OnInit {
     this.loadInfos();
   }
 
-  toggleUnreadOnly(): void {
-    this.infoUnreadOnly = !this.infoUnreadOnly;
+  toggleReadInfos(): void {
+    this.showReadInfos = !this.showReadInfos;
     this.loadInfos();
   }
 
@@ -265,7 +296,8 @@ export class DashboardComponent implements OnInit {
       )
       .subscribe({
         next: (updatedInfo) => {
-          this.infoItems = this.infoItems.map((row) => (row.id === updatedInfo.id ? updatedInfo : row));
+          const nextItems = this.infoItems.map((row) => (row.id === updatedInfo.id ? updatedInfo : row));
+          this.infoItems = this.showReadInfos ? nextItems : nextItems.filter((row) => !row.read);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -314,7 +346,7 @@ export class DashboardComponent implements OnInit {
       .listMyInfos({
         category: 'ALL',
         tag: '',
-        unreadOnly: this.infoUnreadOnly,
+        unreadOnly: !this.showReadInfos,
         page: 1,
         size: 10,
       })

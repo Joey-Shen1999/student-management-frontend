@@ -34,6 +34,13 @@ describe('DashboardComponent', () => {
       readAt: null,
     },
   ];
+  const readInfoRow: InfoTaskVm = {
+    ...infoRows[0],
+    id: 5002,
+    title: '已读通知',
+    read: true,
+    readAt: '2026-03-09T00:00:00Z',
+  };
 
   beforeEach(() => {
     auth = {
@@ -258,18 +265,40 @@ describe('DashboardComponent', () => {
     expect(taskCenter.listMyInfos).toHaveBeenCalledWith({
       category: 'ALL',
       tag: '',
-      unreadOnly: false,
+      unreadOnly: true,
       page: 1,
       size: 10,
     });
     expect(component.infoItems.length).toBe(1);
+    expect(component.unreadInfoItems.length).toBe(1);
+    expect(component.readInfoItems.length).toBe(0);
   });
 
-  it('markInfoRead should call update service and update info state', () => {
+  it('markInfoRead should hide the notification from the default unread list', () => {
     component.markInfoRead(infoRows[0]);
 
     expect(taskCenter.markMyInfoAsRead).toHaveBeenCalledWith(5001);
-    expect(component.infoItems[0].read).toBe(true);
+    expect(component.infoItems.length).toBe(0);
+    expect(component.unreadInfoItems.length).toBe(0);
+  });
+
+  it('toggleReadInfos should load and expose read notifications', () => {
+    (taskCenter.listMyInfos as any).mockReturnValue(
+      of({ items: [infoRows[0], readInfoRow], total: 2, page: 1, size: 10 })
+    );
+
+    component.toggleReadInfos();
+
+    expect(component.showReadInfos).toBe(true);
+    expect(taskCenter.listMyInfos).toHaveBeenLastCalledWith({
+      category: 'ALL',
+      tag: '',
+      unreadOnly: false,
+      page: 1,
+      size: 10,
+    });
+    expect(component.unreadInfoItems.map((info) => info.id)).toEqual([5001]);
+    expect(component.readInfoItems.map((info) => info.id)).toEqual([5002]);
   });
 
   it('logout should clear session and navigate to login', () => {
