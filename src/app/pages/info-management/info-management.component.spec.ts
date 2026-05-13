@@ -19,7 +19,7 @@ describe('InfoManagementComponent', () => {
   let router: Pick<Router, 'navigate'>;
   let taskCenter: Pick<
     TaskCenterService,
-    'listAssignableStudents' | 'listTeacherInfos' | 'createInfo'
+    'listAssignableStudents' | 'listTeacherInfos' | 'createInfo' | 'deleteInfoGroup'
   >;
   let studentManagement: Pick<StudentManagementService, 'listStudents'>;
   let auth: Pick<AuthService, 'getSession' | 'getCurrentUserId'>;
@@ -70,6 +70,8 @@ describe('InfoManagementComponent', () => {
       content: '请尽快报名',
       category: 'ACTIVITY',
       tags: ['OpenDay'],
+      taskGroupId: 'INFO-5001',
+      recipientStudentIds: [20001],
       targetStudentCount: 1,
       publishedByTeacherId: 9001,
       publishedByTeacherName: 'Ms. Chen',
@@ -90,6 +92,7 @@ describe('InfoManagementComponent', () => {
       listAssignableStudents: vi.fn().mockReturnValue(of(students)),
       listTeacherInfos: vi.fn().mockReturnValue(of({ items: infos, total: 1, page: 1, size: 100 })),
       createInfo: vi.fn().mockReturnValue(of({ ...infos[0], id: 5010, title: '新通知' })),
+      deleteInfoGroup: vi.fn().mockReturnValue(of(void 0)),
     };
 
     studentManagement = {
@@ -167,6 +170,32 @@ describe('InfoManagementComponent', () => {
 
     expect(taskCenter.createInfo).not.toHaveBeenCalled();
     expect(component.createInfoError).toContain('请至少选择');
+  });
+
+  it('openEditPanel should restore existing notification recipients', () => {
+    const info = component.infos[0];
+
+    component.openEditPanel(info);
+
+    expect(component.selectedCreateStudentCount).toBe(1);
+    expect(component.selectedCreateStudentSummaryCount).toBe(1);
+    expect(component.selectedCreateStudentOptions.map((student) => student.studentId)).toEqual([
+      20001,
+    ]);
+  });
+
+  it('confirmDeleteInfoGroup should require double confirmation and delete by taskGroupId', () => {
+    const info = component.infos[0];
+
+    component.openDeleteConfirmation(info);
+    component.confirmDeleteInfoGroup();
+
+    expect(component.deleteConfirmArmed).toBe(true);
+    expect(taskCenter.deleteInfoGroup).not.toHaveBeenCalled();
+
+    component.confirmDeleteInfoGroup();
+
+    expect(taskCenter.deleteInfoGroup).toHaveBeenCalledWith('INFO-5001');
   });
 
   it('createInfo should send selected studentIds', () => {

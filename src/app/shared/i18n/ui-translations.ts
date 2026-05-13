@@ -58,6 +58,7 @@ const CORE_UI_TRANSLATIONS: readonly TranslationEntry[] = [
   { zh: '学生管理', en: 'Student Management' },
   { zh: '学生账号管理', en: 'Student Account Management' },
   { zh: '学生档案', en: 'Student Profile' },
+  { zh: '大学目标管理', en: 'University Goal Management' },
   { zh: '课程规划', en: 'Course Plan' },
   { zh: '语言成绩跟踪', en: 'Language Score Tracking' },
   { zh: 'OSSLT 跟踪', en: 'OSSLT Tracking' },

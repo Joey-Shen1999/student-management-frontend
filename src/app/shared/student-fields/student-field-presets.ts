@@ -6,7 +6,8 @@ export type StudentManagementPageContext =
   | 'ielts'
   | 'osslt'
   | 'volunteer'
-  | 'extracurricular';
+  | 'extracurricular'
+  | 'universityGoals';
 
 export type StudentListColumnKey =
   | 'name'
@@ -50,7 +51,6 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
-  'universityGoals',
   'documents',
   'resetPassword',
   'archive',
@@ -64,6 +64,16 @@ export const EXTRACURRICULAR_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'city',
   'teacherNote',
   'extracurricular',
+];
+
+export const UNIVERSITY_GOALS_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
+  'name',
+  'graduation',
+  'teacherNote',
+  'universityGoals',
+  'ielts',
+  'ossltTracking',
+  'volunteerTracking',
 ];
 
 export const LANGUAGE_SCORE_TRACKING_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
@@ -117,6 +127,7 @@ export const STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   osslt: OSSLT_TRACKING_DEFAULT_COLUMN_KEYS,
   volunteer: VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS,
   extracurricular: EXTRACURRICULAR_MANAGEMENT_DEFAULT_COLUMN_KEYS,
+  universityGoals: UNIVERSITY_GOALS_MANAGEMENT_DEFAULT_COLUMN_KEYS,
 };
 
 export type StudentSelectorContext = 'goal-create' | 'info-create';

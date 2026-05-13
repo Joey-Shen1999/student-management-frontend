@@ -161,7 +161,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate([this.teacherMode ? '/teacher/students' : '/dashboard']);
+    this.router.navigate([this.teacherMode ? '/teacher/university-goals' : '/dashboard']);
   }
 
   openModal(): void {
