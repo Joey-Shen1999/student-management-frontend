@@ -233,6 +233,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'university-goals',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
         path: 'service-progress',
         loadComponent: () =>
           import('./pages/teacher-service-progress/teacher-service-progress.component').then(

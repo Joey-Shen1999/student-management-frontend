@@ -37,6 +37,7 @@ import {
   CoursePlanStatus,
 } from '../../services/course-plan.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import { UniversityAspirationService } from '../../services/university-aspiration.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
   IeltsRecordFormValue,
@@ -192,6 +193,7 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
   osslt: 'osslt-tracking.list-columns',
   volunteer: 'volunteer-tracking.list-columns',
   extracurricular: 'extracurricular-management.list-columns',
+  universityGoals: 'university-goals-management.list-columns',
 };
 
 const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
@@ -201,6 +203,7 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   osslt: 'OSSLT \u8ddf\u8e2a',
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
+  universityGoals: '\u5927\u5b66\u76ee\u6807\u7ba1\u7406',
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
@@ -1008,7 +1011,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                       style="min-width:86px;white-space:nowrap;"
                       [disabled]="!resolveStudentId(student)"
                     >
-                      大学目标
+                      {{ resolveUniversityGoalsButtonLabel(student) }}
                     </button>
                   </ng-container>
 
@@ -1774,6 +1777,8 @@ export class StudentManagementComponent implements OnInit {
   private readonly coursePlanCoursesCache = new Map<number, StudentCoursePlanCourseSummary[]>();
   private readonly coursePlanLoadInFlight = new Set<number>();
   private readonly coursePlanUnavailable = new Set<number>();
+  private readonly universityGoalsCountCache = new Map<number, number>();
+  private readonly universityGoalsCountLoadInFlight = new Set<number>();
   private readonly serviceItemsSaveInFlight = new Set<number>();
   private readonly studentProfileCache = new Map<
     number,
@@ -1794,6 +1799,7 @@ export class StudentManagementComponent implements OnInit {
     private ossltApi: OssltTrackingService,
     private volunteerApi: VolunteerTrackingService,
     private coursePlanApi: CoursePlanService,
+    private universityAspirationApi: UniversityAspirationService,
     private teacherPreferenceApi: TeacherPreferenceService,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
@@ -2806,6 +2812,23 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'university-goals'];
   }
 
+  resolveUniversityGoalsButtonLabel(student: StudentAccount): string {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) return '大学目标';
+
+    this.ensureUniversityGoalsCountLoaded(student);
+
+    if (this.universityGoalsCountCache.has(studentId)) {
+      return `大学目标（${this.universityGoalsCountCache.get(studentId) ?? 0}）`;
+    }
+
+    if (this.universityGoalsCountLoadInFlight.has(studentId)) {
+      return '大学目标（...）';
+    }
+
+    return '大学目标';
+  }
+
   studentDocumentsRoute(_student: StudentAccount): string[] {
     return ['/student/documents'];
   }
@@ -3643,6 +3666,8 @@ export class StudentManagementComponent implements OnInit {
     this.coursePlanCoursesCache.clear();
     this.coursePlanLoadInFlight.clear();
     this.coursePlanUnavailable.clear();
+    this.universityGoalsCountCache.clear();
+    this.universityGoalsCountLoadInFlight.clear();
     this.volunteerCompletedFilterAvailable = true;
     this.volunteerCompletedFilterError = '';
     this.cdr.detectChanges();
@@ -4245,6 +4270,10 @@ export class StudentManagementComponent implements OnInit {
       this.prefetchVisibleServiceItems();
       this.cdr.detectChanges();
     }
+    if (columnKey === 'universityGoals' && checked) {
+      this.prefetchVisibleUniversityGoalCounts();
+      this.cdr.detectChanges();
+    }
 
     if ((columnKey === 'ielts' || columnKey === 'languageTracking') && checked) {
       this.prefetchVisibleIeltsStatuses();
@@ -4274,6 +4303,10 @@ export class StudentManagementComponent implements OnInit {
     }
     if (this.visibleColumnKeys.has('serviceItems')) {
       this.prefetchVisibleServiceItems();
+      this.cdr.detectChanges();
+    }
+    if (this.visibleColumnKeys.has('universityGoals')) {
+      this.prefetchVisibleUniversityGoalCounts();
       this.cdr.detectChanges();
     }
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
@@ -4572,6 +4605,14 @@ export class StudentManagementComponent implements OnInit {
     if (url.includes('context=extracurricular') || url.includes('view=extracurricular')) {
       return 'extracurricular';
     }
+    if (
+      url.includes('context=university-goals') ||
+      url.includes('view=university-goals') ||
+      url.includes('context=universitygoals') ||
+      url.includes('view=universitygoals')
+    ) {
+      return 'universityGoals';
+    }
     if (url.startsWith('/teacher/ielts')) {
       return 'ielts';
     }
@@ -4586,6 +4627,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (url.startsWith('/teacher/extracurricular')) {
       return 'extracurricular';
+    }
+    if (url.startsWith('/teacher/university-goals')) {
+      return 'universityGoals';
     }
     return 'students';
   }
@@ -4800,6 +4844,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (this.visibleColumnKeys.has('serviceItems')) {
       this.prefetchVisibleServiceItems();
+    }
+    if (this.visibleColumnKeys.has('universityGoals')) {
+      this.prefetchVisibleUniversityGoalCounts();
     }
     if (this.visibleColumnKeys.has('ielts') || this.visibleColumnKeys.has('languageTracking')) {
       this.prefetchVisibleIeltsStatuses();
@@ -6287,6 +6334,42 @@ export class StudentManagementComponent implements OnInit {
 
   private prefetchVisibleVolunteerHours(): void {
     this.prefetchVolunteerHoursForStudents(this.visibleStudents);
+  }
+
+  private prefetchVisibleUniversityGoalCounts(): void {
+    for (const student of this.visibleStudents) {
+      this.ensureUniversityGoalsCountLoaded(student);
+    }
+  }
+
+  private ensureUniversityGoalsCountLoaded(student: StudentAccount): void {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) return;
+    if (
+      this.universityGoalsCountCache.has(studentId) ||
+      this.universityGoalsCountLoadInFlight.has(studentId)
+    ) {
+      return;
+    }
+
+    this.universityGoalsCountLoadInFlight.add(studentId);
+    this.universityAspirationApi
+      .listAspirations(studentId)
+      .pipe(
+        finalize(() => {
+          this.universityGoalsCountLoadInFlight.delete(studentId);
+        })
+      )
+      .subscribe({
+        next: (rows) => {
+          this.universityGoalsCountCache.set(studentId, Array.isArray(rows) ? rows.length : 0);
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.universityGoalsCountCache.delete(studentId);
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private prefetchCoursePlansForStudents(

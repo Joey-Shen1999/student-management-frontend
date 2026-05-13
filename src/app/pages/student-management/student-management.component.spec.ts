@@ -13,6 +13,7 @@ import { OssltTrackingService } from '../../services/osslt-tracking.service';
 import { VolunteerTrackingService } from '../../services/volunteer-tracking.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { CoursePlanService } from '../../services/course-plan.service';
+import { UniversityAspirationService } from '../../services/university-aspiration.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -37,6 +38,7 @@ describe('StudentManagementComponent', () => {
     'getTeacherStudentVolunteerTracking' | 'getTeacherStudentsVolunteerBatchSummary'
   >;
   let coursePlanApi: Pick<CoursePlanService, 'getTeacherStudentCoursePlan'>;
+  let universityAspirationApi: Pick<UniversityAspirationService, 'listAspirations'>;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -134,6 +136,9 @@ describe('StudentManagementComponent', () => {
         })
       ),
     };
+    universityAspirationApi = {
+      listAspirations: vi.fn().mockReturnValue(of([])),
+    };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
       upsertPagePreference: vi.fn().mockReturnValue(of({})),
@@ -149,6 +154,7 @@ describe('StudentManagementComponent', () => {
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
       coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
       preferenceApi as TeacherPreferenceService
     );
   });
@@ -1589,6 +1595,7 @@ describe('StudentManagementComponent', () => {
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
       coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
       preferenceApi as TeacherPreferenceService
     );
     const storageKey = (local as any).resolveListControlsStorageKey();
@@ -1660,6 +1667,7 @@ describe('StudentManagementComponent', () => {
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
       coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1699,6 +1707,7 @@ describe('StudentManagementComponent', () => {
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
       coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
       preferenceApi as TeacherPreferenceService
     );
 
@@ -1730,6 +1739,7 @@ describe('StudentManagementComponent', () => {
       ossltApi as OssltTrackingService,
       volunteerApi as VolunteerTrackingService,
       coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
       preferenceApi as TeacherPreferenceService
     );
     second.ngOnInit();
@@ -1808,10 +1818,34 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
-        'universityGoals',
         'documents',
         'resetPassword',
         'archive',
+      ].sort()
+    );
+  });
+
+  it('page title should be university goal management on /teacher/university-goals', () => {
+    router.url = '/teacher/university-goals';
+    expect(component.pageTitle).toBe('大学目标管理');
+  });
+
+  it('default columns on /teacher/university-goals should match university goal management defaults', () => {
+    router.url = '/teacher/university-goals';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'graduation',
+        'teacherNote',
+        'universityGoals',
+        'ielts',
+        'ossltTracking',
+        'volunteerTracking',
       ].sort()
     );
   });

@@ -114,11 +114,12 @@ jobs:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_FRONTEND_URL: ${{ vars.PROD_FRONTEND_URL || 'https://globalvip-studentportal.ca/' }}
         run: |
           set -euo pipefail
           ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
             "sudo nginx -t && sudo systemctl reload nginx"
-          curl -fsS --retry 10 --retry-delay 3 "http://${PROD_HOST}/" >/dev/null
+          curl -fsS --retry 10 --retry-all-errors --retry-delay 3 "${PROD_FRONTEND_URL}" >/dev/null
 
       - name: Cleanup SSH key
         if: always()

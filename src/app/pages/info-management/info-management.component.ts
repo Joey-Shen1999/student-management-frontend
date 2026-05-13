@@ -234,6 +234,7 @@ export class InfoManagementComponent implements OnInit {
   infoFilterKeyword = '';
 
   createPanelExpanded = false;
+  studentSelectorModalOpen = false;
   createInfoCategory: InfoTaskCategory = 'ACTIVITY';
   createInfoTitle = '';
   createInfoContent = '';
@@ -244,6 +245,16 @@ export class InfoManagementComponent implements OnInit {
   volunteerTasks: VolunteerTaskDraft[] = [this.createEmptyVolunteerTask()];
   editingInfoId: number | null = null;
   editingInfoTaskGroupId: string | null = null;
+  editingTargetStudentCount = 0;
+  deleteConfirmOpen = false;
+  deleteConfirmArmed = false;
+  deletingInfoGroup = false;
+  deleteInfoError = '';
+  deleteTargetTaskGroupId = '';
+  deleteTargetTitle = '';
+  deleteTargetStudentCount = 0;
+  private deleteInfoWatchdog: number | null = null;
+  private deleteInfoRequestSeq = 0;
 
   private infosLoadWatchdog: number | null = null;
   private readonly infoTaskGroupIdByInfoId = new Map<number, string>();
@@ -308,6 +319,10 @@ export class InfoManagementComponent implements OnInit {
     return this.selectedCreateStudentIds.size;
   }
 
+  get selectedCreateStudentSummaryCount(): number {
+    return this.selectedCreateStudentCount || this.editingTargetStudentCount;
+  }
+
   get visibleCreateStudentColumns(): readonly GoalStudentSelectorColumnConfig[] {
     return this.getOrderedCreateStudentColumns().filter((column) =>
       this.visibleCreateStudentColumnKeys.has(column.key)
@@ -338,6 +353,27 @@ export class InfoManagementComponent implements OnInit {
     return this.editingInfoId !== null && !!this.editingInfoTaskGroupId;
   }
 
+  get workspaceTitle(): string {
+    if (this.isEditMode) {
+      return this.createInfoTitle.trim() || '未命名通知';
+    }
+    return '新建通知';
+  }
+
+  get saveStatusLabel(): string {
+    if (this.creatingInfo) return '保存中...';
+    return this.isEditMode ? '编辑中' : '准备发布';
+  }
+
+  get saveStatusClass(): string {
+    return `save-pill ${this.creatingInfo ? 'saving' : 'saved'}`;
+  }
+
+  get primarySaveLabel(): string {
+    if (this.creatingInfo) return '保存中...';
+    return this.isEditMode ? '更新通知' : '发布通知';
+  }
+
   get showVolunteerCollection(): boolean {
     return this.createInfoCategory === 'VOLUNTEER';
   }
@@ -357,6 +393,22 @@ export class InfoManagementComponent implements OnInit {
     return this.formatVolunteerHours(this.volunteerTotalDurationHours);
   }
 
+  selectedCountText(count: number): string {
+    return `已选择 ${count} 位`;
+  }
+
+  selectedStudentCountText(count: number): string {
+    return `${count} 位学生`;
+  }
+
+  moreStudentsText(count: number): string {
+    return `另有 ${count} 位`;
+  }
+
+  selectedStudentLabel(student: AssignableStudentOptionVm): string {
+    return student.studentName || `学生 #${student.studentId}`;
+  }
+
   goDashboard(): void {
     this.router.navigate(['/teacher/dashboard']);
   }
@@ -365,8 +417,10 @@ export class InfoManagementComponent implements OnInit {
     if (this.creatingInfo) return;
     this.editingInfoId = null;
     this.editingInfoTaskGroupId = null;
+    this.editingTargetStudentCount = 0;
     this.resetCreateInfoForm();
     this.createPanelExpanded = true;
+    this.studentSelectorModalOpen = false;
   }
 
   openEditPanel(info: InfoTaskVm): void {
@@ -382,15 +436,17 @@ export class InfoManagementComponent implements OnInit {
 
     this.editingInfoId = info.id;
     this.editingInfoTaskGroupId = taskGroupId;
+    this.editingTargetStudentCount = Math.max(0, Math.trunc(Number(info.targetStudentCount) || 0));
     this.createPanelExpanded = true;
-    this.studentPanelExpanded = true;
+    this.studentSelectorModalOpen = false;
+    this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
     this.onCreateInfoCategoryChange(info.category);
     this.createInfoTitle = info.title;
     this.hydrateVolunteerTasksFromContent(info.content);
     this.createInfoTags = (info.tags || []).join(',');
-    const selectedIds = this.resolveInfoRecipientStudentIds(info.id);
+    const selectedIds = this.resolveInfoRecipientStudentIds(info);
     this.selectedCreateStudentIds = new Set<number>(selectedIds);
     this.createInfoError =
       selectedIds.length > 0 ? '' : '请重新选择通知接收学生，然后保存。';
@@ -401,15 +457,35 @@ export class InfoManagementComponent implements OnInit {
   closeCreatePanel(): void {
     if (this.creatingInfo) return;
     this.createPanelExpanded = false;
+    this.studentSelectorModalOpen = false;
     this.studentPanelExpanded = false;
     this.studentFilterExpanded = false;
     this.createStudentColumnPanelExpanded = false;
     this.editingInfoId = null;
     this.editingInfoTaskGroupId = null;
+    this.editingTargetStudentCount = 0;
   }
 
   onCreatePanelBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closeCreatePanel();
+  }
+
+  openStudentSelectorModal(): void {
+    if (this.creatingInfo) return;
+    this.studentSelectorModalOpen = true;
+    this.studentPanelExpanded = true;
+    this.cdr.detectChanges();
+  }
+
+  closeStudentSelectorModal(): void {
+    this.studentSelectorModalOpen = false;
+    this.studentFilterExpanded = false;
+    this.createStudentColumnPanelExpanded = false;
+    this.cdr.detectChanges();
+  }
+
+  onStudentSelectorBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) this.closeStudentSelectorModal();
   }
 
   toggleStudentPanel(): void {
@@ -1198,7 +1274,7 @@ export class InfoManagementComponent implements OnInit {
       .filter((studentId) => this.isCreateStudentSelectable(studentId))
       .sort((a, b) => a - b);
     if (selectedStudentIds.length === 0) {
-      this.studentPanelExpanded = true;
+      this.openStudentSelectorModal();
       this.createInfoError = '请至少选择 1 位学生。';
       this.createInfoSuccess = '';
       return;
@@ -1335,6 +1411,119 @@ export class InfoManagementComponent implements OnInit {
     return this.canEditInfo(info) ? '' : '该通知缺少 taskGroupId，暂不支持覆盖编辑。';
   }
 
+  canDeleteInfo(info: InfoTaskVm): boolean {
+    return !!this.resolveInfoTaskGroupId(info);
+  }
+
+  infoDeleteDisabledReason(info: InfoTaskVm): string {
+    return this.canDeleteInfo(info) ? '' : '该通知缺少 taskGroupId，暂不支持删除。';
+  }
+
+  openDeleteConfirmation(info: InfoTaskVm): void {
+    if (this.deletingInfoGroup) return;
+    const taskGroupId = this.resolveInfoTaskGroupId(info);
+    if (!taskGroupId) {
+      this.deleteInfoError = '该通知缺少 taskGroupId，暂不支持删除。';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.deleteTargetTaskGroupId = taskGroupId;
+    this.deleteTargetTitle = info.title || '未命名通知';
+    this.deleteTargetStudentCount = Math.max(0, Math.trunc(Number(info.targetStudentCount) || 0));
+    this.deleteInfoError = '';
+    this.deleteConfirmArmed = false;
+    this.deleteConfirmOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  closeDeleteConfirmation(force = false): void {
+    if (this.deletingInfoGroup && !force) return;
+    this.clearDeleteInfoWatchdog();
+    this.deleteConfirmOpen = false;
+    this.deleteConfirmArmed = false;
+    this.deleteInfoError = '';
+    this.deleteTargetTaskGroupId = '';
+    this.deleteTargetTitle = '';
+    this.deleteTargetStudentCount = 0;
+    this.cdr.detectChanges();
+  }
+
+  confirmDeleteInfoGroup(): void {
+    if (this.deletingInfoGroup) return;
+    const taskGroupId = this.normalizeTaskGroupId(this.deleteTargetTaskGroupId);
+    if (!taskGroupId) {
+      this.deleteInfoError = '该通知缺少 taskGroupId，无法删除。';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    if (!this.deleteConfirmArmed) {
+      this.deleteConfirmArmed = true;
+      this.deleteInfoError = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.deletingInfoGroup = true;
+    const requestSeq = ++this.deleteInfoRequestSeq;
+    this.deleteInfoError = '';
+    this.startDeleteInfoWatchdog(requestSeq);
+    this.cdr.detectChanges();
+
+    this.taskCenter
+      .deleteInfoGroup(taskGroupId)
+      .pipe(
+        finalize(() => {
+          this.clearDeleteInfoWatchdog();
+          this.deletingInfoGroup = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          const wasEditingDeletedGroup = this.normalizeTaskGroupId(this.editingInfoTaskGroupId) === taskGroupId;
+          this.infoTaskGroupIdByInfoId.forEach((mappedTaskGroupId, infoId) => {
+            if (this.normalizeTaskGroupId(mappedTaskGroupId) === taskGroupId) {
+              this.infoTaskGroupIdByInfoId.delete(infoId);
+              this.selectedStudentIdsByInfoId.delete(infoId);
+            }
+          });
+          this.infos = this.infos.filter(
+            (info) => this.normalizeTaskGroupId(this.resolveInfoTaskGroupId(info)) !== taskGroupId
+          );
+          this.closeDeleteConfirmation(true);
+          if (wasEditingDeletedGroup) {
+            this.closeCreatePanel();
+          }
+          this.loadInfos();
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.clearDeleteInfoWatchdog();
+          this.deletingInfoGroup = false;
+          this.deleteInfoError = this.extractErrorMessage(error) || '删除通知失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private startDeleteInfoWatchdog(requestSeq: number): void {
+    this.clearDeleteInfoWatchdog();
+    this.deleteInfoWatchdog = window.setTimeout(() => {
+      if (!this.deletingInfoGroup || requestSeq !== this.deleteInfoRequestSeq) return;
+      this.deletingInfoGroup = false;
+      this.deleteInfoError = '删除请求超时，请确认后端已更新并稍后重试。';
+      this.cdr.detectChanges();
+    }, 15000);
+  }
+
+  private clearDeleteInfoWatchdog(): void {
+    if (this.deleteInfoWatchdog === null) return;
+    window.clearTimeout(this.deleteInfoWatchdog);
+    this.deleteInfoWatchdog = null;
+  }
+
   infoCategoryLabel(category: InfoTaskCategory): string {
     return category === 'VOLUNTEER' ? '义工' : '活动';
   }
@@ -1417,12 +1606,17 @@ export class InfoManagementComponent implements OnInit {
               this.normalizeTaskGroupId(info.taskGroupId) ||
               this.infoTaskGroupIdByInfoId.get(info.id) ||
               null;
+            const recipientStudentIds = this.normalizeStudentIdList(info.recipientStudentIds);
             if (taskGroupId) {
               this.infoTaskGroupIdByInfoId.set(info.id, taskGroupId);
+            }
+            if (recipientStudentIds.length > 0 && taskGroupId) {
+              this.rememberInfoMappings(info.id, taskGroupId, recipientStudentIds);
             }
             return {
               ...info,
               taskGroupId,
+              recipientStudentIds,
             };
           });
           this.cdr.detectChanges();
@@ -3044,11 +3238,12 @@ export class InfoManagementComponent implements OnInit {
     return this.infoTaskGroupIdByInfoId.get(Math.trunc(infoId)) || '';
   }
 
-  private resolveInfoRecipientStudentIds(infoId: number): number[] {
-    const ids = this.selectedStudentIdsByInfoId.get(infoId) || [];
-    return ids
-      .map((studentId) => Math.trunc(Number(studentId)))
-      .filter((studentId) => Number.isFinite(studentId) && studentId > 0);
+  private resolveInfoRecipientStudentIds(info: InfoTaskVm): number[] {
+    const fromRow = this.normalizeStudentIdList(info.recipientStudentIds);
+    if (fromRow.length > 0) {
+      return fromRow;
+    }
+    return this.normalizeStudentIdList(this.selectedStudentIdsByInfoId.get(info.id) || []);
   }
 
   private rememberInfoMappings(infoId: number, taskGroupId: string, studentIds: number[]): void {
@@ -3066,6 +3261,19 @@ export class InfoManagementComponent implements OnInit {
     );
     this.infoTaskGroupIdByInfoId.set(normalizedInfoId, normalizedTaskGroupId);
     this.selectedStudentIdsByInfoId.set(normalizedInfoId, normalizedStudentIds);
+  }
+
+  private normalizeStudentIdList(values: unknown): number[] {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        values
+          .map((studentId) => Math.trunc(Number(studentId)))
+          .filter((studentId) => Number.isFinite(studentId) && studentId > 0)
+      )
+    );
   }
 
   private generateInfoTaskGroupId(): string {

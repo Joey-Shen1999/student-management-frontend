@@ -192,6 +192,7 @@ export interface InfoTaskVm {
   tags: string[];
   goalId?: number | null;
   taskGroupId?: string | null;
+  recipientStudentIds?: number[];
   targetStudentCount: number;
   publishedByTeacherId: number;
   publishedByTeacherName: string;
@@ -481,6 +482,24 @@ export class TaskCenterService {
     return this.withRequestTimeout(
       this.http.delete<void>(
         `${this.teacherBaseUrl}/goal-groups/${encodeURIComponent(normalizedTaskGroupId)}`,
+        this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  deleteInfoGroup(taskGroupId: string): Observable<void> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    if (this.useMock || this.useMockInfo) {
+      return this.deleteInfoGroupFromMock(normalizedTaskGroupId);
+    }
+
+    return this.withRequestTimeout(
+      this.http.delete<void>(
+        `${this.teacherBaseUrl}/info-groups/${encodeURIComponent(normalizedTaskGroupId)}`,
         this.withAuthHeaderIfAvailable()
       )
     );
@@ -1441,6 +1460,34 @@ export class TaskCenterService {
     this.mockInfos$.next(nextRows);
 
     return of({ ...nextInfo, tags: [...nextInfo.tags] }).pipe(delay(120));
+  }
+
+  private deleteInfoGroupFromMock(taskGroupId: string): Observable<void> {
+    const normalizedTaskGroupId = this.normalizeTaskGroupId(taskGroupId);
+    if (!normalizedTaskGroupId) {
+      return throwError(() => new Error('taskGroupId is required.'));
+    }
+
+    const rows = this.mockInfos$.value;
+    const targetRows = rows.filter(
+      (info) => this.normalizeTaskGroupId(info.taskGroupId) === normalizedTaskGroupId
+    );
+    if (targetRows.length === 0) {
+      return throwError(() => new Error('Info task group not found.'));
+    }
+
+    const scopedTeacherId = this.resolveTeacherScopeTeacherId(true);
+    if (
+      scopedTeacherId !== null &&
+      targetRows.some((info) => info.publishedByTeacherId !== scopedTeacherId)
+    ) {
+      return throwError(() => new Error('Permission denied for this info task group.'));
+    }
+
+    this.mockInfos$.next(
+      rows.filter((info) => this.normalizeTaskGroupId(info.taskGroupId) !== normalizedTaskGroupId)
+    );
+    return of(void 0).pipe(delay(120));
   }
 
   private markMyInfoAsReadFromMock(infoId: number): Observable<InfoTaskVm> {
