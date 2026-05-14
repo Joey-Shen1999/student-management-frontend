@@ -639,7 +639,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent],
   template: `
-    <div style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
+    <div class="student-management-page" style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">{{ resolvedPageTitle }}</h2>
         <button type="button" routerLink="/teacher/dashboard" class="student-back-btn" style="margin-left:auto;">
@@ -704,7 +704,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           background:#fafbfe;
         "
       >
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;">
+        <div style="order:1;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:0 0 auto;">
           <button
             type="button"
             (click)="toggleFilterPanel()"
@@ -718,7 +718,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
 
         <div
           *ngIf="isFilterPanelExpanded"
-          style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;"
+          style="order:3;display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;padding-top:2px;"
         >
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
             {{ showInactive ? '隐藏已' : '显示已' }}
@@ -980,7 +980,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           </button>
         </div>
 
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
+        <div style="order:2;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
           <span style="color:#666;font-size:13px;white-space:nowrap;">
             显示：{{ visibleStudents.length }} / 筛选后：{{ filteredCount }}
           </span>
@@ -1016,7 +1016,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         </div>
         <div
           *ngIf="isColumnPanelExpanded"
-          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;padding-top:4px;border-top:1px dashed #d9dfea;"
+          style="order:4;display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%;padding-top:4px;border-top:1px dashed #d9dfea;"
         >
           <label
             *ngFor="let column of columnToggleOptions; trackBy: trackColumn"
@@ -1700,6 +1700,47 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         font-size: 13px;
         line-height: 1.2;
         box-sizing: border-box;
+      }
+
+      .student-management-page button {
+        -webkit-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        border: 1px solid #c8d2e0;
+        border-radius: 6px;
+        padding: 6px 12px;
+        background: #ffffff;
+        color: #1f2f47;
+        font: inherit;
+        font-size: 13px;
+        line-height: 1.2;
+        white-space: nowrap;
+        vertical-align: middle;
+      }
+
+      .student-management-page button:not(:disabled) {
+        cursor: pointer;
+      }
+
+      .student-management-page button:disabled {
+        cursor: not-allowed;
+        opacity: 0.62;
+      }
+
+      .student-management-page input,
+      .student-management-page select,
+      .student-management-page textarea {
+        box-sizing: border-box;
+        font: inherit;
+      }
+
+      .student-management-page select {
+        min-height: 32px;
+        line-height: 1.2;
       }
 
       .student-list-table-wrap {
