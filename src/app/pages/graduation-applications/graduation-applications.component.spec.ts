@@ -32,6 +32,7 @@ describe('GraduationApplicationsComponent', () => {
             ? throwError(() => options.listError)
             : of(options?.applications ?? [createApplication(1, 'University A', 'Program A', 1)])
         ),
+      listHistory: vi.fn().mockReturnValue(of({ items: [], total: 0, page: 0, size: 20 })),
       updateApplication: vi.fn().mockReturnValue(
         of({
           ...createApplication(1, 'University A', 'Program A', 1),
@@ -80,6 +81,40 @@ describe('GraduationApplicationsComponent', () => {
     expect(component.studentId).toBe(0);
     expect(component.error).toContain('缺少学生 ID');
     expect(graduationStage.listApplications).not.toHaveBeenCalled();
+  });
+
+  it('loads operation history for the teacher application page', () => {
+    const { component, graduationStage } = createComponent({
+      routeStudentId: '101',
+    });
+    vi.mocked(graduationStage.listHistory).mockReturnValue(
+      of({
+        items: [
+          {
+            id: 7,
+            studentId: 101,
+            applicationId: 1,
+            operation: 'UPDATE_APPLICATION',
+            actorRole: 'TEACHER',
+            actorName: 'Teacher A',
+            changedAt: '2026-05-14T12:00:00',
+            changedFields: [{ path: 'status', before: 'PREPARING', after: 'SUBMITTED' }],
+          },
+        ],
+        total: 1,
+        page: 0,
+        size: 20,
+      })
+    );
+
+    component.ngOnInit();
+    component.openHistory();
+
+    expect(graduationStage.listHistory).toHaveBeenCalledWith(101, { size: 20 });
+    expect(component.historyPanelOpen).toBe(true);
+    expect(component.historyEntries).toHaveLength(1);
+    expect(component.displayHistoryOperation(component.historyEntries[0])).toBe('修改申请');
+    expect(component.displayHistoryField(component.historyEntries[0].changedFields![0])).toBe('申请进度');
   });
 
   it('updates an application status', () => {

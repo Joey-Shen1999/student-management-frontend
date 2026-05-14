@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -66,6 +66,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
+    private location: Location,
     private aspirationApi: UniversityAspirationService,
     public graduationStage: GraduationApplicationStageService,
     private cdr: ChangeDetectorRef
@@ -132,7 +133,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/teacher/students']);
+    this.location.back();
   }
 
   loadDrafts(): void {

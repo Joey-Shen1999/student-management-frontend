@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, of, tap } from 'rxjs';
 
@@ -38,6 +38,32 @@ export interface GraduationApplicationRequest {
 export interface GraduationApplicationReorderRequest {
   id: number;
   sortOrder: number;
+}
+
+export interface GraduationApplicationHistoryFieldChange {
+  path?: string;
+  label?: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+export interface GraduationApplicationHistoryEntry {
+  id?: number | string;
+  studentId?: number;
+  applicationId?: number;
+  operation?: string;
+  actorUserId?: number;
+  actorRole?: string;
+  actorName?: string;
+  changedAt?: string;
+  changedFields?: GraduationApplicationHistoryFieldChange[];
+}
+
+export interface GraduationApplicationHistoryResponse {
+  items: GraduationApplicationHistoryEntry[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -185,6 +211,29 @@ export class GraduationApplicationStageService {
         this.withAuthHeaderIfAvailable()
       )
       .pipe(tap((rows) => this.cacheApplications(id, rows || [])));
+  }
+
+  listHistory(
+    studentId: number | null | undefined,
+    query: { page?: number; size?: number } = {}
+  ): Observable<GraduationApplicationHistoryResponse> {
+    const id = this.normalizeStudentId(studentId);
+    const rawPage = Math.trunc(Number(query.page ?? 0));
+    const rawSize = Math.trunc(Number(query.size ?? 20));
+    const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
+    const size = Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 20;
+    if (id <= 0 || !this.http) {
+      return of({ items: [], total: 0, page, size });
+    }
+
+    const params = new HttpParams()
+      .set('page', String(page))
+      .set('size', String(size));
+
+    return this.http.get<GraduationApplicationHistoryResponse>(
+      `${this.studentUrl}/${id}/graduation-applications/history`,
+      { ...this.withAuthHeaderIfAvailable(), params }
+    );
   }
 
   createFromAspiration(

@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, vi } from 'vitest';
@@ -26,6 +27,9 @@ describe('GraduationApplicationSetupComponent', () => {
     const router = {
       navigate: vi.fn(),
     } as unknown as Router;
+    const location = {
+      back: vi.fn(),
+    } as unknown as Location;
     const aspirationApi = {
       listUniversities: vi.fn().mockReturnValue(of([])),
       listPrograms: vi.fn().mockReturnValue(of([])),
@@ -44,12 +48,13 @@ describe('GraduationApplicationSetupComponent', () => {
     const component = new GraduationApplicationSetupComponent(
       route,
       router,
+      location,
       aspirationApi,
       graduationStage,
       cdr as any
     );
     component.studentId = 101;
-    return { component, aspirationApi, graduationStage, router };
+    return { component, aspirationApi, graduationStage, router, location };
   }
 
   it('falls back to university goals when loading applications stalls', () => {
@@ -69,6 +74,14 @@ describe('GraduationApplicationSetupComponent', () => {
     expect(component.loading).toBe(false);
     expect(component.loadingMessage).toBe('');
     expect(component.message).toBe('暂无大学目标');
+  });
+
+  it('goes back to the previous page from the confirmation page', () => {
+    const { component, location } = createComponent();
+
+    component.goBack();
+
+    expect(location.back).toHaveBeenCalledTimes(1);
   });
 
   it('clears the loading state when both backend reads stall', () => {
