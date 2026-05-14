@@ -7,7 +7,8 @@ export type StudentManagementPageContext =
   | 'osslt'
   | 'volunteer'
   | 'extracurricular'
-  | 'universityGoals';
+  | 'universityGoals'
+  | 'graduationApplications';
 
 export type StudentListColumnKey =
   | 'name'
@@ -28,6 +29,7 @@ export type StudentListColumnKey =
   | 'teacherNote'
   | 'profile'
   | 'universityGoals'
+  | 'graduationStage'
   | 'extracurricular'
   | 'documents'
   | 'coursePlan'
@@ -51,6 +53,7 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
+  'graduationStage',
   'documents',
   'resetPassword',
   'archive',
@@ -70,6 +73,18 @@ export const UNIVERSITY_GOALS_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLi
   'name',
   'graduation',
   'teacherNote',
+  'universityGoals',
+  'graduationStage',
+  'ielts',
+  'ossltTracking',
+  'volunteerTracking',
+];
+
+export const GRADUATION_APPLICATIONS_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
+  'name',
+  'graduation',
+  'teacherNote',
+  'graduationStage',
   'universityGoals',
   'ielts',
   'ossltTracking',
@@ -128,6 +143,7 @@ export const STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT: Record<
   volunteer: VOLUNTEER_TRACKING_DEFAULT_COLUMN_KEYS,
   extracurricular: EXTRACURRICULAR_MANAGEMENT_DEFAULT_COLUMN_KEYS,
   universityGoals: UNIVERSITY_GOALS_MANAGEMENT_DEFAULT_COLUMN_KEYS,
+  graduationApplications: GRADUATION_APPLICATIONS_MANAGEMENT_DEFAULT_COLUMN_KEYS,
 };
 
 export type StudentSelectorContext = 'goal-create' | 'info-create';

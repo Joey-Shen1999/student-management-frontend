@@ -42,6 +42,7 @@ import {
   type UniversityAspiration,
   UniversityAspirationService,
 } from '../../services/university-aspiration.service';
+import { GraduationApplicationStageService } from '../../services/graduation-application-stage.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
   IeltsRecordFormValue,
@@ -169,6 +170,7 @@ interface StudentListFilterPreferenceVm {
   universityGoalProgramFilterEnabled?: boolean;
   selectedUniversityGoalUniversityFilters?: string[];
   selectedUniversityGoalProgramFilters?: string[];
+  graduationStageFilter?: string;
 }
 
 interface StudentCoursePlanCourseSummary {
@@ -204,6 +206,7 @@ const STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT: Record<
   volunteer: 'volunteer-tracking.list-columns',
   extracurricular: 'extracurricular-management.list-columns',
   universityGoals: 'university-goals-management.list-columns',
+  graduationApplications: 'graduation-applications-management.list-columns',
 };
 
 const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
@@ -214,6 +217,7 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
   universityGoals: '\u5927\u5b66\u76ee\u6807\u7ba1\u7406',
+  graduationApplications: '\u5347\u5b66\u7ba1\u7406',
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
@@ -235,6 +239,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   teacherNote: '\u8001\u5e08\u5907\u6ce8\uff08\u5b66\u751f\u4e0d\u53ef\u89c1\uff09',
   profile: '\u6863\u6848',
   universityGoals: '\u5927\u5b66\u76ee\u6807',
+  graduationStage: '\u5347\u5b66\u9636\u6bb5',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
   documents: '\u6587\u6863',
   coursePlan: '\u8bfe\u7a0b\u8868',
@@ -472,6 +477,16 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
+    key: 'graduationStage',
+    label: '\u5347\u5b66\u9636\u6bb5',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle:
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:150px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
     key: 'extracurricular',
     label: '\u8bfe\u5916\u6d3b\u52a8',
     defaultVisible: false,
@@ -548,7 +563,7 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     hideable: true,
     backendDependent: true,
     headerStyle:
-      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:220px;',
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:160px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -568,7 +583,7 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     hideable: true,
     backendDependent: false,
     headerStyle:
-      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:180px;',
+      'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;width:130px;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
@@ -761,6 +776,20 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
             (studentKeywordChange)="onSearchKeywordChange($event)"
           ></app-student-filter-fields>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
+            &#21319;&#23398;&#38454;&#27573;
+            <select
+              [(ngModel)]="graduationStageFilter"
+              (ngModelChange)="applyListView()"
+              [disabled]="loadingList"
+              style="padding:4px 6px;min-width:160px;"
+            >
+              <option [ngValue]="''">&#20840;&#37096;</option>
+              <option [ngValue]="'NOT_ENABLED'">&#26410;&#36827;&#20837;&#21319;&#23398;&#38454;&#27573;</option>
+              <option [ngValue]="'ENABLED'">&#24050;&#36827;&#20837;&#21319;&#23398;&#38454;&#27573;</option>
+            </select>
+          </label>
 
           <div
             data-university-goal-filter-root
@@ -1152,6 +1181,21 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     </button>
                   </ng-container>
 
+                  <ng-container *ngSwitchCase="'graduationStage'">
+                    <button
+                      type="button"
+                      [routerLink]="graduationApplicationSetupRoute(student)"
+                      [disabled]="!resolveStudentId(student)"
+                      [attr.title]="isGraduationStageEnabled(student) ? '查看申请' : '升级到升学阶段'"
+                      style="display:inline-flex;align-items:center;justify-content:center;min-width:86px;min-height:26px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent;box-shadow:none;"
+                      [style.background]="isGraduationStageEnabled(student) ? '#e6f5ec' : '#edf1f7'"
+                      [style.color]="isGraduationStageEnabled(student) ? '#1f6b3d' : '#60718a'"
+                      [style.border-color]="isGraduationStageEnabled(student) ? '#b9dfc8' : '#d3dae6'"
+                    >
+                      {{ resolveGraduationStageButtonLabel(student) }}
+                    </button>
+                  </ng-container>
+
                   <ng-container *ngSwitchCase="'extracurricular'">
                     <button
                       type="button"
@@ -1410,7 +1454,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     <select
                       [ngModel]="resolveOssltTrackingStatusSelection(student)"
                       (ngModelChange)="onOssltTrackingStatusSelectionChangePublic(student, $event)"
-                      style="min-width:200px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-weight:600;"
+                      style="width:144px;max-width:144px;padding:6px 8px;border-radius:8px;border:1px solid #ced7ea;background:#fff;font-weight:600;"
                       [style.background]="resolveOssltTrackingStatusBackground(student)"
                       [style.color]="resolveOssltTrackingStatusTextColor(student)"
                       [style.borderColor]="resolveOssltTrackingStatusBorderColor(student)"
@@ -1463,7 +1507,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     <button
                       type="button"
                       [routerLink]="volunteerRoute(student)"
-                      style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
+                      style="min-width:92px;white-space:nowrap;padding:5px 8px;border-radius:999px;border:1px solid;font-weight:600;"
                       [style.background]="resolveVolunteerHoursBackground(student)"
                       [style.color]="resolveVolunteerHoursTextColor(student)"
                       [style.borderColor]="resolveVolunteerHoursBorderColor(student)"
@@ -1897,6 +1941,7 @@ export class StudentManagementComponent implements OnInit {
   courseCodeFilterInput = '';
   courseStatusFilter: CoursePlanStatus | '' = '';
   volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
+  graduationStageFilter: '' | 'ENABLED' | 'NOT_ENABLED' = '';
   universityGoalUniversitySearchInput = '';
   universityGoalProgramSearchInput = '';
   selectedUniversityGoalUniversityFilters: string[] = [];
@@ -1988,6 +2033,7 @@ export class StudentManagementComponent implements OnInit {
     private coursePlanApi: CoursePlanService,
     private universityAspirationApi: UniversityAspirationService,
     private teacherPreferenceApi: TeacherPreferenceService,
+    private graduationStageApi: GraduationApplicationStageService = new GraduationApplicationStageService(),
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
@@ -2147,6 +2193,23 @@ export class StudentManagementComponent implements OnInit {
     return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
   }
 
+  private resolveBooleanValue(...candidates: unknown[]): boolean | null {
+    for (const candidate of candidates) {
+      const parsed = this.parseVolunteerCompletedCandidate(candidate);
+      if (parsed !== null) return parsed;
+    }
+    return null;
+  }
+
+  private resolveNumberValue(...candidates: unknown[]): number | null {
+    for (const candidate of candidates) {
+      if (candidate === null || candidate === undefined) continue;
+      const numeric = Number(candidate);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+    return null;
+  }
+
   resolveStudentEmail(student: StudentAccount): string {
     return this.resolveStudentEmailValue(student) || '-';
   }
@@ -2256,6 +2319,8 @@ export class StudentManagementComponent implements OnInit {
         return this.resolveStudentCity(student);
       case 'coursePlan':
         return '课程表';
+      case 'graduationStage':
+        return this.isGraduationStageEnabled(student) ? '已进入升学阶段' : '未进入升学阶段';
       case 'languageCourseStatus':
         return this.resolveStudentLanguageCourseStatus(student);
       case 'status':
@@ -3098,6 +3163,49 @@ export class StudentManagementComponent implements OnInit {
     return ['/teacher/students', String(studentId), 'university-goals'];
   }
 
+  graduationApplicationSetupRoute(student: StudentAccount): string[] {
+    const studentId = this.resolveStudentId(student);
+    if (!studentId) {
+      return ['/teacher/students'];
+    }
+    if (this.isGraduationStageEnabled(student)) {
+      return ['/teacher/students', String(studentId), 'graduation-applications'];
+    }
+    return ['/teacher/students', String(studentId), 'graduation-applications', 'setup'];
+  }
+
+  isGraduationStageEnabled(student: StudentAccount): boolean {
+    const explicit = this.resolveBooleanValue(
+      student?.['graduationStageEnabled'],
+      student?.['graduation_stage_enabled'],
+      student?.['inGraduationStage'],
+      student?.['in_graduation_stage']
+    );
+    if (explicit !== null) {
+      return explicit;
+    }
+
+    const count = this.resolveNumberValue(
+      student?.['graduationApplicationCount'],
+      student?.['graduation_application_count'],
+      student?.['graduationApplicationsCount'],
+      student?.['graduation_applications_count']
+    );
+    if (count !== null) {
+      return count > 0;
+    }
+
+    return this.graduationStageApi.isStageEnabled(this.resolveStudentId(student));
+  }
+
+  resolveGraduationStageButtonLabel(student: StudentAccount): string {
+    if (!this.isGraduationStageEnabled(student)) {
+      return '未进入';
+    }
+    const count = this.resolveGraduationApplicationCount(student);
+    return count > 0 ? `已进入（${count}）` : '已进入';
+  }
+
   resolveUniversityGoalsButtonLabel(student: StudentAccount): string {
     const studentId = this.resolveStudentId(student);
     if (!studentId) return '大学目标';
@@ -3113,6 +3221,17 @@ export class StudentManagementComponent implements OnInit {
     }
 
     return '大学目标';
+  }
+
+  private resolveGraduationApplicationCount(student: StudentAccount): number {
+    const count = this.resolveNumberValue(
+      student?.['graduationApplicationCount'],
+      student?.['graduation_application_count'],
+      student?.['graduationApplicationsCount'],
+      student?.['graduation_applications_count']
+    );
+    if (count === null || count <= 0) return 0;
+    return Math.trunc(count);
   }
 
   studentDocumentsRoute(_student: StudentAccount): string[] {
@@ -4758,8 +4877,12 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private initializeListControlsFromPreference(): void {
+    const pageContext = this.resolvePageContext();
     const persisted = this.readListControlsPreference();
-    if (!persisted) return;
+    if (!persisted) {
+      this.applyDefaultListControlsForContext(pageContext);
+      return;
+    }
 
     this.listLimit = this.normalizeListLimitPreference(persisted.listLimit);
     this.showInactive = this.normalizePreferenceBoolean(persisted.showInactive);
@@ -4820,6 +4943,16 @@ export class StudentManagementComponent implements OnInit {
     this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(
       persisted.volunteerCompletedFilter
     );
+    this.graduationStageFilter =
+      persisted.graduationStageFilter === 'ENABLED' || persisted.graduationStageFilter === 'NOT_ENABLED'
+        ? persisted.graduationStageFilter
+        : '';
+    if (
+      pageContext === 'graduationApplications' &&
+      persisted.graduationStageFilter === undefined
+    ) {
+      this.graduationStageFilter = 'ENABLED';
+    }
     this.selectedUniversityGoalUniversityFilters = this.normalizeUniversityGoalFilterSelections(
       persisted.selectedUniversityGoalUniversityFilters,
       persisted.universityGoalUniversityFilterEnabled
@@ -4832,6 +4965,12 @@ export class StudentManagementComponent implements OnInit {
         ? [persisted.universityGoalProgramFilterInput]
         : []
     );
+  }
+
+  private applyDefaultListControlsForContext(pageContext: StudentManagementPageContext): void {
+    if (pageContext === 'graduationApplications') {
+      this.graduationStageFilter = 'ENABLED';
+    }
   }
 
   private persistListControlsPreference(): void {
@@ -4860,6 +4999,7 @@ export class StudentManagementComponent implements OnInit {
         courseCodeFilterInput: this.courseCodeFilterInput,
         courseStatusFilter: this.courseStatusFilter,
         volunteerCompletedFilter: this.volunteerCompletedFilter,
+        graduationStageFilter: this.graduationStageFilter,
         selectedUniversityGoalUniversityFilters: this.selectedUniversityGoalUniversityFilters,
         selectedUniversityGoalProgramFilters: this.selectedUniversityGoalProgramFilters,
       };
@@ -4950,6 +5090,16 @@ export class StudentManagementComponent implements OnInit {
     ) {
       return 'universityGoals';
     }
+    if (
+      url.includes('context=graduation') ||
+      url.includes('view=graduation') ||
+      url.includes('context=graduation-applications') ||
+      url.includes('view=graduation-applications') ||
+      url.includes('context=graduationapplications') ||
+      url.includes('view=graduationapplications')
+    ) {
+      return 'graduationApplications';
+    }
     if (url.startsWith('/teacher/ielts')) {
       return 'ielts';
     }
@@ -4967,6 +5117,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (url.startsWith('/teacher/university-goals')) {
       return 'universityGoals';
+    }
+    if (url.startsWith('/teacher/graduation')) {
+      return 'graduationApplications';
     }
     return 'students';
   }
@@ -5136,6 +5289,7 @@ export class StudentManagementComponent implements OnInit {
       !this.courseCodeFilterInput &&
       !this.courseStatusFilter &&
       !this.volunteerCompletedFilter &&
+      !this.graduationStageFilter &&
       this.selectedUniversityGoalUniversityFilters.length <= 0 &&
       this.selectedUniversityGoalProgramFilters.length <= 0
     );
@@ -5163,6 +5317,7 @@ export class StudentManagementComponent implements OnInit {
     this.courseCodeFilterInput = '';
     this.courseStatusFilter = '';
     this.volunteerCompletedFilter = '';
+    this.graduationStageFilter = '';
     this.clearUniversityGoalFilters(false);
     this.applyListView();
   }
@@ -5210,6 +5365,16 @@ export class StudentManagementComponent implements OnInit {
   ): boolean {
     if (!this.showInactive && this.resolveStatus(student) !== 'ACTIVE') {
       return false;
+    }
+
+    if (this.graduationStageFilter) {
+      const enabled = this.isGraduationStageEnabled(student);
+      if (this.graduationStageFilter === 'ENABLED' && !enabled) {
+        return false;
+      }
+      if (this.graduationStageFilter === 'NOT_ENABLED' && enabled) {
+        return false;
+      }
     }
 
     const studentCountry = this.resolveCurrentSchoolCountryForFilter(student);
@@ -5357,6 +5522,7 @@ export class StudentManagementComponent implements OnInit {
       this.resolveCurrentSchoolProvinceValue(student),
       this.resolveCurrentSchoolCityValue(student),
       this.resolveStudentLanguageCourseStatus(student),
+      this.isGraduationStageEnabled(student) ? '已进入升学阶段' : '未进入升学阶段',
     ];
 
     return searchFields.some((field) => field.toLowerCase().includes(keyword));

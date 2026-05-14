@@ -16,6 +16,8 @@ export interface StudentAccount {
   phone?: string;
   status?: 'ACTIVE' | 'ARCHIVED' | string;
   createdAt?: string;
+  graduationStageEnabled?: boolean;
+  graduationApplicationCount?: number;
   [key: string]: any;
 }
 

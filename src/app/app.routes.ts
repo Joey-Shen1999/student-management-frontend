@@ -145,6 +145,22 @@ export const routes: Routes = [
       },
 
       {
+        path: 'students/:studentId/graduation-applications/setup',
+        loadComponent: () =>
+          import('./pages/graduation-application-setup/graduation-application-setup.component').then(
+            (m) => m.GraduationApplicationSetupComponent
+          ),
+      },
+
+      {
+        path: 'students/:studentId/graduation-applications',
+        loadComponent: () =>
+          import('./pages/graduation-applications/graduation-applications.component').then(
+            (m) => m.GraduationApplicationsComponent
+          ),
+      },
+
+      {
         path: 'students/:studentId/course-plan',
         loadComponent: () =>
           import('./pages/student-course-plan/student-course-plan.component').then(
@@ -234,6 +250,14 @@ export const routes: Routes = [
 
       {
         path: 'university-goals',
+        loadComponent: () =>
+          import('./pages/student-management/student-management.component').then(
+            (m) => m.StudentManagementComponent
+          ),
+      },
+
+      {
+        path: 'graduation',
         loadComponent: () =>
           import('./pages/student-management/student-management.component').then(
             (m) => m.StudentManagementComponent
