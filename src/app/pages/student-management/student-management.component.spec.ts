@@ -38,7 +38,7 @@ describe('StudentManagementComponent', () => {
     'getTeacherStudentVolunteerTracking' | 'getTeacherStudentsVolunteerBatchSummary'
   >;
   let coursePlanApi: Pick<CoursePlanService, 'getTeacherStudentCoursePlan'>;
-  let universityAspirationApi: Pick<UniversityAspirationService, 'listAspirations'>;
+  let universityAspirationApi: Pick<UniversityAspirationService, 'listAspirations' | 'listUniversities'>;
   let preferenceApi: Pick<TeacherPreferenceService, 'getPagePreference' | 'upsertPagePreference'>;
 
   beforeEach(() => {
@@ -138,6 +138,7 @@ describe('StudentManagementComponent', () => {
     };
     universityAspirationApi = {
       listAspirations: vi.fn().mockReturnValue(of([])),
+      listUniversities: vi.fn().mockReturnValue(of([])),
     };
     preferenceApi = {
       getPagePreference: vi.fn().mockReturnValue(of({})),
@@ -577,6 +578,80 @@ describe('StudentManagementComponent', () => {
     ]);
   });
 
+  it('applyListView should filter by selected university goal university and program options', () => {
+    component.students = [
+      {
+        studentId: 1,
+        username: 'student01',
+        status: 'ACTIVE',
+        universityGoals: [
+          {
+            universityName: 'University of Toronto',
+            programName: 'Visual and Critical Studies (Art History)',
+          },
+        ],
+      } as any,
+      {
+        studentId: 2,
+        username: 'student02',
+        status: 'ACTIVE',
+        universityGoals: [
+          {
+            universityName: 'University of Waterloo',
+            programName: 'Computer Engineering',
+          },
+        ],
+      } as any,
+    ];
+    component.applyListView();
+
+    component.onUniversityGoalUniversitySearchInputChange('toronto');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1, 2]);
+
+    component.toggleUniversityGoalUniversityFilterOption('University of Toronto');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+
+    component.toggleUniversityGoalProgramFilterOption('Visual and Critical Studies (Art History)');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+
+    component.toggleUniversityGoalProgramFilterOption('Visual and Critical Studies (Art History)');
+    component.toggleUniversityGoalProgramFilterOption('Computer Engineering');
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([]);
+
+    component.toggleUniversityGoalUniversityFilterOption('University of Toronto');
+    expect(component.selectedUniversityGoalUniversityFilters).toEqual([]);
+  });
+
+  it('applyListView should load university goals before matching active university goal filters', () => {
+    component.students = [
+      { studentId: 1, username: 'student01', status: 'ACTIVE' },
+      { studentId: 2, username: 'student02', status: 'ACTIVE' },
+    ];
+    (universityAspirationApi.listAspirations as any).mockImplementation((studentId: number) =>
+      of(
+        studentId === 1
+          ? [
+              {
+                universityName: 'University of Toronto',
+                programName: 'Computer Science',
+              },
+            ]
+          : [
+              {
+                universityName: 'University of Waterloo',
+                programName: 'Computer Engineering',
+              },
+            ]
+      )
+    );
+
+    component.toggleUniversityGoalUniversityFilterOption('University of Toronto');
+
+    expect(universityAspirationApi.listAspirations).toHaveBeenCalledWith(1);
+    expect(universityAspirationApi.listAspirations).toHaveBeenCalledWith(2);
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+  });
+
   it('applyListView should filter by current school country and include N/A in Canada', () => {
     component.students = [
       {
@@ -647,6 +722,12 @@ describe('StudentManagementComponent', () => {
     component.courseCodeFilterInput = 'MHF4U';
     component.courseStatusFilter = 'COMPLETED';
     component.volunteerCompletedFilter = 'COMPLETED';
+    component.universityGoalUniversitySearchInput = 'tor';
+    component.universityGoalProgramSearchInput = 'comp';
+    component.selectedUniversityGoalUniversityFilters = ['University of Toronto'];
+    component.selectedUniversityGoalProgramFilters = ['Computer Science'];
+    component.isUniversityGoalUniversityPanelOpen = true;
+    component.isUniversityGoalProgramPanelOpen = true;
 
     component.clearListControls();
 
@@ -670,6 +751,32 @@ describe('StudentManagementComponent', () => {
     expect(component.courseCodeFilterInput).toBe('');
     expect(component.courseStatusFilter).toBe('');
     expect(component.volunteerCompletedFilter).toBe('');
+    expect(component.universityGoalUniversitySearchInput).toBe('');
+    expect(component.universityGoalProgramSearchInput).toBe('');
+    expect(component.selectedUniversityGoalUniversityFilters).toEqual([]);
+    expect(component.selectedUniversityGoalProgramFilters).toEqual([]);
+    expect(component.isUniversityGoalUniversityPanelOpen).toBe(false);
+    expect(component.isUniversityGoalProgramPanelOpen).toBe(false);
+  });
+
+  it('clearUniversityGoalFilters should only reset university goal filters', () => {
+    component.searchKeyword = 'alice';
+    component.universityGoalUniversitySearchInput = 'tor';
+    component.universityGoalProgramSearchInput = 'comp';
+    component.selectedUniversityGoalUniversityFilters = ['University of Toronto'];
+    component.selectedUniversityGoalProgramFilters = ['Computer Science'];
+    component.isUniversityGoalUniversityPanelOpen = true;
+    component.isUniversityGoalProgramPanelOpen = true;
+
+    component.clearUniversityGoalFilters();
+
+    expect(component.searchKeyword).toBe('alice');
+    expect(component.universityGoalUniversitySearchInput).toBe('');
+    expect(component.universityGoalProgramSearchInput).toBe('');
+    expect(component.selectedUniversityGoalUniversityFilters).toEqual([]);
+    expect(component.selectedUniversityGoalProgramFilters).toEqual([]);
+    expect(component.isUniversityGoalUniversityPanelOpen).toBe(false);
+    expect(component.isUniversityGoalProgramPanelOpen).toBe(false);
   });
 
   it('country filter input should stay empty when cleared instead of restoring All text', () => {
@@ -1617,6 +1724,8 @@ describe('StudentManagementComponent', () => {
         courseCodeFilterInput: 'mhf 4u',
         courseStatusFilter: 'done',
         volunteerCompletedFilter: true,
+        selectedUniversityGoalUniversityFilters: ['University of Toronto'],
+        selectedUniversityGoalProgramFilters: ['Computer Science'],
       })
     );
 
@@ -1637,6 +1746,8 @@ describe('StudentManagementComponent', () => {
     expect(local.courseCodeFilterInput).toBe('MHF 4U');
     expect(local.courseStatusFilter).toBe('COMPLETED');
     expect(local.volunteerCompletedFilter).toBe('COMPLETED');
+    expect(local.selectedUniversityGoalUniversityFilters).toEqual(['University of Toronto']);
+    expect(local.selectedUniversityGoalProgramFilters).toEqual(['Computer Science']);
     storage?.removeItem(storageKey);
   });
 
