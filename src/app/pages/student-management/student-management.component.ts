@@ -37,7 +37,11 @@ import {
   CoursePlanStatus,
 } from '../../services/course-plan.service';
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
-import { UniversityAspirationService } from '../../services/university-aspiration.service';
+import {
+  type University,
+  type UniversityAspiration,
+  UniversityAspirationService,
+} from '../../services/university-aspiration.service';
 import { deriveStudentIeltsModuleState } from '../../features/ielts/ielts-derive';
 import {
   IeltsRecordFormValue,
@@ -159,6 +163,12 @@ interface StudentListFilterPreferenceVm {
   courseCodeFilterInput?: string;
   courseStatusFilter?: string;
   volunteerCompletedFilter?: VolunteerCompletedFilterValue | boolean;
+  universityGoalUniversityFilterInput?: string;
+  universityGoalProgramFilterInput?: string;
+  universityGoalUniversityFilterEnabled?: boolean;
+  universityGoalProgramFilterEnabled?: boolean;
+  selectedUniversityGoalUniversityFilters?: string[];
+  selectedUniversityGoalProgramFilters?: string[];
 }
 
 interface StudentCoursePlanCourseSummary {
@@ -751,6 +761,133 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
             (studentKeywordChange)="onSearchKeywordChange($event)"
           ></app-student-filter-fields>
+
+          <div
+            data-university-goal-filter-root
+            style="position:relative;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
+          >
+            <span>&#30446;&#26631;&#22823;&#23398;</span>
+            <button
+              type="button"
+              (click)="toggleUniversityGoalUniversityPanel($event)"
+              [disabled]="loadingList"
+              [attr.aria-expanded]="isUniversityGoalUniversityPanelOpen"
+              style="padding:4px 8px;min-width:210px;text-align:left;background:#fff;border:1px solid #cfd6e4;border-radius:6px;color:#1f2937;"
+            >
+              {{ resolveUniversityGoalSelectionSummary(selectedUniversityGoalUniversityFilters, '&#36873;&#25321;&#30446;&#26631;&#22823;&#23398;') }}
+            </button>
+
+            <div
+              *ngIf="isUniversityGoalUniversityPanelOpen"
+              style="position:absolute;top:32px;left:68px;z-index:60;width:320px;max-width:calc(100vw - 32px);padding:8px;border:1px solid #d9e1ef;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.16);"
+              (click)="$event.stopPropagation()"
+            >
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <input
+                  type="text"
+                  [ngModel]="universityGoalUniversitySearchInput"
+                  (ngModelChange)="onUniversityGoalUniversitySearchInputChange($event)"
+                  [disabled]="loadingList"
+                  placeholder="&#25628;&#32034;&#22823;&#23398;"
+                  style="flex:1 1 auto;min-width:0;box-sizing:border-box;padding:6px 8px;border:1px solid #cfd6e4;border-radius:6px;"
+                />
+                <button
+                  type="button"
+                  (click)="clearUniversityGoalFiltersFromPanel('university')"
+                  [disabled]="loadingList || isUniversityGoalFiltersAtDefault()"
+                  title="&#28165;&#31354;&#22823;&#23398;&#30446;&#26631;&#31579;&#36873;"
+                  style="flex:0 0 auto;padding:6px 8px;border:1px solid #cfd6e4;border-radius:6px;background:#fff;color:#374151;"
+                >
+                  &#28165;&#31354;
+                </button>
+              </div>
+
+              <div style="max-height:240px;overflow:auto;">
+                <button
+                  type="button"
+                  *ngFor="let option of universityGoalUniversityFilterOptions; trackBy: trackStringOption"
+                  (click)="toggleUniversityGoalUniversityFilterOption(option)"
+                  style="width:100%;display:flex;align-items:center;gap:8px;padding:6px 7px;border:0;border-radius:6px;background:#fff;text-align:left;color:#1f2937;"
+                >
+                  <span
+                    style="width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #9ca3af;border-radius:4px;font-size:12px;line-height:1;"
+                  >
+                    {{ isUniversityGoalUniversityFilterSelected(option) ? '✓' : '' }}
+                  </span>
+                  <span>{{ option }}</span>
+                </button>
+                <div
+                  *ngIf="universityGoalUniversityFilterOptions.length === 0"
+                  style="padding:8px;color:#6b7280;font-size:12px;"
+                >
+                  &#27809;&#26377;&#21305;&#37197;&#30340;&#22823;&#23398;
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-university-goal-filter-root
+            style="position:relative;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
+          >
+            <span>&#30446;&#26631;&#19987;&#19994;</span>
+            <button
+              type="button"
+              (click)="toggleUniversityGoalProgramPanel($event)"
+              [disabled]="loadingList"
+              [attr.aria-expanded]="isUniversityGoalProgramPanelOpen"
+              style="padding:4px 8px;min-width:210px;text-align:left;background:#fff;border:1px solid #cfd6e4;border-radius:6px;color:#1f2937;"
+            >
+              {{ resolveUniversityGoalSelectionSummary(selectedUniversityGoalProgramFilters, '&#36873;&#25321;&#30446;&#26631;&#19987;&#19994;') }}
+            </button>
+            <div
+              *ngIf="isUniversityGoalProgramPanelOpen"
+              style="position:absolute;top:32px;left:68px;z-index:60;width:320px;max-width:calc(100vw - 32px);padding:8px;border:1px solid #d9e1ef;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(15,23,42,.16);"
+              (click)="$event.stopPropagation()"
+            >
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <input
+                  type="text"
+                  [ngModel]="universityGoalProgramSearchInput"
+                  (ngModelChange)="onUniversityGoalProgramSearchInputChange($event)"
+                  [disabled]="loadingList"
+                  placeholder="&#25628;&#32034;&#19987;&#19994;"
+                  style="flex:1 1 auto;min-width:0;box-sizing:border-box;padding:6px 8px;border:1px solid #cfd6e4;border-radius:6px;"
+                />
+                <button
+                  type="button"
+                  (click)="clearUniversityGoalFiltersFromPanel('program')"
+                  [disabled]="loadingList || isUniversityGoalFiltersAtDefault()"
+                  title="&#28165;&#31354;&#22823;&#23398;&#30446;&#26631;&#31579;&#36873;"
+                  style="flex:0 0 auto;padding:6px 8px;border:1px solid #cfd6e4;border-radius:6px;background:#fff;color:#374151;"
+                >
+                  &#28165;&#31354;
+                </button>
+              </div>
+
+              <div style="max-height:240px;overflow:auto;">
+                <button
+                  type="button"
+                  *ngFor="let option of universityGoalProgramFilterOptions; trackBy: trackStringOption"
+                  (click)="toggleUniversityGoalProgramFilterOption(option)"
+                  style="width:100%;display:flex;align-items:center;gap:8px;padding:6px 7px;border:0;border-radius:6px;background:#fff;text-align:left;color:#1f2937;"
+                >
+                  <span
+                    style="width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #9ca3af;border-radius:4px;font-size:12px;line-height:1;"
+                  >
+                    {{ isUniversityGoalProgramFilterSelected(option) ? '✓' : '' }}
+                  </span>
+                  <span>{{ option }}</span>
+                </button>
+                <div
+                  *ngIf="universityGoalProgramFilterOptions.length === 0"
+                  style="padding:8px;color:#6b7280;font-size:12px;"
+                >
+                  &#27809;&#26377;&#21305;&#37197;&#30340;&#19987;&#19994;
+                </div>
+              </div>
+            </div>
+          </div>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
             &#35821;&#35328;&#25104;&#32489;
@@ -1719,6 +1856,12 @@ export class StudentManagementComponent implements OnInit {
   courseCodeFilterInput = '';
   courseStatusFilter: CoursePlanStatus | '' = '';
   volunteerCompletedFilter: VolunteerCompletedFilterValue = '';
+  universityGoalUniversitySearchInput = '';
+  universityGoalProgramSearchInput = '';
+  selectedUniversityGoalUniversityFilters: string[] = [];
+  selectedUniversityGoalProgramFilters: string[] = [];
+  isUniversityGoalUniversityPanelOpen = false;
+  isUniversityGoalProgramPanelOpen = false;
   volunteerCompletedFilterAvailable = true;
   volunteerCompletedFilterError = '';
   creatingInvite = false;
@@ -1777,8 +1920,11 @@ export class StudentManagementComponent implements OnInit {
   private readonly coursePlanCoursesCache = new Map<number, StudentCoursePlanCourseSummary[]>();
   private readonly coursePlanLoadInFlight = new Set<number>();
   private readonly coursePlanUnavailable = new Set<number>();
+  private readonly universityGoalsCache = new Map<number, UniversityAspiration[]>();
   private readonly universityGoalsCountCache = new Map<number, number>();
   private readonly universityGoalsCountLoadInFlight = new Set<number>();
+  private readonly universityCatalogOptions = new Set<string>();
+  private universityCatalogLoadInFlight = false;
   private readonly serviceItemsSaveInFlight = new Set<number>();
   private readonly studentProfileCache = new Map<
     number,
@@ -1817,6 +1963,10 @@ export class StudentManagementComponent implements OnInit {
 
   trackColumn = (_index: number, column: StudentListColumnConfig): StudentListColumnKey => {
     return column.key;
+  };
+
+  trackStringOption = (_index: number, option: string): string => {
+    return option;
   };
 
   canDragColumnHeaders(): boolean {
@@ -2266,6 +2416,101 @@ export class StudentManagementComponent implements OnInit {
   onVolunteerCompletedFilterChange(value: VolunteerCompletedFilterValue): void {
     this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(value);
     this.applyListView();
+  }
+
+  toggleUniversityGoalUniversityPanel(event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.isUniversityGoalUniversityPanelOpen = !this.isUniversityGoalUniversityPanelOpen;
+    if (this.isUniversityGoalUniversityPanelOpen) {
+      this.isUniversityGoalProgramPanelOpen = false;
+      this.loadUniversityCatalogFilterOptions();
+      this.prefetchUniversityGoalsForStudents(this.students);
+    }
+  }
+
+  toggleUniversityGoalProgramPanel(event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.isUniversityGoalProgramPanelOpen = !this.isUniversityGoalProgramPanelOpen;
+    if (this.isUniversityGoalProgramPanelOpen) {
+      this.isUniversityGoalUniversityPanelOpen = false;
+      this.prefetchUniversityGoalsForStudents(this.students);
+    }
+  }
+
+  onUniversityGoalUniversitySearchInputChange(value: string): void {
+    this.universityGoalUniversitySearchInput = String(value ?? '');
+  }
+
+  onUniversityGoalProgramSearchInputChange(value: string): void {
+    this.universityGoalProgramSearchInput = String(value ?? '');
+  }
+
+  clearUniversityGoalFilters(apply = true): void {
+    this.universityGoalUniversitySearchInput = '';
+    this.universityGoalProgramSearchInput = '';
+    this.selectedUniversityGoalUniversityFilters = [];
+    this.selectedUniversityGoalProgramFilters = [];
+    this.isUniversityGoalUniversityPanelOpen = false;
+    this.isUniversityGoalProgramPanelOpen = false;
+    if (apply) {
+      this.applyListView();
+    }
+  }
+
+  clearUniversityGoalFiltersFromPanel(panel: 'university' | 'program'): void {
+    this.clearUniversityGoalFilters(false);
+    this.isUniversityGoalUniversityPanelOpen = panel === 'university';
+    this.isUniversityGoalProgramPanelOpen = panel === 'program';
+    this.applyListView();
+  }
+
+  isUniversityGoalFiltersAtDefault(): boolean {
+    return (
+      !this.universityGoalUniversitySearchInput.trim() &&
+      !this.universityGoalProgramSearchInput.trim() &&
+      this.selectedUniversityGoalUniversityFilters.length <= 0 &&
+      this.selectedUniversityGoalProgramFilters.length <= 0
+    );
+  }
+
+  toggleUniversityGoalUniversityFilterOption(option: string): void {
+    this.selectedUniversityGoalUniversityFilters = this.toggleUniversityGoalFilterSelection(
+      this.selectedUniversityGoalUniversityFilters,
+      option
+    );
+    this.applyListView();
+  }
+
+  toggleUniversityGoalProgramFilterOption(option: string): void {
+    this.selectedUniversityGoalProgramFilters = this.toggleUniversityGoalFilterSelection(
+      this.selectedUniversityGoalProgramFilters,
+      option
+    );
+    this.applyListView();
+  }
+
+  isUniversityGoalUniversityFilterSelected(option: string): boolean {
+    return this.hasUniversityGoalFilterSelection(this.selectedUniversityGoalUniversityFilters, option);
+  }
+
+  isUniversityGoalProgramFilterSelected(option: string): boolean {
+    return this.hasUniversityGoalFilterSelection(this.selectedUniversityGoalProgramFilters, option);
+  }
+
+  get universityGoalUniversityFilterOptions(): string[] {
+    return this.buildPinnedUniversityGoalFilterOptions(
+      this.selectedUniversityGoalUniversityFilters,
+      this.collectAvailableUniversityGoalUniversityOptions(),
+      this.universityGoalUniversitySearchInput
+    );
+  }
+
+  get universityGoalProgramFilterOptions(): string[] {
+    return this.buildPinnedUniversityGoalFilterOptions(
+      this.selectedUniversityGoalProgramFilters,
+      this.collectAvailableUniversityGoalProgramOptions(),
+      this.universityGoalProgramSearchInput
+    );
   }
 
   private resolveCurrentSchoolCountryForFilter(student: StudentAccount): StudentCountryFilter {
@@ -3666,6 +3911,7 @@ export class StudentManagementComponent implements OnInit {
     this.coursePlanCoursesCache.clear();
     this.coursePlanLoadInFlight.clear();
     this.coursePlanUnavailable.clear();
+    this.universityGoalsCache.clear();
     this.universityGoalsCountCache.clear();
     this.universityGoalsCountLoadInFlight.clear();
     this.volunteerCompletedFilterAvailable = true;
@@ -4008,13 +4254,19 @@ export class StudentManagementComponent implements OnInit {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
-    if (this.serviceItemsPanelStudentId === null && this.teacherDocumentUploadPanelStudentId === null) {
+    if (
+      this.serviceItemsPanelStudentId === null &&
+      this.teacherDocumentUploadPanelStudentId === null &&
+      !this.isUniversityGoalUniversityPanelOpen &&
+      !this.isUniversityGoalProgramPanelOpen
+    ) {
       return;
     }
 
     const targetElement = event.target as HTMLElement;
     const isInsideServiceItems = !!targetElement.closest('.service-items-container');
     const isInsideTeacherDocumentUpload = !!targetElement.closest('[data-teacher-document-upload-root]');
+    const isInsideUniversityGoalFilter = !!targetElement.closest('[data-university-goal-filter-root]');
     let shouldDetectChanges = false;
 
     // Also check if clicking on elements that might be logically part of the panel but physically outside
@@ -4028,6 +4280,15 @@ export class StudentManagementComponent implements OnInit {
 
     if (this.teacherDocumentUploadPanelStudentId !== null && !isInsideTeacherDocumentUpload) {
       this.closeTeacherDocumentUploadPanel();
+      shouldDetectChanges = true;
+    }
+
+    if (
+      (this.isUniversityGoalUniversityPanelOpen || this.isUniversityGoalProgramPanelOpen) &&
+      !isInsideUniversityGoalFilter
+    ) {
+      this.isUniversityGoalUniversityPanelOpen = false;
+      this.isUniversityGoalProgramPanelOpen = false;
       shouldDetectChanges = true;
     }
 
@@ -4230,6 +4491,10 @@ export class StudentManagementComponent implements OnInit {
 
   toggleFilterPanel(): void {
     this.isFilterPanelExpanded = !this.isFilterPanelExpanded;
+    if (!this.isFilterPanelExpanded) {
+      this.isUniversityGoalUniversityPanelOpen = false;
+      this.isUniversityGoalProgramPanelOpen = false;
+    }
   }
 
   toggleColumnPanel(): void {
@@ -4514,6 +4779,18 @@ export class StudentManagementComponent implements OnInit {
     this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(
       persisted.volunteerCompletedFilter
     );
+    this.selectedUniversityGoalUniversityFilters = this.normalizeUniversityGoalFilterSelections(
+      persisted.selectedUniversityGoalUniversityFilters,
+      persisted.universityGoalUniversityFilterEnabled
+        ? [persisted.universityGoalUniversityFilterInput]
+        : []
+    );
+    this.selectedUniversityGoalProgramFilters = this.normalizeUniversityGoalFilterSelections(
+      persisted.selectedUniversityGoalProgramFilters,
+      persisted.universityGoalProgramFilterEnabled
+        ? [persisted.universityGoalProgramFilterInput]
+        : []
+    );
   }
 
   private persistListControlsPreference(): void {
@@ -4542,6 +4819,8 @@ export class StudentManagementComponent implements OnInit {
         courseCodeFilterInput: this.courseCodeFilterInput,
         courseStatusFilter: this.courseStatusFilter,
         volunteerCompletedFilter: this.volunteerCompletedFilter,
+        selectedUniversityGoalUniversityFilters: this.selectedUniversityGoalUniversityFilters,
+        selectedUniversityGoalProgramFilters: this.selectedUniversityGoalProgramFilters,
       };
       storage.setItem(this.resolveListControlsStorageKey(), JSON.stringify(payload));
     } catch {}
@@ -4577,6 +4856,23 @@ export class StudentManagementComponent implements OnInit {
       .toLowerCase();
     if (!normalized) return false;
     return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+
+  private normalizeUniversityGoalFilterSelections(
+    value: unknown,
+    fallback: unknown[] = []
+  ): string[] {
+    const candidates = Array.isArray(value) ? value : fallback;
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+    for (const item of candidates) {
+      const text = this.toTrimmedText(item);
+      const key = this.normalizeUniversityGoalFilterText(text);
+      if (!text || !key || seen.has(key)) continue;
+      seen.add(key);
+      normalized.push(text);
+    }
+    return normalized;
   }
 
   private normalizeVolunteerCompletedFilterValue(value: unknown): VolunteerCompletedFilterValue {
@@ -4798,7 +5094,9 @@ export class StudentManagementComponent implements OnInit {
       !this.ossltTrackingFilter &&
       !this.courseCodeFilterInput &&
       !this.courseStatusFilter &&
-      !this.volunteerCompletedFilter
+      !this.volunteerCompletedFilter &&
+      this.selectedUniversityGoalUniversityFilters.length <= 0 &&
+      this.selectedUniversityGoalProgramFilters.length <= 0
     );
   }
 
@@ -4824,6 +5122,7 @@ export class StudentManagementComponent implements OnInit {
     this.courseCodeFilterInput = '';
     this.courseStatusFilter = '';
     this.volunteerCompletedFilter = '';
+    this.clearUniversityGoalFilters(false);
     this.applyListView();
   }
 
@@ -4990,6 +5289,10 @@ export class StudentManagementComponent implements OnInit {
       return false;
     }
 
+    if (this.isUniversityGoalFilterActive() && !this.matchesUniversityGoalFilter(student)) {
+      return false;
+    }
+
     const keyword = this.searchKeyword.trim().toLowerCase();
     if (!keyword) {
       return true;
@@ -5036,6 +5339,9 @@ export class StudentManagementComponent implements OnInit {
     }
     if (this.isCoursePlanFilterActive()) {
       this.prefetchCoursePlansForStudents(this.students, true);
+    }
+    if (this.isUniversityGoalFilterActive()) {
+      this.prefetchUniversityGoalsForStudents(this.students, true);
     }
   }
 
@@ -5198,6 +5504,347 @@ export class StudentManagementComponent implements OnInit {
       const statusMatched = !statusFilter || course.status === statusFilter;
       return codeMatched && statusMatched;
     });
+  }
+
+  private isUniversityGoalFilterActive(): boolean {
+    return (
+      this.selectedUniversityGoalUniversityFilters.length > 0 ||
+      this.selectedUniversityGoalProgramFilters.length > 0
+    );
+  }
+
+  private isUniversityGoalUniversityFilterActive(): boolean {
+    return this.selectedUniversityGoalUniversityFilters.length > 0;
+  }
+
+  private isUniversityGoalProgramFilterActive(): boolean {
+    return this.selectedUniversityGoalProgramFilters.length > 0;
+  }
+
+  private matchesUniversityGoalFilter(student: StudentAccount): boolean {
+    const universityNeedles = this.selectedUniversityGoalUniversityFilters.map((value) =>
+      this.normalizeUniversityGoalFilterText(value)
+    );
+    const programNeedles = this.selectedUniversityGoalProgramFilters.map((value) =>
+      this.normalizeUniversityGoalFilterText(value)
+    );
+
+    if (universityNeedles.length <= 0 && programNeedles.length <= 0) {
+      return true;
+    }
+
+    const goals = this.resolveUniversityGoalsForFilter(student);
+    if (!goals) {
+      return false;
+    }
+
+    return goals.some((goal) => {
+      const universityHaystack = this.normalizeUniversityGoalFilterText(
+        this.collectUniversityGoalUniversityText(goal).join(' ')
+      );
+      const programHaystack = this.normalizeUniversityGoalFilterText(
+        this.collectUniversityGoalProgramText(goal).join(' ')
+      );
+      const universityMatched =
+        universityNeedles.length <= 0 ||
+        universityNeedles.some((needle) => universityHaystack.includes(needle));
+      const programMatched =
+        programNeedles.length <= 0 ||
+        programNeedles.some((needle) => programHaystack.includes(needle));
+      return universityMatched && programMatched;
+    });
+  }
+
+  private resolveUniversityGoalsForFilter(
+    student: StudentAccount
+  ): readonly UniversityAspiration[] | null {
+    const studentId = this.resolveStudentId(student);
+    if (studentId && this.universityGoalsCache.has(studentId)) {
+      return this.universityGoalsCache.get(studentId) ?? [];
+    }
+
+    const goalsFromRow = this.extractUniversityGoalsFromStudent(student);
+    if (goalsFromRow !== null) {
+      if (studentId) {
+        this.universityGoalsCache.set(studentId, goalsFromRow);
+        this.universityGoalsCountCache.set(studentId, goalsFromRow.length);
+      }
+      return goalsFromRow;
+    }
+
+    return null;
+  }
+
+  private extractUniversityGoalsFromStudent(student: StudentAccount): UniversityAspiration[] | null {
+    const row = (student ?? {}) as Record<string, unknown>;
+    const profile = this.asObjectRecord(row['profile']);
+    const candidates = [
+      row['universityAspirations'],
+      row['university_aspirations'],
+      row['universityGoals'],
+      row['university_goals'],
+      row['universityTargets'],
+      row['university_targets'],
+      row['aspirations'],
+      profile?.['universityAspirations'],
+      profile?.['universityGoals'],
+      profile?.['universityTargets'],
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return this.normalizeUniversityGoalRows(candidate);
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeUniversityGoalRows(value: unknown): UniversityAspiration[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.flatMap((item) => {
+      const row = this.asObjectRecord(item);
+      if (!row) return [];
+
+      const universityNode = this.asObjectRecord(row['university']);
+      const programNode = this.asObjectRecord(row['program']) || this.asObjectRecord(row['universityProgram']);
+      const normalized: UniversityAspiration = {
+        ...(row as UniversityAspiration),
+        universityName: this.firstNonEmptyText(
+          row['universityName'],
+          row['university_name'],
+          row['targetUniversity'],
+          row['target_university'],
+          universityNode?.['name']
+        ),
+        programName: this.firstNonEmptyText(
+          row['programName'],
+          row['program_name'],
+          row['targetProgram'],
+          row['target_program'],
+          row['major'],
+          programNode?.['programName'],
+          programNode?.['program_name'],
+          programNode?.['name']
+        ),
+        facultyName: this.firstNonEmptyText(
+          row['facultyName'],
+          row['faculty_name'],
+          programNode?.['facultyName'],
+          programNode?.['faculty_name']
+        ),
+        degreeType: this.firstNonEmptyText(
+          row['degreeType'],
+          row['degree_type'],
+          programNode?.['degreeType'],
+          programNode?.['degree_type']
+        ),
+      };
+      return [normalized];
+    });
+  }
+
+  private collectUniversityGoalUniversityText(goal: UniversityAspiration): string[] {
+    const row = goal as Record<string, unknown>;
+    const universityNode = this.asObjectRecord(row['university']);
+    return [
+      goal.universityName,
+      row['university_name'],
+      row['targetUniversity'],
+      row['target_university'],
+      universityNode?.['name'],
+      universityNode?.['shortName'],
+      universityNode?.['short_name'],
+      universityNode?.['aliases'],
+    ].flatMap((value) => this.flattenUniversityGoalTextValue(value));
+  }
+
+  private collectUniversityGoalProgramText(goal: UniversityAspiration): string[] {
+    const row = goal as Record<string, unknown>;
+    const programNode = this.asObjectRecord(row['program']) || this.asObjectRecord(row['universityProgram']);
+    return [
+      goal.programName,
+      goal.facultyName,
+      goal.degreeType,
+      row['program_name'],
+      row['targetProgram'],
+      row['target_program'],
+      row['major'],
+      programNode?.['programName'],
+      programNode?.['program_name'],
+      programNode?.['name'],
+      programNode?.['facultyName'],
+      programNode?.['faculty_name'],
+      programNode?.['degreeType'],
+      programNode?.['degree_type'],
+      programNode?.['aliases'],
+    ].flatMap((value) => this.flattenUniversityGoalTextValue(value));
+  }
+
+  private flattenUniversityGoalTextValue(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.flattenUniversityGoalTextValue(item));
+    }
+    const text = this.toTrimmedText(value);
+    return text ? [text] : [];
+  }
+
+  private firstNonEmptyText(...values: unknown[]): string | undefined {
+    for (const value of values) {
+      const text = this.toTrimmedText(value);
+      if (text) return text;
+    }
+    return undefined;
+  }
+
+  private normalizeUniversityGoalFilterText(value: unknown): string {
+    return this.toTrimmedText(value).toLowerCase();
+  }
+
+  resolveUniversityGoalSelectionSummary(selected: readonly string[], placeholder: string): string {
+    if (!selected.length) {
+      return placeholder;
+    }
+    if (selected.length === 1) {
+      return selected[0];
+    }
+    return `${selected[0]} +${selected.length - 1}`;
+  }
+
+  private toggleUniversityGoalFilterSelection(
+    selected: readonly string[],
+    option: string
+  ): string[] {
+    const text = this.toTrimmedText(option);
+    if (!text) return [...selected];
+
+    const key = this.normalizeUniversityGoalFilterText(text);
+    const next = selected.filter(
+      (value) => this.normalizeUniversityGoalFilterText(value) !== key
+    );
+    if (next.length === selected.length) {
+      next.unshift(text);
+    }
+    return next;
+  }
+
+  private hasUniversityGoalFilterSelection(
+    selected: readonly string[],
+    option: string
+  ): boolean {
+    const key = this.normalizeUniversityGoalFilterText(option);
+    return selected.some((value) => this.normalizeUniversityGoalFilterText(value) === key);
+  }
+
+  private buildPinnedUniversityGoalFilterOptions(
+    selected: readonly string[],
+    available: readonly string[],
+    searchInput: string
+  ): string[] {
+    const search = this.normalizeUniversityGoalFilterText(searchInput);
+    const selectedOptions = this.normalizeUniversityGoalFilterSelections(selected);
+    const selectedKeys = new Set(
+      selectedOptions.map((value) => this.normalizeUniversityGoalFilterText(value))
+    );
+    const seen = new Set(selectedKeys);
+    const rest: string[] = [];
+
+    for (const option of available) {
+      const text = this.toTrimmedText(option);
+      const key = this.normalizeUniversityGoalFilterText(text);
+      if (!text || !key || seen.has(key)) continue;
+      seen.add(key);
+      if (!search || key.includes(search)) {
+        rest.push(text);
+      }
+    }
+
+    rest.sort((a, b) => a.localeCompare(b));
+    return [...selectedOptions, ...rest];
+  }
+
+  private collectAvailableUniversityGoalUniversityOptions(): string[] {
+    const options = new Set<string>();
+    for (const option of this.universityCatalogOptions) {
+      this.addUniversityGoalFilterOption(options, option);
+    }
+    for (const goal of this.collectKnownUniversityGoals()) {
+      for (const text of this.collectUniversityGoalUniversityText(goal)) {
+        this.addUniversityGoalFilterOption(options, text);
+      }
+    }
+    return Array.from(options.values());
+  }
+
+  private collectAvailableUniversityGoalProgramOptions(): string[] {
+    const options = new Set<string>();
+    for (const goal of this.collectKnownUniversityGoals()) {
+      this.addUniversityGoalFilterOption(options, goal.programName);
+    }
+    return Array.from(options.values());
+  }
+
+  private collectKnownUniversityGoals(): UniversityAspiration[] {
+    const goals: UniversityAspiration[] = [];
+    for (const student of this.students) {
+      const studentId = this.resolveStudentId(student);
+      if (studentId && this.universityGoalsCache.has(studentId)) {
+        goals.push(...(this.universityGoalsCache.get(studentId) ?? []));
+        continue;
+      }
+
+      const goalsFromRow = this.extractUniversityGoalsFromStudent(student);
+      if (goalsFromRow !== null) {
+        goals.push(...goalsFromRow);
+        if (studentId) {
+          this.universityGoalsCache.set(studentId, goalsFromRow);
+          this.universityGoalsCountCache.set(studentId, goalsFromRow.length);
+        }
+      }
+    }
+    return goals;
+  }
+
+  private addUniversityGoalFilterOption(options: Set<string>, value: unknown): void {
+    const text = this.toTrimmedText(value);
+    if (!text) return;
+    const key = this.normalizeUniversityGoalFilterText(text);
+    if (!key) return;
+    const exists = Array.from(options.values()).some(
+      (option) => this.normalizeUniversityGoalFilterText(option) === key
+    );
+    if (!exists) {
+      options.add(text);
+    }
+  }
+
+  private loadUniversityCatalogFilterOptions(): void {
+    if (this.universityCatalogOptions.size > 0 || this.universityCatalogLoadInFlight) {
+      return;
+    }
+
+    this.universityCatalogLoadInFlight = true;
+    this.universityAspirationApi
+      .listUniversities()
+      .pipe(
+        finalize(() => {
+          this.universityCatalogLoadInFlight = false;
+        })
+      )
+      .subscribe({
+        next: (rows: University[]) => {
+          for (const university of Array.isArray(rows) ? rows : []) {
+            this.addUniversityGoalFilterOption(this.universityCatalogOptions, university?.name);
+          }
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   private resolveCoursePlanCoursesForFilter(
@@ -6343,10 +6990,34 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private ensureUniversityGoalsCountLoaded(student: StudentAccount): void {
+    this.ensureUniversityGoalsLoaded(student, false);
+  }
+
+  private prefetchUniversityGoalsForStudents(
+    students: readonly StudentAccount[],
+    reapplyOnUpdate = false
+  ): void {
+    for (const student of students) {
+      this.ensureUniversityGoalsLoaded(student, reapplyOnUpdate);
+    }
+  }
+
+  private ensureUniversityGoalsLoaded(
+    student: StudentAccount,
+    reapplyOnUpdate = false
+  ): void {
     const studentId = this.resolveStudentId(student);
     if (!studentId) return;
+
+    const goalsFromRow = this.extractUniversityGoalsFromStudent(student);
+    if (goalsFromRow !== null) {
+      this.universityGoalsCache.set(studentId, goalsFromRow);
+      this.universityGoalsCountCache.set(studentId, goalsFromRow.length);
+      return;
+    }
+
     if (
-      this.universityGoalsCountCache.has(studentId) ||
+      this.universityGoalsCache.has(studentId) ||
       this.universityGoalsCountLoadInFlight.has(studentId)
     ) {
       return;
@@ -6362,11 +7033,20 @@ export class StudentManagementComponent implements OnInit {
       )
       .subscribe({
         next: (rows) => {
-          this.universityGoalsCountCache.set(studentId, Array.isArray(rows) ? rows.length : 0);
+          const goals = this.normalizeUniversityGoalRows(rows);
+          this.universityGoalsCache.set(studentId, goals);
+          this.universityGoalsCountCache.set(studentId, goals.length);
+          if (reapplyOnUpdate && this.isUniversityGoalFilterActive()) {
+            this.applyListView();
+          }
           this.cdr.detectChanges();
         },
         error: () => {
-          this.universityGoalsCountCache.delete(studentId);
+          this.universityGoalsCache.set(studentId, []);
+          this.universityGoalsCountCache.set(studentId, 0);
+          if (reapplyOnUpdate && this.isUniversityGoalFilterActive()) {
+            this.applyListView();
+          }
           this.cdr.detectChanges();
         },
       });
