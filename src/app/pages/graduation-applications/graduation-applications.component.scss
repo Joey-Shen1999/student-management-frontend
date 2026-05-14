@@ -1,0 +1,286 @@
+.applications-page {
+  min-height: 100vh;
+  padding: 28px 16px 42px;
+  background: #f4f7fb;
+  color: #172033;
+}
+
+.applications-shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.page-head,
+.summary-strip,
+.university-panel,
+.history-panel,
+.state-card {
+  border: 1px solid #dce4f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.page-head,
+.summary-strip,
+.university-panel header,
+.history-panel header,
+.program-row,
+.state-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-head,
+.state-card {
+  padding: 16px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 26px;
+}
+
+.page-actions,
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-strip {
+  padding: 12px;
+}
+
+.summary-strip div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summary-strip strong {
+  color: #1d4f9b;
+  font-size: 24px;
+}
+
+.summary-strip span,
+.program-main small {
+  color: #60718a;
+  font-size: 13px;
+}
+
+.application-list,
+.program-list,
+.program-main,
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.university-panel {
+  padding: 14px;
+}
+
+.university-panel header {
+  margin-bottom: 12px;
+}
+
+.university-panel h2 {
+  font-size: 18px;
+}
+
+.university-panel header span,
+.status-pill {
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #eef4ff;
+  color: #1d4f9b;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.program-row {
+  border: 1px solid #e0e8f3;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.rank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #51637d;
+  font-weight: 800;
+}
+
+.program-main {
+  flex: 1;
+}
+
+.program-main h3 {
+  font-size: 15px;
+}
+
+.status-control {
+  display: grid;
+  gap: 4px;
+  color: #41516a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-control select {
+  width: 150px;
+  min-height: 36px;
+  border: 1px solid #c9d5e8;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.history-panel {
+  padding: 14px;
+}
+
+.history-panel header {
+  margin-bottom: 12px;
+}
+
+.history-panel h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.history-panel header span {
+  color: #60718a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.history-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #e0e8f3;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #60718a;
+  font-size: 13px;
+}
+
+.history-meta strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.history-changes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-changes li {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.8fr) minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: #41516a;
+  font-size: 13px;
+}
+
+.history-changes span {
+  color: #60718a;
+  font-weight: 800;
+}
+
+.history-changes b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.history-changes i {
+  color: #8a9ab0;
+  font-style: normal;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid #c9d5e8;
+  padding: 8px 12px;
+  background: #fff;
+  color: #21324a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ghost-btn.compact {
+  padding: 5px 9px;
+}
+
+.state-card {
+  color: #60718a;
+  font-weight: 700;
+}
+
+.state-card.error {
+  border-color: #fecaca;
+  background: #fff3f1;
+  color: #b42318;
+}
+
+@media (max-width: 760px) {
+  .page-head,
+  .summary-strip,
+  .university-panel header,
+  .history-panel header,
+  .program-row,
+  .state-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-actions,
+  .history-actions {
+    width: 100%;
+  }
+
+  .page-actions button,
+  .history-actions button {
+    flex: 1;
+  }
+
+  .history-changes li {
+    grid-template-columns: 1fr;
+  }
+
+  .status-control select {
+    width: 100%;
+  }
+}

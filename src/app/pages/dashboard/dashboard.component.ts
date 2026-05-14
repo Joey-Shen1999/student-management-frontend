@@ -9,6 +9,15 @@ import {
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
+import {
+  GraduationApplication,
+  GraduationApplicationStageService,
+} from '../../services/graduation-application-stage.service';
+
+interface ApplicationProgressGroup {
+  universityName: string;
+  applications: GraduationApplication[];
+}
 
 @Component({
   selector: 'app-dashboard',
@@ -31,6 +40,45 @@ import {
             {{ signingOut ? '退出中...' : '退出登录' }}
           </button>
         </div>
+
+        <section class="dashboard-card application-progress-card" *ngIf="applicationStageEnabled">
+          <div class="section-head">
+            <div>
+              <h3>大学申请进度</h3>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">{{ applicationProgressCount }} 个专业</span>
+            </div>
+          </div>
+
+          <div style="display:grid;gap:10px;">
+            <article
+              class="application-university"
+              style="border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
+              *ngFor="let group of applicationProgressGroups; trackBy: trackApplicationGroup"
+            >
+              <header style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+                <h4 style="margin:0;color:#203047;font-size:15px;">{{ group.universityName }}</h4>
+                <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">{{ group.applications.length }} 个专业</span>
+              </header>
+              <div style="display:grid;gap:8px;">
+                <div
+                  class="program-progress-row"
+                  style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
+                  *ngFor="let application of group.applications; trackBy: trackApplication"
+                >
+                  <div style="display:grid;gap:3px;">
+                    <strong style="color:#22324a;font-size:14px;">{{ application.programName }}</strong>
+                    <small style="color:#6b7890;font-size:12px;">最近更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
+                  </div>
+                  <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">
+                    {{ graduationStage.statusLabel(application.status) }}
+                  </span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section class="dashboard-card">
           <div class="section-head">
@@ -165,6 +213,10 @@ export class DashboardComponent implements OnInit {
   showReadInfos = false;
   signingOut = false;
   welcomeNameOverride = '';
+  applicationStageEnabled = false;
+  applicationProgressGroups: ApplicationProgressGroup[] = [];
+  applicationProgressLoading = false;
+  applicationProgressError = '';
 
   private infoLoadWatchdog: number | null = null;
   private readonly welcomeNameTimeoutMs = 8000;
@@ -174,6 +226,7 @@ export class DashboardComponent implements OnInit {
     private router: Router,
     private taskCenter: TaskCenterService,
     private profileApi: StudentProfileService,
+    public graduationStage: GraduationApplicationStageService = new GraduationApplicationStageService(),
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {
     this.session = this.auth.getSession();
@@ -191,6 +244,7 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadWelcomeNameIfNeeded();
+    this.loadApplicationProgress();
     this.loadInfos();
   }
 
@@ -204,6 +258,10 @@ export class DashboardComponent implements OnInit {
 
   get readInfoItems(): InfoTaskVm[] {
     return this.showReadInfos ? this.infoItems.filter((info) => info.read) : [];
+  }
+
+  get applicationProgressCount(): number {
+    return this.applicationProgressGroups.reduce((total, group) => total + group.applications.length, 0);
   }
 
   goUniversityGoals() {
@@ -309,6 +367,10 @@ export class DashboardComponent implements OnInit {
 
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
 
+  trackApplicationGroup = (_index: number, group: ApplicationProgressGroup): string => group.universityName;
+
+  trackApplication = (_index: number, application: GraduationApplication): string | number => application.id;
+
   displayUpdatedAt(value: string): string {
     const timestamp = Date.parse(value);
     if (!Number.isFinite(timestamp)) {
@@ -368,6 +430,51 @@ export class DashboardComponent implements OnInit {
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private loadApplicationProgress(): void {
+    const studentId = Number(this.session?.studentId);
+    if (!Number.isFinite(studentId) || studentId <= 0) {
+      this.applicationStageEnabled = false;
+      this.applicationProgressGroups = [];
+      return;
+    }
+
+    this.applicationProgressLoading = true;
+    this.applicationProgressError = '';
+    this.graduationStage
+      .listApplications(studentId)
+      .pipe(
+        finalize(() => {
+          this.applicationProgressLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (applications) => {
+          this.applicationStageEnabled = applications.length > 0;
+          this.applicationProgressGroups = this.groupApplicationsByUniversity(applications);
+          this.cdr.detectChanges();
+        },
+        error: (error: unknown) => {
+          this.applicationStageEnabled = false;
+          this.applicationProgressGroups = [];
+          this.applicationProgressError = this.extractErrorMessage(error) || '加载大学申请进度失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  private groupApplicationsByUniversity(applications: GraduationApplication[]): ApplicationProgressGroup[] {
+    const groups = new Map<string, GraduationApplication[]>();
+    for (const application of applications) {
+      const key = application.universityName.trim() || '未命名大学';
+      groups.set(key, [...(groups.get(key) || []), application]);
+    }
+    return Array.from(groups.entries()).map(([universityName, rows]) => ({
+      universityName,
+      applications: rows.sort((left, right) => left.sortOrder - right.sortOrder),
+    }));
   }
 
   private startInfoLoadWatchdog(): void {

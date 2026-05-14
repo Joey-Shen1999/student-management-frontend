@@ -1929,6 +1929,7 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
+        'graduationStage',
         'documents',
         'resetPassword',
         'archive',
@@ -1954,11 +1955,77 @@ describe('StudentManagementComponent', () => {
         'graduation',
         'teacherNote',
         'universityGoals',
+        'graduationStage',
         'ielts',
         'ossltTracking',
         'volunteerTracking',
       ].sort()
     );
+  });
+
+  it('page title should be graduation management on /teacher/graduation', () => {
+    router.url = '/teacher/graduation';
+    expect(component.pageTitle).toBe('升学管理');
+  });
+
+  it('default columns on /teacher/graduation should match graduation management defaults', () => {
+    router.url = '/teacher/graduation';
+
+    const defaultKeys = Array.from(
+      ((component as any).buildDefaultVisibleColumnKeys() as Set<string>).values()
+    ).sort();
+
+    expect(defaultKeys).toEqual(
+      [
+        'name',
+        'graduation',
+        'teacherNote',
+        'graduationStage',
+        'universityGoals',
+        'ielts',
+        'ossltTracking',
+        'volunteerTracking',
+      ].sort()
+    );
+  });
+
+  it('graduation management should default to students already in graduation stage', () => {
+    router.url = '/teacher/graduation';
+    const local = new StudentManagementComponent(
+      api as StudentManagementService,
+      profileApi as StudentProfileService,
+      inviteApi as StudentInviteService,
+      auth as AuthService,
+      router as Router,
+      ieltsApi as IeltsTrackingService,
+      ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService,
+      coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService,
+      preferenceApi as TeacherPreferenceService
+    );
+
+    local.ngOnInit();
+
+    expect(local.graduationStageFilter).toBe('ENABLED');
+  });
+
+  it('graduation stage button should open setup before stage is enabled', () => {
+    const route = component.graduationApplicationSetupRoute({
+      id: 12,
+      graduationStageEnabled: false,
+    } as any);
+
+    expect(route).toEqual(['/teacher/students', '12', 'graduation-applications', 'setup']);
+  });
+
+  it('graduation stage button should open applications after stage is enabled', () => {
+    const route = component.graduationApplicationSetupRoute({
+      id: 12,
+      graduationStageEnabled: true,
+    } as any);
+
+    expect(route).toEqual(['/teacher/students', '12', 'graduation-applications']);
   });
 
   it('page title should be extracurricular activities on /teacher/extracurricular', () => {

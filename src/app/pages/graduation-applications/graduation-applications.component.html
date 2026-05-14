@@ -1,0 +1,112 @@
+<main class="applications-page">
+  <section class="applications-shell">
+    <header class="page-head">
+      <div>
+        <h1>{{ pageTitle }}</h1>
+      </div>
+      <div class="page-actions">
+        <button type="button" class="ghost-btn" (click)="openHistory()" [disabled]="historyLoading">
+          {{ historyLoading ? '读取记录中...' : '操作记录' }}
+        </button>
+        <button type="button" class="ghost-btn" (click)="goBack()">返回</button>
+      </div>
+    </header>
+
+    <div class="summary-strip">
+      <div>
+        <strong>{{ totalCount }}</strong>
+        <span>申请专业</span>
+      </div>
+      <div>
+        <strong>{{ submittedCount }}</strong>
+        <span>已提交</span>
+      </div>
+      <div>
+        <strong>{{ offerCount }}</strong>
+        <span>Offer</span>
+      </div>
+    </div>
+
+    <section class="history-panel" *ngIf="historyPanelOpen">
+      <header>
+        <div>
+          <h2>操作记录</h2>
+          <span>最近 {{ historyEntries.length }} 条<span *ngIf="historyTotal > historyEntries.length"> / 共 {{ historyTotal }} 条</span></span>
+        </div>
+        <div class="history-actions">
+          <button type="button" class="ghost-btn compact" (click)="refreshHistory()" [disabled]="historyLoading">刷新</button>
+          <button type="button" class="ghost-btn compact" (click)="closeHistory()">关闭</button>
+        </div>
+      </header>
+
+      <div *ngIf="historyLoading" class="state-card">正在读取操作记录...</div>
+      <div *ngIf="!historyLoading && historyError" class="state-card error">
+        <span>{{ historyError }}</span>
+        <button type="button" class="ghost-btn compact" (click)="refreshHistory()">重试</button>
+      </div>
+      <div *ngIf="!historyLoading && !historyError && historyEntries.length === 0" class="state-card">暂无操作记录</div>
+
+      <div class="history-list" *ngIf="!historyLoading && !historyError && historyEntries.length > 0">
+        <article class="history-item" *ngFor="let entry of historyEntries; trackBy: trackHistory">
+          <div class="history-meta">
+            <strong>{{ displayHistoryOperation(entry) }}</strong>
+            <span>{{ displayHistoryActor(entry) }}</span>
+            <span>{{ displayHistoryTimestamp(entry) }}</span>
+          </div>
+
+          <ul class="history-changes" *ngIf="getHistoryChanges(entry).length > 0">
+            <li *ngFor="let change of getHistoryChanges(entry); trackBy: trackHistoryChange">
+              <span>{{ displayHistoryField(change) }}</span>
+              <b>{{ displayHistoryValue(change.before) }}</b>
+              <i>→</i>
+              <b>{{ displayHistoryValue(change.after) }}</b>
+            </li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <div *ngIf="loading" class="state-card">正在读取申请进度...</div>
+    <div *ngIf="!loading && error" class="state-card error">
+      <span>{{ error }}</span>
+      <button type="button" class="ghost-btn compact" (click)="loadApplications()">重试</button>
+    </div>
+    <div *ngIf="!loading && !error && applications.length === 0" class="state-card">暂无正式申请</div>
+
+    <section class="application-list" *ngIf="!loading && !error && groups.length > 0">
+      <article class="university-panel" *ngFor="let group of groups; trackBy: trackGroup">
+        <header>
+          <h2 class="notranslate" translate="no" data-no-auto-translate>{{ group.universityName }}</h2>
+          <span>{{ group.applications.length }} 个专业</span>
+        </header>
+
+        <div class="program-list">
+          <article class="program-row" *ngFor="let application of group.applications; trackBy: trackApplication">
+            <div class="rank">{{ application.sortOrder }}</div>
+            <div class="program-main">
+              <h3 class="notranslate" translate="no" data-no-auto-translate>{{ application.programName }}</h3>
+              <small *ngIf="application.facultyName || application.degreeType">
+                <span class="notranslate" translate="no" data-no-auto-translate>{{ application.facultyName }}</span>
+                <span *ngIf="application.degreeType"> · {{ application.degreeType }}</span>
+              </small>
+              <small>更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
+            </div>
+
+            <label class="status-control">
+              <span>进度</span>
+              <select
+                [ngModel]="application.status"
+                (ngModelChange)="updateStatus(application, $event)"
+                [disabled]="updatingId === application.id"
+              >
+                <option *ngFor="let status of statusOptions" [ngValue]="status">
+                  {{ graduationStage.statusLabel(status) }}
+                </option>
+              </select>
+            </label>
+          </article>
+        </div>
+      </article>
+    </section>
+  </section>
+</main>

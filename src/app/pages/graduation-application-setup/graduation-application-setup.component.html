@@ -1,0 +1,200 @@
+<main class="graduation-setup-page">
+  <section class="setup-shell">
+    <header class="setup-header">
+      <div>
+        <h1>确认正式大学申请</h1>
+      </div>
+      <button type="button" class="ghost-btn" (click)="goBack()">返回</button>
+    </header>
+
+    <div *ngIf="message" class="notice">{{ message }}</div>
+    <div *ngIf="error" class="notice error">{{ error }}</div>
+    <div *ngIf="loading" class="notice">{{ loadingMessage || '正在读取申请资料...' }}</div>
+
+    <section class="setup-card">
+      <div class="card-head">
+        <div>
+          <h2>正式申请清单</h2>
+        </div>
+        <span class="summary-pill">已选择 {{ selectedCount }} / {{ drafts.length }}</span>
+      </div>
+
+      <div class="draft-list" *ngIf="selectedDrafts.length > 0">
+        <article
+          class="draft-row"
+          *ngFor="let draft of selectedDrafts; let index = index; trackBy: trackDraft"
+          [class.dragging]="isDraftDragging(draft)"
+          [class.drag-over]="isDraftDragOver(draft)"
+          [class.reorderable]="selectedDrafts.length > 1"
+          [attr.draggable]="selectedDrafts.length > 1 ? true : null"
+          title="拖动调整顺序"
+          (dragstart)="onDraftDragStart($event, draft)"
+          (dragover)="onDraftDragOver($event, draft)"
+          (drop)="onDraftDrop($event, draft)"
+          (dragend)="onDraftDragEnd()"
+        >
+          <label title="是否纳入正式申请">
+            <input type="checkbox" [ngModel]="draft.selected" (ngModelChange)="setDraftSelected(draft, $event)" />
+          </label>
+          <div class="rank">{{ index + 1 }}</div>
+          <div class="draft-main">
+            <h3>{{ draft.universityName }}</h3>
+            <p>{{ draft.programName }}</p>
+            <small *ngIf="draft.facultyName || draft.degreeType">
+              {{ draft.facultyName || 'Faculty 未设置' }}
+              <span *ngIf="draft.degreeType"> · {{ draft.degreeType }}</span>
+            </small>
+          </div>
+          <label class="status-select">
+            进度
+            <select [(ngModel)]="draft.status">
+              <option *ngFor="let status of statusOptions" [ngValue]="status">
+                {{ graduationStage.statusLabel(status) }}
+              </option>
+            </select>
+          </label>
+          <div class="row-actions">
+            <button type="button" class="ghost-btn compact" (click)="openEditDraftDialog(draft)">修改</button>
+            <button type="button" class="ghost-btn compact danger" (click)="removeDraft(draft)">移除</button>
+          </div>
+        </article>
+      </div>
+
+      <div *ngIf="!loading && drafts.length === 0" class="empty-state">
+        暂无正式申请
+      </div>
+
+      <div class="add-draft-entry" *ngIf="!loading">
+        <button
+          type="button"
+          class="draft-row add-draft-row"
+          title="添加正式申请"
+          aria-label="添加正式申请"
+          (click)="openAddDraftDialog()"
+        >
+          <span class="rank">+</span>
+          <span>添加正式申请</span>
+        </button>
+      </div>
+
+      <section style="margin-top:18px;padding-top:14px;border-top:1px dashed #cbd5e1;" *ngIf="removedDrafts.length > 0">
+        <header style="display:flex;justify-content:space-between;margin-bottom:8px;color:#60718a;font-size:13px;font-weight:800;">
+          <span>未纳入</span>
+          <small>{{ removedDrafts.length }} 个目标</small>
+        </header>
+        <div class="draft-list">
+          <article
+            class="draft-row"
+            *ngFor="let draft of removedDrafts; trackBy: trackDraft"
+          >
+            <span aria-hidden="true"></span>
+            <div class="rank">+</div>
+            <div class="draft-main">
+              <h3>{{ draft.universityName }}</h3>
+              <p>{{ draft.programName }}</p>
+              <small *ngIf="draft.facultyName || draft.degreeType">
+                {{ draft.facultyName || 'Faculty 未设置' }}
+                <span *ngIf="draft.degreeType"> · {{ draft.degreeType }}</span>
+              </small>
+            </div>
+            <label class="status-select">
+              进度
+              <select [(ngModel)]="draft.status">
+                <option *ngFor="let status of statusOptions" [ngValue]="status">
+                  {{ graduationStage.statusLabel(status) }}
+                </option>
+              </select>
+            </label>
+            <div class="row-actions">
+              <button type="button" class="ghost-btn compact" (click)="openEditDraftDialog(draft)">修改</button>
+              <button type="button" class="ghost-btn compact add-back" (click)="restoreDraft(draft)">添加</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+
+    <div class="modal-backdrop" *ngIf="addDialogOpen">
+      <section class="add-dialog" role="dialog" aria-modal="true" aria-labelledby="addDraftDialogTitle">
+        <header class="dialog-header">
+          <div>
+            <h2 id="addDraftDialogTitle">{{ editingDraftId ? '修改大学申请' : '添加大学申请' }}</h2>
+          </div>
+          <button type="button" class="ghost-btn compact" (click)="closeAddDraftDialog()">取消</button>
+        </header>
+
+        <div *ngIf="addDialogError" class="notice error dialog-notice">{{ addDialogError }}</div>
+
+        <div class="dialog-form">
+          <label class="autocomplete-field">
+            <span>大学</span>
+            <input
+              type="text"
+              [(ngModel)]="newUniversityName"
+              (ngModelChange)="onNewUniversityInput()"
+              (focus)="onNewUniversityFocus()"
+              placeholder="输入或选择大学"
+            />
+            <div *ngIf="universitySuggestionsOpen && visibleNewUniversities.length > 0" class="suggestion-list">
+              <button
+                type="button"
+                *ngFor="let university of visibleNewUniversities; trackBy: trackUniversity"
+                (click)="selectNewUniversity(university)"
+                class="notranslate"
+                translate="no"
+                data-no-auto-translate
+              >
+                {{ university.name }}
+              </button>
+            </div>
+          </label>
+
+          <label class="autocomplete-field">
+            <span>专业</span>
+            <input
+              type="text"
+              [(ngModel)]="newProgramName"
+              (ngModelChange)="onNewProgramInput()"
+              (focus)="onNewProgramFocus()"
+              [disabled]="!selectedNewUniversity || loadingPrograms"
+              [placeholder]="loadingPrograms ? '读取专业中...' : '输入或选择专业'"
+            />
+            <div *ngIf="programSuggestionsOpen && selectedNewUniversity && visibleNewPrograms.length > 0" class="suggestion-list">
+              <button
+                type="button"
+                *ngFor="let program of visibleNewPrograms; trackBy: trackProgram"
+                (click)="selectNewProgram(program)"
+                class="notranslate"
+                translate="no"
+                data-no-auto-translate
+              >
+                {{ program.programName }}
+              </button>
+            </div>
+          </label>
+        </div>
+
+        <footer class="dialog-actions">
+          <button type="button" class="ghost-btn" (click)="closeAddDraftDialog()">取消</button>
+          <button type="button" class="secondary-btn" (click)="addDraft()">
+            {{ editingDraftId ? '保存修改' : '添加到清单' }}
+          </button>
+        </footer>
+      </section>
+    </div>
+
+    <footer class="setup-footer">
+      <div>
+        <strong>{{ isAlreadyEnabled ? '该学生已在升学阶段' : '尚未确认升学阶段' }}</strong>
+      </div>
+      <button
+        type="button"
+        class="primary-btn"
+        (click)="confirmGraduationStage()"
+        [disabled]="saving || selectedCount === 0"
+      >
+        {{ saving ? '确认中...' : '确认进入升学阶段' }}
+      </button>
+    </footer>
+  </section>
+</main>
