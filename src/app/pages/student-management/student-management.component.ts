@@ -719,7 +719,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           background:#fafbfe;
         "
       >
-        <div style="order:1;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:0 0 auto;">
+        <div style="order:1;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:1 1 360px;min-width:min(100%,320px);">
           <button
             type="button"
             (click)="toggleFilterPanel()"
@@ -729,6 +729,29 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           >
             {{ isFilterPanelExpanded ? '收起筛选' : '展开筛选' }}
           </button>
+
+          <div style="position:relative;display:inline-flex;align-items:center;flex:1 1 260px;min-width:220px;max-width:420px;">
+            <input
+              type="search"
+              [ngModel]="searchKeyword"
+              (ngModelChange)="onSearchKeywordChange($event)"
+              [disabled]="loadingList"
+              aria-label="搜索学生"
+              placeholder="搜索任意文字"
+              style="width:100%;min-height:32px;padding:6px 34px 6px 10px;border:1px solid #cfd6e4;border-radius:8px;background:#fff;color:#1f2937;font-size:13px;outline:none;"
+            />
+            <button
+              *ngIf="searchKeyword.trim()"
+              type="button"
+              (click)="onSearchKeywordChange('')"
+              [disabled]="loadingList"
+              aria-label="清空搜索"
+              title="清空搜索"
+              style="position:absolute;right:4px;top:50%;transform:translateY(-50%);width:24px;height:24px;padding:0;border:0;background:transparent;color:#64748b;font-size:18px;line-height:22px;cursor:pointer;"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <div
@@ -764,8 +787,6 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                 ? null
                 : (volunteerCompletedFilterError || 'Volunteer completed filter data unavailable')
             "
-            [studentKeyword]="searchKeyword"
-            [keywordPlaceholder]="'按 ID、姓名、邮箱、电话、大学入学时间搜索'"
             (countryFilterInputChange)="onCountryFilterInputChange($event)"
             (provinceFilterInputChange)="onProvinceFilterInputChange($event)"
             (cityFilterInputChange)="onCityFilterInputChange($event)"
@@ -774,7 +795,6 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             (courseCodeFilterInputChange)="onCourseCodeFilterInputChange($event)"
             (courseStatusFilterChange)="onCourseStatusFilterChange($event)"
             (volunteerCompletedFilterChange)="onVolunteerCompletedFilterChange($event)"
-            (studentKeywordChange)="onSearchKeywordChange($event)"
           ></app-student-filter-fields>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
@@ -1939,7 +1959,6 @@ export class StudentManagementComponent implements OnInit {
     'graduationSeason',
     'coursePlan',
     'volunteerCompleted',
-    'keyword',
   ];
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
@@ -2590,6 +2609,9 @@ export class StudentManagementComponent implements OnInit {
 
   onSearchKeywordChange(value: string): void {
     this.searchKeyword = String(value ?? '');
+    if (this.searchKeyword.trim()) {
+      this.prefetchUniversityGoalsForStudents(this.students, true);
+    }
     this.applyListView(true);
   }
 
@@ -5610,7 +5632,17 @@ export class StudentManagementComponent implements OnInit {
       this.isGraduationStageEnabled(student) ? '已进入升学阶段' : '未进入升学阶段',
     ];
 
-    return searchFields.some((field) => field.toLowerCase().includes(keyword));
+    const universityGoals = this.resolveUniversityGoalsForFilter(student);
+    if (universityGoals) {
+      for (const goal of universityGoals) {
+        searchFields.push(
+          ...this.collectUniversityGoalUniversityText(goal),
+          ...this.collectUniversityGoalProgramText(goal)
+        );
+      }
+    }
+
+    return searchFields.some((field) => String(field ?? '').toLowerCase().includes(keyword));
   }
 
   private prefetchStatusDataForActiveFilters(): void {
@@ -7328,7 +7360,7 @@ export class StudentManagementComponent implements OnInit {
           const goals = this.normalizeUniversityGoalRows(rows);
           this.universityGoalsCache.set(studentId, goals);
           this.universityGoalsCountCache.set(studentId, goals.length);
-          if (reapplyOnUpdate && this.isUniversityGoalFilterActive()) {
+          if (reapplyOnUpdate && (this.isUniversityGoalFilterActive() || this.searchKeyword.trim())) {
             this.applyListView();
           }
           this.cdr.detectChanges();
@@ -7336,7 +7368,7 @@ export class StudentManagementComponent implements OnInit {
         error: () => {
           this.universityGoalsCache.set(studentId, []);
           this.universityGoalsCountCache.set(studentId, 0);
-          if (reapplyOnUpdate && this.isUniversityGoalFilterActive()) {
+          if (reapplyOnUpdate && (this.isUniversityGoalFilterActive() || this.searchKeyword.trim())) {
             this.applyListView();
           }
           this.cdr.detectChanges();
