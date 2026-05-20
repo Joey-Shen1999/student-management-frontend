@@ -64,7 +64,6 @@ export class StudentUniversityGoalsComponent implements OnInit {
     back: uiText('返回', 'Back'),
     loadingGoals: uiText('正在加载大学目标...', 'Loading university goals...'),
     choice: uiText('Choice', 'Choice'),
-    dragToReorder: uiText('拖动排序', 'Drag to reorder'),
     program: uiText('专业', 'Program'),
     edit: uiText('修改', 'Edit'),
     delete: uiText('删除', 'Delete'),

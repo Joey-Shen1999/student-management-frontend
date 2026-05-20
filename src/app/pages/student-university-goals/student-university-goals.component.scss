@@ -101,30 +101,21 @@ h1 {
   grid-template-rows: auto auto 1fr auto;
   gap: 10px;
   padding: 12px;
+  cursor: grab;
 }
 
 .choice-tile.dragging {
   opacity: 0.55;
+  cursor: grabbing;
 }
 
 .tile-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   color: #667085;
   font-size: 13px;
   font-weight: 800;
-}
-
-.drag-handle {
-  width: 34px;
-  height: 30px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background: #f8fafc;
-  color: #475467;
-  cursor: grab;
-  font-weight: 900;
 }
 
 .tile-main {
