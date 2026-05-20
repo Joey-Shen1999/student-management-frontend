@@ -1,7 +1,7 @@
 ﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { StudentProfile } from './student-profile';
@@ -809,6 +809,59 @@ describe('StudentProfile', () => {
         transcriptFileName: 'existing-transcript.pdf',
         transcriptContentType: 'application/pdf',
         uploadedBy: 9,
+      })
+    );
+  });
+
+  it('should defer auto save during transcript upload and use the upload response version', () => {
+    const setProfileSaveContext = vi.fn();
+    (profileApi as any).setProfileSaveContext = setProfileSaveContext;
+    const upload$ = new Subject<any>();
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(upload$.asObservable());
+    (profileApi.saveMyProfile as any).mockReturnValue(of({ version: 11 }));
+
+    component.enterEditMode();
+    component.profileVersion = 10;
+    component.model.legalFirstName = 'Queued';
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+
+    const file = new File(['pdf-content'], 'queued-transcript.pdf', { type: 'application/pdf' });
+    const fileInput = document.createElement('input');
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: fileInput } as unknown as Event);
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    component.onFormFocusOut({ target: textInput, relatedTarget: null } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+
+    upload$.next({
+      schoolRecordId: 101,
+      hasTranscript: true,
+      version: 11,
+      transcripts: [
+        {
+          id: 31,
+          storageKey: 'student-1_school-101_queued.pdf',
+          transcriptFileName: 'queued-transcript.pdf',
+          transcriptSizeBytes: 222,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+        },
+      ],
+    });
+    upload$.complete();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(setProfileSaveContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ifMatchVersion: 11,
+        changeSource: 'auto_save',
       })
     );
   });

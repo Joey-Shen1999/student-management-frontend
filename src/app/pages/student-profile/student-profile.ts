@@ -916,6 +916,7 @@ export class StudentProfile implements OnInit {
         finalize(() => {
           this.identityFileUploading = false;
           if (input) input.value = '';
+          this.flushPendingAutoSaveAfterUpload();
           this.cdr.detectChanges();
         })
       )
@@ -940,7 +941,7 @@ export class StudentProfile implements OnInit {
   }
 
   private isProfileBusyForIdentityUpload(): boolean {
-    return this.loading || this.saving || this.saveInProgress || this.identityFileUploading;
+    return this.loading || this.saving || this.saveInProgress || this.isFileUploadInProgress();
   }
 
   private retryIdentityFileUploadWhenIdle(
@@ -1435,6 +1436,7 @@ export class StudentProfile implements OnInit {
         finalize(() => {
           this.highSchoolTranscriptUploading[index] = false;
           if (input) input.value = '';
+          this.flushPendingAutoSaveAfterUpload();
           this.cdr.detectChanges();
         })
       )
@@ -1858,7 +1860,19 @@ export class StudentProfile implements OnInit {
   }
 
   private isProfileBusyForTranscriptUpload(): boolean {
-    return this.saveInProgress || this.loading || this.saving;
+    return this.saveInProgress || this.loading || this.saving || this.isFileUploadInProgress();
+  }
+
+  private isFileUploadInProgress(): boolean {
+    return this.identityFileUploading || this.highSchoolTranscriptUploading.some((uploading) => !!uploading);
+  }
+
+  private flushPendingAutoSaveAfterUpload(): void {
+    if (!this.pendingAutoSave || !this.editing || this.isFileUploadInProgress() || this.loading || this.saveInProgress) {
+      return;
+    }
+
+    this.triggerAutoSave();
   }
 
   private retrySchoolTranscriptUploadWhenIdle(
@@ -2484,9 +2498,12 @@ export class StudentProfile implements OnInit {
       return;
     }
 
-    if (this.saveInProgress || this.loading) {
+    if (this.saveInProgress || this.loading || this.isFileUploadInProgress()) {
       if (background) {
         this.pendingAutoSave = true;
+      } else if (this.isFileUploadInProgress()) {
+        this.error = '文件上传中，请等待上传完成后再保存。';
+        this.cdr.detectChanges();
       }
       return;
     }
