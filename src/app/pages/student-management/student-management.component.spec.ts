@@ -613,6 +613,56 @@ describe('StudentManagementComponent', () => {
     ]);
   });
 
+  it('applyListView should match Chinese display names by pinyin keyword', () => {
+    component.students = [
+      { studentId: 1, username: 'student01', displayName: '邱小明', status: 'ACTIVE' },
+      { studentId: 2, username: 'student02', displayName: '陈小明', status: 'ACTIVE' },
+    ];
+    component.searchKeyword = 'qiu';
+
+    component.applyListView();
+
+    expect(component.filteredCount).toBe(1);
+    expect(component.visibleStudents).toEqual([
+      { studentId: 1, username: 'student01', displayName: '邱小明', status: 'ACTIVE' },
+    ]);
+  });
+
+  it('applyListView should match English university goals by Chinese keyword aliases', () => {
+    component.students = [
+      {
+        studentId: 1,
+        username: 'student01',
+        status: 'ACTIVE',
+        universityGoals: [
+          {
+            universityName: 'University of Toronto',
+            programName: 'Computer Science',
+          },
+        ],
+      } as any,
+      {
+        studentId: 2,
+        username: 'student02',
+        status: 'ACTIVE',
+        universityGoals: [
+          {
+            universityName: 'University of Waterloo',
+            programName: 'Kinesiology',
+          },
+        ],
+      } as any,
+    ];
+
+    component.searchKeyword = '多伦多';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+
+    component.searchKeyword = '计算机';
+    component.applyListView();
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual([1]);
+  });
+
   it('applyListView should include inactive students when enabled', () => {
     component.students = [
       { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
