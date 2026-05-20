@@ -1,7 +1,7 @@
 ﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { StudentProfile } from './student-profile';
@@ -782,6 +782,88 @@ describe('StudentProfile', () => {
     expect(component.model.highSchools[0].transcripts[1].transcriptFileName).toBe('new-transcript.pdf');
     expect(component.model.highSchools[0].hasTranscript).toBe(true);
     expect(component.profileVersion).toBe(8);
+  });
+
+  it('should preserve transcript id and storage key when building save payload', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+    component.model.highSchools[0].transcripts = [
+      {
+        id: 22,
+        storageKey: 'student-1_school-101_abc.pdf',
+        transcriptFileName: 'existing-transcript.pdf',
+        transcriptContentType: 'application/pdf',
+        transcriptSizeBytes: 222,
+        transcriptUploadedAt: '2026-03-02T10:00:00',
+        uploadedBy: 9,
+      },
+    ];
+
+    const payload = (component as any).toPayload(component.model);
+
+    expect(payload.schools[0].transcripts[0]).toEqual(
+      expect.objectContaining({
+        id: 22,
+        storageKey: 'student-1_school-101_abc.pdf',
+        transcriptFileName: 'existing-transcript.pdf',
+        transcriptContentType: 'application/pdf',
+        uploadedBy: 9,
+      })
+    );
+  });
+
+  it('should defer auto save during transcript upload and use the upload response version', () => {
+    const setProfileSaveContext = vi.fn();
+    (profileApi as any).setProfileSaveContext = setProfileSaveContext;
+    const upload$ = new Subject<any>();
+    (profileApi.uploadMySchoolTranscript as any).mockReturnValueOnce(upload$.asObservable());
+    (profileApi.saveMyProfile as any).mockReturnValue(of({ version: 11 }));
+
+    component.enterEditMode();
+    component.profileVersion = 10;
+    component.model.legalFirstName = 'Queued';
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+
+    const file = new File(['pdf-content'], 'queued-transcript.pdf', { type: 'application/pdf' });
+    const fileInput = document.createElement('input');
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      configurable: true,
+    });
+
+    component.onHighSchoolTranscriptFileSelected(0, { target: fileInput } as unknown as Event);
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    component.onFormFocusOut({ target: textInput, relatedTarget: null } as unknown as FocusEvent);
+
+    expect(profileApi.saveMyProfile).not.toHaveBeenCalled();
+
+    upload$.next({
+      schoolRecordId: 101,
+      hasTranscript: true,
+      version: 11,
+      transcripts: [
+        {
+          id: 31,
+          storageKey: 'student-1_school-101_queued.pdf',
+          transcriptFileName: 'queued-transcript.pdf',
+          transcriptSizeBytes: 222,
+          transcriptUploadedAt: '2026-03-02T10:00:00',
+        },
+      ],
+    });
+    upload$.complete();
+
+    expect(profileApi.saveMyProfile).toHaveBeenCalledTimes(1);
+    expect(setProfileSaveContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ifMatchVersion: 11,
+        changeSource: 'auto_save',
+      })
+    );
   });
 
   it('should keep all uploads even when transcript filename repeats', () => {
