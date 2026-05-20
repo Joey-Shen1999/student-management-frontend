@@ -546,6 +546,58 @@ describe('StudentManagementComponent', () => {
     expect(component.visibleStudents.length).toBe(15);
   });
 
+  it('applyListView should paginate filtered students', () => {
+    component.students = Array.from({ length: 54 }, (_v, index) => ({
+      studentId: index + 1,
+      username: `student${index + 1}`,
+      status: 'ACTIVE',
+    }));
+    component.listLimit = 20;
+
+    component.applyListView(true);
+
+    expect(component.filteredCount).toBe(54);
+    expect(component.currentPage).toBe(1);
+    expect(component.totalPages).toBe(3);
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual(
+      Array.from({ length: 20 }, (_v, index) => index + 1)
+    );
+    expect(component.listCountLabel).toBe('\u663e\u793a\uff1a1-20 / \u7b5b\u9009\u540e\uff1a54');
+
+    component.goToNextListPage();
+
+    expect(component.currentPage).toBe(2);
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual(
+      Array.from({ length: 20 }, (_v, index) => index + 21)
+    );
+    expect(component.listCountLabel).toBe('\u663e\u793a\uff1a21-40 / \u7b5b\u9009\u540e\uff1a54');
+
+    component.goToListPage(3);
+
+    expect(component.visibleStudents.map((student) => student.studentId)).toEqual(
+      Array.from({ length: 14 }, (_v, index) => index + 41)
+    );
+    expect(component.listCountLabel).toBe('\u663e\u793a\uff1a41-54 / \u7b5b\u9009\u540e\uff1a54');
+  });
+
+  it('applyListView should return to the first page when filters change', () => {
+    component.students = Array.from({ length: 54 }, (_v, index) => ({
+      studentId: index + 1,
+      username: index < 30 ? `alpha${index + 1}` : `beta${index + 1}`,
+      displayName: index < 30 ? `Alpha ${index + 1}` : `Beta ${index + 1}`,
+      status: 'ACTIVE',
+    }));
+    component.listLimit = 20;
+    component.applyListView(true);
+    component.goToListPage(3);
+
+    component.onSearchKeywordChange('alpha');
+
+    expect(component.currentPage).toBe(1);
+    expect(component.filteredCount).toBe(30);
+    expect(component.visibleStudents.length).toBe(20);
+  });
+
   it('applyListView should hide inactive students by default and keep keyword search', () => {
     component.students = [
       { studentId: 1, username: 'alice', displayName: 'Alice A', email: 'alice@example.com', status: 'ACTIVE' },
@@ -1754,7 +1806,7 @@ describe('StudentManagementComponent', () => {
   it('should tolerate remote preference without orderedColumnKeys and still save orderedColumnKeys', () => {
     (preferenceApi.getPagePreference as any).mockReturnValue(
       of({
-        version: 'v11',
+        version: 'v12',
         visibleColumnKeys: [
           'name',
           'email',
@@ -1794,7 +1846,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v11',
+        version: 'v12',
         visibleColumnKeys: expect.any(Array),
         orderedColumnKeys: expect.any(Array),
       })
@@ -1868,7 +1920,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'student-management.list-columns',
       expect.objectContaining({
-        version: 'v11',
+        version: 'v12',
       })
     );
   });
@@ -1883,7 +1935,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'ielts-tracking.list-columns',
       expect.objectContaining({
-        version: 'v11',
+        version: 'v12',
       })
     );
   });
@@ -1929,7 +1981,6 @@ describe('StudentManagementComponent', () => {
         'serviceItems',
         'teacherNote',
         'profile',
-        'graduationStage',
         'documents',
         'resetPassword',
         'archive',
@@ -1937,9 +1988,9 @@ describe('StudentManagementComponent', () => {
     );
   });
 
-  it('page title should be university goal management on /teacher/university-goals', () => {
+  it('page title should be university advancement on /teacher/university-goals', () => {
     router.url = '/teacher/university-goals';
-    expect(component.pageTitle).toBe('大学目标管理');
+    expect(component.pageTitle).toBe('大学升学');
   });
 
   it('default columns on /teacher/university-goals should match university goal management defaults', () => {
@@ -2326,7 +2377,7 @@ describe('StudentManagementComponent', () => {
     expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
       'course-management.list-columns',
       expect.objectContaining({
-        version: 'v11',
+        version: 'v12',
       })
     );
   });

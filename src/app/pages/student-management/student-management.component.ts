@@ -216,7 +216,7 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   osslt: 'OSSLT \u8ddf\u8e2a',
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
-  universityGoals: '\u5927\u5b66\u76ee\u6807\u7ba1\u7406',
+  universityGoals: '\u5927\u5b66\u5347\u5b66',
   graduationApplications: '\u5347\u5b66\u7ba1\u7406',
 };
 
@@ -294,7 +294,7 @@ const TEACHER_ACADEMIC_RECORD_TERM_OPTIONS: readonly TeacherAcademicRecordTerm[]
   TEACHER_ACADEMIC_RECORD_TERM_FALL,
 ] as const;
 
-const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v11';
+const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v12';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -781,7 +781,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             &#21319;&#23398;&#38454;&#27573;
             <select
               [(ngModel)]="graduationStageFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:160px;"
             >
@@ -922,7 +922,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             &#35821;&#35328;&#25104;&#32489;
             <select
               [(ngModel)]="languageScoreFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:220px;"
             >
@@ -937,7 +937,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             &#35821;&#35328;&#25104;&#32489;&#36319;&#36394;
             <select
               [(ngModel)]="languageScoreTrackingFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:220px;"
             >
@@ -952,7 +952,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             语言报课情况
             <select
               [(ngModel)]="languageCourseStatusFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:240px;"
             >
@@ -967,7 +967,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             OSSLT &#25104;&#32489;
             <select
               [(ngModel)]="ossltResultFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:180px;"
             >
@@ -982,7 +982,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             OSSLT &#36319;&#36827;&#29366;&#24577;
             <select
               [(ngModel)]="ossltTrackingFilter"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="applyListView(true)"
               [disabled]="loadingList"
               style="padding:4px 6px;min-width:220px;"
             >
@@ -1011,7 +1011,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
 
         <div style="order:2;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;">
           <span style="color:#666;font-size:13px;white-space:nowrap;">
-            显示：{{ visibleStudents.length }} / 筛选后：{{ filteredCount }}
+            {{ listCountLabel }}
           </span>
 
           <button
@@ -1032,16 +1032,50 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           </button>
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;">
-            数量
+            每页
             <select
               [(ngModel)]="listLimit"
-              (ngModelChange)="applyListView()"
+              (ngModelChange)="onListLimitChange()"
               [disabled]="loadingList"
               style="padding:4px 6px;"
             >
               <option *ngFor="let size of limitOptions" [ngValue]="size">{{ size }}</option>
             </select>
           </label>
+
+          <div
+            *ngIf="filteredCount > listLimit"
+            style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#444;"
+          >
+            <button
+              type="button"
+              (click)="goToPreviousListPage()"
+              [disabled]="loadingList || currentPage <= 1"
+              style="padding:4px 8px;"
+            >
+              &#19978;&#19968;&#39029;
+            </button>
+            <label style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;">
+              &#39029;
+              <select
+                [ngModel]="currentPage"
+                (ngModelChange)="goToListPage($event)"
+                [disabled]="loadingList"
+                style="padding:4px 6px;"
+              >
+                <option *ngFor="let page of listPageOptions" [ngValue]="page">{{ page }}</option>
+              </select>
+              / {{ totalPages }}
+            </label>
+            <button
+              type="button"
+              (click)="goToNextListPage()"
+              [disabled]="loadingList || currentPage >= totalPages"
+              style="padding:4px 8px;"
+            >
+              &#19979;&#19968;&#39029;
+            </button>
+          </div>
         </div>
         <div
           *ngIf="isColumnPanelExpanded"
@@ -1919,6 +1953,10 @@ export class StudentManagementComponent implements OnInit {
   loadingList = false;
   listError = '';
   listLimit = 20;
+  currentPage = 1;
+  totalPages = 1;
+  pageStartIndex = 0;
+  pageEndIndex = 0;
   isFilterPanelExpanded = false;
   isColumnPanelExpanded = false;
   showInactive = false;
@@ -2055,6 +2093,42 @@ export class StudentManagementComponent implements OnInit {
   trackStringOption = (_index: number, option: string): string => {
     return option;
   };
+
+  get listPageOptions(): number[] {
+    return Array.from({ length: this.totalPages }, (_value, index) => index + 1);
+  }
+
+  get listCountLabel(): string {
+    if (this.filteredCount <= 0) {
+      return '\u663e\u793a\uff1a0 / \u7b5b\u9009\u540e\uff1a0';
+    }
+    return `\u663e\u793a\uff1a${this.pageStartIndex}-${this.pageEndIndex} / \u7b5b\u9009\u540e\uff1a${this.filteredCount}`;
+  }
+
+  onListLimitChange(): void {
+    this.listLimit = this.normalizeListLimitPreference(this.listLimit);
+    this.applyListView(true);
+  }
+
+  goToPreviousListPage(): void {
+    this.goToListPage(this.currentPage - 1);
+  }
+
+  goToNextListPage(): void {
+    this.goToListPage(this.currentPage + 1);
+  }
+
+  goToListPage(value: unknown): void {
+    const page = Math.trunc(Number(value));
+    const nextPage = Number.isFinite(page)
+      ? Math.min(Math.max(page, 1), this.totalPages)
+      : 1;
+    if (nextPage === this.currentPage) {
+      return;
+    }
+    this.currentPage = nextPage;
+    this.applyListView(false);
+  }
 
   canDragColumnHeaders(): boolean {
     return !this.loadingList && this.visibleColumns.length > 1;
@@ -2466,7 +2540,7 @@ export class StudentManagementComponent implements OnInit {
     this.countryFilter = input ? this.resolveCountryFilterSelection(input) : 'ALL';
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onProvinceFilterInputChange(value: string): void {
@@ -2476,7 +2550,7 @@ export class StudentManagementComponent implements OnInit {
     this.provinceFilter = input ? this.resolveProvinceFilterSelection(input, country) : '';
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onCityFilterInputChange(value: string): void {
@@ -2486,7 +2560,7 @@ export class StudentManagementComponent implements OnInit {
     this.cityFilter = input ? this.resolveCityFilterSelection(input, country) : '';
     this.syncSchoolBoardFilterSelection();
     this.syncGraduationSeasonFilterSelection();
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onSchoolBoardFilterInputChange(value: string): void {
@@ -2494,34 +2568,34 @@ export class StudentManagementComponent implements OnInit {
     this.schoolBoardFilterInput = input;
     this.schoolBoardFilter = input ? this.resolveSchoolBoardFilterSelection(input) : '';
     this.syncGraduationSeasonFilterSelection();
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onGraduationSeasonFilterInputChange(value: string): void {
     const input = String(value ?? '').trim();
     this.graduationSeasonFilterInput = input;
     this.graduationSeasonFilter = input ? this.resolveGraduationSeasonFilterSelection(input) : '';
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onCourseCodeFilterInputChange(value: string): void {
     this.courseCodeFilterInput = String(value ?? '').trim().toUpperCase();
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onCourseStatusFilterChange(value: string): void {
     this.courseStatusFilter = this.normalizeCoursePlanStatusValue(value) ?? '';
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onSearchKeywordChange(value: string): void {
     this.searchKeyword = String(value ?? '');
-    this.applyListView();
+    this.applyListView(true);
   }
 
   onVolunteerCompletedFilterChange(value: VolunteerCompletedFilterValue): void {
     this.volunteerCompletedFilter = this.normalizeVolunteerCompletedFilterValue(value);
-    this.applyListView();
+    this.applyListView(true);
   }
 
   toggleUniversityGoalUniversityPanel(event?: MouseEvent): void {
@@ -2559,7 +2633,7 @@ export class StudentManagementComponent implements OnInit {
     this.isUniversityGoalUniversityPanelOpen = false;
     this.isUniversityGoalProgramPanelOpen = false;
     if (apply) {
-      this.applyListView();
+      this.applyListView(true);
     }
   }
 
@@ -2567,7 +2641,7 @@ export class StudentManagementComponent implements OnInit {
     this.clearUniversityGoalFilters(false);
     this.isUniversityGoalUniversityPanelOpen = panel === 'university';
     this.isUniversityGoalProgramPanelOpen = panel === 'program';
-    this.applyListView();
+    this.applyListView(true);
   }
 
   isUniversityGoalFiltersAtDefault(): boolean {
@@ -2584,7 +2658,7 @@ export class StudentManagementComponent implements OnInit {
       this.selectedUniversityGoalUniversityFilters,
       option
     );
-    this.applyListView();
+    this.applyListView(true);
   }
 
   toggleUniversityGoalProgramFilterOption(option: string): void {
@@ -2592,7 +2666,7 @@ export class StudentManagementComponent implements OnInit {
       this.selectedUniversityGoalProgramFilters,
       option
     );
-    this.applyListView();
+    this.applyListView(true);
   }
 
   isUniversityGoalUniversityFilterSelected(option: string): boolean {
@@ -4089,14 +4163,14 @@ export class StudentManagementComponent implements OnInit {
       .subscribe({
         next: (payload) => {
           this.students = this.normalizeStudentList(payload);
-          this.applyListView();
+          this.applyListView(true);
           this.hydrateStudentMetadata(this.students);
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
           this.listError = this.extractErrorMessage(err) || '加载学生列表失败。';
           this.students = [];
-          this.applyListView();
+          this.applyListView(true);
           this.cdr.detectChanges();
         },
       });
@@ -5319,20 +5393,31 @@ export class StudentManagementComponent implements OnInit {
     this.volunteerCompletedFilter = '';
     this.graduationStageFilter = '';
     this.clearUniversityGoalFilters(false);
-    this.applyListView();
+    this.applyListView(true);
   }
 
   toggleInactiveVisibility(): void {
     this.showInactive = !this.showInactive;
-    this.applyListView();
+    this.applyListView(true);
   }
 
-  applyListView(): void {
+  applyListView(resetPage = false): void {
     this.prefetchStatusDataForActiveFilters();
     const filtered = this.students.filter((student) => this.matchesListFilters(student));
 
+    this.listLimit = this.normalizeListLimitPreference(this.listLimit);
     this.filteredCount = filtered.length;
-    this.visibleStudents = filtered.slice(0, this.listLimit);
+    this.totalPages = Math.max(1, Math.ceil(this.filteredCount / this.listLimit));
+    if (resetPage) {
+      this.currentPage = 1;
+    }
+    this.currentPage = Math.min(Math.max(Math.trunc(Number(this.currentPage)) || 1, 1), this.totalPages);
+
+    const startIndex = this.filteredCount > 0 ? (this.currentPage - 1) * this.listLimit : 0;
+    const endIndex = Math.min(startIndex + this.listLimit, this.filteredCount);
+    this.pageStartIndex = this.filteredCount > 0 ? startIndex + 1 : 0;
+    this.pageEndIndex = endIndex;
+    this.visibleStudents = filtered.slice(startIndex, endIndex);
     this.persistListControlsPreference();
     if (this.visibleColumnKeys.has('teacherNote')) {
       this.prefetchVisibleTeacherNotes();
@@ -6777,7 +6862,7 @@ export class StudentManagementComponent implements OnInit {
 
             this.studentContactCache.set(studentId, metadata);
             this.applyStudentMetadata(student, metadata);
-            this.applyListView();
+            this.applyListView(false);
             this.cdr.detectChanges();
           },
           error: () => {},
@@ -7043,7 +7128,7 @@ export class StudentManagementComponent implements OnInit {
 
     this.statusFilterReapplyTimer = setTimeout(() => {
       this.statusFilterReapplyTimer = null;
-      this.applyListView();
+      this.applyListView(false);
       this.cdr.detectChanges();
     }, 0);
   }

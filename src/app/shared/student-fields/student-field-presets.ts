@@ -53,7 +53,6 @@ export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentLis
   'serviceItems',
   'teacherNote',
   'profile',
-  'graduationStage',
   'documents',
   'resetPassword',
   'archive',
