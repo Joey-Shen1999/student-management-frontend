@@ -736,7 +736,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           style="order:3;display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;padding-top:2px;"
         >
           <button type="button" (click)="toggleInactiveVisibility()" [disabled]="loadingList">
-            {{ showInactive ? '隐藏已' : '显示已' }}
+            {{ showInactive ? '隐藏已归档' : '显示已归档' }}
           </button>
 
           <app-student-filter-fields
