@@ -748,6 +748,7 @@ describe('StudentProfile', () => {
 
   it('should append newly uploaded transcript to existing transcript list', () => {
     component.enterEditMode();
+    component.profileVersion = 7;
     component.model.highSchools[0].schoolRecordId = 101;
     component.model.highSchools[0].transcripts = [
       {
@@ -763,6 +764,7 @@ describe('StudentProfile', () => {
         transcriptSizeBytes: 222,
         transcriptUploadedAt: '2026-03-02T10:00:00',
         hasTranscript: true,
+        version: 8,
       })
     );
 
@@ -779,6 +781,7 @@ describe('StudentProfile', () => {
     expect(component.model.highSchools[0].transcripts[0].transcriptFileName).toBe('old-transcript.pdf');
     expect(component.model.highSchools[0].transcripts[1].transcriptFileName).toBe('new-transcript.pdf');
     expect(component.model.highSchools[0].hasTranscript).toBe(true);
+    expect(component.profileVersion).toBe(8);
   });
 
   it('should keep all uploads even when transcript filename repeats', () => {
@@ -857,6 +860,7 @@ describe('StudentProfile', () => {
 
   it('should upload multiple identity files and append to existing list', () => {
     component.enterEditMode();
+    component.profileVersion = 4;
     component.model.identityFiles = [
       {
         identityFileId: 7,
@@ -873,6 +877,7 @@ describe('StudentProfile', () => {
           identityFileName: 'new-passport.pdf',
           identityFileSizeBytes: 120,
           identityFileUploadedAt: '2026-03-02T10:00:00',
+          version: 5,
         })
       )
       .mockReturnValueOnce(
@@ -881,6 +886,7 @@ describe('StudentProfile', () => {
           identityFileName: 'new-permit.pdf',
           identityFileSizeBytes: 140,
           identityFileUploadedAt: '2026-03-03T10:00:00',
+          version: 6,
         })
       );
 
@@ -900,6 +906,7 @@ describe('StudentProfile', () => {
     expect(component.model.identityFiles.length).toBe(3);
     expect(component.model.identityFiles[1].identityFileName).toBe('new-passport.pdf');
     expect(component.model.identityFiles[2].identityFileName).toBe('new-permit.pdf');
+    expect(component.profileVersion).toBe(6);
   });
 
   it('should queue identity upload until current save finishes', () => {

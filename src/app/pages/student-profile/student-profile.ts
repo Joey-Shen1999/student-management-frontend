@@ -903,6 +903,7 @@ export class StudentProfile implements OnInit {
         concatMap((file) =>
           uploadOne(file).pipe(
             tap((payload) => {
+              this.updateProfileVersionFromPayload(payload);
               this.applyIdentityFilePayload(payload);
             })
           )
@@ -1437,6 +1438,7 @@ export class StudentProfile implements OnInit {
         next: (payload) => {
           const school = this.model.highSchools[index];
           if (!school) return;
+          this.updateProfileVersionFromPayload(payload);
           this.applySchoolTranscriptPayload(school, payload);
           this.saved = true;
         },
@@ -2788,6 +2790,13 @@ export class StudentProfile implements OnInit {
     }
 
     return null;
+  }
+
+  private updateProfileVersionFromPayload(payload: unknown): void {
+    const nextVersion = this.resolveProfileVersion(payload);
+    if (nextVersion !== null) {
+      this.profileVersion = nextVersion;
+    }
   }
 
   private normalizeModel(payload: StudentProfilePayload): StudentProfileModel {
