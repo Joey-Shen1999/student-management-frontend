@@ -107,6 +107,7 @@ interface ServiceProgressFormModel {
               </div>
               <button
                 type="button"
+                class="add-record-button"
                 (click)="openAddRecord()"
                 [disabled]="recordLoading || saving"
               >
@@ -158,8 +159,8 @@ interface ServiceProgressFormModel {
                 </label>
               </div>
               <div class="form-actions">
-                <button type="button" (click)="closeForm()" [disabled]="saving">{{ ui.cancel | appTranslate }}</button>
-                <button type="button" (click)="saveRecord()" [disabled]="saving">
+                <button type="button" class="form-action-cancel" (click)="closeForm()" [disabled]="saving">{{ ui.cancel | appTranslate }}</button>
+                <button type="button" class="form-action-save" (click)="saveRecord()" [disabled]="saving">
                   {{ (saving ? ui.saving : ui.saveRecord) | appTranslate }}
                 </button>
               </div>
@@ -382,6 +383,37 @@ interface ServiceProgressFormModel {
       .record-actions {
         display: flex;
         gap: 8px;
+      }
+      .add-record-button {
+        border-color: #16a34a;
+        background: #ecfdf3;
+        color: #166534;
+        font-weight: 700;
+      }
+      .add-record-button:hover:not(:disabled) {
+        background: #dcfce7;
+        border-color: #15803d;
+      }
+      .form-action-cancel {
+        border-color: #f59e0b;
+        background: #fffbeb;
+        color: #92400e;
+        font-weight: 700;
+      }
+      .form-action-cancel:hover:not(:disabled) {
+        background: #fef3c7;
+        border-color: #d97706;
+      }
+      .form-action-save {
+        border-color: #16a34a;
+        background: #16a34a;
+        color: #fff;
+        font-weight: 700;
+        box-shadow: 0 8px 18px rgba(22, 163, 74, 0.2);
+      }
+      .form-action-save:hover:not(:disabled) {
+        border-color: #15803d;
+        background: #15803d;
       }
       .record-body {
         margin-top: 12px;

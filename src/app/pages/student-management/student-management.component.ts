@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { pinyin } from 'pinyin-pro';
 import { throwError } from 'rxjs';
 import { catchError, finalize, switchMap } from 'rxjs/operators';
 
@@ -1959,6 +1960,84 @@ export class StudentManagementComponent implements OnInit {
     'graduationSeason',
     'coursePlan',
     'volunteerCompleted',
+  ];
+  private readonly listSearchAliasGroups: readonly (readonly string[])[] = [
+    ['canada', '加拿大', 'ca'],
+    ['ontario', 'on', '安大略', '安省'],
+    ['british columbia', 'bc', '卑诗省', '不列颠哥伦比亚'],
+    ['alberta', 'ab', '阿尔伯塔', '阿省'],
+    ['quebec', 'qc', '魁北克'],
+    ['toronto', '多伦多'],
+    ['waterloo', '滑铁卢'],
+    ['vancouver', '温哥华'],
+    ['mississauga', '密西沙加'],
+    ['scarborough', '士嘉堡'],
+    ['ottawa', '渥太华'],
+    ['montreal', '蒙特利尔', '蒙特娄'],
+    ['university of toronto', 'uoft', 'u of t', '多伦多大学', '多大'],
+    [
+      'university of toronto st george campus',
+      'utsg',
+      'st george',
+      'saint george',
+      '多伦多大学主校区',
+      '多伦多大学圣乔治校区',
+      '圣乔治校区',
+    ],
+    [
+      'university of toronto mississauga',
+      'utm',
+      'uoft mississauga',
+      '多伦多大学密西沙加校区',
+      '密西沙加校区',
+    ],
+    [
+      'university of toronto scarborough',
+      'utsc',
+      'uoft scarborough',
+      '多伦多大学士嘉堡校区',
+      '士嘉堡校区',
+    ],
+    ['university of waterloo', 'uw', 'u waterloo', '滑铁卢大学', '滑大'],
+    ['western university', 'uwo', 'university of western ontario', '西安大略大学', '韦仕敦大学'],
+    ['mcmaster university', 'mac', '麦克马斯特大学', '麦马'],
+    ['queen s university', "queen's university", 'queens', '皇后大学', '女王大学'],
+    ['university of british columbia', 'ubc', '英属哥伦比亚大学', '卑诗大学'],
+    ['simon fraser university', 'sfu', '西蒙菲莎大学'],
+    ['university of victoria', 'uvic', '维多利亚大学'],
+    ['university of alberta', 'ualberta', '阿尔伯塔大学', '阿大'],
+    ['university of calgary', 'ucalgary', '卡尔加里大学'],
+    ['university of ottawa', 'uottawa', '渥太华大学'],
+    ['carleton university', '卡尔顿大学'],
+    ['york university', 'yorku', '约克大学'],
+    ['toronto metropolitan university', 'tmu', 'ryerson', '多伦多都会大学', '瑞尔森大学'],
+    ['wilfrid laurier university', 'laurier', 'wlu', '劳里埃大学'],
+    ['university of guelph', 'guelph', '圭尔夫大学'],
+    ['brock university', '布鲁克大学'],
+    ['trent university', '特伦特大学'],
+    ['ontario tech university', 'uoit', '安省理工大学'],
+    ['university of windsor', 'windsor', '温莎大学'],
+    ['ocad university', 'ocad', '安省艺术设计大学'],
+    ['mcgill university', 'mcgill', '麦吉尔大学'],
+    ['concordia university', 'concordia', '康考迪亚大学'],
+    ['computer science', 'cs', '计算机科学', '电脑科学', '计算机'],
+    ['computer engineering', 'ce', '计算机工程', '电脑工程', '计算机'],
+    ['software engineering', 'se', '软件工程'],
+    ['data science', '数据科学'],
+    ['engineering', '工程', '工程学'],
+    ['business', 'business administration', 'commerce', 'management', '商科', '商业', '管理'],
+    ['life science', 'life sciences', '生命科学', '生科'],
+    ['health science', 'health sciences', '健康科学'],
+    ['social science', 'social sciences', '社会科学'],
+    ['arts and science', 'arts & science', '文理', '文理学院'],
+    ['visual arts', 'visual and critical studies', '艺术', '视觉艺术', '艺术史'],
+    ['mathematics', 'math', '数学'],
+    ['statistics', '统计', '统计学'],
+    ['economics', '经济', '经济学'],
+    ['psychology', '心理', '心理学'],
+    ['biology', '生物', '生物学'],
+    ['chemistry', '化学'],
+    ['physics', '物理', '物理学'],
   ];
   students: StudentAccount[] = [];
   visibleStudents: StudentAccount[] = [];
@@ -5606,10 +5685,11 @@ export class StudentManagementComponent implements OnInit {
       return false;
     }
 
-    const keyword = this.searchKeyword.trim().toLowerCase();
+    const keyword = this.normalizeListSearchText(this.searchKeyword);
     if (!keyword) {
       return true;
     }
+    const compactKeyword = this.compactListSearchText(keyword);
 
     const searchFields = [
       String(this.resolveStudentId(student) ?? ''),
@@ -5642,7 +5722,85 @@ export class StudentManagementComponent implements OnInit {
       }
     }
 
-    return searchFields.some((field) => String(field ?? '').toLowerCase().includes(keyword));
+    return searchFields.some((field) =>
+      this.buildListSearchFieldVariants(field).some(
+        (variant) =>
+          variant.includes(keyword) || (!!compactKeyword && variant.includes(compactKeyword))
+      )
+    );
+  }
+
+  private buildListSearchFieldVariants(value: unknown): string[] {
+    const raw = this.toTrimmedText(value);
+    if (!raw) return [];
+
+    const variants = new Set<string>();
+    const normalized = this.normalizeListSearchText(raw);
+    const compact = this.compactListSearchText(normalized);
+    if (normalized) variants.add(normalized);
+    if (compact) variants.add(compact);
+    this.addListSearchAliasVariants(variants, normalized, compact);
+
+    if (this.containsChineseText(raw)) {
+      const converted = this.normalizeListSearchText(pinyin(raw, { toneType: 'none' }));
+      const compactConverted = this.compactListSearchText(converted);
+      if (converted) variants.add(converted);
+      if (compactConverted) variants.add(compactConverted);
+    }
+
+    return Array.from(variants.values());
+  }
+
+  private addListSearchAliasVariants(
+    variants: Set<string>,
+    normalized: string,
+    compact: string
+  ): void {
+    for (const group of this.listSearchAliasGroups) {
+      const normalizedAliases = group
+        .map((alias) => {
+          const text = this.normalizeListSearchText(alias);
+          return {
+            text,
+            compact: this.compactListSearchText(text),
+          };
+        })
+        .filter((alias) => alias.text);
+
+      const groupMatches = normalizedAliases.some((alias) =>
+        this.doesListSearchAliasMatchField(alias.text, alias.compact, normalized, compact)
+      );
+      if (!groupMatches) continue;
+
+      for (const alias of normalizedAliases) {
+        variants.add(alias.text);
+        if (alias.compact) variants.add(alias.compact);
+      }
+    }
+  }
+
+  private doesListSearchAliasMatchField(
+    alias: string,
+    compactAlias: string,
+    normalized: string,
+    compact: string
+  ): boolean {
+    if (alias.length <= 2 || compactAlias.length <= 2) {
+      return normalized.split(' ').includes(alias) || compact === compactAlias;
+    }
+    return normalized.includes(alias) || (!!compactAlias && compact.includes(compactAlias));
+  }
+
+  private normalizeListSearchText(value: unknown): string {
+    return this.toTrimmedText(value).toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  private compactListSearchText(value: unknown): string {
+    return this.normalizeListSearchText(value).replace(/\s+/g, '');
+  }
+
+  private containsChineseText(value: string): boolean {
+    return /[\u3400-\u9fff\uf900-\ufaff]/.test(value);
   }
 
   private prefetchStatusDataForActiveFilters(): void {
