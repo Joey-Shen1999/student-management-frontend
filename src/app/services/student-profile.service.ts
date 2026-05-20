@@ -65,6 +65,8 @@ export interface StudentIdentityFilePayload {
 }
 
 export interface StudentSchoolTranscriptPayload {
+  id?: number | null;
+  storageKey?: string;
   schoolRecordId?: number | null;
   transcriptFileName?: string;
   transcriptOriginalFilename?: string;

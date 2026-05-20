@@ -71,9 +71,13 @@ interface HighSchoolModel {
 }
 
 interface SchoolTranscriptModel {
+  id?: number | null;
+  storageKey?: string;
   transcriptFileName: string;
+  transcriptContentType?: string;
   transcriptSizeBytes: number | null;
   transcriptUploadedAt: string;
+  uploadedBy?: number | null;
 }
 
 interface ExternalCourseModel {
@@ -1662,13 +1666,17 @@ export class StudentProfile implements OnInit {
     if (!fileName) return null;
 
     return {
+      id: this.toOptionalNumber(source.id ?? source.transcriptId),
+      storageKey: this.toText(source.storageKey),
       transcriptFileName: fileName,
+      transcriptContentType: this.toText(source.transcriptContentType || source.mimeType || source.contentType),
       transcriptSizeBytes: this.toOptionalNumber(
         source.transcriptSizeBytes ?? source.sizeBytes ?? source.size
       ),
       transcriptUploadedAt: this.toText(
         source.transcriptUploadedAt || source.uploadedAt || source.uploadTime || source.createdAt
       ),
+      uploadedBy: this.toOptionalNumber(source.uploadedBy),
     };
   }
 
@@ -1678,17 +1686,25 @@ export class StudentProfile implements OnInit {
   ): SchoolTranscriptModel[] {
     const base = Array.isArray(current) ? current : [];
     return [...base, ...incoming].map((transcript) => ({
+      id: this.toOptionalNumber(transcript.id),
+      storageKey: this.toText(transcript.storageKey),
       transcriptFileName: this.toText(transcript.transcriptFileName),
+      transcriptContentType: this.toText(transcript.transcriptContentType),
       transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
       transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+      uploadedBy: this.toOptionalNumber(transcript.uploadedBy),
     }));
   }
 
   private syncSchoolTranscriptLegacyFields(school: HighSchoolModel): void {
     const transcripts = (Array.isArray(school.transcripts) ? school.transcripts : []).map((transcript) => ({
+      id: this.toOptionalNumber(transcript.id),
+      storageKey: this.toText(transcript.storageKey),
       transcriptFileName: this.toText(transcript.transcriptFileName),
+      transcriptContentType: this.toText(transcript.transcriptContentType),
       transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
       transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+      uploadedBy: this.toOptionalNumber(transcript.uploadedBy),
     }));
     school.transcripts = transcripts;
 
@@ -3089,9 +3105,13 @@ export class StudentProfile implements OnInit {
           transcriptUploadedAt: this.toText(latestTranscript?.transcriptUploadedAt),
           hasTranscript: normalizedTranscripts.length > 0,
           transcripts: normalizedTranscripts.map((transcript) => ({
+            id: this.toOptionalNumber(transcript.id),
+            storageKey: this.toText(transcript.storageKey),
             transcriptFileName: this.toText(transcript.transcriptFileName),
+            transcriptContentType: this.toText(transcript.transcriptContentType),
             transcriptSizeBytes: this.toOptionalNumber(transcript.transcriptSizeBytes),
             transcriptUploadedAt: this.toText(transcript.transcriptUploadedAt),
+            uploadedBy: this.toOptionalNumber(transcript.uploadedBy),
           })),
         };
       }),

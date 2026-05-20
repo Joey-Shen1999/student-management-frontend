@@ -784,6 +784,35 @@ describe('StudentProfile', () => {
     expect(component.profileVersion).toBe(8);
   });
 
+  it('should preserve transcript id and storage key when building save payload', () => {
+    component.enterEditMode();
+    component.model.highSchools[0].schoolRecordId = 101;
+    component.model.highSchools[0].schoolName = 'Unionville High School';
+    component.model.highSchools[0].transcripts = [
+      {
+        id: 22,
+        storageKey: 'student-1_school-101_abc.pdf',
+        transcriptFileName: 'existing-transcript.pdf',
+        transcriptContentType: 'application/pdf',
+        transcriptSizeBytes: 222,
+        transcriptUploadedAt: '2026-03-02T10:00:00',
+        uploadedBy: 9,
+      },
+    ];
+
+    const payload = (component as any).toPayload(component.model);
+
+    expect(payload.schools[0].transcripts[0]).toEqual(
+      expect.objectContaining({
+        id: 22,
+        storageKey: 'student-1_school-101_abc.pdf',
+        transcriptFileName: 'existing-transcript.pdf',
+        transcriptContentType: 'application/pdf',
+        uploadedBy: 9,
+      })
+    );
+  });
+
   it('should keep all uploads even when transcript filename repeats', () => {
     component.enterEditMode();
     component.model.highSchools[0].schoolRecordId = 101;
