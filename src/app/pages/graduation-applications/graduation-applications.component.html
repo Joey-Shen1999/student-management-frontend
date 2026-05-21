@@ -1,10 +1,34 @@
 <main class="applications-page">
   <section class="applications-shell">
     <header class="page-head">
-      <div>
-        <h1>{{ pageTitle }}</h1>
+      <div class="page-head-main">
+        <div class="page-title-row">
+          <h1>{{ pageTitle }}</h1>
+        </div>
+        <div class="inline-summary">
+          <div>
+            <strong>{{ totalCount }}</strong>
+            <span>申请专业</span>
+          </div>
+          <div>
+            <strong>{{ submittedCount }}</strong>
+            <span>已提交</span>
+          </div>
+          <div>
+            <strong>{{ offerCount }}</strong>
+            <span>Offer</span>
+          </div>
+        </div>
       </div>
       <div class="page-actions">
+        <button
+          type="button"
+          class="primary-btn"
+          (click)="openAddUniversity()"
+          [disabled]="loading || formSaving || loadingUniversities"
+        >
+          添加大学
+        </button>
         <button type="button" class="ghost-btn" (click)="openHistory()" [disabled]="historyLoading">
           {{ historyLoading ? '读取记录中...' : '操作记录' }}
         </button>
@@ -12,20 +36,111 @@
       </div>
     </header>
 
-    <div class="summary-strip">
-      <div>
-        <strong>{{ totalCount }}</strong>
-        <span>申请专业</span>
+    <section class="application-account-card" [class.expanded]="applicationAccountExpanded">
+      <header (click)="toggleApplicationAccount()">
+        <div>
+          <h2>申请账号</h2>
+          <span>{{ applicationAccountExpanded ? '邮箱密码已展开' : '邮箱密码已隐藏' }}</span>
+        </div>
+        <div class="application-account-actions" (click)="$event.stopPropagation()">
+          <a
+            class="outlook-login-link"
+            [href]="outlookLoginUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="登录申请邮箱"
+          >
+            Outlook
+          </a>
+          <button
+            type="button"
+            class="ghost-btn compact"
+            *ngIf="!applicationAccountEditing"
+            (click)="startApplicationAccountEdit()"
+            [disabled]="applicationAccountLoading || applicationAccountSaving"
+          >
+            修改
+          </button>
+          <button
+            type="button"
+            class="primary-btn compact"
+            *ngIf="applicationAccountEditing"
+            (click)="saveApplicationAccount()"
+            [disabled]="applicationAccountSaving"
+          >
+            {{ applicationAccountSaving ? '保存中...' : '保存' }}
+          </button>
+          <button
+            type="button"
+            class="ghost-btn compact"
+            *ngIf="applicationAccountEditing"
+            (click)="cancelApplicationAccountEdit()"
+            [disabled]="applicationAccountSaving"
+          >
+            取消
+          </button>
+        </div>
+      </header>
+
+      <div *ngIf="applicationAccountExpanded" class="application-account-body">
+        <div *ngIf="applicationAccountLoading" class="portal-state">正在读取申请账号...</div>
+        <div *ngIf="!applicationAccountLoading && applicationAccountError" class="portal-state error">
+          {{ applicationAccountError }}
+        </div>
+
+        <div class="portal-grid" *ngIf="!applicationAccountLoading">
+          <label>
+            <span>
+              申请邮箱
+              <small *ngIf="isApplicationAccountFieldCopied('applicationEmail')">已复制</small>
+            </span>
+            <input
+              *ngIf="!applicationAccountEditing"
+              type="email"
+              [ngModel]="applicationAccountDraft.applicationEmail"
+              (click)="copyApplicationAccountField('applicationEmail')"
+              class="copyable-field"
+              [class.field-copied]="isApplicationAccountFieldCopied('applicationEmail')"
+              readonly
+              title="点击复制"
+              autocomplete="off"
+            />
+            <input
+              *ngIf="applicationAccountEditing"
+              type="email"
+              [ngModel]="applicationAccountDraft.applicationEmail"
+              (ngModelChange)="updateApplicationAccountDraft('applicationEmail', $event)"
+              autocomplete="off"
+            />
+          </label>
+
+          <label>
+            <span>
+              申请密码
+              <small *ngIf="isApplicationAccountFieldCopied('applicationPassword')">已复制</small>
+            </span>
+            <input
+              *ngIf="!applicationAccountEditing"
+              type="text"
+              [ngModel]="applicationAccountDraft.applicationPassword"
+              (click)="copyApplicationAccountField('applicationPassword')"
+              class="copyable-field"
+              [class.field-copied]="isApplicationAccountFieldCopied('applicationPassword')"
+              readonly
+              title="点击复制"
+              autocomplete="off"
+            />
+            <input
+              *ngIf="applicationAccountEditing"
+              type="text"
+              [ngModel]="applicationAccountDraft.applicationPassword"
+              (ngModelChange)="updateApplicationAccountDraft('applicationPassword', $event)"
+              autocomplete="off"
+            />
+          </label>
+        </div>
       </div>
-      <div>
-        <strong>{{ submittedCount }}</strong>
-        <span>已提交</span>
-      </div>
-      <div>
-        <strong>{{ offerCount }}</strong>
-        <span>Offer</span>
-      </div>
-    </div>
+    </section>
 
     <section class="history-panel" *ngIf="historyPanelOpen">
       <header>
@@ -74,17 +189,232 @@
     <div *ngIf="!loading && !error && applications.length === 0" class="state-card">暂无正式申请</div>
 
     <section class="application-list" *ngIf="!loading && !error && groups.length > 0">
-      <article class="university-panel" *ngFor="let group of groups; trackBy: trackGroup">
+      <article
+        class="university-panel"
+        *ngFor="let group of groups; trackBy: trackGroup"
+        [class.portal-expanded]="isPortalExpanded(group)"
+        (click)="onUniversityPanelClick(group, $event)"
+      >
         <header>
-          <h2 class="notranslate" translate="no" data-no-auto-translate>{{ group.universityName }}</h2>
-          <span>{{ group.applications.length }} 个专业</span>
+          <div>
+            <h2 class="notranslate" translate="no" data-no-auto-translate>{{ group.universityName }}</h2>
+            <div class="university-meta">
+              <span>{{ group.applications.length }} 个专业</span>
+              <span class="portal-toggle-indicator">
+                {{ isPortalExpanded(group) ? '账号已展开' : '账号已隐藏' }}
+              </span>
+            </div>
+          </div>
+          <div class="group-actions">
+            <button
+              type="button"
+              class="ghost-btn compact"
+              (click)="openAddProgram(group)"
+              [disabled]="isGroupBusy(group)"
+            >
+              添加专业
+            </button>
+            <button
+              type="button"
+              class="danger-btn compact"
+              (click)="deleteUniversityGroup(group)"
+              [disabled]="isGroupBusy(group)"
+            >
+              {{ deletingGroupKey === group.key ? '删除中...' : '删除大学' }}
+            </button>
+          </div>
         </header>
 
+        <section
+          class="portal-card"
+          *ngIf="isPortalExpanded(group)"
+          [attr.data-portal-key]="group.key"
+          (click)="$event.stopPropagation()"
+        >
+          <header class="portal-head">
+            <div>
+              <h3>
+                学校账号资料
+                <a
+                  *ngIf="resolvePortalLoginUrl(group) as portalLoginUrl"
+                  class="portal-login-link"
+                  [href]="portalLoginUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  (click)="$event.stopPropagation()"
+                >
+                  登录网站
+                </a>
+              </h3>
+            </div>
+            <div class="portal-actions">
+              <button
+                type="button"
+                class="visibility-toggle"
+                [class.on]="getPortalDraft(group).studentVisible"
+                (click)="$event.stopPropagation(); togglePortalStudentVisible(group, !getPortalDraft(group).studentVisible)"
+                [disabled]="isPortalLoading(group) || isPortalSaving(group)"
+              >
+                <i class="toggle-track"><i class="toggle-thumb"></i></i>
+                <b>{{ getPortalDraft(group).studentVisible ? '学生可见' : '学生隐藏' }}</b>
+              </button>
+              <button
+                type="button"
+                class="ghost-btn compact"
+                *ngIf="!isPortalEditing(group)"
+                (click)="startPortalEdit(group)"
+                [disabled]="isPortalLoading(group) || isPortalSaving(group)"
+              >
+                修改
+              </button>
+              <button
+                type="button"
+                class="primary-btn compact"
+                *ngIf="isPortalEditing(group)"
+                (click)="savePortalCredential(group)"
+                [disabled]="isPortalSaving(group)"
+              >
+                {{ isPortalSaving(group) ? '保存中...' : '保存' }}
+              </button>
+              <button
+                type="button"
+                class="ghost-btn compact"
+                *ngIf="isPortalEditing(group)"
+                (click)="cancelPortalEdit(group)"
+                [disabled]="isPortalSaving(group)"
+              >
+                取消
+              </button>
+            </div>
+          </header>
+
+          <div *ngIf="isPortalLoading(group)" class="portal-state">正在读取学校账号...</div>
+          <div *ngIf="!isPortalLoading(group) && portalError(group)" class="portal-state error">
+            {{ portalError(group) }}
+          </div>
+
+          <div class="portal-grid" *ngIf="!isPortalLoading(group)">
+            <label>
+              <span>
+                学校账号
+                <small *ngIf="isPortalFieldCopied(group, 'schoolAccount')">已复制</small>
+              </span>
+              <input
+                *ngIf="!isPortalEditing(group)"
+                type="text"
+                [ngModel]="getPortalDraft(group).schoolAccount"
+                (click)="$event.stopPropagation(); copyPortalField(group, 'schoolAccount')"
+                class="copyable-field"
+                [class.field-copied]="isPortalFieldCopied(group, 'schoolAccount')"
+                readonly
+                placeholder="留白"
+                title="点击复制"
+                autocomplete="off"
+              />
+              <input
+                *ngIf="isPortalEditing(group)"
+                type="text"
+                [ngModel]="getPortalDraft(group).schoolAccount"
+                (ngModelChange)="updatePortalDraft(group, 'schoolAccount', $event)"
+                (click)="$event.stopPropagation()"
+                placeholder="留白"
+                autocomplete="off"
+              />
+            </label>
+
+            <label>
+              <span>
+                申请邮箱
+                <small *ngIf="isPortalFieldCopied(group, 'schoolEmail')">已复制</small>
+              </span>
+              <input
+                *ngIf="!isPortalEditing(group)"
+                type="email"
+                [ngModel]="getPortalDraft(group).schoolEmail"
+                (click)="$event.stopPropagation(); copyPortalField(group, 'schoolEmail')"
+                class="copyable-field"
+                [class.field-copied]="isPortalFieldCopied(group, 'schoolEmail')"
+                readonly
+                title="点击复制"
+                autocomplete="off"
+              />
+              <input
+                *ngIf="isPortalEditing(group)"
+                type="email"
+                [ngModel]="getPortalDraft(group).schoolEmail"
+                (ngModelChange)="updatePortalDraft(group, 'schoolEmail', $event)"
+                (click)="$event.stopPropagation()"
+                autocomplete="off"
+              />
+            </label>
+
+            <label>
+              <span>
+                学校密码
+                <small *ngIf="isPortalFieldCopied(group, 'schoolPassword')">已复制</small>
+              </span>
+              <input
+                *ngIf="!isPortalEditing(group)"
+                type="text"
+                [ngModel]="getPortalDraft(group).schoolPassword"
+                (click)="$event.stopPropagation(); copyPortalField(group, 'schoolPassword')"
+                class="copyable-field"
+                [class.field-copied]="isPortalFieldCopied(group, 'schoolPassword')"
+                readonly
+                title="点击复制"
+                autocomplete="off"
+              />
+              <input
+                *ngIf="isPortalEditing(group)"
+                type="text"
+                [ngModel]="getPortalDraft(group).schoolPassword"
+                (ngModelChange)="updatePortalDraft(group, 'schoolPassword', $event)"
+                (click)="$event.stopPropagation()"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+
+          <div class="portal-requirements" *ngIf="!isPortalLoading(group)">
+            <label
+              class="requirement-check"
+              [class.active]="getPortalDraft(group).interviewRequired"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [checked]="getPortalDraft(group).interviewRequired"
+                (change)="togglePortalRequirement(group, 'interviewRequired', $any($event.target).checked)"
+                [disabled]="isPortalSaving(group)"
+              />
+              <span>面试</span>
+            </label>
+            <label
+              class="requirement-check"
+              [class.active]="getPortalDraft(group).languageScoreRequired"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [checked]="getPortalDraft(group).languageScoreRequired"
+                (change)="togglePortalRequirement(group, 'languageScoreRequired', $any($event.target).checked)"
+                [disabled]="isPortalSaving(group)"
+              />
+              <span>语言成绩</span>
+            </label>
+          </div>
+        </section>
+
         <div class="program-list">
-          <article class="program-row" *ngFor="let application of group.applications; trackBy: trackApplication">
+          <article
+            class="program-row"
+            *ngFor="let application of group.applications; trackBy: trackApplication"
+            [class.offer-accepted]="isOfferAccepted(application)"
+          >
             <div class="rank">{{ application.sortOrder }}</div>
             <div class="program-main">
               <h3 class="notranslate" translate="no" data-no-auto-translate>{{ application.programName }}</h3>
+              <span class="accepted-offer-badge" *ngIf="isOfferAccepted(application)">已接收 Offer</span>
               <small *ngIf="application.facultyName || application.degreeType">
                 <span class="notranslate" translate="no" data-no-auto-translate>{{ application.facultyName }}</span>
                 <span *ngIf="application.degreeType"> · {{ application.degreeType }}</span>
@@ -92,21 +422,121 @@
               <small>更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
             </div>
 
-            <label class="status-control">
+            <label class="status-control" [class.status-accepted]="isOfferAccepted(application)">
               <span>进度</span>
               <select
                 [ngModel]="application.status"
                 (ngModelChange)="updateStatus(application, $event)"
-                [disabled]="updatingId === application.id"
+                [disabled]="isApplicationBusy(application)"
               >
                 <option *ngFor="let status of statusOptions" [ngValue]="status">
                   {{ graduationStage.statusLabel(status) }}
                 </option>
               </select>
             </label>
+
+            <div class="program-actions">
+              <button
+                type="button"
+                class="ghost-btn compact"
+                (click)="openEditApplication(application)"
+                [disabled]="isApplicationBusy(application)"
+              >
+                修改
+              </button>
+              <button
+                type="button"
+                class="danger-btn compact"
+                (click)="deleteApplication(application)"
+                [disabled]="isApplicationBusy(application)"
+              >
+                {{ deletingId === application.id ? '删除中...' : '删除' }}
+              </button>
+            </div>
           </article>
         </div>
       </article>
     </section>
   </section>
+
+  <div class="modal-backdrop" *ngIf="formOpen">
+    <section class="application-dialog" role="dialog" aria-modal="true" aria-labelledby="applicationDialogTitle">
+      <header class="dialog-header">
+        <div>
+          <h2 id="applicationDialogTitle">{{ formTitle }}</h2>
+        </div>
+        <button type="button" class="ghost-btn compact" (click)="closeApplicationForm()" [disabled]="formSaving">取消</button>
+      </header>
+
+      <div *ngIf="formError" class="state-card error dialog-error">{{ formError }}</div>
+
+      <div class="dialog-form">
+        <label class="autocomplete-field">
+          <span>大学</span>
+          <input
+            type="text"
+            [(ngModel)]="form.universityName"
+            (ngModelChange)="onFormUniversityInput()"
+            (focus)="onFormUniversityFocus()"
+            [disabled]="formSaving || loadingUniversities || isUniversityLockedInForm"
+            [placeholder]="loadingUniversities ? '读取大学中...' : '输入或选择大学'"
+            autocomplete="off"
+          />
+          <div *ngIf="universitySuggestionsOpen && visibleFormUniversities.length > 0" class="suggestion-list">
+            <button
+              type="button"
+              *ngFor="let university of visibleFormUniversities; trackBy: trackUniversity"
+              (click)="selectFormUniversity(university)"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
+            >
+              {{ university.name }}
+            </button>
+          </div>
+        </label>
+
+        <label class="autocomplete-field">
+          <span>专业</span>
+          <input
+            type="text"
+            [(ngModel)]="form.programName"
+            (ngModelChange)="onFormProgramInput()"
+            (focus)="onFormProgramFocus()"
+            [disabled]="formSaving || !selectedFormUniversity || loadingPrograms"
+            [placeholder]="loadingPrograms ? '读取专业中...' : '输入或选择专业'"
+            autocomplete="off"
+          />
+          <div *ngIf="programSuggestionsOpen && selectedFormUniversity && visibleFormPrograms.length > 0" class="suggestion-list">
+            <button
+              type="button"
+              *ngFor="let program of visibleFormPrograms; trackBy: trackProgram"
+              (click)="selectFormProgram(program)"
+              class="notranslate"
+              translate="no"
+              data-no-auto-translate
+            >
+              {{ program.programName }}
+            </button>
+          </div>
+        </label>
+
+        <label class="autocomplete-field">
+          <span>进度</span>
+          <select [(ngModel)]="form.status" [disabled]="formSaving">
+            <option *ngFor="let status of statusOptions" [ngValue]="status">
+              {{ graduationStage.statusLabel(status) }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <footer class="dialog-actions">
+        <button type="button" class="ghost-btn" (click)="closeApplicationForm()" [disabled]="formSaving">取消</button>
+        <button type="button" class="primary-btn" (click)="saveApplicationForm()" [disabled]="formSaving">
+          {{ formSubmitLabel }}
+        </button>
+      </footer>
+    </section>
+  </div>
 </main>

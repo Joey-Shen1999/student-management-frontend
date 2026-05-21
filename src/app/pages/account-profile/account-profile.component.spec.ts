@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -10,9 +11,10 @@ import { AccountProfileComponent } from './account-profile.component';
 describe('AccountProfileComponent', () => {
   let auth: Pick<AuthService, 'getAuthorizationHeaderValue' | 'getSession'>;
   let profileApi: Pick<StudentProfileService, 'getMyProfile' | 'saveMyProfile'>;
+  let router: Pick<Router, 'navigate'>;
 
   function createComponent(): AccountProfileComponent {
-    return new AccountProfileComponent(auth as AuthService, profileApi as StudentProfileService);
+    return new AccountProfileComponent(auth as AuthService, profileApi as StudentProfileService, router as Router);
   }
 
   function toEnglish(value: Parameters<typeof translateUiText>[0]): string {
@@ -41,6 +43,9 @@ describe('AccountProfileComponent', () => {
         })
       ),
       saveMyProfile: vi.fn().mockReturnValue(of({ message: 'updated' })),
+    };
+    router = {
+      navigate: vi.fn(),
     };
   });
 

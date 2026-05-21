@@ -35,6 +35,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
     'SUBMITTED',
     'WAITING_RESULT',
     'OFFER_RECEIVED',
+    'OFFER_ACCEPTED',
   ];
 
   studentId = 0;

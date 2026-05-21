@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 
@@ -11,6 +11,7 @@ import {
 } from '../../features/ielts/ielts-types';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
 import { type StudentAccount, StudentManagementService } from '../../services/student-management.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface TeacherIeltsListRow {
   studentId: number;
@@ -30,7 +31,7 @@ interface TeacherIeltsListRow {
     <div style="padding: 20px; display: grid; gap: 12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">语言成绩跟踪</h2>
-        <button type="button" [routerLink]="['/teacher/dashboard']">返回教师工作台</button>
+        <button type="button" (click)="goBack()">返回教师工作台</button>
       </div>
 
       <div *ngIf="loading" style="padding:12px;border:1px solid #d8e2f3;border-radius:8px;background:#f7fbff;">
@@ -91,6 +92,7 @@ export class TeacherIeltsDashboardComponent implements OnInit {
   constructor(
     private studentApi: StudentManagementService,
     private ieltsApi: IeltsTrackingService,
+    private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
@@ -99,6 +101,10 @@ export class TeacherIeltsDashboardComponent implements OnInit {
   }
 
   trackRow = (_index: number, row: TeacherIeltsListRow): number => row.studentId;
+
+  goBack(): void {
+    navigateBack(this.router, ['/teacher/dashboard']);
+  }
 
   resolveStatusLabel(row: TeacherIeltsListRow): string {
     return resolveIeltsStatusDisplay({

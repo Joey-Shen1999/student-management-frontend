@@ -46,6 +46,7 @@ import {
   type ProvinceFilterCountry,
 } from '../../shared/student-location/student-location-options';
 import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface StudentDetailVm {
   email: string;
@@ -410,7 +411,7 @@ export class InfoManagementComponent implements OnInit {
   }
 
   goDashboard(): void {
-    this.router.navigate(['/teacher/dashboard']);
+    navigateBack(this.router, ['/teacher/dashboard']);
   }
 
   openCreatePanel(): void {

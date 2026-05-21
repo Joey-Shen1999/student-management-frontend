@@ -14,6 +14,7 @@ import {
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
 import { evaluatePasswordPolicy, PasswordPolicyCheck } from '../../utils/password-policy';
+import { navigateBack } from '../../utils/navigate-back';
 
 type PasswordMode = 'set' | 'change';
 
@@ -28,7 +29,7 @@ type PasswordMode = 'set' | 'change';
         <button
           *ngIf="!isSetMode"
           type="button"
-          [routerLink]="[backRoute]"
+          (click)="goBack()"
           class="account-back-btn"
           style="margin-left:auto;"
         >
@@ -196,6 +197,10 @@ export class ChangePasswordComponent implements OnInit {
   get backRoute(): string {
     const role = String(this.auth.getSession()?.role || '').toUpperCase();
     return role === 'TEACHER' || role === 'ADMIN' ? '/teacher/dashboard' : '/dashboard';
+  }
+
+  goBack(): void {
+    navigateBack(this.router, [this.backRoute]);
   }
 
   get passwordChecks(): PasswordPolicyCheck[] {

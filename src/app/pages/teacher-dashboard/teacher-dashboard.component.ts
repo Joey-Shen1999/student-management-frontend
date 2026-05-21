@@ -97,8 +97,8 @@ export class TeacherDashboardComponent {
     languageTracking: uiText('语言成绩跟踪', 'Language Score Tracking'),
     volunteerTracking: uiText('义工跟踪', 'Volunteer Tracking'),
     extracurricular: uiText('课外活动', 'Extracurricular Activities'),
-    universityGoalManagement: uiText('大学升学', 'University Advancement'),
-    graduationManagement: uiText('升学管理', 'Graduation Management'),
+    universityGoalManagement: uiText('升学目标', 'University Goals'),
+    graduationManagement: uiText('申请管理', 'Application Management'),
     serviceProgress: uiText('服务进度档', 'Service Progress'),
     accountSettings: uiText('账号设置', 'Account Settings'),
   };

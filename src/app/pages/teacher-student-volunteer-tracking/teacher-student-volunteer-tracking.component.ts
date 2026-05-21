@@ -19,6 +19,7 @@ import {
   type VolunteerTrackingStateVm,
   VolunteerTrackingService,
 } from '../../services/volunteer-tracking.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface VolunteerTaskDraft {
   taskName: string;
@@ -198,7 +199,7 @@ export class TeacherStudentVolunteerTrackingComponent implements OnInit {
   trackTask = (index: number): number => index;
 
   goBackToList(): void {
-    this.router.navigate(['/teacher/volunteer']);
+    navigateBack(this.router, ['/teacher/volunteer']);
   }
 
   addTask(): void {

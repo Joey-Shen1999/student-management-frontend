@@ -11,12 +11,17 @@ import {
 } from '../../services/task-center.service';
 import {
   GraduationApplication,
+  GraduationApplicationPortalCredential,
   GraduationApplicationStageService,
 } from '../../services/graduation-application-stage.service';
 
 interface ApplicationProgressGroup {
+  universityId: number | null;
   universityName: string;
   applications: GraduationApplication[];
+  portalCredential: GraduationApplicationPortalCredential | null;
+  portalLoading: boolean;
+  portalError: string;
 }
 
 @Component({
@@ -61,17 +66,54 @@ interface ApplicationProgressGroup {
                 <h4 style="margin:0;color:#203047;font-size:15px;">{{ group.universityName }}</h4>
                 <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">{{ group.applications.length }} 个专业</span>
               </header>
+              <section class="student-requirement-alerts" *ngIf="hasStudentRequirementAlerts(group)">
+                <span *ngIf="group.portalCredential?.interviewRequired">需要完成面试</span>
+                <span *ngIf="group.portalCredential?.languageScoreRequired">需要提交语言成绩</span>
+              </section>
+              <section class="student-portal-card" *ngIf="group.portalCredential?.studentVisible">
+                <header>
+                  <strong>学校账号资料</strong>
+                  <a
+                    *ngIf="resolveStudentPortalLoginUrl(group) as portalLoginUrl"
+                    [href]="portalLoginUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    登录网站
+                  </a>
+                </header>
+                <div class="student-portal-grid">
+                  <div>
+                    <span>学校账号</span>
+                    <b>{{ group.portalCredential?.schoolAccount || '未设置' }}</b>
+                  </div>
+                  <div>
+                    <span>申请邮箱</span>
+                    <b>{{ group.portalCredential?.schoolEmail || '未设置' }}</b>
+                  </div>
+                  <div>
+                    <span>学校密码</span>
+                    <b>{{ group.portalCredential?.schoolPassword || '未设置' }}</b>
+                  </div>
+                </div>
+              </section>
               <div style="display:grid;gap:8px;">
                 <div
                   class="program-progress-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
+                  [style.border-color]="application.status === 'OFFER_ACCEPTED' ? '#86efac' : '#dbe6f5'"
+                  [style.background]="application.status === 'OFFER_ACCEPTED' ? '#f0fdf4' : '#fff'"
                   *ngFor="let application of group.applications; trackBy: trackApplication"
                 >
                   <div style="display:grid;gap:3px;">
                     <strong style="color:#22324a;font-size:14px;">{{ application.programName }}</strong>
                     <small style="color:#6b7890;font-size:12px;">最近更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
                   </div>
-                  <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">
+                  <span
+                    style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;"
+                    [style.background]="application.status === 'OFFER_ACCEPTED' ? '#dcfce7' : '#eef4ff'"
+                    [style.color]="application.status === 'OFFER_ACCEPTED' ? '#166534' : '#1d4f9b'"
+                  >
                     {{ graduationStage.statusLabel(application.status) }}
                   </span>
                 </div>
@@ -264,6 +306,17 @@ export class DashboardComponent implements OnInit {
     return this.applicationProgressGroups.reduce((total, group) => total + group.applications.length, 0);
   }
 
+  resolveStudentPortalLoginUrl(group: ApplicationProgressGroup): string {
+    return this.graduationStage.resolvePortalLoginUrl(group.universityName);
+  }
+
+  hasStudentRequirementAlerts(group: ApplicationProgressGroup): boolean {
+    return (
+      group.portalCredential?.interviewRequired === true ||
+      group.portalCredential?.languageScoreRequired === true
+    );
+  }
+
   goUniversityGoals() {
     this.router.navigate(['/student/university-goals']);
   }
@@ -454,6 +507,7 @@ export class DashboardComponent implements OnInit {
         next: (applications) => {
           this.applicationStageEnabled = applications.length > 0;
           this.applicationProgressGroups = this.groupApplicationsByUniversity(applications);
+          this.loadVisiblePortalCredentials(studentId);
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
@@ -471,10 +525,63 @@ export class DashboardComponent implements OnInit {
       const key = application.universityName.trim() || '未命名大学';
       groups.set(key, [...(groups.get(key) || []), application]);
     }
-    return Array.from(groups.entries()).map(([universityName, rows]) => ({
-      universityName,
-      applications: rows.sort((left, right) => left.sortOrder - right.sortOrder),
-    }));
+    return Array.from(groups.entries())
+      .map(([universityName, rows]) => ({
+        universityId: this.normalizeOptionalId(rows[0]?.universityId),
+        universityName,
+        portalCredential: null,
+        portalLoading: false,
+        portalError: '',
+        applications: rows.sort((left, right) => {
+          const acceptedRank =
+            Number(right.status === 'OFFER_ACCEPTED') - Number(left.status === 'OFFER_ACCEPTED');
+          if (acceptedRank !== 0) return acceptedRank;
+          return left.sortOrder - right.sortOrder;
+        }),
+      }))
+      .sort((left, right) => {
+        const acceptedRank =
+          Number(right.applications.some((item) => item.status === 'OFFER_ACCEPTED')) -
+          Number(left.applications.some((item) => item.status === 'OFFER_ACCEPTED'));
+        if (acceptedRank !== 0) return acceptedRank;
+        return Math.min(...left.applications.map((item) => item.sortOrder)) -
+          Math.min(...right.applications.map((item) => item.sortOrder));
+      });
+  }
+
+  private loadVisiblePortalCredentials(studentId: number): void {
+    for (const group of this.applicationProgressGroups) {
+      if (!group.universityId) continue;
+      group.portalLoading = true;
+      group.portalError = '';
+      this.graduationStage
+        .getPortalCredential(studentId, group.universityId)
+        .pipe(
+          finalize(() => {
+            group.portalLoading = false;
+            this.cdr.detectChanges();
+          })
+        )
+        .subscribe({
+          next: (credential) => {
+            group.portalCredential =
+              credential?.studentVisible || credential?.interviewRequired || credential?.languageScoreRequired
+                ? credential
+                : null;
+            this.cdr.detectChanges();
+          },
+          error: (error: unknown) => {
+            group.portalCredential = null;
+            group.portalError = this.extractErrorMessage(error);
+            this.cdr.detectChanges();
+          },
+        });
+    }
+  }
+
+  private normalizeOptionalId(value: unknown): number | null {
+    const id = Math.trunc(Number(value));
+    return Number.isFinite(id) && id > 0 ? id : null;
   }
 
   private startInfoLoadWatchdog(): void {

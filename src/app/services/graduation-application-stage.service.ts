@@ -10,7 +10,8 @@ export type GraduationApplicationStatus =
   | 'READY_TO_SUBMIT'
   | 'SUBMITTED'
   | 'WAITING_RESULT'
-  | 'OFFER_RECEIVED';
+  | 'OFFER_RECEIVED'
+  | 'OFFER_ACCEPTED';
 
 export interface GraduationApplication {
   id: number | string;
@@ -66,12 +67,88 @@ export interface GraduationApplicationHistoryResponse {
   size: number;
 }
 
+export interface GraduationApplicationPortalCredential {
+  studentId: number;
+  universityId: number;
+  universityName?: string;
+  schoolAccount: string;
+  schoolEmail: string;
+  schoolPassword: string;
+  defaultSchoolEmail?: string;
+  defaultSchoolPassword?: string;
+  studentVisible: boolean;
+  interviewRequired: boolean;
+  languageScoreRequired: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GraduationApplicationPortalCredentialRequest {
+  schoolAccount?: string;
+  schoolEmail?: string;
+  schoolPassword?: string;
+  studentVisible?: boolean;
+  interviewRequired?: boolean;
+  languageScoreRequired?: boolean;
+}
+
+export interface GraduationApplicationAccountCredential {
+  studentId: number;
+  applicationEmail: string;
+  applicationPassword: string;
+  defaultApplicationEmail?: string;
+  defaultApplicationPassword?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GraduationApplicationAccountCredentialRequest {
+  applicationEmail?: string;
+  applicationPassword?: string;
+}
+
+interface UniversityPortalLoginLink {
+  aliases: string[];
+  url: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GraduationApplicationStageService {
   private readonly storagePrefix = 'student-management.graduation-applications.v1';
   private readonly studentUrl = '/api/students';
   private readonly applicationUrl = '/api/graduation-applications';
   private readonly enabledCache = new Map<number, boolean>();
+  private readonly universityPortalLoginLinks: UniversityPortalLoginLink[] = [
+    { aliases: ['University of Toronto', 'University of Toronto St George', 'University of Toronto St. George', 'University of Toronto Mississauga', 'University of Toronto Scarborough', 'UofT', 'U of T'], url: 'https://join.utoronto.ca/' },
+    { aliases: ['University of Waterloo', 'Waterloo', 'UWaterloo', 'UW', 'Quest'], url: 'https://uwaterloo.ca/quest/' },
+    { aliases: ['York University', 'York', 'YorkU', 'MyFile'], url: 'https://myfile.yorku.ca/' },
+    { aliases: ['Toronto Metropolitan University', 'Ryerson University', 'TMU', 'ChooseTMU'], url: 'https://www.torontomu.ca/admissions/undergraduate/choose-login/' },
+    { aliases: ['McMaster University', 'McMaster', 'Mac', 'Mosaic'], url: 'https://future.mcmaster.ca/applicant-portal/' },
+    { aliases: ["Queen's University", 'Queens University', 'Queens', 'SOLUS'], url: 'https://my.queensu.ca/' },
+    { aliases: ['Western University', 'Western', 'UWO', 'University of Western Ontario'], url: 'https://student.uwo.ca/' },
+    { aliases: ['University of Ottawa', 'uOttawa', 'U of O', 'uoZone'], url: 'https://www.uottawa.ca/en/current-students' },
+    { aliases: ['University of Guelph-Humber', 'Guelph-Humber', 'Guelph Humber'], url: 'https://www.uoguelph.ca/webadvisor' },
+    { aliases: ['University of Guelph', 'Guelph', 'U of G'], url: 'https://www.uoguelph.ca/webadvisor' },
+    { aliases: ['Wilfrid Laurier University', 'Laurier', 'WLU', 'LORIS'], url: 'https://www.chooselaurier.ca/future-students/undergraduate/admissions/process/' },
+    { aliases: ['Brock University', 'Brock'], url: 'https://my.brocku.ca/' },
+    { aliases: ['Carleton University', 'Carleton', 'Carleton360'], url: 'https://360.carleton.ca/' },
+    { aliases: ['University of British Columbia', 'UBC'], url: 'https://myapplication.ubc.ca/' },
+    { aliases: ['McGill University', 'McGill'], url: 'https://horizon.mcgill.ca/' },
+    { aliases: ['University of Alberta', 'UAlberta', 'U of A'], url: 'https://www.ualberta.ca/en/admissions/how-to-apply/after-you-apply/index.html' },
+    { aliases: ['University of Calgary', 'UCalgary', 'U of C'], url: 'https://my.ucalgary.ca/' },
+    { aliases: ['University of Victoria', 'UVic', 'Victoria'], url: 'https://www.uvic.ca/tools/sign-in/index.php' },
+    { aliases: ['Simon Fraser University', 'Simon Fraser', 'SFU'], url: 'https://go.sfu.ca/' },
+    { aliases: ['University of Windsor', 'Windsor', 'UWindsor'], url: 'https://my.uwindsor.ca/' },
+    { aliases: ['Ontario Tech University', 'Ontario Tech', 'UOIT'], url: 'https://ontariotechu.ca/applicantportal' },
+    { aliases: ['OCAD University', 'OCAD', 'OCAD U'], url: 'https://join.ocadu.ca/application/login' },
+    { aliases: ['Trent University', 'Trent'], url: 'https://my.trentu.ca/' },
+    { aliases: ['Lakehead University', 'Lakehead'], url: 'https://myportal.lakeheadu.ca/' },
+    { aliases: ['University of Manitoba', 'Manitoba', 'UManitoba'], url: 'https://aurora.umanitoba.ca/' },
+    { aliases: ['University of Saskatchewan', 'Saskatchewan', 'USask'], url: 'https://students.usask.ca/paws.php' },
+    { aliases: ['University of Regina', 'Regina', 'URegina'], url: 'https://banner.uregina.ca/' },
+    { aliases: ['University of New Brunswick', 'UNB', 'New Brunswick'], url: 'https://eservices.unb.ca/' },
+    { aliases: ['Dalhousie University', 'Dalhousie', 'Dal'], url: 'https://dalonline.dal.ca/' },
+  ];
 
   constructor(
     private http?: HttpClient,
@@ -236,6 +313,90 @@ export class GraduationApplicationStageService {
     );
   }
 
+  getPortalCredential(
+    studentId: number | null | undefined,
+    universityId: number | null | undefined
+  ): Observable<GraduationApplicationPortalCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const university = this.normalizeOptionalId(universityId);
+    if (student <= 0 || !university || !this.http) {
+      return of(this.createDefaultPortalCredential(student, university || 0));
+    }
+
+    return this.http.get<GraduationApplicationPortalCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/universities/${university}/portal`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  getApplicationAccountCredential(
+    studentId: number | null | undefined
+  ): Observable<GraduationApplicationAccountCredential> {
+    const student = this.normalizeStudentId(studentId);
+    if (student <= 0 || !this.http) {
+      return of(this.createDefaultApplicationAccountCredential(student));
+    }
+
+    return this.http.get<GraduationApplicationAccountCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/account`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateApplicationAccountCredential(
+    studentId: number | null | undefined,
+    payload: GraduationApplicationAccountCredentialRequest
+  ): Observable<GraduationApplicationAccountCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const normalizedPayload = {
+      applicationEmail: String(payload.applicationEmail || '').trim(),
+      applicationPassword: String(payload.applicationPassword || '').trim(),
+    };
+    if (student <= 0 || !this.http) {
+      return of({
+        ...this.createDefaultApplicationAccountCredential(student),
+        ...normalizedPayload,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return this.http.put<GraduationApplicationAccountCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/account`,
+      normalizedPayload,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updatePortalCredential(
+    studentId: number | null | undefined,
+    universityId: number | null | undefined,
+    payload: GraduationApplicationPortalCredentialRequest
+  ): Observable<GraduationApplicationPortalCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const university = this.normalizeOptionalId(universityId);
+    const normalizedPayload = {
+      schoolAccount: String(payload.schoolAccount || '').trim(),
+      schoolEmail: String(payload.schoolEmail || '').trim(),
+      schoolPassword: String(payload.schoolPassword || '').trim(),
+      studentVisible: payload.studentVisible === true,
+      interviewRequired: payload.interviewRequired === true,
+      languageScoreRequired: payload.languageScoreRequired === true,
+    };
+    if (student <= 0 || !university || !this.http) {
+      return of({
+        ...this.createDefaultPortalCredential(student, university || 0),
+        ...normalizedPayload,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return this.http.put<GraduationApplicationPortalCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/universities/${university}/portal`,
+      normalizedPayload,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
   createFromAspiration(
     studentId: number,
     aspiration: UniversityAspiration,
@@ -275,10 +436,67 @@ export class GraduationApplicationStageService {
         return '等待结果';
       case 'OFFER_RECEIVED':
         return '收到 Offer';
+      case 'OFFER_ACCEPTED':
+        return '已接收 Offer';
       case 'PREPARING':
       default:
         return '准备中';
     }
+  }
+
+  resolvePortalLoginUrl(universityName: string | null | undefined): string {
+    const normalizedName = this.normalizeSearchText(universityName);
+    const compactName = this.compactSearchText(universityName);
+    if (!normalizedName) return '';
+
+    let bestMatch: { url: string; score: number } | null = null;
+    for (const link of this.universityPortalLoginLinks) {
+      for (const alias of link.aliases) {
+        const normalizedAlias = this.normalizeSearchText(alias);
+        const compactAlias = this.compactSearchText(alias);
+        if (
+          normalizedName.includes(normalizedAlias) ||
+          compactName.includes(compactAlias) ||
+          compactAlias.includes(compactName)
+        ) {
+          const score = Math.max(normalizedAlias.length, compactAlias.length);
+          if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { url: link.url, score };
+          }
+        }
+      }
+    }
+    return bestMatch?.url || '';
+  }
+
+  private createDefaultPortalCredential(
+    studentId: number,
+    universityId: number
+  ): GraduationApplicationPortalCredential {
+    const account = this.createDefaultApplicationAccountCredential(studentId);
+    return {
+      studentId,
+      universityId,
+      schoolAccount: '',
+      schoolEmail: account.applicationEmail,
+      schoolPassword: account.applicationPassword,
+      defaultSchoolEmail: account.defaultApplicationEmail,
+      defaultSchoolPassword: account.defaultApplicationPassword,
+      studentVisible: false,
+      interviewRequired: false,
+      languageScoreRequired: false,
+    };
+  }
+
+  private createDefaultApplicationAccountCredential(studentId: number): GraduationApplicationAccountCredential {
+    const year = new Date().getFullYear();
+    return {
+      studentId,
+      applicationEmail: `student${studentId || ''}vip${year}@outlook.com`,
+      applicationPassword: 'ZAQ!2wsxcde3',
+      defaultApplicationEmail: `student${studentId || ''}vip${year}@outlook.com`,
+      defaultApplicationPassword: 'ZAQ!2wsxcde3',
+    };
   }
 
   private cacheApplications(studentId: number, applications: GraduationApplication[]): void {
@@ -366,6 +584,20 @@ export class GraduationApplicationStageService {
   private normalizeOptionalId(value: unknown): number | undefined {
     const numeric = Math.trunc(Number(value));
     return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
+  }
+
+  private normalizeSearchText(value: string | null | undefined): string {
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/&/g, ' and ')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  private compactSearchText(value: string | null | undefined): string {
+    return this.normalizeSearchText(value).replace(/\s+/g, '');
   }
 
   private withAuthHeaderIfAvailable() {

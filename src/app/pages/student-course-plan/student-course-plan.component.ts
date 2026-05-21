@@ -4,6 +4,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 
 import { CoursePlanPrototypeComponent } from '../student-profile/course-plan-prototype.component';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-student-course-plan',
@@ -34,11 +35,7 @@ export class StudentCoursePlanComponent implements OnInit, OnDestroy {
   }
 
   backToDashboard(): void {
-    if (this.managedMode) {
-      this.router.navigate(['/teacher/dashboard']);
-      return;
-    }
-    this.router.navigate(['/dashboard']);
+    navigateBack(this.router, this.managedMode ? ['/teacher/dashboard'] : ['/dashboard']);
   }
 
   goProfile(): void {

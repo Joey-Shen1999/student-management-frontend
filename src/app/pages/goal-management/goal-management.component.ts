@@ -56,6 +56,7 @@ import {
 import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface StudentDetailVm {
   email: string;
@@ -817,7 +818,7 @@ export class GoalManagementComponent implements OnInit, OnDestroy {
   readonly isTeacherNoteSavingRef = (studentId: number): boolean =>
     this.isTeacherNoteSaving(studentId);
 
-  goDashboard(): void { this.router.navigate(['/teacher/dashboard']); }
+  goDashboard(): void { navigateBack(this.router, ['/teacher/dashboard']); }
   openCreatePanel(): void {
     if (this.creating) return;
     this.suppressAutoSave = true;
