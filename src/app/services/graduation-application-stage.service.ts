@@ -10,7 +10,8 @@ export type GraduationApplicationStatus =
   | 'READY_TO_SUBMIT'
   | 'SUBMITTED'
   | 'WAITING_RESULT'
-  | 'OFFER_RECEIVED';
+  | 'OFFER_RECEIVED'
+  | 'OFFER_ACCEPTED';
 
 export interface GraduationApplication {
   id: number | string;
@@ -64,6 +65,40 @@ export interface GraduationApplicationHistoryResponse {
   total: number;
   page: number;
   size: number;
+}
+
+export interface GraduationApplicationPortalCredential {
+  studentId: number;
+  universityId: number;
+  universityName?: string;
+  schoolAccount: string;
+  schoolEmail: string;
+  schoolPassword: string;
+  defaultSchoolEmail?: string;
+  defaultSchoolPassword?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GraduationApplicationPortalCredentialRequest {
+  schoolAccount?: string;
+  schoolEmail?: string;
+  schoolPassword?: string;
+}
+
+export interface GraduationApplicationAccountCredential {
+  studentId: number;
+  applicationEmail: string;
+  applicationPassword: string;
+  defaultApplicationEmail?: string;
+  defaultApplicationPassword?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GraduationApplicationAccountCredentialRequest {
+  applicationEmail?: string;
+  applicationPassword?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -236,6 +271,87 @@ export class GraduationApplicationStageService {
     );
   }
 
+  getPortalCredential(
+    studentId: number | null | undefined,
+    universityId: number | null | undefined
+  ): Observable<GraduationApplicationPortalCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const university = this.normalizeOptionalId(universityId);
+    if (student <= 0 || !university || !this.http) {
+      return of(this.createDefaultPortalCredential(student, university || 0));
+    }
+
+    return this.http.get<GraduationApplicationPortalCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/universities/${university}/portal`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  getApplicationAccountCredential(
+    studentId: number | null | undefined
+  ): Observable<GraduationApplicationAccountCredential> {
+    const student = this.normalizeStudentId(studentId);
+    if (student <= 0 || !this.http) {
+      return of(this.createDefaultApplicationAccountCredential(student));
+    }
+
+    return this.http.get<GraduationApplicationAccountCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/account`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateApplicationAccountCredential(
+    studentId: number | null | undefined,
+    payload: GraduationApplicationAccountCredentialRequest
+  ): Observable<GraduationApplicationAccountCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const normalizedPayload = {
+      applicationEmail: String(payload.applicationEmail || '').trim(),
+      applicationPassword: String(payload.applicationPassword || '').trim(),
+    };
+    if (student <= 0 || !this.http) {
+      return of({
+        ...this.createDefaultApplicationAccountCredential(student),
+        ...normalizedPayload,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return this.http.put<GraduationApplicationAccountCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/account`,
+      normalizedPayload,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updatePortalCredential(
+    studentId: number | null | undefined,
+    universityId: number | null | undefined,
+    payload: GraduationApplicationPortalCredentialRequest
+  ): Observable<GraduationApplicationPortalCredential> {
+    const student = this.normalizeStudentId(studentId);
+    const university = this.normalizeOptionalId(universityId);
+    const normalizedPayload = {
+      schoolAccount: String(payload.schoolAccount || '').trim(),
+      schoolEmail: String(payload.schoolEmail || '').trim(),
+      schoolPassword: String(payload.schoolPassword || '').trim(),
+    };
+    if (student <= 0 || !university || !this.http) {
+      return of({
+        ...this.createDefaultPortalCredential(student, university || 0),
+        ...normalizedPayload,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    return this.http.put<GraduationApplicationPortalCredential>(
+      `${this.studentUrl}/${student}/graduation-applications/universities/${university}/portal`,
+      normalizedPayload,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
   createFromAspiration(
     studentId: number,
     aspiration: UniversityAspiration,
@@ -275,10 +391,39 @@ export class GraduationApplicationStageService {
         return '等待结果';
       case 'OFFER_RECEIVED':
         return '收到 Offer';
+      case 'OFFER_ACCEPTED':
+        return '已接收 Offer';
       case 'PREPARING':
       default:
         return '准备中';
     }
+  }
+
+  private createDefaultPortalCredential(
+    studentId: number,
+    universityId: number
+  ): GraduationApplicationPortalCredential {
+    const account = this.createDefaultApplicationAccountCredential(studentId);
+    return {
+      studentId,
+      universityId,
+      schoolAccount: '',
+      schoolEmail: account.applicationEmail,
+      schoolPassword: account.applicationPassword,
+      defaultSchoolEmail: account.defaultApplicationEmail,
+      defaultSchoolPassword: account.defaultApplicationPassword,
+    };
+  }
+
+  private createDefaultApplicationAccountCredential(studentId: number): GraduationApplicationAccountCredential {
+    const year = new Date().getFullYear();
+    return {
+      studentId,
+      applicationEmail: `student${studentId || ''}vip${year}@outlook.com`,
+      applicationPassword: 'ZAQ!2wsxcde3',
+      defaultApplicationEmail: `student${studentId || ''}vip${year}@outlook.com`,
+      defaultApplicationPassword: 'ZAQ!2wsxcde3',
+    };
   }
 
   private cacheApplications(studentId: number, applications: GraduationApplication[]): void {

@@ -65,13 +65,19 @@ interface ApplicationProgressGroup {
                 <div
                   class="program-progress-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
+                  [style.border-color]="application.status === 'OFFER_ACCEPTED' ? '#86efac' : '#dbe6f5'"
+                  [style.background]="application.status === 'OFFER_ACCEPTED' ? '#f0fdf4' : '#fff'"
                   *ngFor="let application of group.applications; trackBy: trackApplication"
                 >
                   <div style="display:grid;gap:3px;">
                     <strong style="color:#22324a;font-size:14px;">{{ application.programName }}</strong>
                     <small style="color:#6b7890;font-size:12px;">最近更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
                   </div>
-                  <span style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;">
+                  <span
+                    style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;"
+                    [style.background]="application.status === 'OFFER_ACCEPTED' ? '#dcfce7' : '#eef4ff'"
+                    [style.color]="application.status === 'OFFER_ACCEPTED' ? '#166534' : '#1d4f9b'"
+                  >
                     {{ graduationStage.statusLabel(application.status) }}
                   </span>
                 </div>
@@ -471,10 +477,24 @@ export class DashboardComponent implements OnInit {
       const key = application.universityName.trim() || '未命名大学';
       groups.set(key, [...(groups.get(key) || []), application]);
     }
-    return Array.from(groups.entries()).map(([universityName, rows]) => ({
-      universityName,
-      applications: rows.sort((left, right) => left.sortOrder - right.sortOrder),
-    }));
+    return Array.from(groups.entries())
+      .map(([universityName, rows]) => ({
+        universityName,
+        applications: rows.sort((left, right) => {
+          const acceptedRank =
+            Number(right.status === 'OFFER_ACCEPTED') - Number(left.status === 'OFFER_ACCEPTED');
+          if (acceptedRank !== 0) return acceptedRank;
+          return left.sortOrder - right.sortOrder;
+        }),
+      }))
+      .sort((left, right) => {
+        const acceptedRank =
+          Number(right.applications.some((item) => item.status === 'OFFER_ACCEPTED')) -
+          Number(left.applications.some((item) => item.status === 'OFFER_ACCEPTED'));
+        if (acceptedRank !== 0) return acceptedRank;
+        return Math.min(...left.applications.map((item) => item.sortOrder)) -
+          Math.min(...right.applications.map((item) => item.sortOrder));
+      });
   }
 
   private startInfoLoadWatchdog(): void {

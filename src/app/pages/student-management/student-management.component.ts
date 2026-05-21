@@ -5122,12 +5122,6 @@ export class StudentManagementComponent implements OnInit {
       persisted.graduationStageFilter === 'ENABLED' || persisted.graduationStageFilter === 'NOT_ENABLED'
         ? persisted.graduationStageFilter
         : '';
-    if (
-      pageContext === 'graduationApplications' &&
-      persisted.graduationStageFilter === undefined
-    ) {
-      this.graduationStageFilter = 'ENABLED';
-    }
     this.selectedUniversityGoalUniversityFilters = this.normalizeUniversityGoalFilterSelections(
       persisted.selectedUniversityGoalUniversityFilters,
       persisted.universityGoalUniversityFilterEnabled
@@ -5142,10 +5136,8 @@ export class StudentManagementComponent implements OnInit {
     );
   }
 
-  private applyDefaultListControlsForContext(pageContext: StudentManagementPageContext): void {
-    if (pageContext === 'graduationApplications') {
-      this.graduationStageFilter = 'ENABLED';
-    }
+  private applyDefaultListControlsForContext(_pageContext: StudentManagementPageContext): void {
+    this.graduationStageFilter = '';
   }
 
   private persistListControlsPreference(): void {

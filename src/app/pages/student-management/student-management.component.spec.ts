@@ -2090,7 +2090,7 @@ describe('StudentManagementComponent', () => {
     );
   });
 
-  it('graduation management should default to students already in graduation stage', () => {
+  it('graduation management should default graduation stage filter to all', () => {
     router.url = '/teacher/graduation';
     const local = new StudentManagementComponent(
       api as StudentManagementService,
@@ -2108,7 +2108,7 @@ describe('StudentManagementComponent', () => {
 
     local.ngOnInit();
 
-    expect(local.graduationStageFilter).toBe('ENABLED');
+    expect(local.graduationStageFilter).toBe('');
   });
 
   it('graduation stage button should open setup before stage is enabled', () => {
