@@ -19,6 +19,7 @@ import {
   UniversityAspirationService,
   UniversityProgram,
 } from '../../services/university-aspiration.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface ApplicationGroup {
   key: string;
@@ -38,11 +39,15 @@ interface ApplicationFormModel {
 }
 
 type PortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPassword';
+type PortalRequirementField = 'interviewRequired' | 'languageScoreRequired';
 
 interface PortalCredentialDraft {
   schoolAccount: string;
   schoolEmail: string;
   schoolPassword: string;
+  studentVisible: boolean;
+  interviewRequired: boolean;
+  languageScoreRequired: boolean;
 }
 
 type ApplicationAccountField = 'applicationEmail' | 'applicationPassword';
@@ -424,7 +429,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/teacher/graduation']);
+    navigateBack(this.router, ['/teacher/graduation']);
   }
 
   toggleApplicationAccount(): void {
@@ -764,6 +769,28 @@ export class GraduationApplicationsComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
+  togglePortalStudentVisible(group: ApplicationGroup, visible: boolean): void {
+    if (!group.universityId || this.isPortalSaving(group)) return;
+    const draft = {
+      ...this.ensurePortalDraft(group),
+      studentVisible: visible === true,
+    };
+    this.portalDrafts.set(group.key, draft);
+    this.portalErrors.delete(group.key);
+    this.persistPortalCredential(group, draft, false);
+  }
+
+  togglePortalRequirement(group: ApplicationGroup, field: PortalRequirementField, checked: boolean): void {
+    if (!group.universityId || this.isPortalSaving(group)) return;
+    const draft = {
+      ...this.ensurePortalDraft(group),
+      [field]: checked === true,
+    };
+    this.portalDrafts.set(group.key, draft);
+    this.portalErrors.delete(group.key);
+    this.persistPortalCredential(group, draft, false);
+  }
+
   copyPortalField(group: ApplicationGroup, field: PortalCredentialField): void {
     const value = String(this.ensurePortalDraft(group)[field] || '');
     if (!value.trim()) return;
@@ -839,13 +866,24 @@ export class GraduationApplicationsComponent implements OnInit {
     if (
       draft.schoolAccount.trim() === current.schoolAccount.trim() &&
       draft.schoolEmail.trim() === current.schoolEmail.trim() &&
-      draft.schoolPassword.trim() === current.schoolPassword.trim()
+      draft.schoolPassword.trim() === current.schoolPassword.trim() &&
+      draft.studentVisible === current.studentVisible &&
+      draft.interviewRequired === current.interviewRequired &&
+      draft.languageScoreRequired === current.languageScoreRequired
     ) {
       this.portalEditingKey = null;
       this.cdr.markForCheck();
       return;
     }
 
+    this.persistPortalCredential(group, draft, true);
+  }
+
+  private persistPortalCredential(
+    group: ApplicationGroup,
+    draft: PortalCredentialDraft,
+    closeEditing: boolean
+  ): void {
     this.portalSavingKey = group.key;
     this.portalErrors.delete(group.key);
     this.graduationStage
@@ -860,7 +898,7 @@ export class GraduationApplicationsComponent implements OnInit {
         next: (saved) => {
           this.portalCredentials.set(group.key, saved);
           this.portalDrafts.set(group.key, this.createPortalDraft(saved));
-          if (this.portalEditingKey === group.key) {
+          if (closeEditing && this.portalEditingKey === group.key) {
             this.portalEditingKey = null;
           }
           if (this.historyPanelOpen) {
@@ -1284,6 +1322,9 @@ export class GraduationApplicationsComponent implements OnInit {
       schoolAccount: String(credential?.schoolAccount || ''),
       schoolEmail: String(credential?.schoolEmail || credential?.defaultSchoolEmail || ''),
       schoolPassword: String(credential?.schoolPassword || credential?.defaultSchoolPassword || 'ZAQ!2wsxcde3'),
+      studentVisible: credential?.studentVisible === true,
+      interviewRequired: credential?.interviewRequired === true,
+      languageScoreRequired: credential?.languageScoreRequired === true,
     };
   }
 

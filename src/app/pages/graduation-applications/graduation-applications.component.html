@@ -250,6 +250,16 @@
             <div class="portal-actions">
               <button
                 type="button"
+                class="visibility-toggle"
+                [class.on]="getPortalDraft(group).studentVisible"
+                (click)="$event.stopPropagation(); togglePortalStudentVisible(group, !getPortalDraft(group).studentVisible)"
+                [disabled]="isPortalLoading(group) || isPortalSaving(group)"
+              >
+                <i class="toggle-track"><i class="toggle-thumb"></i></i>
+                <b>{{ getPortalDraft(group).studentVisible ? '学生可见' : '学生隐藏' }}</b>
+              </button>
+              <button
+                type="button"
                 class="ghost-btn compact"
                 *ngIf="!isPortalEditing(group)"
                 (click)="startPortalEdit(group)"
@@ -362,6 +372,35 @@
                 (click)="$event.stopPropagation()"
                 autocomplete="off"
               />
+            </label>
+          </div>
+
+          <div class="portal-requirements" *ngIf="!isPortalLoading(group)">
+            <label
+              class="requirement-check"
+              [class.active]="getPortalDraft(group).interviewRequired"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [checked]="getPortalDraft(group).interviewRequired"
+                (change)="togglePortalRequirement(group, 'interviewRequired', $any($event.target).checked)"
+                [disabled]="isPortalSaving(group)"
+              />
+              <span>面试</span>
+            </label>
+            <label
+              class="requirement-check"
+              [class.active]="getPortalDraft(group).languageScoreRequired"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [checked]="getPortalDraft(group).languageScoreRequired"
+                (change)="togglePortalRequirement(group, 'languageScoreRequired', $any($event.target).checked)"
+                [disabled]="isPortalSaving(group)"
+              />
+              <span>语言成绩</span>
             </label>
           </div>
         </section>

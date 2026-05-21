@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 
@@ -17,6 +17,7 @@ import {
 import { AppLanguageService } from '../../services/app-language.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface PasswordResetResult {
   teacherId: number;
@@ -44,7 +45,7 @@ interface StatusUpdateResult {
     <div style="max-width:980px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">{{ ui.title | appTranslate }}</h2>
-        <button type="button" routerLink="/teacher/dashboard" class="teacher-back-btn" style="margin-left:auto;">
+        <button type="button" (click)="goBack()" class="teacher-back-btn" style="margin-left:auto;">
           {{ ui.back | appTranslate }}
         </button>
       </div>
@@ -424,6 +425,7 @@ export class TeacherManagementComponent implements OnInit {
 
   constructor(
     private teacherApi: TeacherManagementService,
+    private router: Router = { navigate: () => Promise.resolve(true) } as unknown as Router,
     private language: AppLanguageService = {
       translate: (value: string | LocalizedText | null | undefined) =>
         typeof value === 'object' && value ? value.zh || value.en || '' : String(value ?? ''),
@@ -433,6 +435,10 @@ export class TeacherManagementComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadTeachers();
+  }
+
+  goBack(): void {
+    navigateBack(this.router, ['/teacher/dashboard']);
   }
 
   trackTeacher = (_index: number, teacher: TeacherAccount): string | number => {

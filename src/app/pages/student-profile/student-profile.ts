@@ -19,6 +19,7 @@ import {
   SchoolTranscriptUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
+import { navigateBack } from '../../utils/navigate-back';
 type Gender = '' | 'Male' | 'Female' | 'Other';
 type StudentRegion =
   | ''
@@ -693,7 +694,7 @@ export class StudentProfile implements OnInit {
   }
 
   back(): void {
-    this.router.navigate([this.managedMode ? '/teacher/students' : '/dashboard']);
+    navigateBack(this.router, [this.managedMode ? '/teacher/students' : '/dashboard']);
   }
 
   enterEditMode(): void {

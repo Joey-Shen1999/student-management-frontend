@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { AppLanguageService } from '../../services/app-language.service';
@@ -23,6 +23,7 @@ import {
 } from '../../services/teacher-management.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface ServiceProgressFormModel {
   id: number | null;
@@ -66,7 +67,7 @@ interface ServiceProgressFormModel {
               <span class="advisor-check"><ng-container *ngIf="isAdvisorEnabled(teacher)">&#10003;</ng-container></span>
             </button>
           </div>
-          <button type="button" routerLink="/teacher/dashboard">{{ ui.back | appTranslate }}</button>
+          <button type="button" (click)="goBack()">{{ ui.back | appTranslate }}</button>
         </div>
       </header>
 
@@ -523,6 +524,7 @@ export class TeacherServiceProgressComponent implements OnInit {
     private teacherApi: TeacherManagementService,
     private auth: AuthService,
     private language: AppLanguageService,
+    private router: Router,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -530,6 +532,10 @@ export class TeacherServiceProgressComponent implements OnInit {
     this.isAdmin = this.currentUserIsAdmin();
     this.loadStudents();
     this.loadAdvisors();
+  }
+
+  goBack(): void {
+    navigateBack(this.router, ['/teacher/dashboard']);
   }
 
   get filteredStudents(): StudentAccount[] {

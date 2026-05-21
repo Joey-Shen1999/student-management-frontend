@@ -14,6 +14,7 @@ import {
 } from '../../services/university-aspiration.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface UniversityChoice {
   id: number;
@@ -160,7 +161,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate([this.teacherMode ? '/teacher/university-goals' : '/dashboard']);
+    navigateBack(this.router, [this.teacherMode ? '/teacher/university-goals' : '/dashboard']);
   }
 
   openModal(): void {

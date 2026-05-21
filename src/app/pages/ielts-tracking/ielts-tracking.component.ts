@@ -27,6 +27,7 @@ import {
 } from '../../features/ielts/ielts-types';
 import { AuthService } from '../../services/auth.service';
 import { IeltsTrackingService } from '../../services/ielts-tracking.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-ielts-tracking',
@@ -403,11 +404,7 @@ export class IeltsTrackingComponent implements OnInit {
   }
 
   goBack(): void {
-    if (this.managedMode) {
-      this.router.navigate(['/teacher/dashboard']);
-      return;
-    }
-    this.router.navigate(['/dashboard']);
+    navigateBack(this.router, this.managedMode ? ['/teacher/dashboard'] : ['/dashboard']);
   }
 
   setHasTakenIelts(value: boolean): void {

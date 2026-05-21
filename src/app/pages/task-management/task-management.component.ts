@@ -16,6 +16,7 @@ import {
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-task-management',
@@ -368,7 +369,7 @@ export class TaskManagementComponent implements OnInit {
   }
 
   goDashboard(): void {
-    this.router.navigate(['/teacher/dashboard']);
+    navigateBack(this.router, ['/teacher/dashboard']);
   }
 
   refreshAssignableStudents(): void {

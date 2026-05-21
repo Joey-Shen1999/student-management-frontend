@@ -2,13 +2,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { finalize, timeout } from 'rxjs/operators';
 
 import { AuthService } from '../../services/auth.service';
 import { StudentProfilePayload, StudentProfileService } from '../../services/student-profile.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-account-profile',
@@ -69,7 +70,7 @@ import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
           <button type="button" class="save-btn" (click)="submit()" [disabled]="saving">
             {{ (saving ? ui.saving : ui.updateName) | appTranslate }}
           </button>
-          <a [routerLink]="['/dashboard']">{{ ui.back | appTranslate }}</a>
+          <button type="button" class="link-btn" (click)="goBack()">{{ ui.back | appTranslate }}</button>
         </div>
 
         <p *ngIf="successMsg" class="success-text">{{ successMsg | appTranslate }}</p>
@@ -157,6 +158,7 @@ export class AccountProfileComponent implements OnInit {
   constructor(
     private auth: AuthService,
     private profileApi: StudentProfileService,
+    private router: Router,
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
@@ -168,6 +170,10 @@ export class AccountProfileComponent implements OnInit {
 
   get currentLegalName(): string {
     return this.buildLastFirstName(this.currentLastName, this.currentFirstName);
+  }
+
+  goBack(): void {
+    navigateBack(this.router, ['/dashboard']);
   }
 
   ngOnInit(): void {

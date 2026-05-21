@@ -2038,9 +2038,9 @@ describe('StudentManagementComponent', () => {
     );
   });
 
-  it('page title should be university advancement on /teacher/university-goals', () => {
+  it('page title should be university goals on /teacher/university-goals', () => {
     router.url = '/teacher/university-goals';
-    expect(component.pageTitle).toBe('大学升学');
+    expect(component.pageTitle).toBe('升学目标');
   });
 
   it('default columns on /teacher/university-goals should match university goal management defaults', () => {
@@ -2064,9 +2064,9 @@ describe('StudentManagementComponent', () => {
     );
   });
 
-  it('page title should be graduation management on /teacher/graduation', () => {
+  it('page title should be application management on /teacher/graduation', () => {
     router.url = '/teacher/graduation';
-    expect(component.pageTitle).toBe('升学管理');
+    expect(component.pageTitle).toBe('申请管理');
   });
 
   it('default columns on /teacher/graduation should match graduation management defaults', () => {

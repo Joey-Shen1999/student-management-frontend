@@ -12,6 +12,7 @@ import {
   UpdateStudentOssltPayload,
 } from '../../features/osslt/osslt-types';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-student-osslt',
@@ -125,7 +126,7 @@ export class StudentOssltComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/dashboard']);
+    navigateBack(this.router, ['/dashboard']);
   }
 
   resolveOsslcStatusLabel(status: string | null): string {

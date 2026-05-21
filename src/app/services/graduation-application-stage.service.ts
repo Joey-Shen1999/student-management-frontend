@@ -76,6 +76,9 @@ export interface GraduationApplicationPortalCredential {
   schoolPassword: string;
   defaultSchoolEmail?: string;
   defaultSchoolPassword?: string;
+  studentVisible: boolean;
+  interviewRequired: boolean;
+  languageScoreRequired: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -84,6 +87,9 @@ export interface GraduationApplicationPortalCredentialRequest {
   schoolAccount?: string;
   schoolEmail?: string;
   schoolPassword?: string;
+  studentVisible?: boolean;
+  interviewRequired?: boolean;
+  languageScoreRequired?: boolean;
 }
 
 export interface GraduationApplicationAccountCredential {
@@ -101,12 +107,48 @@ export interface GraduationApplicationAccountCredentialRequest {
   applicationPassword?: string;
 }
 
+interface UniversityPortalLoginLink {
+  aliases: string[];
+  url: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GraduationApplicationStageService {
   private readonly storagePrefix = 'student-management.graduation-applications.v1';
   private readonly studentUrl = '/api/students';
   private readonly applicationUrl = '/api/graduation-applications';
   private readonly enabledCache = new Map<number, boolean>();
+  private readonly universityPortalLoginLinks: UniversityPortalLoginLink[] = [
+    { aliases: ['University of Toronto', 'University of Toronto St George', 'University of Toronto St. George', 'University of Toronto Mississauga', 'University of Toronto Scarborough', 'UofT', 'U of T'], url: 'https://join.utoronto.ca/' },
+    { aliases: ['University of Waterloo', 'Waterloo', 'UWaterloo', 'UW', 'Quest'], url: 'https://uwaterloo.ca/quest/' },
+    { aliases: ['York University', 'York', 'YorkU', 'MyFile'], url: 'https://myfile.yorku.ca/' },
+    { aliases: ['Toronto Metropolitan University', 'Ryerson University', 'TMU', 'ChooseTMU'], url: 'https://www.torontomu.ca/admissions/undergraduate/choose-login/' },
+    { aliases: ['McMaster University', 'McMaster', 'Mac', 'Mosaic'], url: 'https://future.mcmaster.ca/applicant-portal/' },
+    { aliases: ["Queen's University", 'Queens University', 'Queens', 'SOLUS'], url: 'https://my.queensu.ca/' },
+    { aliases: ['Western University', 'Western', 'UWO', 'University of Western Ontario'], url: 'https://student.uwo.ca/' },
+    { aliases: ['University of Ottawa', 'uOttawa', 'U of O', 'uoZone'], url: 'https://www.uottawa.ca/en/current-students' },
+    { aliases: ['University of Guelph-Humber', 'Guelph-Humber', 'Guelph Humber'], url: 'https://www.uoguelph.ca/webadvisor' },
+    { aliases: ['University of Guelph', 'Guelph', 'U of G'], url: 'https://www.uoguelph.ca/webadvisor' },
+    { aliases: ['Wilfrid Laurier University', 'Laurier', 'WLU', 'LORIS'], url: 'https://www.chooselaurier.ca/future-students/undergraduate/admissions/process/' },
+    { aliases: ['Brock University', 'Brock'], url: 'https://my.brocku.ca/' },
+    { aliases: ['Carleton University', 'Carleton', 'Carleton360'], url: 'https://360.carleton.ca/' },
+    { aliases: ['University of British Columbia', 'UBC'], url: 'https://myapplication.ubc.ca/' },
+    { aliases: ['McGill University', 'McGill'], url: 'https://horizon.mcgill.ca/' },
+    { aliases: ['University of Alberta', 'UAlberta', 'U of A'], url: 'https://www.ualberta.ca/en/admissions/how-to-apply/after-you-apply/index.html' },
+    { aliases: ['University of Calgary', 'UCalgary', 'U of C'], url: 'https://my.ucalgary.ca/' },
+    { aliases: ['University of Victoria', 'UVic', 'Victoria'], url: 'https://www.uvic.ca/tools/sign-in/index.php' },
+    { aliases: ['Simon Fraser University', 'Simon Fraser', 'SFU'], url: 'https://go.sfu.ca/' },
+    { aliases: ['University of Windsor', 'Windsor', 'UWindsor'], url: 'https://my.uwindsor.ca/' },
+    { aliases: ['Ontario Tech University', 'Ontario Tech', 'UOIT'], url: 'https://ontariotechu.ca/applicantportal' },
+    { aliases: ['OCAD University', 'OCAD', 'OCAD U'], url: 'https://join.ocadu.ca/application/login' },
+    { aliases: ['Trent University', 'Trent'], url: 'https://my.trentu.ca/' },
+    { aliases: ['Lakehead University', 'Lakehead'], url: 'https://myportal.lakeheadu.ca/' },
+    { aliases: ['University of Manitoba', 'Manitoba', 'UManitoba'], url: 'https://aurora.umanitoba.ca/' },
+    { aliases: ['University of Saskatchewan', 'Saskatchewan', 'USask'], url: 'https://students.usask.ca/paws.php' },
+    { aliases: ['University of Regina', 'Regina', 'URegina'], url: 'https://banner.uregina.ca/' },
+    { aliases: ['University of New Brunswick', 'UNB', 'New Brunswick'], url: 'https://eservices.unb.ca/' },
+    { aliases: ['Dalhousie University', 'Dalhousie', 'Dal'], url: 'https://dalonline.dal.ca/' },
+  ];
 
   constructor(
     private http?: HttpClient,
@@ -336,6 +378,9 @@ export class GraduationApplicationStageService {
       schoolAccount: String(payload.schoolAccount || '').trim(),
       schoolEmail: String(payload.schoolEmail || '').trim(),
       schoolPassword: String(payload.schoolPassword || '').trim(),
+      studentVisible: payload.studentVisible === true,
+      interviewRequired: payload.interviewRequired === true,
+      languageScoreRequired: payload.languageScoreRequired === true,
     };
     if (student <= 0 || !university || !this.http) {
       return of({
@@ -399,6 +444,31 @@ export class GraduationApplicationStageService {
     }
   }
 
+  resolvePortalLoginUrl(universityName: string | null | undefined): string {
+    const normalizedName = this.normalizeSearchText(universityName);
+    const compactName = this.compactSearchText(universityName);
+    if (!normalizedName) return '';
+
+    let bestMatch: { url: string; score: number } | null = null;
+    for (const link of this.universityPortalLoginLinks) {
+      for (const alias of link.aliases) {
+        const normalizedAlias = this.normalizeSearchText(alias);
+        const compactAlias = this.compactSearchText(alias);
+        if (
+          normalizedName.includes(normalizedAlias) ||
+          compactName.includes(compactAlias) ||
+          compactAlias.includes(compactName)
+        ) {
+          const score = Math.max(normalizedAlias.length, compactAlias.length);
+          if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { url: link.url, score };
+          }
+        }
+      }
+    }
+    return bestMatch?.url || '';
+  }
+
   private createDefaultPortalCredential(
     studentId: number,
     universityId: number
@@ -412,6 +482,9 @@ export class GraduationApplicationStageService {
       schoolPassword: account.applicationPassword,
       defaultSchoolEmail: account.defaultApplicationEmail,
       defaultSchoolPassword: account.defaultApplicationPassword,
+      studentVisible: false,
+      interviewRequired: false,
+      languageScoreRequired: false,
     };
   }
 
@@ -511,6 +584,20 @@ export class GraduationApplicationStageService {
   private normalizeOptionalId(value: unknown): number | undefined {
     const numeric = Math.trunc(Number(value));
     return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
+  }
+
+  private normalizeSearchText(value: string | null | undefined): string {
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/&/g, ' and ')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  private compactSearchText(value: string | null | undefined): string {
+    return this.normalizeSearchText(value).replace(/\s+/g, '');
   }
 
   private withAuthHeaderIfAvailable() {

@@ -87,6 +87,7 @@ import {
 } from '../../shared/student-fields/student-field-presets';
 import { StudentFilterFieldsComponent } from '../../shared/student-filter-fields/student-filter-fields.component';
 import { COURSE_PLAN_CATALOG } from '../student-profile/course-plan-course-catalog';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface PasswordResetResult {
   studentId: number;
@@ -217,8 +218,8 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
   osslt: 'OSSLT \u8ddf\u8e2a',
   volunteer: '\u4e49\u5de5\u8ddf\u8e2a',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
-  universityGoals: '\u5927\u5b66\u5347\u5b66',
-  graduationApplications: '\u5347\u5b66\u7ba1\u7406',
+  universityGoals: '\u5347\u5b66\u76ee\u6807',
+  graduationApplications: '\u7533\u8bf7\u7ba1\u7406',
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
@@ -658,7 +659,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
     <div class="student-management-page" style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">{{ resolvedPageTitle }}</h2>
-        <button type="button" routerLink="/teacher/dashboard" class="student-back-btn" style="margin-left:auto;">
+        <button type="button" (click)="goBack()" class="student-back-btn" style="margin-left:auto;">
           返回
         </button>
       </div>
@@ -2191,6 +2192,10 @@ export class StudentManagementComponent implements OnInit {
   trackStringOption = (_index: number, option: string): string => {
     return option;
   };
+
+  goBack(): void {
+    navigateBack(this.router, ['/teacher/dashboard']);
+  }
 
   get listPageOptions(): number[] {
     return Array.from({ length: this.totalPages }, (_value, index) => index + 1);

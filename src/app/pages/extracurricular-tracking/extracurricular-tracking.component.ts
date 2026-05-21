@@ -13,6 +13,7 @@ import {
   type ExtracurricularTrackingStateVm,
   ExtracurricularTrackingService,
 } from '../../services/extracurricular-tracking.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 interface ActivityDraft {
   activityType: ExtracurricularActivityType;
@@ -418,7 +419,7 @@ export class ExtracurricularTrackingComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(this.teacherMode ? ['/teacher/extracurricular'] : ['/dashboard']);
+    navigateBack(this.router, this.teacherMode ? ['/teacher/extracurricular'] : ['/dashboard']);
   }
 
   trackActivity = (index: number): number => index;

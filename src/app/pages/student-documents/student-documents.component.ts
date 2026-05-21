@@ -10,6 +10,7 @@ import {
   type StudentDocumentUploadOptions,
   StudentProfileService,
 } from '../../services/student-profile.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 type DocumentCategory = 'Identity Document' | 'Academic Record' | 'Other';
 type IdentityDocumentType = 'Passport' | 'Study Permit / Visa' | 'PR Card' | 'Other';
@@ -296,12 +297,7 @@ export class StudentDocumentsComponent implements OnInit {
     this.toDocumentId(row) ?? index;
 
   goBack(): void {
-    if (this.targetStudentId !== null) {
-      this.router.navigate(['/teacher/students']);
-      return;
-    }
-
-    this.router.navigate(['/dashboard']);
+    navigateBack(this.router, this.targetStudentId !== null ? ['/teacher/students'] : ['/dashboard']);
   }
 
   refreshHistory(): void {

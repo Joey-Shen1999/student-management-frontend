@@ -43,6 +43,40 @@
   color: #9d2b1f;
 }
 
+.portal-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.requirement-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8e2ef;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #526278;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.requirement-check.active {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b42318;
+}
+
+.requirement-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #dc2626;
+}
+
 .student-selector-backdrop {
   position: fixed;
   inset: 0;

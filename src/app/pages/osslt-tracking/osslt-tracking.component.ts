@@ -14,6 +14,7 @@ import {
   UpdateStudentOssltPayload,
 } from '../../features/osslt/osslt-types';
 import { OssltTrackingService } from '../../services/osslt-tracking.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-osslt-tracking',
@@ -163,7 +164,7 @@ export class OssltTrackingComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/teacher/osslt']);
+    navigateBack(this.router, ['/teacher/osslt']);
   }
 
   setTrackingStatus(value: OssltTrackingStatus): void {

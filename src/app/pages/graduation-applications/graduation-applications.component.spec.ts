@@ -66,16 +66,22 @@ describe('GraduationApplicationsComponent', () => {
           schoolAccount: '',
           schoolEmail: 'gradportalvip2027@outlook.com',
           schoolPassword: 'ZAQ!2wsxcde3',
+          studentVisible: false,
+          interviewRequired: false,
+          languageScoreRequired: false,
         })
       ),
-      updatePortalCredential: vi.fn().mockReturnValue(
+      updatePortalCredential: vi.fn().mockImplementation((_studentId, _universityId, payload) =>
         of({
           studentId: 101,
           universityId: 1,
           universityName: 'University A',
-          schoolAccount: 'portal-user',
-          schoolEmail: 'custom.portal@outlook.com',
-          schoolPassword: 'Changed!234',
+          schoolAccount: payload.schoolAccount,
+          schoolEmail: payload.schoolEmail,
+          schoolPassword: payload.schoolPassword,
+          studentVisible: payload.studentVisible === true,
+          interviewRequired: payload.interviewRequired === true,
+          languageScoreRequired: payload.languageScoreRequired === true,
         })
       ),
       statusLabel: (status: string) => status,
@@ -383,12 +389,16 @@ describe('GraduationApplicationsComponent', () => {
     component.updatePortalDraft(group, 'schoolAccount', 'portal-user');
     component.updatePortalDraft(group, 'schoolEmail', 'custom.portal@outlook.com');
     component.updatePortalDraft(group, 'schoolPassword', 'Changed!234');
+    component.togglePortalStudentVisible(group, true);
     component.savePortalCredential(group);
 
     expect(graduationStage.updatePortalCredential).toHaveBeenCalledWith(101, 1, {
       schoolAccount: 'portal-user',
       schoolEmail: 'custom.portal@outlook.com',
       schoolPassword: 'Changed!234',
+      studentVisible: true,
+      interviewRequired: false,
+      languageScoreRequired: false,
     });
     expect(component.isPortalEditing(group)).toBe(false);
     expect(component.getPortalDraft(group).schoolAccount).toBe('portal-user');

@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -9,6 +9,7 @@ import {
   TeacherInviteService,
   CreateTeacherInviteResponse,
 } from '../../services/teacher-invite.service';
+import { navigateBack } from '../../utils/navigate-back';
 
 @Component({
   selector: 'app-teacher-invites',
@@ -18,7 +19,7 @@ import {
     <div style="max-width:760px;margin:40px auto;font-family:Arial">
       <div style="display:flex;align-items:center;">
         <h2 style="margin:0;">教师邀请</h2>
-        <a routerLink="/teacher/teachers" style="margin-left:auto;">返回</a>
+        <button type="button" (click)="goBack()" style="margin-left:auto;">返回</button>
       </div>
 
       <div style="margin-top:16px;padding:12px;border:1px solid #ddd;border-radius:8px;">
@@ -93,8 +94,13 @@ export class TeacherInvitesComponent {
 
   constructor(
     private inviteApi: TeacherInviteService,
+    private router: Router,
     private cdr: ChangeDetectorRef
   ) {}
+
+  goBack(): void {
+    navigateBack(this.router, ['/teacher/teachers']);
+  }
 
   create(): void {
     if (this.loading) return;
