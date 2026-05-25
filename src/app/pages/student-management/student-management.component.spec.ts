@@ -819,6 +819,7 @@ describe('StudentManagementComponent', () => {
     component.graduationSeasonFilter = '2026 Fall';
     component.languageScoreFilter = 'GREEN_STRICT_PASS';
     component.languageScoreTrackingFilter = 'AUTO_PASS_ALL_SCHOOLS';
+    component.languageCourseStatusFilter = 'EXAM_REGISTERED';
     component.ossltResultFilter = 'PASS';
     component.ossltTrackingFilter = 'PASSED';
     component.courseCodeFilterInput = 'MHF4U';
@@ -848,6 +849,7 @@ describe('StudentManagementComponent', () => {
     expect(component.graduationSeasonFilter).toBe('');
     expect(component.languageScoreFilter).toBe('');
     expect(component.languageScoreTrackingFilter).toBe('');
+    expect(component.languageCourseStatusFilter).toBe('');
     expect(component.ossltResultFilter).toBe('');
     expect(component.ossltTrackingFilter).toBe('');
     expect(component.courseCodeFilterInput).toBe('');
@@ -1821,6 +1823,7 @@ describe('StudentManagementComponent', () => {
         graduationSeasonFilter: '2026 Fall',
         languageScoreFilter: 'GREEN_STRICT_PASS',
         languageScoreTrackingFilter: 'AUTO_PASS_ALL_SCHOOLS',
+        languageCourseStatusFilter: 'EXAM_REGISTERED',
         ossltResultFilter: 'PASS',
         ossltTrackingFilter: 'PASSED',
         courseCodeFilterInput: 'mhf 4u',
@@ -1843,6 +1846,7 @@ describe('StudentManagementComponent', () => {
     expect(local.graduationSeasonFilter).toBe('2026 Fall');
     expect(local.languageScoreFilter).toBe('GREEN_STRICT_PASS');
     expect(local.languageScoreTrackingFilter).toBe('AUTO_PASS_ALL_SCHOOLS');
+    expect(local.languageCourseStatusFilter).toBe('');
     expect(local.ossltResultFilter).toBe('PASS');
     expect(local.ossltTrackingFilter).toBe('PASSED');
     expect(local.courseCodeFilterInput).toBe('MHF 4U');

@@ -5139,10 +5139,12 @@ export class StudentManagementComponent implements OnInit {
         ? [persisted.universityGoalProgramFilterInput]
         : []
     );
+    this.applyDefaultListControlsForContext(pageContext);
   }
 
   private applyDefaultListControlsForContext(_pageContext: StudentManagementPageContext): void {
     this.graduationStageFilter = '';
+    this.languageCourseStatusFilter = '';
   }
 
   private persistListControlsPreference(): void {

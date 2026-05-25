@@ -177,6 +177,8 @@ export interface StudentProfileAddressPayload {
 }
 
 export interface StudentProfilePayload {
+  studentId?: number;
+  student_id?: number;
   legalFirstName?: string;
   legalLastName?: string;
   preferredName?: string;
