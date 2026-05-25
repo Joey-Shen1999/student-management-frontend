@@ -6,12 +6,15 @@ import { finalize } from 'rxjs/operators';
 
 import {
   GraduationApplication,
+  GraduationApplicationHistoryEntry,
+  GraduationApplicationHistoryFieldChange,
   GraduationApplicationPortalCredential,
   GraduationApplicationStageService,
   GraduationApplicationStatus,
   GraduationApplicationUniversitySummary,
   GraduationApplicationUniversityStudent,
 } from '../../services/graduation-application-stage.service';
+import { AppLanguageService } from '../../services/app-language.service';
 import {
   University,
   UniversityAspirationService,
@@ -147,6 +150,38 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     studentHidden: uiText('\u5b66\u751f\u9690\u85cf', 'Hidden from Student'),
     interview: uiText('\u9762\u8bd5', 'Interview'),
     languageScore: uiText('\u8bed\u8a00\u6210\u7ee9', 'Language Score'),
+    operationHistory: uiText('\u64cd\u4f5c\u8bb0\u5f55', 'Operation History'),
+    hideHistory: uiText('\u6536\u8d77\u8bb0\u5f55', 'Hide History'),
+    historyLoading: uiText('\u6b63\u5728\u8bfb\u53d6\u64cd\u4f5c\u8bb0\u5f55...', 'Loading operation history...'),
+    historyEmpty: uiText('\u6682\u65e0\u64cd\u4f5c\u8bb0\u5f55', 'No operation history yet'),
+    historyLoadError: uiText('\u64cd\u4f5c\u8bb0\u5f55\u8bfb\u53d6\u5931\u8d25\u3002', 'Failed to load operation history.'),
+    latestHistoryCount: uiText('\u6700\u8fd1', 'Latest'),
+    totalHistoryCount: uiText('\u5171', 'Total'),
+    historyItemUnit: uiText('\u6761', 'items'),
+    historyChangedTo: uiText('\u6539\u4e3a', 'to'),
+    systemActor: uiText('\u7cfb\u7edf', 'System'),
+    roleAdmin: uiText('\u7ba1\u7406\u5458', 'Admin'),
+    roleTeacher: uiText('\u8001\u5e08', 'Teacher'),
+    roleStudent: uiText('\u5b66\u751f', 'Student'),
+    operationEnterStage: uiText('\u8fdb\u5165\u5347\u5b66\u9636\u6bb5', 'Entered Application Stage'),
+    operationConfirmStage: uiText('\u786e\u8ba4\u6b63\u5f0f\u7533\u8bf7', 'Confirmed Formal Applications'),
+    operationCreateApplication: uiText('\u65b0\u589e\u7533\u8bf7', 'Created Application'),
+    operationUpdateApplication: uiText('\u4fee\u6539\u7533\u8bf7', 'Updated Application'),
+    operationDeleteApplication: uiText('\u5220\u9664\u7533\u8bf7', 'Deleted Application'),
+    operationReorderApplications: uiText('\u8c03\u6574\u987a\u5e8f', 'Reordered Applications'),
+    operationUpdateApplicationAccount: uiText('\u4fee\u6539\u7533\u8bf7\u8d26\u53f7', 'Updated Application Account'),
+    operationUpdatePortalCredential: uiText('\u4fee\u6539\u5b66\u6821\u8d26\u53f7', 'Updated School Account'),
+    fieldGraduationStage: uiText('\u5347\u5b66\u9636\u6bb5', 'Application Stage'),
+    fieldApplication: uiText('\u7533\u8bf7', 'Application'),
+    fieldApplicationOrder: uiText('\u7533\u8bf7\u987a\u5e8f', 'Application Order'),
+    fieldUniversity: uiText('\u5927\u5b66', 'University'),
+    fieldProgram: uiText('\u4e13\u4e1a', 'Program'),
+    fieldApplicationEmail: uiText('\u7533\u8bf7\u90ae\u7bb1', 'Application Email'),
+    fieldApplicationPassword: uiText('\u7533\u8bf7\u5bc6\u7801', 'Application Password'),
+    fieldBooleanYes: uiText('\u662f', 'Yes'),
+    fieldBooleanNo: uiText('\u5426', 'No'),
+    fieldEmpty: uiText('\u7a7a', 'Empty'),
+    fieldGeneric: uiText('\u5b57\u6bb5', 'Field'),
   };
 
   readonly statusOptions: GraduationApplicationStatus[] = [
@@ -158,6 +193,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     'OFFER_ACCEPTED',
     'NOT_ADMITTED',
   ];
+  readonly historyPageSize = 20;
 
   universities: University[] = [];
   universityQuery = '';
@@ -175,6 +211,11 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   portalSavingKeys = new Set<string>();
   portalEditingKeys = new Set<string>();
   copiedPortalFieldKey: string | null = null;
+  historyOpenStudentIds = new Set<number>();
+  historyLoadingStudentIds = new Set<number>();
+  historyEntriesByStudentId = new Map<number, GraduationApplicationHistoryEntry[]>();
+  historyTotalsByStudentId = new Map<number, number>();
+  historyErrorsByStudentId = new Map<number, OverviewMessage>();
   mockPreviewActive = false;
   loadingUniversities = false;
   loadingUniversitySummaries = false;
@@ -186,6 +227,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     private universityApi: UniversityAspirationService,
     private graduationStage: GraduationApplicationStageService,
     private router: Router,
+    private language: AppLanguageService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -285,6 +327,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     this.universityQuery = university.name || '';
     this.universityOptionsOpen = false;
     this.clearPortalState();
+    this.clearHistoryState();
     this.refreshView();
     this.loadApplications();
   }
@@ -310,6 +353,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     this.expandedStudentIds = new Set<number>();
     this.applicationError = '';
     this.clearPortalState();
+    this.clearHistoryState();
     this.refreshView();
   }
 
@@ -322,6 +366,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     this.students = [];
     this.expandedStudentIds = new Set<number>();
     this.clearPortalState();
+    this.clearHistoryState();
     this.refreshView();
 
     this.graduationStage
@@ -349,6 +394,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     this.loadingApplications = false;
     this.applicationError = '';
     this.clearPortalState();
+    this.clearHistoryState();
     this.selectedUniversityId = 900001;
     this.selectedUniversity = {
       id: 900001,
@@ -423,6 +469,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     if (next.has(studentId)) {
       next.delete(studentId);
       this.portalEditingKeys.delete(this.portalKeyFor(student));
+      this.historyOpenStudentIds.delete(studentId);
     } else {
       next.add(studentId);
       this.loadPortalCredential(student);
@@ -521,6 +568,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           this.replaceApplication(updated || { ...application, status });
+          this.refreshStudentHistoryIfOpen(Number(application.studentId));
         },
         error: () => {
           application.status = previousStatus;
@@ -657,6 +705,174 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     return this.copiedPortalFieldKey === this.createPortalFieldKey(student, field);
   }
 
+  isHistoryOpen(student: GraduationApplicationUniversityStudent): boolean {
+    return this.historyOpenStudentIds.has(Number(student?.studentId || 0));
+  }
+
+  isHistoryLoading(student: GraduationApplicationUniversityStudent): boolean {
+    return this.historyLoadingStudentIds.has(Number(student?.studentId || 0));
+  }
+
+  historyEntriesFor(student: GraduationApplicationUniversityStudent): GraduationApplicationHistoryEntry[] {
+    return this.historyEntriesByStudentId.get(Number(student?.studentId || 0)) || [];
+  }
+
+  historyTotalFor(student: GraduationApplicationUniversityStudent): number {
+    const studentId = Number(student?.studentId || 0);
+    const loaded = this.historyEntriesFor(student).length;
+    return Math.max(loaded, Number(this.historyTotalsByStudentId.get(studentId) || 0));
+  }
+
+  historyError(student: GraduationApplicationUniversityStudent): OverviewMessage {
+    return this.historyErrorsByStudentId.get(Number(student?.studentId || 0)) || '';
+  }
+
+  toggleHistory(student: GraduationApplicationUniversityStudent): void {
+    const studentId = Number(student?.studentId || 0);
+    if (!studentId) return;
+
+    const next = new Set(this.historyOpenStudentIds);
+    if (next.has(studentId)) {
+      next.delete(studentId);
+      this.historyOpenStudentIds = next;
+      this.refreshView();
+      return;
+    }
+
+    next.add(studentId);
+    this.historyOpenStudentIds = next;
+    if (!this.expandedStudentIds.has(studentId)) {
+      const expanded = new Set(this.expandedStudentIds);
+      expanded.add(studentId);
+      this.expandedStudentIds = expanded;
+      this.loadPortalCredential(student);
+    }
+    this.loadHistoryForStudent(student);
+  }
+
+  refreshHistory(student: GraduationApplicationUniversityStudent): void {
+    if (this.isHistoryLoading(student)) return;
+    this.loadHistoryForStudent(student);
+  }
+
+  historySummary(student: GraduationApplicationUniversityStudent): LocalizedText {
+    const loaded = this.historyEntriesFor(student).length;
+    const total = this.historyTotalFor(student);
+    if (total > loaded) {
+      return uiText(
+        `\u6700\u8fd1 ${loaded} \u6761 / \u5171 ${total} \u6761`,
+        `Latest ${loaded} / Total ${total}`
+      );
+    }
+    return uiText(`\u6700\u8fd1 ${loaded} \u6761`, `Latest ${loaded}`);
+  }
+
+  trackHistory(_index: number, entry: GraduationApplicationHistoryEntry): string | number {
+    return entry.id || `${entry.operation || 'history'}-${entry.changedAt || _index}`;
+  }
+
+  trackHistoryChange(_index: number, change: GraduationApplicationHistoryFieldChange): string {
+    return `${change.path || change.label || 'change'}-${_index}`;
+  }
+
+  displayHistoryTimestamp(entry: GraduationApplicationHistoryEntry): string {
+    return this.displayDateTime(entry.changedAt);
+  }
+
+  displayHistoryActor(entry: GraduationApplicationHistoryEntry): string {
+    const role = this.translate(this.displayActorRole(entry.actorRole));
+    const name = String(entry.actorName || '').trim();
+    if (role && name) return `${role} ${name}`;
+    return name || role || this.translate(this.ui.systemActor);
+  }
+
+  displayHistoryOperation(entry: GraduationApplicationHistoryEntry): LocalizedText | string {
+    switch (entry.operation) {
+      case 'ENTER_GRADUATION_STAGE':
+        return this.ui.operationEnterStage;
+      case 'CONFIRM_STAGE':
+        return this.ui.operationConfirmStage;
+      case 'CREATE_APPLICATION':
+        return this.ui.operationCreateApplication;
+      case 'UPDATE_APPLICATION':
+        return this.ui.operationUpdateApplication;
+      case 'DELETE_APPLICATION':
+        return this.ui.operationDeleteApplication;
+      case 'REORDER_APPLICATIONS':
+        return this.ui.operationReorderApplications;
+      case 'UPDATE_APPLICATION_ACCOUNT_CREDENTIAL':
+        return this.ui.operationUpdateApplicationAccount;
+      case 'UPDATE_PORTAL_CREDENTIAL':
+        return this.ui.operationUpdatePortalCredential;
+      default:
+        return String(entry.operation || '').trim() || this.ui.operationHistory;
+    }
+  }
+
+  getHistoryChanges(entry: GraduationApplicationHistoryEntry): GraduationApplicationHistoryFieldChange[] {
+    return Array.isArray(entry.changedFields) ? entry.changedFields : [];
+  }
+
+  displayHistoryField(change: GraduationApplicationHistoryFieldChange): LocalizedText | string {
+    switch (change.path) {
+      case 'graduationStage':
+        return this.ui.fieldGraduationStage;
+      case 'application':
+        return this.ui.fieldApplication;
+      case 'applicationOrder':
+      case 'sortOrder':
+        return this.ui.fieldApplicationOrder;
+      case 'status':
+        return this.ui.status;
+      case 'university':
+      case 'universityId':
+      case 'universityName':
+        return this.ui.fieldUniversity;
+      case 'program':
+      case 'programId':
+      case 'programName':
+        return this.ui.fieldProgram;
+      case 'applicationEmail':
+      case 'schoolEmail':
+        return this.ui.fieldApplicationEmail;
+      case 'applicationPassword':
+        return this.ui.fieldApplicationPassword;
+      case 'schoolAccount':
+        return this.ui.schoolAccount;
+      case 'schoolPassword':
+        return this.ui.schoolPassword;
+      case 'studentVisible':
+        return this.ui.studentVisible;
+      case 'interviewRequired':
+        return this.ui.interview;
+      case 'languageScoreRequired':
+        return this.ui.languageScore;
+      default: {
+        const label = String(change.label || '').trim();
+        return label || this.ui.fieldGeneric;
+      }
+    }
+  }
+
+  displayHistoryValue(value: unknown): LocalizedText | string {
+    if (value === null || value === undefined || value === '') return this.ui.fieldEmpty;
+    if (typeof value === 'boolean') return value ? this.ui.fieldBooleanYes : this.ui.fieldBooleanNo;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'string') {
+      return this.statusLabel(value) || value;
+    }
+    if (Array.isArray(value)) {
+      const labels = value
+        .map((item) => this.summarizeHistoryObject(item))
+        .filter((item) => item.length > 0);
+      return labels.length > 0 ? labels.join('; ') : `${value.length}`;
+    }
+    if (typeof value === 'object') {
+      return this.summarizeHistoryObject(value) || JSON.stringify(value);
+    }
+    return String(value);
+  }
+
   resolvePortalLoginUrl(): string {
     return this.graduationStage.resolvePortalLoginUrl(this.selectedUniversity?.name);
   }
@@ -757,6 +973,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
           if (closeEditing) {
             this.portalEditingKeys.delete(key);
           }
+          this.refreshStudentHistoryIfOpen(studentId);
           this.refreshView();
         },
         error: () => {
@@ -840,6 +1057,14 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     this.copiedPortalFieldKey = null;
   }
 
+  private clearHistoryState(): void {
+    this.historyOpenStudentIds = new Set<number>();
+    this.historyLoadingStudentIds = new Set<number>();
+    this.historyEntriesByStudentId = new Map<number, GraduationApplicationHistoryEntry[]>();
+    this.historyTotalsByStudentId = new Map<number, number>();
+    this.historyErrorsByStudentId = new Map<number, OverviewMessage>();
+  }
+
   private setPortalLoading(key: string, loading: boolean): void {
     const next = new Set(this.portalLoadingKeys);
     if (loading) {
@@ -860,6 +1085,58 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     }
     this.portalSavingKeys = next;
     this.refreshView();
+  }
+
+  private setHistoryLoading(studentId: number, loading: boolean): void {
+    const next = new Set(this.historyLoadingStudentIds);
+    if (loading) {
+      next.add(studentId);
+    } else {
+      next.delete(studentId);
+    }
+    this.historyLoadingStudentIds = next;
+    this.refreshView();
+  }
+
+  private loadHistoryForStudent(student: GraduationApplicationUniversityStudent): void {
+    const studentId = Number(student?.studentId || 0);
+    if (!studentId) return;
+
+    if (this.mockPreviewActive) {
+      const entry = this.createMockHistoryEntry(student);
+      this.historyEntriesByStudentId.set(studentId, entry ? [entry] : []);
+      this.historyTotalsByStudentId.set(studentId, entry ? 1 : 0);
+      this.historyErrorsByStudentId.delete(studentId);
+      this.refreshView();
+      return;
+    }
+
+    this.setHistoryLoading(studentId, true);
+    this.historyErrorsByStudentId.delete(studentId);
+    this.graduationStage
+      .listHistory(studentId, { size: this.historyPageSize })
+      .pipe(finalize(() => this.setHistoryLoading(studentId, false)))
+      .subscribe({
+        next: (response) => {
+          const items = response?.items || [];
+          this.historyEntriesByStudentId.set(studentId, items);
+          this.historyTotalsByStudentId.set(studentId, Number(response?.total || items.length));
+          this.refreshView();
+        },
+        error: () => {
+          this.historyEntriesByStudentId.set(studentId, []);
+          this.historyTotalsByStudentId.set(studentId, 0);
+          this.historyErrorsByStudentId.set(studentId, this.ui.historyLoadError);
+          this.refreshView();
+        },
+      });
+  }
+
+  private refreshStudentHistoryIfOpen(studentId: number): void {
+    if (!this.historyOpenStudentIds.has(studentId)) return;
+    const student = this.students.find((item) => Number(item.studentId) === studentId);
+    if (!student || this.historyLoadingStudentIds.has(studentId)) return;
+    this.loadHistoryForStudent(student);
   }
 
   private writeClipboard(value: string): Promise<void> {
@@ -959,6 +1236,67 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       ),
     }));
     this.refreshView();
+  }
+
+  private displayDateTime(value: string | null | undefined): string {
+    const text = String(value || '').trim();
+    if (!text) return '-';
+    const timestamp = Date.parse(text);
+    if (!Number.isFinite(timestamp)) return text;
+    return new Date(timestamp).toLocaleString();
+  }
+
+  private displayActorRole(role: string | null | undefined): LocalizedText {
+    switch (String(role || '').trim().toUpperCase()) {
+      case 'ADMIN':
+        return this.ui.roleAdmin;
+      case 'TEACHER':
+        return this.ui.roleTeacher;
+      case 'STUDENT':
+        return this.ui.roleStudent;
+      default:
+        return this.ui.systemActor;
+    }
+  }
+
+  private summarizeHistoryObject(value: unknown): string {
+    if (!value || typeof value !== 'object') return '';
+    const source = value as Record<string, unknown>;
+    const university = String(source['universityName'] || '').trim();
+    const program = String(source['programName'] || '').trim();
+    const statusText = this.translate(this.statusLabel(String(source['status'] || '').trim()));
+    const order = Number(source['sortOrder']);
+    const parts = [university, program, statusText].filter((item) => item.length > 0);
+    const label = parts.join(' / ');
+    if (label && Number.isFinite(order) && order > 0) return `${order}. ${label}`;
+    return label;
+  }
+
+  private translate(value: LocalizedText | string): string {
+    return this.language.translate(value);
+  }
+
+  private createMockHistoryEntry(
+    student: GraduationApplicationUniversityStudent
+  ): GraduationApplicationHistoryEntry | null {
+    const application = this.applicationsFor(student)[0];
+    if (!application) return null;
+    return {
+      id: `mock-history-${student.studentId}`,
+      studentId: student.studentId,
+      applicationId: Number(application.id) || undefined,
+      operation: 'UPDATE_APPLICATION',
+      actorRole: 'TEACHER',
+      actorName: 'Demo Teacher',
+      changedAt: new Date().toISOString(),
+      changedFields: [
+        {
+          path: 'status',
+          before: 'READY_TO_SUBMIT',
+          after: application.status,
+        },
+      ],
+    };
   }
 
   private createMockApplication(
