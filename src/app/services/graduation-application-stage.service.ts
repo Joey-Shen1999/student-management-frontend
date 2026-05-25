@@ -11,7 +11,8 @@ export type GraduationApplicationStatus =
   | 'SUBMITTED'
   | 'WAITING_RESULT'
   | 'OFFER_RECEIVED'
-  | 'OFFER_ACCEPTED';
+  | 'OFFER_ACCEPTED'
+  | 'NOT_ADMITTED';
 
 export interface GraduationApplication {
   id: number | string;
@@ -107,6 +108,20 @@ export interface GraduationApplicationAccountCredentialRequest {
   applicationPassword?: string;
 }
 
+export interface GraduationApplicationUniversityStudent {
+  studentId: number;
+  studentName: string;
+  username?: string;
+  applications: GraduationApplication[];
+}
+
+export interface GraduationApplicationUniversitySummary {
+  universityId: number;
+  universityName: string;
+  studentCount: number;
+  applicationCount: number;
+}
+
 interface UniversityPortalLoginLink {
   aliases: string[];
   url: string;
@@ -179,6 +194,27 @@ export class GraduationApplicationStageService {
         this.withAuthHeaderIfAvailable()
       )
       .pipe(tap((rows) => this.cacheApplications(id, rows || [])));
+  }
+
+  listStudentsByUniversity(
+    universityId: number | null | undefined
+  ): Observable<GraduationApplicationUniversityStudent[]> {
+    const id = this.normalizeOptionalId(universityId);
+    if (!id || !this.http) return of([]);
+
+    return this.http.get<GraduationApplicationUniversityStudent[]>(
+      `${this.applicationUrl}/universities/${id}/students`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  listUniversitySummaries(): Observable<GraduationApplicationUniversitySummary[]> {
+    if (!this.http) return of([]);
+
+    return this.http.get<GraduationApplicationUniversitySummary[]>(
+      `${this.applicationUrl}/universities/summary`,
+      this.withAuthHeaderIfAvailable()
+    );
   }
 
   confirmStage(
@@ -438,6 +474,8 @@ export class GraduationApplicationStageService {
         return '收到 Offer';
       case 'OFFER_ACCEPTED':
         return '已接收 Offer';
+      case 'NOT_ADMITTED':
+        return '未录取';
       case 'PREPARING':
       default:
         return '准备中';

@@ -77,6 +77,7 @@ export class GraduationApplicationsComponent implements OnInit {
     'WAITING_RESULT',
     'OFFER_RECEIVED',
     'OFFER_ACCEPTED',
+    'NOT_ADMITTED',
   ];
   readonly historyPageSize = 20;
   readonly outlookLoginUrl = 'https://outlook.live.com/mail/';
@@ -380,9 +381,8 @@ export class GraduationApplicationsComponent implements OnInit {
 
   get sortedApplications(): GraduationApplication[] {
     return [...this.applications].sort((left, right) => {
-      const acceptedRank =
-        Number(right.status === 'OFFER_ACCEPTED') - Number(left.status === 'OFFER_ACCEPTED');
-      if (acceptedRank !== 0) return acceptedRank;
+      const progressRank = this.statusPriority(right.status) - this.statusPriority(left.status);
+      if (progressRank !== 0) return progressRank;
       return left.sortOrder - right.sortOrder;
     });
   }
@@ -405,6 +405,30 @@ export class GraduationApplicationsComponent implements OnInit {
 
   isOfferAccepted(application: GraduationApplication): boolean {
     return application.status === 'OFFER_ACCEPTED';
+  }
+
+  isNotAdmitted(application: GraduationApplication): boolean {
+    return application.status === 'NOT_ADMITTED';
+  }
+
+  statusPriority(status: GraduationApplicationStatus | string | null | undefined): number {
+    switch (status) {
+      case 'OFFER_ACCEPTED':
+        return 60;
+      case 'OFFER_RECEIVED':
+        return 50;
+      case 'WAITING_RESULT':
+        return 40;
+      case 'SUBMITTED':
+        return 30;
+      case 'READY_TO_SUBMIT':
+        return 20;
+      case 'PREPARING':
+        return 10;
+      case 'NOT_ADMITTED':
+      default:
+        return 0;
+    }
   }
 
   get pageTitle(): string {

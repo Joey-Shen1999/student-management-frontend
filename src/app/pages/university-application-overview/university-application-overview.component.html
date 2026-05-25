@@ -1,0 +1,364 @@
+<main class="university-overview-page">
+  <section class="overview-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">{{ ui.applicationManagement | appTranslate }}</p>
+        <h1>{{ ui.pageTitle | appTranslate }}</h1>
+      </div>
+      <div class="head-actions">
+        <button type="button" class="ghost-btn" (click)="loadMockPreview()">
+          {{ ui.mockPreview | appTranslate }}
+        </button>
+        <button type="button" class="ghost-btn" (click)="loadApplications()" [disabled]="!selectedUniversityId || loadingApplications">
+          {{ ui.refresh | appTranslate }}
+        </button>
+        <button type="button" class="ghost-btn" (click)="goBack()">{{ ui.back | appTranslate }}</button>
+      </div>
+    </header>
+
+    <section class="selector-panel">
+      <div class="selector-main">
+        <label for="universitySearch">{{ ui.chooseUniversity | appTranslate }}</label>
+        <div class="search-row">
+          <input
+            id="universitySearch"
+            type="search"
+            [ngModel]="universityQuery"
+            (ngModelChange)="onUniversityQueryChange($event)"
+            (focus)="openUniversityOptions()"
+            (click)="openUniversityOptions()"
+            [placeholder]="ui.universityPlaceholder | appTranslate"
+            autocomplete="off"
+          />
+          <button type="button" class="clear-btn" (click)="clearSelection()" [disabled]="!universityQuery && !selectedUniversityId">
+            {{ ui.clear | appTranslate }}
+          </button>
+        </div>
+      </div>
+
+      <div class="university-options" *ngIf="universityOptionsOpen && !loadingUniversities && filteredUniversities.length > 0">
+        <button
+          type="button"
+          *ngFor="let university of filteredUniversities; trackBy: trackUniversity"
+          [class.active]="selectedUniversityId === university.id"
+          (click)="selectUniversity(university)"
+        >
+          <strong class="notranslate" translate="no" data-no-auto-translate>{{ university.name }}</strong>
+          <span>{{ university.city || '-' }} &middot; {{ university.province || '-' }}</span>
+          <em
+            class="option-count"
+            [class.has-applications]="universityStudentCount(university) > 0"
+          >
+            <ng-container *ngIf="universityStudentCount(university) > 0; else noUniversityApplications">
+              {{ universityStudentCount(university) }} {{ ui.optionStudents | appTranslate }}
+              &middot;
+              {{ universityApplicationCount(university) }} {{ ui.optionPrograms | appTranslate }}
+            </ng-container>
+            <ng-template #noUniversityApplications>
+              {{ ui.optionNoApplications | appTranslate }}
+            </ng-template>
+          </em>
+        </button>
+      </div>
+
+      <div class="state-line" *ngIf="loadingUniversities">{{ ui.loadingUniversities | appTranslate }}</div>
+      <div class="state-line" *ngIf="!loadingUniversities && loadingUniversitySummaries">
+        {{ ui.loadingApplicationCounts | appTranslate }}
+      </div>
+      <div class="state-line error" *ngIf="!loadingUniversities && universityError">{{ universityError | appTranslate }}</div>
+    </section>
+
+    <section class="summary-strip" *ngIf="selectedUniversity">
+      <div>
+        <span>{{ ui.currentUniversity | appTranslate }}</span>
+        <strong class="notranslate" translate="no" data-no-auto-translate>{{ selectedUniversity.name }}</strong>
+      </div>
+      <div>
+        <span>{{ ui.applicantStudents | appTranslate }}</span>
+        <strong>{{ students.length }}</strong>
+      </div>
+      <div>
+        <span>{{ ui.applicationPrograms | appTranslate }}</span>
+        <strong>{{ totalProgramCount }}</strong>
+      </div>
+      <div>
+        <span>{{ ui.submitted | appTranslate }}</span>
+        <strong>{{ submittedCount }}</strong>
+      </div>
+      <div>
+        <span>{{ ui.offer | appTranslate }}</span>
+        <strong>{{ offerCount }}</strong>
+      </div>
+      <div>
+        <span>{{ ui.pending | appTranslate }}</span>
+        <strong>{{ pendingCount }}</strong>
+      </div>
+    </section>
+
+    <div class="mock-banner" *ngIf="mockPreviewActive">
+      {{ ui.mockBanner | appTranslate }}
+    </div>
+
+    <div class="state-card" *ngIf="!selectedUniversityId">
+      {{ ui.emptySelection | appTranslate }}
+    </div>
+
+    <div class="state-card" *ngIf="selectedUniversityId && loadingApplications">
+      {{ ui.loadingApplications | appTranslate }}
+    </div>
+
+    <div class="state-card error" *ngIf="selectedUniversityId && !loadingApplications && applicationError">
+      <span>{{ applicationError | appTranslate }}</span>
+      <button type="button" class="ghost-btn compact" (click)="loadApplications()">{{ ui.retry | appTranslate }}</button>
+    </div>
+
+    <div class="state-card" *ngIf="selectedUniversityId && !loadingApplications && !applicationError && students.length === 0">
+      {{ ui.noApplications | appTranslate }}
+    </div>
+
+    <section class="student-stack" *ngIf="selectedUniversityId && !loadingApplications && !applicationError && students.length > 0">
+      <article
+        class="student-application-card"
+        *ngFor="let student of students; trackBy: trackStudent"
+        [class.expanded]="isStudentExpanded(student)"
+        tabindex="0"
+        (click)="toggleStudent(student)"
+        (keydown.enter)="toggleStudent(student)"
+        (keydown.space)="$event.preventDefault(); toggleStudent(student)"
+      >
+        <header>
+          <div>
+            <div class="student-title-row">
+              <h2>{{ studentName(student) }}</h2>
+              <span class="status-pill" [ngClass]="statusClass(studentTopStatus(student))">
+                {{ statusLabel(studentTopStatus(student)) | appTranslate }}
+              </span>
+            </div>
+            <p>
+              <span>{{ ui.studentId | appTranslate }}: {{ student.studentId }}</span>
+              <span *ngIf="student.username">{{ ui.username | appTranslate }}: {{ student.username }}</span>
+            </p>
+          </div>
+          <div class="student-card-actions">
+            <span class="stage-chip">{{ studentStageLabel(student) | appTranslate }}</span>
+            <span class="expand-chip">{{ (isStudentExpanded(student) ? ui.expanded : ui.collapsed) | appTranslate }}</span>
+            <button type="button" class="primary-btn" (click)="$event.stopPropagation(); openStudentApplication(student)">
+              {{ ui.viewApplication | appTranslate }}
+            </button>
+          </div>
+        </header>
+
+        <div class="program-list" *ngIf="isStudentExpanded(student)" (click)="$event.stopPropagation()">
+          <section class="portal-card">
+            <header class="portal-head">
+              <h3>
+                {{ ui.portalTitle | appTranslate }}
+                <a
+                  *ngIf="resolvePortalLoginUrl() as portalLoginUrl"
+                  class="portal-login-link"
+                  [href]="portalLoginUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  (click)="$event.stopPropagation()"
+                >
+                  {{ ui.loginWebsite | appTranslate }}
+                </a>
+              </h3>
+              <div class="portal-actions">
+                <button
+                  type="button"
+                  class="visibility-toggle"
+                  [class.on]="getPortalDraft(student).studentVisible"
+                  (click)="togglePortalStudentVisible(student, !getPortalDraft(student).studentVisible)"
+                  [disabled]="isPortalLoading(student) || isPortalSaving(student)"
+                >
+                  <i class="toggle-track"><i class="toggle-thumb"></i></i>
+                  <b>
+                    {{ (getPortalDraft(student).studentVisible ? ui.studentVisible : ui.studentHidden) | appTranslate }}
+                  </b>
+                </button>
+                <button
+                  type="button"
+                  class="ghost-btn compact"
+                  *ngIf="!isPortalEditing(student)"
+                  (click)="startPortalEdit(student)"
+                  [disabled]="isPortalLoading(student) || isPortalSaving(student)"
+                >
+                  {{ ui.edit | appTranslate }}
+                </button>
+                <button
+                  type="button"
+                  class="primary-btn compact"
+                  *ngIf="isPortalEditing(student)"
+                  (click)="savePortalCredential(student)"
+                  [disabled]="isPortalSaving(student)"
+                >
+                  {{ (isPortalSaving(student) ? ui.saving : ui.save) | appTranslate }}
+                </button>
+                <button
+                  type="button"
+                  class="ghost-btn compact"
+                  *ngIf="isPortalEditing(student)"
+                  (click)="cancelPortalEdit(student)"
+                  [disabled]="isPortalSaving(student)"
+                >
+                  {{ ui.cancel | appTranslate }}
+                </button>
+              </div>
+            </header>
+
+            <div *ngIf="isPortalLoading(student)" class="portal-state">
+              {{ ui.loadingPortal | appTranslate }}
+            </div>
+            <div *ngIf="!isPortalLoading(student) && portalError(student)" class="portal-state error">
+              {{ portalError(student) | appTranslate }}
+            </div>
+
+            <div class="portal-grid" *ngIf="!isPortalLoading(student)">
+              <label>
+                <span>
+                  {{ ui.schoolAccount | appTranslate }}
+                  <small *ngIf="isPortalFieldCopied(student, 'schoolAccount')">{{ ui.copied | appTranslate }}</small>
+                </span>
+                <input
+                  *ngIf="!isPortalEditing(student)"
+                  type="text"
+                  [ngModel]="getPortalDraft(student).schoolAccount"
+                  (click)="copyPortalField(student, 'schoolAccount')"
+                  class="copyable-field"
+                  [class.field-copied]="isPortalFieldCopied(student, 'schoolAccount')"
+                  readonly
+                  [placeholder]="ui.blank | appTranslate"
+                  [title]="ui.clickToCopy | appTranslate"
+                  autocomplete="off"
+                />
+                <input
+                  *ngIf="isPortalEditing(student)"
+                  type="text"
+                  [ngModel]="getPortalDraft(student).schoolAccount"
+                  (ngModelChange)="updatePortalDraft(student, 'schoolAccount', $event)"
+                  [placeholder]="ui.blank | appTranslate"
+                  autocomplete="off"
+                />
+              </label>
+
+              <label>
+                <span>
+                  {{ ui.schoolEmail | appTranslate }}
+                  <small *ngIf="isPortalFieldCopied(student, 'schoolEmail')">{{ ui.copied | appTranslate }}</small>
+                </span>
+                <input
+                  *ngIf="!isPortalEditing(student)"
+                  type="email"
+                  [ngModel]="getPortalDraft(student).schoolEmail"
+                  (click)="copyPortalField(student, 'schoolEmail')"
+                  class="copyable-field"
+                  [class.field-copied]="isPortalFieldCopied(student, 'schoolEmail')"
+                  readonly
+                  [title]="ui.clickToCopy | appTranslate"
+                  autocomplete="off"
+                />
+                <input
+                  *ngIf="isPortalEditing(student)"
+                  type="email"
+                  [ngModel]="getPortalDraft(student).schoolEmail"
+                  (ngModelChange)="updatePortalDraft(student, 'schoolEmail', $event)"
+                  autocomplete="off"
+                />
+              </label>
+
+              <label>
+                <span>
+                  {{ ui.schoolPassword | appTranslate }}
+                  <small *ngIf="isPortalFieldCopied(student, 'schoolPassword')">{{ ui.copied | appTranslate }}</small>
+                </span>
+                <input
+                  *ngIf="!isPortalEditing(student)"
+                  type="text"
+                  [ngModel]="getPortalDraft(student).schoolPassword"
+                  (click)="copyPortalField(student, 'schoolPassword')"
+                  class="copyable-field"
+                  [class.field-copied]="isPortalFieldCopied(student, 'schoolPassword')"
+                  readonly
+                  [title]="ui.clickToCopy | appTranslate"
+                  autocomplete="off"
+                />
+                <input
+                  *ngIf="isPortalEditing(student)"
+                  type="text"
+                  [ngModel]="getPortalDraft(student).schoolPassword"
+                  (ngModelChange)="updatePortalDraft(student, 'schoolPassword', $event)"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+
+            <div class="portal-requirements" *ngIf="!isPortalLoading(student)">
+              <button
+                type="button"
+                class="requirement-check"
+                [class.active]="getPortalDraft(student).interviewRequired"
+                [attr.aria-pressed]="getPortalDraft(student).interviewRequired"
+                (click)="$event.stopPropagation(); togglePortalRequirement(student, 'interviewRequired', !getPortalDraft(student).interviewRequired)"
+                [disabled]="isPortalSaving(student)"
+              >
+                <span class="requirement-mark" aria-hidden="true">
+                  {{ getPortalDraft(student).interviewRequired ? '✓' : '' }}
+                </span>
+                <span>{{ ui.interview | appTranslate }}</span>
+              </button>
+              <button
+                type="button"
+                class="requirement-check"
+                [class.active]="getPortalDraft(student).languageScoreRequired"
+                [attr.aria-pressed]="getPortalDraft(student).languageScoreRequired"
+                (click)="$event.stopPropagation(); togglePortalRequirement(student, 'languageScoreRequired', !getPortalDraft(student).languageScoreRequired)"
+                [disabled]="isPortalSaving(student)"
+              >
+                <span class="requirement-mark" aria-hidden="true">
+                  {{ getPortalDraft(student).languageScoreRequired ? '✓' : '' }}
+                </span>
+                <span>{{ ui.languageScore | appTranslate }}</span>
+              </button>
+            </div>
+          </section>
+
+          <div
+            class="program-row"
+            *ngFor="let application of applicationsFor(student); let index = index; trackBy: trackApplication"
+            [class.offer-row]="statusClass(application.status) === 'offer'"
+            [class.rejected-row]="statusClass(application.status) === 'rejected'"
+          >
+            <span class="program-index">{{ index + 1 }}</span>
+            <div class="program-main">
+              <strong class="notranslate" translate="no" data-no-auto-translate>{{ application.programName }}</strong>
+              <small *ngIf="application.facultyName" class="notranslate" translate="no" data-no-auto-translate>
+                {{ application.facultyName }}
+              </small>
+              <small>
+                {{ ui.updatedAt | appTranslate }}: {{ displayUpdatedAt(application.updatedAt) }}
+              </small>
+            </div>
+            <label
+              class="status-control"
+              [class.status-accepted]="statusClass(application.status) === 'offer'"
+              [class.status-rejected]="statusClass(application.status) === 'rejected'"
+            >
+              <span>{{ ui.status | appTranslate }}</span>
+              <select
+                [ngModel]="application.status"
+                (ngModelChange)="updateApplicationStatus(application, $event)"
+                [disabled]="isApplicationUpdating(application)"
+              >
+                <option *ngFor="let status of statusOptions" [ngValue]="status">
+                  {{ statusLabel(status) | appTranslate }}
+                </option>
+              </select>
+              <small *ngIf="isApplicationUpdating(application)">{{ ui.updating | appTranslate }}</small>
+            </label>
+          </div>
+        </div>
+      </article>
+    </section>
+  </section>
+</main>

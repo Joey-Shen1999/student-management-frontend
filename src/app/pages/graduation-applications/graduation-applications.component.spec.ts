@@ -204,6 +204,7 @@ describe('GraduationApplicationsComponent', () => {
       applications: [
         createApplication(1, 'University A', 'Program A', 1),
         { ...createApplication(2, 'University B', 'Program B', 2), status: 'OFFER_ACCEPTED' },
+        { ...createApplication(3, 'University C', 'Program C', 3), status: 'NOT_ADMITTED' },
       ],
     });
 
@@ -212,6 +213,7 @@ describe('GraduationApplicationsComponent', () => {
     expect(component.sortedApplications.map((application) => application.status)).toEqual([
       'OFFER_ACCEPTED',
       'PREPARING',
+      'NOT_ADMITTED',
     ]);
     expect(component.isOfferAccepted(component.sortedApplications[0])).toBe(true);
     expect(component.submittedCount).toBe(1);

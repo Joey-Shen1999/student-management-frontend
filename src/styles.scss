@@ -332,6 +332,194 @@
   transform: translateX(16px);
 }
 
+.university-overview-page .portal-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #cde7d6;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f7fdf9;
+}
+
+.university-overview-page .portal-head,
+.university-overview-page .portal-actions,
+.university-overview-page .portal-grid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.university-overview-page .portal-head {
+  justify-content: space-between;
+}
+
+.university-overview-page .portal-head h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.university-overview-page .portal-login-link {
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.university-overview-page .visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #315b45;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.university-overview-page .visibility-toggle .toggle-track {
+  display: inline-block;
+  flex: 0 0 40px;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.university-overview-page .visibility-toggle .toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
+}
+
+.university-overview-page .visibility-toggle.on .toggle-track {
+  background: #22c55e;
+}
+
+.university-overview-page .visibility-toggle.on .toggle-thumb {
+  transform: translateX(18px);
+}
+
+.university-overview-page .portal-grid {
+  align-items: stretch;
+}
+
+.university-overview-page .portal-grid label {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  color: #334b3b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.university-overview-page .portal-grid label > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.university-overview-page .portal-grid small {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+}
+
+.university-overview-page .portal-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #b8d9c4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font: inherit;
+}
+
+.university-overview-page .portal-grid input.copyable-field {
+  background: #eef8f1;
+  color: #425b49;
+  cursor: copy;
+}
+
+.university-overview-page .portal-grid input.field-copied {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.14);
+}
+
+.university-overview-page .status-pill.offer {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.university-overview-page .status-pill.rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.university-overview-page .program-row.offer-row {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.university-overview-page .program-row.rejected-row {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.university-overview-page .status-control.status-accepted select {
+  border-color: #22c55e;
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.university-overview-page .status-control.status-rejected select {
+  border-color: #ef4444;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.applications-page .program-row.not-admitted {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.applications-page .program-row.not-admitted .rank {
+  background: #dc2626;
+  color: #fff;
+}
+
+.applications-page .not-admitted-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.applications-page .status-control.status-not-admitted select {
+  border-color: #ef4444;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
 @media (max-width: 920px) {
   .selected-students-summary,
   .student-selector-modal-header {

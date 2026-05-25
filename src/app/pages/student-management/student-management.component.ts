@@ -78,6 +78,8 @@ import {
   buildDefaultVisibleColumnKeys as buildVisibleColumnDefaults,
   normalizeVisibleColumnKeys as normalizeVisibleKeys,
 } from '../../shared/student-columns/student-column-visibility.util';
+import { TranslatePipe } from '../../shared/i18n/translate.pipe';
+import { uiText } from '../../shared/i18n/ui-translations';
 import {
   STUDENT_LIST_DEFAULT_COLUMN_KEYS_BY_CONTEXT,
   type StudentListColumnKey,
@@ -654,7 +656,7 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
 @Component({
   selector: 'app-student-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent],
+  imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent, TranslatePipe],
   template: `
     <div class="student-management-page" style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -668,6 +670,14 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <button type="button" (click)="loadStudents()" [disabled]="loadingList">
             {{ loadingList ? '加载中...' : '刷新列表' }}
+          </button>
+
+          <button
+            *ngIf="isGraduationApplicationsContext"
+            type="button"
+            [routerLink]="['/teacher/applications/by-university']"
+          >
+            {{ ui.applicationsByUniversity | appTranslate }}
           </button>
 
           <button
@@ -1911,6 +1921,10 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
   ],
 })
 export class StudentManagementComponent implements OnInit {
+  readonly ui = {
+    applicationsByUniversity: uiText('\u6309\u5927\u5b66\u67e5\u770b\u7533\u8bf7', 'Applications by University'),
+  };
+
   readonly limitOptions: number[] = [20, 50, 100];
   readonly countryFilterOptions: string[] = this.buildCountryFilterOptions();
   readonly schoolBoardFilterBaseOptions: string[] = this.buildSchoolBoardFilterBaseOptions();
@@ -2515,6 +2529,10 @@ export class StudentManagementComponent implements OnInit {
 
   get resolvedPageTitle(): string {
     return this.pageTitle;
+  }
+
+  get isGraduationApplicationsContext(): boolean {
+    return this.resolvePageContext() === 'graduationApplications';
   }
 
   get languageTrackingStatusOptions(): readonly TrackingManualStatusOption[] {

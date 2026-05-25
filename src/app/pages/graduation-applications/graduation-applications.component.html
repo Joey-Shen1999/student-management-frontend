@@ -410,11 +410,13 @@
             class="program-row"
             *ngFor="let application of group.applications; trackBy: trackApplication"
             [class.offer-accepted]="isOfferAccepted(application)"
+            [class.not-admitted]="isNotAdmitted(application)"
           >
             <div class="rank">{{ application.sortOrder }}</div>
             <div class="program-main">
               <h3 class="notranslate" translate="no" data-no-auto-translate>{{ application.programName }}</h3>
               <span class="accepted-offer-badge" *ngIf="isOfferAccepted(application)">已接收 Offer</span>
+              <span class="not-admitted-badge" *ngIf="isNotAdmitted(application)">未录取</span>
               <small *ngIf="application.facultyName || application.degreeType">
                 <span class="notranslate" translate="no" data-no-auto-translate>{{ application.facultyName }}</span>
                 <span *ngIf="application.degreeType"> · {{ application.degreeType }}</span>
@@ -422,7 +424,11 @@
               <small>更新：{{ displayUpdatedAt(application.updatedAt) }}</small>
             </div>
 
-            <label class="status-control" [class.status-accepted]="isOfferAccepted(application)">
+            <label
+              class="status-control"
+              [class.status-accepted]="isOfferAccepted(application)"
+              [class.status-not-admitted]="isNotAdmitted(application)"
+            >
               <span>进度</span>
               <select
                 [ngModel]="application.status"

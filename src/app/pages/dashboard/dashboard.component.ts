@@ -127,8 +127,8 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
                 <div
                   class="program-progress-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
-                  [style.border-color]="application.status === 'OFFER_ACCEPTED' ? '#86efac' : '#dbe6f5'"
-                  [style.background]="application.status === 'OFFER_ACCEPTED' ? '#f0fdf4' : '#fff'"
+                  [style.border-color]="applicationStatusBorder(application.status)"
+                  [style.background]="applicationStatusBackground(application.status)"
                   *ngFor="let application of group.applications; trackBy: trackApplication"
                 >
                   <div style="display:grid;gap:3px;">
@@ -137,8 +137,8 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
                   </div>
                   <span
                     style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;"
-                    [style.background]="application.status === 'OFFER_ACCEPTED' ? '#dcfce7' : '#eef4ff'"
-                    [style.color]="application.status === 'OFFER_ACCEPTED' ? '#166534' : '#1d4f9b'"
+                    [style.background]="applicationStatusPillBackground(application.status)"
+                    [style.color]="applicationStatusPillColor(application.status)"
                   >
                     {{ graduationStage.statusLabel(application.status) }}
                   </span>
@@ -368,6 +368,30 @@ export class DashboardComponent implements OnInit {
 
   isStudentPortalFieldCopied(group: ApplicationProgressGroup, field: StudentPortalCredentialField): boolean {
     return this.copiedStudentPortalFieldKey === this.createStudentPortalFieldKey(group, field);
+  }
+
+  applicationStatusBorder(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#86efac';
+    if (status === 'NOT_ADMITTED') return '#fecaca';
+    return '#dbe6f5';
+  }
+
+  applicationStatusBackground(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#f0fdf4';
+    if (status === 'NOT_ADMITTED') return '#fff1f2';
+    return '#fff';
+  }
+
+  applicationStatusPillBackground(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#dcfce7';
+    if (status === 'NOT_ADMITTED') return '#fee2e2';
+    return '#eef4ff';
+  }
+
+  applicationStatusPillColor(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#166534';
+    if (status === 'NOT_ADMITTED') return '#b91c1c';
+    return '#1d4f9b';
   }
 
   goUniversityGoals() {
@@ -614,20 +638,39 @@ export class DashboardComponent implements OnInit {
         portalLoading: false,
         portalError: '',
         applications: rows.sort((left, right) => {
-          const acceptedRank =
-            Number(right.status === 'OFFER_ACCEPTED') - Number(left.status === 'OFFER_ACCEPTED');
-          if (acceptedRank !== 0) return acceptedRank;
+          const progressRank = this.statusPriority(right.status) - this.statusPriority(left.status);
+          if (progressRank !== 0) return progressRank;
           return left.sortOrder - right.sortOrder;
         }),
       }))
       .sort((left, right) => {
-        const acceptedRank =
-          Number(right.applications.some((item) => item.status === 'OFFER_ACCEPTED')) -
-          Number(left.applications.some((item) => item.status === 'OFFER_ACCEPTED'));
-        if (acceptedRank !== 0) return acceptedRank;
+        const progressRank =
+          Math.max(0, ...right.applications.map((item) => this.statusPriority(item.status))) -
+          Math.max(0, ...left.applications.map((item) => this.statusPriority(item.status)));
+        if (progressRank !== 0) return progressRank;
         return Math.min(...left.applications.map((item) => item.sortOrder)) -
           Math.min(...right.applications.map((item) => item.sortOrder));
       });
+  }
+
+  private statusPriority(status: string | null | undefined): number {
+    switch (status) {
+      case 'OFFER_ACCEPTED':
+        return 60;
+      case 'OFFER_RECEIVED':
+        return 50;
+      case 'WAITING_RESULT':
+        return 40;
+      case 'SUBMITTED':
+        return 30;
+      case 'READY_TO_SUBMIT':
+        return 20;
+      case 'PREPARING':
+        return 10;
+      case 'NOT_ADMITTED':
+      default:
+        return 0;
+    }
   }
 
   private loadVisiblePortalCredentials(studentId: number): void {
