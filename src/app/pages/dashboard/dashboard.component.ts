@@ -24,6 +24,8 @@ interface ApplicationProgressGroup {
   portalError: string;
 }
 
+type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPassword';
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -83,26 +85,50 @@ interface ApplicationProgressGroup {
                   </a>
                 </header>
                 <div class="student-portal-grid">
-                  <div>
-                    <span>学校账号</span>
+                  <button
+                    type="button"
+                    class="student-portal-copy-field"
+                    [class.field-copied]="isStudentPortalFieldCopied(group, 'schoolAccount')"
+                    (click)="copyStudentPortalField(group, 'schoolAccount')"
+                  >
+                    <span>
+                      学校账号
+                      <small *ngIf="isStudentPortalFieldCopied(group, 'schoolAccount')">已复制</small>
+                    </span>
                     <b>{{ group.portalCredential?.schoolAccount || '未设置' }}</b>
-                  </div>
-                  <div>
-                    <span>申请邮箱</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="student-portal-copy-field"
+                    [class.field-copied]="isStudentPortalFieldCopied(group, 'schoolEmail')"
+                    (click)="copyStudentPortalField(group, 'schoolEmail')"
+                  >
+                    <span>
+                      申请邮箱
+                      <small *ngIf="isStudentPortalFieldCopied(group, 'schoolEmail')">已复制</small>
+                    </span>
                     <b>{{ group.portalCredential?.schoolEmail || '未设置' }}</b>
-                  </div>
-                  <div>
-                    <span>学校密码</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="student-portal-copy-field"
+                    [class.field-copied]="isStudentPortalFieldCopied(group, 'schoolPassword')"
+                    (click)="copyStudentPortalField(group, 'schoolPassword')"
+                  >
+                    <span>
+                      学校密码
+                      <small *ngIf="isStudentPortalFieldCopied(group, 'schoolPassword')">已复制</small>
+                    </span>
                     <b>{{ group.portalCredential?.schoolPassword || '未设置' }}</b>
-                  </div>
+                  </button>
                 </div>
               </section>
               <div style="display:grid;gap:8px;">
                 <div
                   class="program-progress-row"
                   style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #dbe6f5;border-radius:10px;padding:10px;background:#fff;"
-                  [style.border-color]="application.status === 'OFFER_ACCEPTED' ? '#86efac' : '#dbe6f5'"
-                  [style.background]="application.status === 'OFFER_ACCEPTED' ? '#f0fdf4' : '#fff'"
+                  [style.border-color]="applicationStatusBorder(application.status)"
+                  [style.background]="applicationStatusBackground(application.status)"
                   *ngFor="let application of group.applications; trackBy: trackApplication"
                 >
                   <div style="display:grid;gap:3px;">
@@ -111,8 +137,8 @@ interface ApplicationProgressGroup {
                   </div>
                   <span
                     style="border-radius:999px;padding:3px 10px;background:#eef4ff;color:#1d4f9b;font-size:12px;font-weight:800;white-space:nowrap;"
-                    [style.background]="application.status === 'OFFER_ACCEPTED' ? '#dcfce7' : '#eef4ff'"
-                    [style.color]="application.status === 'OFFER_ACCEPTED' ? '#166534' : '#1d4f9b'"
+                    [style.background]="applicationStatusPillBackground(application.status)"
+                    [style.color]="applicationStatusPillColor(application.status)"
                   >
                     {{ graduationStage.statusLabel(application.status) }}
                   </span>
@@ -259,6 +285,7 @@ export class DashboardComponent implements OnInit {
   applicationProgressGroups: ApplicationProgressGroup[] = [];
   applicationProgressLoading = false;
   applicationProgressError = '';
+  copiedStudentPortalFieldKey: string | null = null;
 
   private infoLoadWatchdog: number | null = null;
   private readonly welcomeNameTimeoutMs = 8000;
@@ -315,6 +342,56 @@ export class DashboardComponent implements OnInit {
       group.portalCredential?.interviewRequired === true ||
       group.portalCredential?.languageScoreRequired === true
     );
+  }
+
+  copyStudentPortalField(group: ApplicationProgressGroup, field: StudentPortalCredentialField): void {
+    const value = String(group.portalCredential?.[field] || '').trim();
+    if (!value) return;
+
+    this.writeClipboard(value)
+      .then(() => {
+        const copiedKey = this.createStudentPortalFieldKey(group, field);
+        this.copiedStudentPortalFieldKey = copiedKey;
+        window.setTimeout(() => {
+          if (this.copiedStudentPortalFieldKey === copiedKey) {
+            this.copiedStudentPortalFieldKey = null;
+            this.cdr.detectChanges();
+          }
+        }, 1200);
+        this.cdr.detectChanges();
+      })
+      .catch(() => {
+        this.copiedStudentPortalFieldKey = null;
+        this.cdr.detectChanges();
+      });
+  }
+
+  isStudentPortalFieldCopied(group: ApplicationProgressGroup, field: StudentPortalCredentialField): boolean {
+    return this.copiedStudentPortalFieldKey === this.createStudentPortalFieldKey(group, field);
+  }
+
+  applicationStatusBorder(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#86efac';
+    if (status === 'NOT_ADMITTED') return '#fecaca';
+    return '#dbe6f5';
+  }
+
+  applicationStatusBackground(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#f0fdf4';
+    if (status === 'NOT_ADMITTED') return '#fff1f2';
+    return '#fff';
+  }
+
+  applicationStatusPillBackground(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#dcfce7';
+    if (status === 'NOT_ADMITTED') return '#fee2e2';
+    return '#eef4ff';
+  }
+
+  applicationStatusPillColor(status: string | null | undefined): string {
+    if (status === 'OFFER_ACCEPTED') return '#166534';
+    if (status === 'NOT_ADMITTED') return '#b91c1c';
+    return '#1d4f9b';
   }
 
   goUniversityGoals() {
@@ -486,13 +563,36 @@ export class DashboardComponent implements OnInit {
   }
 
   private loadApplicationProgress(): void {
-    const studentId = Number(this.session?.studentId);
-    if (!Number.isFinite(studentId) || studentId <= 0) {
-      this.applicationStageEnabled = false;
-      this.applicationProgressGroups = [];
+    const studentId = this.resolveStudentIdFromPayload(this.session);
+    if (studentId) {
+      this.loadApplicationProgressForStudent(studentId);
       return;
     }
 
+    this.profileApi
+      .getMyProfile()
+      .pipe(timeout(this.welcomeNameTimeoutMs))
+      .subscribe({
+        next: (payload: unknown) => {
+          const resolvedStudentId = this.resolveStudentIdFromPayload(payload);
+          if (!resolvedStudentId) {
+            this.clearApplicationProgress();
+            return;
+          }
+          if (this.session) {
+            this.session = { ...this.session, studentId: resolvedStudentId };
+          }
+          this.loadApplicationProgressForStudent(resolvedStudentId);
+        },
+        error: (error: unknown) => {
+          this.clearApplicationProgress(
+            this.extractErrorMessage(error) || '加载大学申请进度失败。'
+          );
+        },
+      });
+  }
+
+  private loadApplicationProgressForStudent(studentId: number): void {
     this.applicationProgressLoading = true;
     this.applicationProgressError = '';
     this.graduationStage
@@ -511,12 +611,17 @@ export class DashboardComponent implements OnInit {
           this.cdr.detectChanges();
         },
         error: (error: unknown) => {
-          this.applicationStageEnabled = false;
-          this.applicationProgressGroups = [];
-          this.applicationProgressError = this.extractErrorMessage(error) || '加载大学申请进度失败。';
+          this.clearApplicationProgress(this.extractErrorMessage(error) || '加载大学申请进度失败。');
           this.cdr.detectChanges();
         },
       });
+  }
+
+  private clearApplicationProgress(errorMessage = ''): void {
+    this.applicationStageEnabled = false;
+    this.applicationProgressGroups = [];
+    this.applicationProgressError = errorMessage;
+    this.cdr.detectChanges();
   }
 
   private groupApplicationsByUniversity(applications: GraduationApplication[]): ApplicationProgressGroup[] {
@@ -533,20 +638,39 @@ export class DashboardComponent implements OnInit {
         portalLoading: false,
         portalError: '',
         applications: rows.sort((left, right) => {
-          const acceptedRank =
-            Number(right.status === 'OFFER_ACCEPTED') - Number(left.status === 'OFFER_ACCEPTED');
-          if (acceptedRank !== 0) return acceptedRank;
+          const progressRank = this.statusPriority(right.status) - this.statusPriority(left.status);
+          if (progressRank !== 0) return progressRank;
           return left.sortOrder - right.sortOrder;
         }),
       }))
       .sort((left, right) => {
-        const acceptedRank =
-          Number(right.applications.some((item) => item.status === 'OFFER_ACCEPTED')) -
-          Number(left.applications.some((item) => item.status === 'OFFER_ACCEPTED'));
-        if (acceptedRank !== 0) return acceptedRank;
+        const progressRank =
+          Math.max(0, ...right.applications.map((item) => this.statusPriority(item.status))) -
+          Math.max(0, ...left.applications.map((item) => this.statusPriority(item.status)));
+        if (progressRank !== 0) return progressRank;
         return Math.min(...left.applications.map((item) => item.sortOrder)) -
           Math.min(...right.applications.map((item) => item.sortOrder));
       });
+  }
+
+  private statusPriority(status: string | null | undefined): number {
+    switch (status) {
+      case 'OFFER_ACCEPTED':
+        return 60;
+      case 'OFFER_RECEIVED':
+        return 50;
+      case 'WAITING_RESULT':
+        return 40;
+      case 'SUBMITTED':
+        return 30;
+      case 'READY_TO_SUBMIT':
+        return 20;
+      case 'PREPARING':
+        return 10;
+      case 'NOT_ADMITTED':
+      default:
+        return 0;
+    }
   }
 
   private loadVisiblePortalCredentials(studentId: number): void {
@@ -582,6 +706,61 @@ export class DashboardComponent implements OnInit {
   private normalizeOptionalId(value: unknown): number | null {
     const id = Math.trunc(Number(value));
     return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  private resolveStudentIdFromPayload(value: unknown): number | null {
+    const root = this.toRecord(value);
+    const direct = this.readPositiveNumber(root, ['studentId', 'student_id']);
+    if (direct) return direct;
+
+    const profile = this.toRecord(root?.['profile']);
+    return this.readPositiveNumber(profile, ['studentId', 'student_id']);
+  }
+
+  private readPositiveNumber(source: Record<string, unknown> | null, keys: readonly string[]): number | null {
+    if (!source) return null;
+    for (const key of keys) {
+      const id = Math.trunc(Number(source[key]));
+      if (Number.isFinite(id) && id > 0) return id;
+    }
+    return null;
+  }
+
+  private createStudentPortalFieldKey(
+    group: ApplicationProgressGroup,
+    field: StudentPortalCredentialField
+  ): string {
+    return `${group.universityId || group.universityName}:${field}`;
+  }
+
+  private async writeClipboard(value: string): Promise<void> {
+    const navigatorRef = (globalThis as { navigator?: Navigator }).navigator;
+    if (navigatorRef?.clipboard?.writeText) {
+      await navigatorRef.clipboard.writeText(value);
+      return;
+    }
+
+    const documentRef = (globalThis as { document?: Document }).document;
+    if (!documentRef?.body) {
+      throw new Error('Clipboard unavailable');
+    }
+
+    const textarea = documentRef.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.opacity = '0';
+    documentRef.body.appendChild(textarea);
+    textarea.select();
+    try {
+      const copied = documentRef.execCommand('copy');
+      if (!copied) {
+        throw new Error('Copy command failed');
+      }
+    } finally {
+      documentRef.body.removeChild(textarea);
+    }
   }
 
   private startInfoLoadWatchdog(): void {

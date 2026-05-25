@@ -3,6 +3,10 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../services/auth.service';
+import {
+  GraduationApplication,
+  GraduationApplicationStageService,
+} from '../../services/graduation-application-stage.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import { type InfoTaskVm, TaskCenterService } from '../../services/task-center.service';
 import { DashboardComponent } from './dashboard.component';
@@ -299,6 +303,100 @@ describe('DashboardComponent', () => {
     });
     expect(component.unreadInfoItems.map((info) => info.id)).toEqual([5001]);
     expect(component.readInfoItems.map((info) => info.id)).toEqual([5002]);
+  });
+
+  it('loads application progress after resolving studentId from profile for an old session', () => {
+    (auth.getSession as any).mockReturnValue({ userId: 9, role: 'STUDENT' });
+    (profileApi.getMyProfile as any).mockReturnValue(
+      of({
+        studentId: 1001,
+        legalLastName: 'Chen',
+        legalFirstName: 'Xiao',
+      })
+    );
+    const applications: GraduationApplication[] = [
+      {
+        id: 7001,
+        studentId: 1001,
+        universityId: 88,
+        universityName: 'University A',
+        programId: 8801,
+        programName: 'Program A',
+        status: 'PREPARING',
+        sortOrder: 1,
+        updatedAt: '2026-05-25T12:00:00Z',
+      },
+    ];
+    const graduationStage = {
+      listApplications: vi.fn().mockReturnValue(of(applications)),
+      getPortalCredential: vi.fn().mockReturnValue(
+        of({
+          studentId: 1001,
+          universityId: 88,
+          universityName: 'University A',
+          schoolAccount: '',
+          schoolEmail: '',
+          schoolPassword: '',
+          studentVisible: false,
+          interviewRequired: true,
+          languageScoreRequired: false,
+        })
+      ),
+      resolvePortalLoginUrl: vi.fn().mockReturnValue(''),
+    };
+    const nextComponent = new DashboardComponent(
+      auth as AuthService,
+      router as Router,
+      taskCenter as TaskCenterService,
+      profileApi as StudentProfileService,
+      graduationStage as unknown as GraduationApplicationStageService
+    );
+
+    nextComponent.ngOnInit();
+
+    expect(graduationStage.listApplications).toHaveBeenCalledWith(1001);
+    expect(nextComponent.applicationStageEnabled).toBe(true);
+    expect(nextComponent.applicationProgressGroups.length).toBe(1);
+    expect(nextComponent.applicationProgressGroups[0].portalCredential?.interviewRequired).toBe(true);
+  });
+
+  it('copies visible school portal fields on the student dashboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const group = {
+      universityId: 88,
+      universityName: 'University A',
+      applications: [],
+      portalLoading: false,
+      portalError: '',
+      portalCredential: {
+        studentId: 1001,
+        universityId: 88,
+        universityName: 'University A',
+        schoolAccount: 'portal-user',
+        schoolEmail: 'student.portal@outlook.com',
+        schoolPassword: 'Changed!234',
+        studentVisible: true,
+        interviewRequired: false,
+        languageScoreRequired: false,
+      },
+    } as any;
+
+    component.copyStudentPortalField(group, 'schoolEmail');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith('student.portal@outlook.com');
+    expect(component.isStudentPortalFieldCopied(group, 'schoolEmail')).toBe(true);
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: originalClipboard,
+    });
   });
 
   it('logout should clear session and navigate to login', () => {

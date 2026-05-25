@@ -265,6 +265,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'applications/by-university',
+        loadComponent: () =>
+          import('./pages/university-application-overview/university-application-overview.component').then(
+            (m) => m.UniversityApplicationOverviewComponent
+          ),
+      },
+
+      {
         path: 'service-progress',
         loadComponent: () =>
           import('./pages/teacher-service-progress/teacher-service-progress.component').then(
