@@ -192,6 +192,7 @@ export interface InfoTaskVm {
   tags: string[];
   goalId?: number | null;
   taskGroupId?: string | null;
+  attachments?: InfoAttachmentVm[];
   recipientStudentIds?: number[];
   targetStudentCount: number;
   publishedByTeacherId: number;
@@ -226,6 +227,14 @@ export interface CreateInfoRequestVm {
   studentIds?: number[];
   goalId?: number | null;
   taskGroupId?: string;
+}
+
+export interface InfoAttachmentVm {
+  id: number;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
 }
 
 const MOCK_GOALS: GoalTaskVm[] = [
@@ -677,16 +686,46 @@ export class TaskCenterService {
     );
   }
 
-  createInfo(request: CreateInfoRequestVm): Observable<InfoTaskVm> {
+  createInfo(request: CreateInfoRequestVm, attachments: File[] = []): Observable<InfoTaskVm> {
     if (this.useMock || this.useMockInfo) {
-      return this.createInfoFromMock(request);
+      return this.createInfoFromMock(request, attachments);
     }
+
+    const body =
+      attachments.length > 0 ? this.buildCreateInfoFormData(request, attachments) : request;
 
     return this.withRequestTimeout(
       this.http.post<InfoTaskVm>(
         `${this.teacherBaseUrl}/infos`,
-        request,
-        this.withAuthHeaderIfAvailable()
+        body,
+        attachments.length > 0
+          ? this.withAuthHeaderIfAvailable()
+          : this.withAuthHeaderIfAvailable()
+      )
+    );
+  }
+
+  downloadInfoAttachment(infoId: number, attachmentId: number): Observable<Blob> {
+    const normalizedInfoId = Math.trunc(Number(infoId));
+    const normalizedAttachmentId = Math.trunc(Number(attachmentId));
+    if (!Number.isFinite(normalizedInfoId) || normalizedInfoId <= 0) {
+      return throwError(() => new Error('infoId is invalid.'));
+    }
+    if (!Number.isFinite(normalizedAttachmentId) || normalizedAttachmentId <= 0) {
+      return throwError(() => new Error('attachmentId is invalid.'));
+    }
+
+    if (this.useMock || this.useMockInfo) {
+      return of(new Blob());
+    }
+
+    return this.withRequestTimeout(
+      this.http.get(
+        `/api/tasks/infos/${encodeURIComponent(String(normalizedInfoId))}/attachments/${encodeURIComponent(String(normalizedAttachmentId))}/file`,
+        {
+          responseType: 'blob',
+          ...this.withAuthHeaderIfAvailable(),
+        }
       )
     );
   }
@@ -1358,7 +1397,10 @@ export class TaskCenterService {
     }).pipe(delay(120));
   }
 
-  private createInfoFromMock(request: CreateInfoRequestVm): Observable<InfoTaskVm> {
+  private createInfoFromMock(
+    request: CreateInfoRequestVm,
+    attachments: File[] = []
+  ): Observable<InfoTaskVm> {
     const title = String(request.title || '').trim();
     const content = String(request.content || '').trim();
     const category = request.category;
@@ -1429,6 +1471,16 @@ export class TaskCenterService {
         tags,
         goalId: hasGoalId ? goalId : existing.goalId || null,
         taskGroupId: hasTaskGroupId ? taskGroupId : existing.taskGroupId || null,
+        attachments:
+          attachments.length > 0
+            ? attachments.map((file, index) => ({
+                id: this.nextAttachmentId(index),
+                fileName: file.name,
+                contentType: file.type || 'application/octet-stream',
+                sizeBytes: file.size,
+                uploadedAt: timestamp,
+              }))
+            : existing.attachments || [],
         targetStudentCount,
         updatedAt: timestamp,
       };
@@ -1447,6 +1499,13 @@ export class TaskCenterService {
       tags,
       goalId: hasGoalId ? goalId : null,
       taskGroupId,
+      attachments: attachments.map((file, index) => ({
+        id: this.nextAttachmentId(index),
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        uploadedAt: timestamp,
+      })),
       targetStudentCount,
       publishedByTeacherId: publisherTeacherId,
       publishedByTeacherName: publisherTeacherName,
@@ -1460,6 +1519,15 @@ export class TaskCenterService {
     this.mockInfos$.next(nextRows);
 
     return of({ ...nextInfo, tags: [...nextInfo.tags] }).pipe(delay(120));
+  }
+
+  private buildCreateInfoFormData(request: CreateInfoRequestVm, attachments: File[]): FormData {
+    const body = new FormData();
+    body.append('request', new Blob([JSON.stringify(request)], { type: 'application/json' }));
+    for (const file of attachments) {
+      body.append('attachments', file, file.name);
+    }
+    return body;
   }
 
   private deleteInfoGroupFromMock(taskGroupId: string): Observable<void> {
@@ -1645,6 +1713,10 @@ export class TaskCenterService {
   private nextInfoId(): number {
     const maxId = this.mockInfos$.value.reduce((max, info) => (info.id > max ? info.id : max), 5000);
     return maxId + 1;
+  }
+
+  private nextAttachmentId(offset: number): number {
+    return this.nextInfoId() * 10 + offset + 1;
   }
 
   private withRequestTimeout<T>(source$: Observable<T>): Observable<T> {

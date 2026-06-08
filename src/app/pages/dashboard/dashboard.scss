@@ -350,6 +350,31 @@
   font-size: 13px;
 }
 
+.info-attachments {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #51627a;
+  font-size: 12px;
+}
+
+.attachment-chip {
+  border: 1px solid #bfd5f4;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #edf5ff;
+  color: #174a86;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.attachment-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .info-actions {
   margin-top: 10px;
   display: flex;

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+﻿import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -8,6 +8,7 @@ import { catchError, finalize } from 'rxjs/operators';
 import { type LanguageCourseStatus } from '../../features/ielts/ielts-types';
 import {
   type AssignableStudentOptionVm,
+  type InfoAttachmentVm,
   type CreateInfoRequestVm,
   type InfoTaskCategory,
   type InfoTaskVm,
@@ -240,6 +241,8 @@ export class InfoManagementComponent implements OnInit {
   createInfoTitle = '';
   createInfoContent = '';
   createInfoTags = '';
+  createInfoAttachments: File[] = [];
+  existingInfoAttachments: InfoAttachmentVm[] = [];
   creatingInfo = false;
   createInfoError = '';
   createInfoSuccess = '';
@@ -256,6 +259,7 @@ export class InfoManagementComponent implements OnInit {
   deleteTargetStudentCount = 0;
   private deleteInfoWatchdog: number | null = null;
   private deleteInfoRequestSeq = 0;
+  infoAttachmentDownloadKey = '';
 
   private infosLoadWatchdog: number | null = null;
   private readonly infoTaskGroupIdByInfoId = new Map<number, string>();
@@ -356,7 +360,7 @@ export class InfoManagementComponent implements OnInit {
 
   get workspaceTitle(): string {
     if (this.isEditMode) {
-      return this.createInfoTitle.trim() || '未命名通知';
+      return this.createInfoTitle.trim() || '鏈懡鍚嶉€氱煡';
     }
     return '新建通知';
   }
@@ -372,7 +376,7 @@ export class InfoManagementComponent implements OnInit {
 
   get primarySaveLabel(): string {
     if (this.creatingInfo) return '保存中...';
-    return this.isEditMode ? '更新通知' : '发布通知';
+    return this.isEditMode ? '编辑中' : '准备发布';
   }
 
   get showVolunteerCollection(): boolean {
@@ -403,11 +407,11 @@ export class InfoManagementComponent implements OnInit {
   }
 
   moreStudentsText(count: number): string {
-    return `另有 ${count} 位`;
+    return `还有 ${count} 位`;
   }
 
   selectedStudentLabel(student: AssignableStudentOptionVm): string {
-    return student.studentName || `学生 #${student.studentId}`;
+    return student.studentName || `瀛︾敓 #${student.studentId}`;
   }
 
   goDashboard(): void {
@@ -447,6 +451,8 @@ export class InfoManagementComponent implements OnInit {
     this.createInfoTitle = info.title;
     this.hydrateVolunteerTasksFromContent(info.content);
     this.createInfoTags = (info.tags || []).join(',');
+    this.createInfoAttachments = [];
+    this.existingInfoAttachments = Array.isArray(info.attachments) ? [...info.attachments] : [];
     const selectedIds = this.resolveInfoRecipientStudentIds(info);
     this.selectedCreateStudentIds = new Set<number>(selectedIds);
     this.createInfoError =
@@ -465,6 +471,8 @@ export class InfoManagementComponent implements OnInit {
     this.editingInfoId = null;
     this.editingInfoTaskGroupId = null;
     this.editingTargetStudentCount = 0;
+    this.createInfoAttachments = [];
+    this.existingInfoAttachments = [];
   }
 
   onCreatePanelBackdropClick(event: MouseEvent): void {
@@ -662,6 +670,8 @@ export class InfoManagementComponent implements OnInit {
     this.createInfoTitle = '';
     this.createInfoContent = '';
     this.createInfoTags = '';
+    this.createInfoAttachments = [];
+    this.existingInfoAttachments = [];
     this.resetVolunteerTasks();
     this.resetStudentMetaFilters();
     this.selectedCreateStudentIds.clear();
@@ -1268,6 +1278,62 @@ export class InfoManagementComponent implements OnInit {
 
   onTeacherNoteCellBlur(_studentId: number): void {}
 
+  onInfoAttachmentsChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const files = input?.files ? Array.from(input.files) : [];
+    this.createInfoAttachments = files;
+    if (input) {
+      input.value = '';
+    }
+    this.cdr.detectChanges();
+  }
+
+  removeSelectedInfoAttachment(index: number): void {
+    if (index < 0 || index >= this.createInfoAttachments.length) {
+      return;
+    }
+    this.createInfoAttachments = this.createInfoAttachments.filter((_, currentIndex) => currentIndex !== index);
+    this.cdr.detectChanges();
+  }
+
+  clearSelectedInfoAttachments(): void {
+    this.createInfoAttachments = [];
+    this.cdr.detectChanges();
+  }
+
+  downloadInfoAttachment(info: InfoTaskVm, attachment: InfoAttachmentVm): void {
+    if (!info || !attachment) {
+      return;
+    }
+    const downloadKey = `${info.id}:${attachment.id}`;
+    if (this.infoAttachmentDownloadKey === downloadKey) {
+      return;
+    }
+    this.infoAttachmentDownloadKey = downloadKey;
+    this.taskCenter
+      .downloadInfoAttachment(info.id, attachment.id)
+      .pipe(
+        finalize(() => {
+          this.infoAttachmentDownloadKey = '';
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (blob) => this.saveDownloadedAttachment(blob, attachment.fileName),
+        error: (error: unknown) => {
+          this.createInfoError = this.extractErrorMessage(error) || '下载附件失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  downloadExistingInfoAttachment(attachment: InfoAttachmentVm): void {
+    if (!attachment || !this.editingInfoId) {
+      return;
+    }
+    this.downloadInfoAttachment({ id: this.editingInfoId } as InfoTaskVm, attachment);
+  }
+
   createInfo(): void {
     if (this.creatingInfo) return;
 
@@ -1327,7 +1393,7 @@ export class InfoManagementComponent implements OnInit {
     this.cdr.detectChanges();
 
     this.taskCenter
-      .createInfo(request)
+      .createInfo(request, this.createInfoAttachments)
       .pipe(
         finalize(() => {
           this.creatingInfo = false;
@@ -1341,6 +1407,8 @@ export class InfoManagementComponent implements OnInit {
           this.createInfoTitle = '';
           this.createInfoContent = '';
           this.createInfoTags = '';
+          this.createInfoAttachments = [];
+          this.existingInfoAttachments = [];
           this.resetVolunteerTasks();
           this.resetStudentMetaFilters();
           this.selectedCreateStudentIds.clear();
@@ -1379,7 +1447,7 @@ export class InfoManagementComponent implements OnInit {
     this.cdr.detectChanges();
 
     this.taskCenter
-      .createInfo(request)
+      .createInfo(request, this.createInfoAttachments)
       .pipe(
         finalize(() => {
           this.creatingInfo = false;
@@ -1392,6 +1460,8 @@ export class InfoManagementComponent implements OnInit {
           this.rememberInfoMappings(editingInfoId, taskGroupId, selectedStudentIds);
           this.createInfoSuccess = `通知已更新（覆盖 ${selectedStudentIds.length} 人）：#${info.id} ${info.title}`;
           this.createInfoError = '';
+          this.createInfoAttachments = [];
+          this.existingInfoAttachments = [];
           this.loadInfos();
         },
         error: (error: unknown) => {
@@ -1430,7 +1500,7 @@ export class InfoManagementComponent implements OnInit {
     }
 
     this.deleteTargetTaskGroupId = taskGroupId;
-    this.deleteTargetTitle = info.title || '未命名通知';
+    this.deleteTargetTitle = info.title || '鏈懡鍚嶉€氱煡';
     this.deleteTargetStudentCount = Math.max(0, Math.trunc(Number(info.targetStudentCount) || 0));
     this.deleteInfoError = '';
     this.deleteConfirmArmed = false;
@@ -1514,7 +1584,7 @@ export class InfoManagementComponent implements OnInit {
     this.deleteInfoWatchdog = window.setTimeout(() => {
       if (!this.deletingInfoGroup || requestSeq !== this.deleteInfoRequestSeq) return;
       this.deletingInfoGroup = false;
-      this.deleteInfoError = '删除请求超时，请确认后端已更新并稍后重试。';
+      this.deleteInfoError = '删除请求超时，请确认后端已更新后稍后重试。';
       this.cdr.detectChanges();
     }, 15000);
   }
@@ -1526,7 +1596,7 @@ export class InfoManagementComponent implements OnInit {
   }
 
   infoCategoryLabel(category: InfoTaskCategory): string {
-    return category === 'VOLUNTEER' ? '义工' : '活动';
+    return category === 'VOLUNTEER' ? '涔夊伐' : '娲诲姩';
   }
 
   private loadAssignableStudents(): void {
@@ -1685,7 +1755,7 @@ export class InfoManagementComponent implements OnInit {
       detail?.ossltTracking || '',
       this.resolveArchiveStatusLabel(status),
       status,
-      this.isCreateStudentSelectable(student.studentId) ? '可选 selectable' : '不可选 not selectable',
+      this.isCreateStudentSelectable(student.studentId) ? '鍙€?selectable' : '涓嶅彲閫?not selectable',
     ]
       .join(' ')
       .toLowerCase();
@@ -1980,9 +2050,9 @@ export class InfoManagementComponent implements OnInit {
   }
 
   private resolveArchiveStatusLabel(status: 'ACTIVE' | 'ARCHIVED' | ''): string {
-    if (status === 'ACTIVE') return '在读';
+    if (status === 'ACTIVE') return '鍦ㄨ';
     if (status === 'ARCHIVED') return '已归档';
-    return '未知';
+    return '鏈煡';
   }
 
   private upsertDetail(studentId: number, patch: Partial<StudentDetailVm>): void {
@@ -3342,13 +3412,12 @@ export class InfoManagementComponent implements OnInit {
     }
 
     for (const row of activeTaskRows) {
-      const taskLabel = `第 ${row.index + 1} 条义工任务`;
+      const taskLabel = `第${row.index + 1} 条义工任务：`;
       const taskName = row.task.taskName.trim();
       const description = row.task.description.trim();
       const durationHours = this.parseVolunteerDurationHours(row.task.durationHours);
       const startDate = row.task.startDate.trim();
       const endDate = row.task.endDate.trim();
-      const verifierContact = row.task.verifierContact.trim();
 
       if (!taskName) {
         return `${taskLabel}缺少任务名称。`;
@@ -3356,17 +3425,14 @@ export class InfoManagementComponent implements OnInit {
       if (!description) {
         return `${taskLabel}缺少任务描述。`;
       }
-      if (durationHours <= 0) {
-        return `${taskLabel}时长必须大于 0。`;
+      if (durationHours < 0) {
+        return `${taskLabel}时长不能小于 0。`;
       }
       if (!startDate) {
         return `${taskLabel}缺少开始日期。`;
       }
       if (!endDate) {
         return `${taskLabel}缺少结束日期。`;
-      }
-      if (!verifierContact) {
-        return `${taskLabel}缺少证明人联系方式。`;
       }
 
       const startAt = Date.parse(startDate);
@@ -3447,20 +3513,24 @@ export class InfoManagementComponent implements OnInit {
         [
           `${index + 1}. 任务名称：${task.taskName}`,
           `   任务描述：${task.description}`,
-          `   任务时长：${this.formatVolunteerHours(task.durationHours)} 小时`,
+          task.durationHours > 0 ? `   任务时长：${this.formatVolunteerHours(task.durationHours)} 小时` : '',
           `   开始日期：${task.startDate}`,
           `   结束日期：${task.endDate}`,
-          `   证明人联系方式：${task.verifierContact}`,
-        ].join('\n')
+          task.verifierContact ? `   证明人联系方式：${task.verifierContact}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
       )
       .join('\n');
 
     const totalHours = tasks.reduce((sum, task) => sum + task.durationHours, 0);
     const detail = [
-      `${VOLUNTEER_TOTAL_HOURS_PREFIX}${this.formatVolunteerHours(totalHours)} 小时`,
+      totalHours > 0 ? `${VOLUNTEER_TOTAL_HOURS_PREFIX}${this.formatVolunteerHours(totalHours)} 小时` : '',
       VOLUNTEER_TASK_COLLECTION_PREFIX,
       taskLines,
-    ].join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     return note ? `${note}\n\n${detail}` : detail;
   }
@@ -3504,7 +3574,7 @@ export class InfoManagementComponent implements OnInit {
     }
 
     const taskPattern =
-      /(?:^|\n)\s*\d+\.\s*任务名称：([^\n]*)\n\s*任务描述：([^\n]*)\n\s*任务时长：([0-9]+(?:\.[0-9]+)?)\s*小时\n\s*开始日期：([0-9]{4}-[0-9]{2}-[0-9]{2})\n\s*结束日期：([0-9]{4}-[0-9]{2}-[0-9]{2})\n\s*证明人联系方式：([^\n]*)/g;
+      /(?:^|\n)\s*\d+\.\s*任务名称：([^\n]*)\n\s*任务描述：([^\n]*)(?:\n\s*任务时长：([0-9]+(?:\.[0-9]+)?)\s*小时)?\n\s*开始日期：([0-9]{4}-[0-9]{2}-[0-9]{2})\n\s*结束日期：([0-9]{4}-[0-9]{2}-[0-9]{2})(?:\n\s*证明人联系方式：([^\n]*))?/g;
 
     const tasks: VolunteerTaskDraft[] = [];
     let matched: RegExpExecArray | null = taskPattern.exec(detailBlock);
@@ -3589,9 +3659,47 @@ export class InfoManagementComponent implements OnInit {
 
     const status = Number(obj.status);
     if (Number.isFinite(status) && status > 0) {
-      return `请求失败（HTTP ${status}）。`;
+      return `请求失败（HTTP ${status}）`;
     }
 
     return '';
   }
+
+  private saveDownloadedAttachment(blob: Blob, fileName: string): void {
+    const safeFileName = String(fileName || 'attachment.bin').trim() || 'attachment.bin';
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = safeFileName;
+      anchor.rel = 'noopener noreferrer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  formatFileSize(bytes: unknown): string {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value < 0) {
+      return '';
+    }
+    if (value < 1024) {
+      return `${Math.round(value)} B`;
+    }
+    const kb = value / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  }
 }
+
+
+
+
+
+

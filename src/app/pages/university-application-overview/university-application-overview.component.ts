@@ -47,7 +47,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   readonly ui = {
     applicationManagement: uiText('\u7533\u8bf7\u7ba1\u7406', 'Application Management'),
     pageTitle: uiText('\u6309\u5927\u5b66\u67e5\u770b\u7533\u8bf7', 'Applications by University'),
-    mockPreview: uiText('\u5c55\u793a\u6837\u4f8b', 'Show Sample'),
     refresh: uiText('\u5237\u65b0', 'Refresh'),
     back: uiText('\u8fd4\u56de', 'Back'),
     chooseUniversity: uiText('\u9009\u62e9\u5927\u5b66', 'Select University'),
@@ -79,10 +78,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     status: uiText('\u8fdb\u5ea6', 'Status'),
     updatedAt: uiText('\u66f4\u65b0', 'Updated'),
     updating: uiText('\u66f4\u65b0\u4e2d...', 'Updating...'),
-    mockBanner: uiText(
-      '\u5c55\u793a\u6837\u4f8b\uff1aUniversity of Toronto\uff0c3 \u4f4d\u5b66\u751f\uff0c5 \u4e2a\u4e13\u4e1a\u7533\u8bf7\u3002\u8fd9\u4e0d\u662f\u771f\u5b9e\u5b66\u751f\u6570\u636e\u3002',
-      'Sample: University of Toronto, 3 students, 5 program applications. This is not real student data.'
-    ),
     emptySelection: uiText(
       '\u5148\u9009\u62e9\u4e00\u6240\u5927\u5b66\uff0c\u7cfb\u7edf\u4f1a\u7ad6\u5411\u5217\u51fa\u6240\u6709\u6b63\u5f0f\u7533\u8bf7\u8be5\u5927\u5b66\u7684\u5b66\u751f\u3002',
       'Choose a university first. The page will list all students with formal applications to that university.'
@@ -216,7 +211,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   historyEntriesByStudentId = new Map<number, GraduationApplicationHistoryEntry[]>();
   historyTotalsByStudentId = new Map<number, number>();
   historyErrorsByStudentId = new Map<number, OverviewMessage>();
-  mockPreviewActive = false;
   loadingUniversities = false;
   loadingUniversitySummaries = false;
   loadingApplications = false;
@@ -321,7 +315,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
 
   selectUniversity(university: University): void {
     if (!university?.id) return;
-    this.mockPreviewActive = false;
     this.selectedUniversityId = university.id;
     this.selectedUniversity = university;
     this.universityQuery = university.name || '';
@@ -344,7 +337,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   }
 
   clearSelection(): void {
-    this.mockPreviewActive = false;
     this.selectedUniversityId = null;
     this.selectedUniversity = null;
     this.universityQuery = '';
@@ -360,7 +352,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   loadApplications(): void {
     if (!this.selectedUniversityId) return;
 
-    this.mockPreviewActive = false;
     this.loadingApplications = true;
     this.applicationError = '';
     this.students = [];
@@ -387,54 +378,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
           this.students = [];
         },
       });
-  }
-
-  loadMockPreview(): void {
-    this.mockPreviewActive = true;
-    this.loadingApplications = false;
-    this.applicationError = '';
-    this.clearPortalState();
-    this.clearHistoryState();
-    this.selectedUniversityId = 900001;
-    this.selectedUniversity = {
-      id: 900001,
-      name: 'University of Toronto',
-      city: 'Toronto',
-      province: 'Ontario',
-      country: 'Canada',
-    };
-    this.universityQuery = 'University of Toronto';
-    this.universityOptionsOpen = false;
-    this.students = this.sortStudentsForDisplay([
-      {
-        studentId: 1001,
-        studentName: 'Alice Zhang',
-        username: 'alice.zhang',
-        applications: [
-          this.createMockApplication(1001, 900001, 'University of Toronto', 910001, 'Computer Science', 'SUBMITTED', 1),
-          this.createMockApplication(1001, 900001, 'University of Toronto', 910002, 'Life Sciences', 'NOT_ADMITTED', 2),
-        ],
-      },
-      {
-        studentId: 1002,
-        studentName: 'Brian Li',
-        username: 'brian.li',
-        applications: [
-          this.createMockApplication(1002, 900001, 'University of Toronto', 910003, 'Rotman Commerce', 'OFFER_RECEIVED', 1),
-        ],
-      },
-      {
-        studentId: 1003,
-        studentName: 'Cindy Wang',
-        username: 'cindy.wang',
-        applications: [
-          this.createMockApplication(1003, 900001, 'University of Toronto', 910004, 'Architecture', 'READY_TO_SUBMIT', 1),
-          this.createMockApplication(1003, 900001, 'University of Toronto', 910005, 'Visual and Critical Studies', 'WAITING_RESULT', 2),
-        ],
-      },
-    ]);
-    this.expandedStudentIds = new Set<number>();
-    this.refreshView();
   }
 
   applicationsFor(student: GraduationApplicationUniversityStudent): GraduationApplication[] {
@@ -910,13 +853,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       return;
     }
 
-    if (this.mockPreviewActive) {
-      const credential = this.createMockPortalCredential(student);
-      this.portalCredentials.set(key, credential);
-      this.portalDrafts.set(key, this.createPortalDraft(credential));
-      return;
-    }
-
     this.setPortalLoading(key, true);
     this.portalErrors.delete(key);
     this.graduationStage
@@ -946,21 +882,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     const key = this.portalKeyFor(student);
     if (!universityId || !studentId) return;
 
-    if (this.mockPreviewActive) {
-      const saved = {
-        ...this.createMockPortalCredential(student),
-        ...draft,
-        updatedAt: new Date().toISOString(),
-      };
-      this.portalCredentials.set(key, saved);
-      this.portalDrafts.set(key, this.createPortalDraft(saved));
-      if (closeEditing) {
-        this.portalEditingKeys.delete(key);
-      }
-      this.refreshView();
-      return;
-    }
-
     this.setPortalSaving(key, true);
     this.portalErrors.delete(key);
     this.graduationStage
@@ -988,7 +909,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     const existing = this.portalDrafts.get(key);
     if (existing) return existing;
 
-    const credential = this.portalCredentials.get(key) || (this.mockPreviewActive ? this.createMockPortalCredential(student) : null);
+    const credential = this.portalCredentials.get(key) || null;
     if (credential) {
       this.portalCredentials.set(key, credential);
     }
@@ -1007,32 +928,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       studentVisible: credential?.studentVisible === true,
       interviewRequired: credential?.interviewRequired === true,
       languageScoreRequired: credential?.languageScoreRequired === true,
-    };
-  }
-
-  private createMockPortalCredential(
-    student: GraduationApplicationUniversityStudent
-  ): GraduationApplicationPortalCredential {
-    const studentId = Number(student?.studentId || 0);
-    const universityId = Number(this.selectedUniversityId || 0);
-    const year = new Date().getFullYear();
-    const username = String(student?.username || this.studentName(student) || `student${studentId}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '.')
-      .replace(/^\.+|\.+$/g, '');
-    const email = `${username || `student${studentId}`}vip${year}@outlook.com`;
-    return {
-      studentId,
-      universityId,
-      universityName: this.selectedUniversity?.name || '',
-      schoolAccount: '',
-      schoolEmail: email,
-      schoolPassword: 'ZAQ!2wsxcde3',
-      defaultSchoolEmail: email,
-      defaultSchoolPassword: 'ZAQ!2wsxcde3',
-      studentVisible: false,
-      interviewRequired: false,
-      languageScoreRequired: false,
     };
   }
 
@@ -1101,15 +996,6 @@ export class UniversityApplicationOverviewComponent implements OnInit {
   private loadHistoryForStudent(student: GraduationApplicationUniversityStudent): void {
     const studentId = Number(student?.studentId || 0);
     if (!studentId) return;
-
-    if (this.mockPreviewActive) {
-      const entry = this.createMockHistoryEntry(student);
-      this.historyEntriesByStudentId.set(studentId, entry ? [entry] : []);
-      this.historyTotalsByStudentId.set(studentId, entry ? 1 : 0);
-      this.historyErrorsByStudentId.delete(studentId);
-      this.refreshView();
-      return;
-    }
 
     this.setHistoryLoading(studentId, true);
     this.historyErrorsByStudentId.delete(studentId);
@@ -1276,49 +1162,4 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     return this.language.translate(value);
   }
 
-  private createMockHistoryEntry(
-    student: GraduationApplicationUniversityStudent
-  ): GraduationApplicationHistoryEntry | null {
-    const application = this.applicationsFor(student)[0];
-    if (!application) return null;
-    return {
-      id: `mock-history-${student.studentId}`,
-      studentId: student.studentId,
-      applicationId: Number(application.id) || undefined,
-      operation: 'UPDATE_APPLICATION',
-      actorRole: 'TEACHER',
-      actorName: 'Demo Teacher',
-      changedAt: new Date().toISOString(),
-      changedFields: [
-        {
-          path: 'status',
-          before: 'READY_TO_SUBMIT',
-          after: application.status,
-        },
-      ],
-    };
-  }
-
-  private createMockApplication(
-    studentId: number,
-    universityId: number,
-    universityName: string,
-    programId: number,
-    programName: string,
-    status: GraduationApplicationStatus,
-    sortOrder: number
-  ): GraduationApplication {
-    return {
-      id: `${studentId}-${programId}`,
-      studentId,
-      universityId,
-      universityName,
-      programId,
-      programName,
-      facultyName: 'Undergraduate Admissions',
-      status,
-      sortOrder,
-      updatedAt: new Date().toISOString(),
-    };
-  }
 }

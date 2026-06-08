@@ -6,9 +6,6 @@
         <h1>{{ ui.pageTitle | appTranslate }}</h1>
       </div>
       <div class="head-actions">
-        <button type="button" class="ghost-btn" (click)="loadMockPreview()">
-          {{ ui.mockPreview | appTranslate }}
-        </button>
         <button type="button" class="ghost-btn" (click)="loadApplications()" [disabled]="!selectedUniversityId || loadingApplications">
           {{ ui.refresh | appTranslate }}
         </button>
@@ -94,10 +91,6 @@
         <strong>{{ pendingCount }}</strong>
       </div>
     </section>
-
-    <div class="mock-banner" *ngIf="mockPreviewActive">
-      {{ ui.mockBanner | appTranslate }}
-    </div>
 
     <div class="state-card" *ngIf="!selectedUniversityId">
       {{ ui.emptySelection | appTranslate }}
