@@ -87,7 +87,9 @@ jobs:
           umask 077
           printf '%s\n' "${PROD_SSH_KEY}" > "${SSH_KEY_PATH}"
           chmod 600 "${SSH_KEY_PATH}"
-          ssh-keyscan -p "${PROD_PORT}" -H "${PROD_HOST}" >> "${HOME}/.ssh/known_hosts" 2>/dev/null
+          if ! ssh-keyscan -T 20 -p "${PROD_PORT}" -H "${PROD_HOST}" >> "${HOME}/.ssh/known_hosts" 2>/dev/null; then
+            echo "Warning: ssh-keyscan failed; SSH will use StrictHostKeyChecking=accept-new on first connection." >&2
+          fi
           echo "SSH_KEY_PATH=${SSH_KEY_PATH}" >> "${GITHUB_ENV}"
 
       - name: Deploy frontend to EC2
@@ -100,12 +102,12 @@ jobs:
         run: |
           set -euo pipefail
           remote_tmp="/tmp/student-management-frontend-${GITHUB_SHA}"
-          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "${PROD_USER}@${PROD_HOST}" \
             "rm -rf '${remote_tmp}' && mkdir -p '${remote_tmp}' && sudo mkdir -p '${PROD_FRONTEND_PATH}' /var/www/student-management-frontend-backups"
-          rsync -az --delete -e "ssh -i ${SSH_KEY_PATH} -p ${PROD_PORT}" \
+          rsync -az --delete -e "ssh -i ${SSH_KEY_PATH} -p ${PROD_PORT} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
             "${DIST_DIR}/" \
             "${PROD_USER}@${PROD_HOST}:${remote_tmp}/"
-          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "${PROD_USER}@${PROD_HOST}" \
             "if [ -f '${PROD_FRONTEND_PATH}/index.html' ]; then sudo rsync -a --delete '${PROD_FRONTEND_PATH}/' '/var/www/student-management-frontend-backups/${GITHUB_SHA}/'; fi && sudo rsync -a --delete '${remote_tmp}/' '${PROD_FRONTEND_PATH}/' && sudo chown -R ubuntu:www-data '${PROD_FRONTEND_PATH}' && sudo chmod -R g+rwX '${PROD_FRONTEND_PATH}' && rm -rf '${remote_tmp}'"
 
       - name: Reload Nginx and verify frontend
@@ -117,7 +119,7 @@ jobs:
           PROD_FRONTEND_URL: ${{ vars.PROD_FRONTEND_URL || 'https://globalvip-studentportal.ca/' }}
         run: |
           set -euo pipefail
-          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" "${PROD_USER}@${PROD_HOST}" \
+          ssh -i "${SSH_KEY_PATH}" -p "${PROD_PORT}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "${PROD_USER}@${PROD_HOST}" \
             "sudo nginx -t && sudo systemctl reload nginx"
           curl -fsS --retry 10 --retry-all-errors --retry-delay 3 "${PROD_FRONTEND_URL}" >/dev/null
 
