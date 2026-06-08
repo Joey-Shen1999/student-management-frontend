@@ -1596,7 +1596,7 @@ export class InfoManagementComponent implements OnInit {
   }
 
   infoCategoryLabel(category: InfoTaskCategory): string {
-    return category === 'VOLUNTEER' ? '涔夊伐' : '娲诲姩';
+    return category === 'VOLUNTEER' ? '义工' : '活动';
   }
 
   private loadAssignableStudents(): void {

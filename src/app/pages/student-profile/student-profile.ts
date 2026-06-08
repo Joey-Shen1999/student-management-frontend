@@ -3181,7 +3181,7 @@ export class StudentProfile implements OnInit {
       return source.schoolRecords;
     }
 
-    // 鍚戝悗鍏煎锛氳€佹暟鎹彲鑳芥妸瀛︽牎淇℃伅娣峰湪 otherCourses 閲?
+    // Backward compatibility: older data may have mixed school information into otherCourses.
     const unique = new Map<string, HighSchoolModel>();
     for (const item of rawCourses) {
       const sourceItem: any = item && typeof item === 'object' ? item : {};
