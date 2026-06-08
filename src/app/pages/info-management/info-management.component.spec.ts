@@ -1,4 +1,4 @@
-import { Router } from '@angular/router';
+﻿import { Router } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -214,7 +214,8 @@ describe('InfoManagementComponent', () => {
         content: '通知内容',
         tags: ['A', 'B'],
         studentIds: [20001],
-      })
+      }),
+      []
     );
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
@@ -245,7 +246,8 @@ describe('InfoManagementComponent', () => {
         content: '这是旧版本义工通知内容。',
         studentIds: [20001],
         taskGroupId: 'INFO-legacy',
-      })
+      }),
+      []
     );
   });
 
@@ -273,8 +275,40 @@ describe('InfoManagementComponent', () => {
         title: '义工通知',
         content: expect.stringContaining('义工总时长：3.50 小时'),
         studentIds: [20001],
-      })
+      }),
+      []
     );
+  });
+
+  it('createInfo should allow optional volunteer hours and verifier contact', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.onCreateInfoCategoryChange('VOLUNTEER');
+    component.createInfoTitle = '义工通知';
+    component.createInfoContent = '请按时提交证明材料。';
+    component.volunteerTasks = [
+      {
+        taskName: '图书馆整理',
+        description: '整理图书并帮助借还登记',
+        durationHours: '',
+        startDate: '2026-04-01',
+        endDate: '2026-04-01',
+        verifierContact: '',
+      },
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'VOLUNTEER',
+        title: '义工通知',
+        content: expect.stringContaining('图书馆整理'),
+      }),
+      []
+    );
+    const request = vi.mocked(taskCenter.createInfo).mock.calls.at(-1)?.[0];
+    expect(String(request?.content ?? '')).not.toContain('义工时长');
+    expect(String(request?.content ?? '')).not.toContain('证明人联系方式');
   });
 
   it('should use unified All option and normalize country aliases', () => {
@@ -362,3 +396,4 @@ describe('InfoManagementComponent', () => {
     expect(second.createStudentKeyword).toBe('alice');
   });
 });
+

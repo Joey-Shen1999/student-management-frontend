@@ -235,6 +235,77 @@
   line-height: 1.45;
 }
 
+.attachment-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dbe6f2;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #dfe6f4;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.attachment-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.attachment-meta strong {
+  font-size: 13px;
+  color: #172033;
+  word-break: break-word;
+}
+
+.attachment-meta small {
+  color: #607086;
+  font-size: 12px;
+}
+
+.attachment-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.attachment-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #4f6177;
+  font-size: 12px;
+}
+
+.attachment-link {
+  border: 1px solid #bfd5f4;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #edf5ff;
+  color: #174a86;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.attachment-link:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .volunteer-collection {
   display: grid;
   gap: 8px;

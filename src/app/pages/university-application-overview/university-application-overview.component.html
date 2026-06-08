@@ -6,9 +6,6 @@
         <h1>{{ ui.pageTitle | appTranslate }}</h1>
       </div>
       <div class="head-actions">
-        <button type="button" class="ghost-btn" (click)="loadMockPreview()">
-          {{ ui.mockPreview | appTranslate }}
-        </button>
         <button type="button" class="ghost-btn" (click)="loadApplications()" [disabled]="!selectedUniversityId || loadingApplications">
           {{ ui.refresh | appTranslate }}
         </button>
@@ -95,10 +92,6 @@
       </div>
     </section>
 
-    <div class="mock-banner" *ngIf="mockPreviewActive">
-      {{ ui.mockBanner | appTranslate }}
-    </div>
-
     <div class="state-card" *ngIf="!selectedUniversityId">
       {{ ui.emptySelection | appTranslate }}
     </div>
@@ -142,6 +135,14 @@
           <div class="student-card-actions">
             <span class="stage-chip">{{ studentStageLabel(student) | appTranslate }}</span>
             <span class="expand-chip">{{ (isStudentExpanded(student) ? ui.expanded : ui.collapsed) | appTranslate }}</span>
+            <button
+              type="button"
+              class="ghost-btn compact"
+              (click)="$event.stopPropagation(); toggleHistory(student)"
+              [disabled]="isHistoryLoading(student)"
+            >
+              {{ (isHistoryOpen(student) ? ui.hideHistory : ui.operationHistory) | appTranslate }}
+            </button>
             <button type="button" class="primary-btn" (click)="$event.stopPropagation(); openStudentApplication(student)">
               {{ ui.viewApplication | appTranslate }}
             </button>
@@ -320,6 +321,63 @@
                 </span>
                 <span>{{ ui.languageScore | appTranslate }}</span>
               </button>
+            </div>
+          </section>
+
+          <section class="history-panel overview-history" *ngIf="isHistoryOpen(student)">
+            <header>
+              <div>
+                <h3>{{ ui.operationHistory | appTranslate }}</h3>
+                <span>{{ historySummary(student) | appTranslate }}</span>
+              </div>
+              <div class="history-actions">
+                <button
+                  type="button"
+                  class="ghost-btn compact"
+                  (click)="$event.stopPropagation(); refreshHistory(student)"
+                  [disabled]="isHistoryLoading(student)"
+                >
+                  {{ ui.refresh | appTranslate }}
+                </button>
+              </div>
+            </header>
+
+            <div *ngIf="isHistoryLoading(student)" class="portal-state">
+              {{ ui.historyLoading | appTranslate }}
+            </div>
+            <div *ngIf="!isHistoryLoading(student) && historyError(student)" class="portal-state error">
+              <span>{{ historyError(student) | appTranslate }}</span>
+              <button type="button" class="ghost-btn compact" (click)="refreshHistory(student)">
+                {{ ui.retry | appTranslate }}
+              </button>
+            </div>
+            <div
+              *ngIf="!isHistoryLoading(student) && !historyError(student) && historyEntriesFor(student).length === 0"
+              class="portal-state"
+            >
+              {{ ui.historyEmpty | appTranslate }}
+            </div>
+
+            <div
+              class="history-list"
+              *ngIf="!isHistoryLoading(student) && !historyError(student) && historyEntriesFor(student).length > 0"
+            >
+              <article class="history-item" *ngFor="let entry of historyEntriesFor(student); trackBy: trackHistory">
+                <div class="history-meta">
+                  <strong>{{ displayHistoryOperation(entry) | appTranslate }}</strong>
+                  <span>{{ displayHistoryActor(entry) }}</span>
+                  <span>{{ displayHistoryTimestamp(entry) }}</span>
+                </div>
+
+                <ul class="history-changes" *ngIf="getHistoryChanges(entry).length > 0">
+                  <li *ngFor="let change of getHistoryChanges(entry); trackBy: trackHistoryChange">
+                    <span>{{ displayHistoryField(change) | appTranslate }}</span>
+                    <b>{{ displayHistoryValue(change.before) | appTranslate }}</b>
+                    <i aria-hidden="true">&rarr;</i>
+                    <b>{{ displayHistoryValue(change.after) | appTranslate }}</b>
+                  </li>
+                </ul>
+              </article>
             </div>
           </section>
 

@@ -6,6 +6,7 @@ import { finalize, timeout } from 'rxjs/operators';
 import { AuthService, type LoginResponse } from '../../services/auth.service';
 import { StudentProfileService } from '../../services/student-profile.service';
 import {
+  type InfoAttachmentVm,
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
@@ -196,6 +197,23 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
                 <span>发布老师：{{ info.publishedByTeacherName }}</span>
               </div>
 
+              <div class="info-attachments" *ngIf="info.attachments?.length">
+                <span>附件：</span>
+                <button
+                  type="button"
+                  class="attachment-chip"
+                  *ngFor="let attachment of info.attachments"
+                  (click)="downloadInfoAttachment(info, attachment)"
+                  [disabled]="infoAttachmentDownloadKey === (info.id + ':' + attachment.id)"
+                >
+                  {{
+                    infoAttachmentDownloadKey === (info.id + ':' + attachment.id)
+                      ? '下载中...'
+                      : attachment.fileName
+                  }}
+                </button>
+              </div>
+
               <div class="info-actions">
                 <button
                   type="button"
@@ -227,6 +245,23 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
                   <span>发布时间：{{ displayUpdatedAt(info.createdAt) }}</span>
                   <span>发布老师：{{ info.publishedByTeacherName }}</span>
                   <span *ngIf="info.readAt">已读时间：{{ displayUpdatedAt(info.readAt) }}</span>
+                </div>
+
+                <div class="info-attachments" *ngIf="info.attachments?.length">
+                  <span>附件：</span>
+                  <button
+                    type="button"
+                    class="attachment-chip"
+                    *ngFor="let attachment of info.attachments"
+                    (click)="downloadInfoAttachment(info, attachment)"
+                    [disabled]="infoAttachmentDownloadKey === (info.id + ':' + attachment.id)"
+                  >
+                    {{
+                      infoAttachmentDownloadKey === (info.id + ':' + attachment.id)
+                        ? '下载中...'
+                        : attachment.fileName
+                    }}
+                  </button>
                 </div>
               </article>
             </div>
@@ -286,6 +321,7 @@ export class DashboardComponent implements OnInit {
   applicationProgressLoading = false;
   applicationProgressError = '';
   copiedStudentPortalFieldKey: string | null = null;
+  infoAttachmentDownloadKey = '';
 
   private infoLoadWatchdog: number | null = null;
   private readonly welcomeNameTimeoutMs = 8000;
@@ -495,6 +531,32 @@ export class DashboardComponent implements OnInit {
       });
   }
 
+  downloadInfoAttachment(info: InfoTaskVm, attachment: InfoAttachmentVm): void {
+    if (!info || !attachment) {
+      return;
+    }
+    const downloadKey = `${info.id}:${attachment.id}`;
+    if (this.infoAttachmentDownloadKey === downloadKey) {
+      return;
+    }
+    this.infoAttachmentDownloadKey = downloadKey;
+    this.taskCenter
+      .downloadInfoAttachment(info.id, attachment.id)
+      .pipe(
+        finalize(() => {
+          this.infoAttachmentDownloadKey = '';
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (blob) => this.saveDownloadedAttachment(blob, attachment.fileName),
+        error: () => {
+          this.infoError = '下载附件失败。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
   trackInfo = (_index: number, info: InfoTaskVm): number => info.id;
 
   trackApplicationGroup = (_index: number, group: ApplicationProgressGroup): string => group.universityName;
@@ -508,6 +570,22 @@ export class DashboardComponent implements OnInit {
     }
 
     return new Date(timestamp).toLocaleString();
+  }
+
+  private saveDownloadedAttachment(blob: Blob, fileName: string): void {
+    const safeFileName = String(fileName || 'attachment.bin').trim() || 'attachment.bin';
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = safeFileName;
+      anchor.rel = 'noopener noreferrer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
 
   logout() {

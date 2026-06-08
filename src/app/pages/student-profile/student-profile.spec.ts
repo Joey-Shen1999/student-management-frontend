@@ -589,7 +589,7 @@ describe('StudentProfile', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Ontario Student Transcript');
-    expect(text).not.toContain('OEN 缂栧彿锛堝彲閫夛級');
+    expect(text).not.toContain('OEN 编号（可选）');
   });
 
   it('should infer studentRegion=Ontario from legacy OEN data when studentRegion is missing', () => {

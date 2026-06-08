@@ -1,4 +1,4 @@
-<div class="page">
+﻿<div class="page">
   <div *ngIf="showVolunteerDurationBadge" class="volunteer-total-badge">
     总义工时长：{{ volunteerTotalDurationLabel }} 小时
   </div>
@@ -128,7 +128,7 @@
                   />
                 </label>
                 <label class="field">
-                  <span>义工时长</span>
+                  <span>义工时长（可选）</span>
                   <input
                     [(ngModel)]="task.durationHours"
                     [ngModelOptions]="{ standalone: true }"
@@ -136,7 +136,7 @@
                     type="number"
                     min="0.1"
                     step="0.1"
-                    placeholder="小时"
+                    placeholder="可不填"
                   />
                 </label>
                 <label class="field">
@@ -158,12 +158,12 @@
                   />
                 </label>
                 <label class="field volunteer-task-span-2">
-                  <span>证明人联系方式</span>
+                  <span>证明人联系方式（可选）</span>
                   <input
                     [(ngModel)]="task.verifierContact"
                     [ngModelOptions]="{ standalone: true }"
                     [disabled]="creatingInfo"
-                    placeholder="证明人联系方式"
+                    placeholder="可不填"
                   />
                 </label>
                 <label class="field volunteer-task-span-2">
@@ -189,6 +189,58 @@
               [placeholder]="showVolunteerCollection ? '补充说明（可选）' : '通知内容'"
             ></textarea>
           </label>
+
+          <div class="attachment-panel">
+            <div class="section-heading">
+              <div>
+                <h4>通知附件</h4>
+              </div>
+              <small>可选，支持随邮件发送与学生下载</small>
+            </div>
+            <label class="field">
+              <span>上传文档</span>
+              <input
+                type="file"
+                multiple
+                [disabled]="creatingInfo"
+                (change)="onInfoAttachmentsChange($event)"
+              />
+            </label>
+
+            <div class="attachment-list" *ngIf="createInfoAttachments.length > 0">
+              <div class="attachment-row" *ngFor="let file of createInfoAttachments; let i = index">
+                <div class="attachment-meta">
+                  <strong>{{ file.name }}</strong>
+                  <small>{{ formatFileSize(file.size) }}</small>
+                </div>
+                <button type="button" class="btn ghost compact" (click)="removeSelectedInfoAttachment(i)" [disabled]="creatingInfo">
+                  移除
+                </button>
+              </div>
+              <div class="attachment-actions">
+                <button type="button" class="btn secondary compact" (click)="clearSelectedInfoAttachments()" [disabled]="creatingInfo">
+                  清空附件
+                </button>
+              </div>
+            </div>
+
+            <div class="attachment-list existing" *ngIf="isEditMode && existingInfoAttachments.length > 0">
+              <div class="attachment-row" *ngFor="let attachment of existingInfoAttachments">
+                <div class="attachment-meta">
+                  <strong>{{ attachment.fileName }}</strong>
+                  <small>{{ formatFileSize(attachment.sizeBytes) }}</small>
+                </div>
+                <button
+                  type="button"
+                  class="btn secondary compact"
+                  (click)="downloadExistingInfoAttachment(attachment)"
+                  [disabled]="creatingInfo || infoAttachmentDownloadKey === ((editingInfoId || 0) + ':' + attachment.id)"
+                >
+                  {{ infoAttachmentDownloadKey === ((editingInfoId || 0) + ':' + attachment.id) ? '下载中...' : '下载' }}
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -353,6 +405,18 @@
       </div>
       <p>{{ info.content }}</p>
       <small>覆盖学生：{{ info.targetStudentCount }}</small>
+      <div class="attachment-inline" *ngIf="info.attachments?.length">
+        <span>附件：</span>
+        <button
+          type="button"
+          class="attachment-link"
+          *ngFor="let attachment of info.attachments"
+          (click)="downloadInfoAttachment(info, attachment)"
+          [disabled]="infoAttachmentDownloadKey === (info.id + ':' + attachment.id)"
+        >
+          {{ infoAttachmentDownloadKey === (info.id + ':' + attachment.id) ? '下载中...' : attachment.fileName }}
+        </button>
+      </div>
       <div class="info-tags" *ngIf="info.tags.length > 0">
         <span *ngFor="let tag of info.tags">#{{ tag }}</span>
       </div>
@@ -432,3 +496,4 @@
     </div>
   </div>
 </div>
+
