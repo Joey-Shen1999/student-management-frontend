@@ -1284,12 +1284,12 @@ export class InfoManagementComponent implements OnInit {
   onInfoAttachmentsChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     const files = input?.files ? Array.from(input.files) : [];
-    const validationError = this.validateCreateInfoAttachments(files);
+    const mergedFiles = this.mergeCreateInfoAttachments(this.createInfoAttachments, files);
+    const validationError = this.validateCreateInfoAttachments(mergedFiles);
     if (validationError) {
-      this.createInfoAttachments = [];
       this.createInfoError = validationError;
     } else {
-      this.createInfoAttachments = files;
+      this.createInfoAttachments = mergedFiles;
       this.createInfoError = '';
     }
     if (input) {
@@ -3685,6 +3685,24 @@ export class InfoManagementComponent implements OnInit {
     }
 
     return '';
+  }
+
+  private mergeCreateInfoAttachments(existingFiles: File[], selectedFiles: File[]): File[] {
+    const mergedFiles = [...(existingFiles || [])];
+    const existingKeys = new Set(mergedFiles.map((file) => this.infoAttachmentFileKey(file)));
+    for (const file of selectedFiles || []) {
+      const key = this.infoAttachmentFileKey(file);
+      if (existingKeys.has(key)) {
+        continue;
+      }
+      existingKeys.add(key);
+      mergedFiles.push(file);
+    }
+    return mergedFiles;
+  }
+
+  private infoAttachmentFileKey(file: File): string {
+    return [file.name, file.size, file.lastModified, file.type].join('\u0000');
   }
 
   private validateCreateInfoAttachments(files: File[]): string {
