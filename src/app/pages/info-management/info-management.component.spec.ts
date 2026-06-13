@@ -220,6 +220,78 @@ describe('InfoManagementComponent', () => {
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
 
+  it('createInfo should reject an attachment larger than 30 MB', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.createInfoTitle = '通知标题';
+    component.createInfoContent = '通知内容';
+    component.createInfoAttachments = [
+      { name: 'large.pdf', size: 30 * 1024 * 1024 + 1 } as File,
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('超过 30 MB');
+  });
+
+  it('createInfo should reject attachments larger than 100 MB combined', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.createInfoTitle = '通知标题';
+    component.createInfoContent = '通知内容';
+    component.createInfoAttachments = [
+      { name: 'one.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'two.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'three.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'four.pdf', size: 10 * 1024 * 1024 + 1 } as File,
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('合计不能超过 100 MB');
+  });
+
+  it('should append files selected in multiple picker actions and ignore duplicates', () => {
+    const first = new File(['first'], 'first.pdf', {
+      type: 'application/pdf',
+      lastModified: 100,
+    });
+    const second = new File(['second'], 'second.pdf', {
+      type: 'application/pdf',
+      lastModified: 200,
+    });
+
+    component.onInfoAttachmentsChange({
+      target: { files: [first], value: 'first.pdf' },
+    } as unknown as Event);
+    component.onInfoAttachmentsChange({
+      target: { files: [second, first], value: 'second.pdf' },
+    } as unknown as Event);
+
+    expect(component.createInfoAttachments).toEqual([first, second]);
+  });
+
+  it('should preserve previously selected files when a new selection exceeds the limit', () => {
+    const existing = new File(['existing'], 'existing.pdf', {
+      type: 'application/pdf',
+      lastModified: 100,
+    });
+    const tooLarge = {
+      name: 'large.pdf',
+      size: 30 * 1024 * 1024 + 1,
+      lastModified: 200,
+      type: 'application/pdf',
+    } as File;
+    component.createInfoAttachments = [existing];
+
+    component.onInfoAttachmentsChange({
+      target: { files: [tooLarge], value: 'large.pdf' },
+    } as unknown as Event);
+
+    expect(component.createInfoAttachments).toEqual([existing]);
+    expect(component.createInfoError).toContain('超过 30 MB');
+  });
+
   it('createInfo should validate volunteer task collection', () => {
     component.onCreateStudentToggle(20001, true);
     component.onCreateInfoCategoryChange('VOLUNTEER');

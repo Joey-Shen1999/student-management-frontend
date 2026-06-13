@@ -49,6 +49,9 @@ import {
 import { StudentSelectorPanelComponent } from '../../shared/student-selector/student-selector-panel.component';
 import { navigateBack } from '../../utils/navigate-back';
 
+const INFO_ATTACHMENT_MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+const INFO_ATTACHMENTS_MAX_TOTAL_SIZE_BYTES = 100 * 1024 * 1024;
+
 interface StudentDetailVm {
   email: string;
   phone: string;
@@ -1281,7 +1284,14 @@ export class InfoManagementComponent implements OnInit {
   onInfoAttachmentsChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     const files = input?.files ? Array.from(input.files) : [];
-    this.createInfoAttachments = files;
+    const mergedFiles = this.mergeCreateInfoAttachments(this.createInfoAttachments, files);
+    const validationError = this.validateCreateInfoAttachments(mergedFiles);
+    if (validationError) {
+      this.createInfoError = validationError;
+    } else {
+      this.createInfoAttachments = mergedFiles;
+      this.createInfoError = '';
+    }
     if (input) {
       input.value = '';
     }
@@ -1293,11 +1303,13 @@ export class InfoManagementComponent implements OnInit {
       return;
     }
     this.createInfoAttachments = this.createInfoAttachments.filter((_, currentIndex) => currentIndex !== index);
+    this.createInfoError = this.validateCreateInfoAttachments(this.createInfoAttachments);
     this.cdr.detectChanges();
   }
 
   clearSelectedInfoAttachments(): void {
     this.createInfoAttachments = [];
+    this.createInfoError = '';
     this.cdr.detectChanges();
   }
 
@@ -1343,6 +1355,13 @@ export class InfoManagementComponent implements OnInit {
     if (selectedStudentIds.length === 0) {
       this.openStudentSelectorModal();
       this.createInfoError = '请至少选择 1 位学生。';
+      this.createInfoSuccess = '';
+      return;
+    }
+
+    const attachmentValidationError = this.validateCreateInfoAttachments(this.createInfoAttachments);
+    if (attachmentValidationError) {
+      this.createInfoError = attachmentValidationError;
       this.createInfoSuccess = '';
       return;
     }
@@ -3636,6 +3655,9 @@ export class InfoManagementComponent implements OnInit {
       status?: unknown;
       statusText?: unknown;
     };
+    if (Number(obj.status) === 413) {
+      return '附件总大小超过服务器允许范围。单个文件最多 30 MB，全部附件合计最多 100 MB。';
+    }
 
     if (obj.error && typeof obj.error === 'object') {
       const payload = obj.error as {
@@ -3662,6 +3684,38 @@ export class InfoManagementComponent implements OnInit {
       return `请求失败（HTTP ${status}）`;
     }
 
+    return '';
+  }
+
+  private mergeCreateInfoAttachments(existingFiles: File[], selectedFiles: File[]): File[] {
+    const mergedFiles = [...(existingFiles || [])];
+    const existingKeys = new Set(mergedFiles.map((file) => this.infoAttachmentFileKey(file)));
+    for (const file of selectedFiles || []) {
+      const key = this.infoAttachmentFileKey(file);
+      if (existingKeys.has(key)) {
+        continue;
+      }
+      existingKeys.add(key);
+      mergedFiles.push(file);
+    }
+    return mergedFiles;
+  }
+
+  private infoAttachmentFileKey(file: File): string {
+    return [file.name, file.size, file.lastModified, file.type].join('\u0000');
+  }
+
+  private validateCreateInfoAttachments(files: File[]): string {
+    let totalSize = 0;
+    for (const file of files || []) {
+      if (file.size > INFO_ATTACHMENT_MAX_FILE_SIZE_BYTES) {
+        return `附件“${file.name}”超过 30 MB。`;
+      }
+      totalSize += file.size;
+      if (totalSize > INFO_ATTACHMENTS_MAX_TOTAL_SIZE_BYTES) {
+        return '全部附件合计不能超过 100 MB。';
+      }
+    }
     return '';
   }
 
