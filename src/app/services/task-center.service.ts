@@ -349,6 +349,7 @@ export class TaskCenterService {
   private readonly studentBaseUrl = '/api/student/tasks';
   private readonly teacherBaseUrl = '/api/teacher/tasks';
   private readonly requestTimeoutMs = 12000;
+  private readonly attachmentUploadTimeoutMs = 300000;
   private readonly mockGoals$ = new BehaviorSubject<GoalTaskVm[]>(MOCK_GOALS);
   private readonly mockInfos$ = new BehaviorSubject<InfoTaskVm[]>(MOCK_INFOS);
 
@@ -701,7 +702,8 @@ export class TaskCenterService {
         attachments.length > 0
           ? this.withAuthHeaderIfAvailable()
           : this.withAuthHeaderIfAvailable()
-      )
+      ),
+      attachments.length > 0 ? this.attachmentUploadTimeoutMs : this.requestTimeoutMs
     );
   }
 
@@ -1719,8 +1721,11 @@ export class TaskCenterService {
     return this.nextInfoId() * 10 + offset + 1;
   }
 
-  private withRequestTimeout<T>(source$: Observable<T>): Observable<T> {
-    return source$.pipe(timeout({ first: this.requestTimeoutMs }));
+  private withRequestTimeout<T>(
+    source$: Observable<T>,
+    timeoutMs: number = this.requestTimeoutMs
+  ): Observable<T> {
+    return source$.pipe(timeout({ first: timeoutMs }));
   }
 
   private withAuthHeaderIfAvailable() {

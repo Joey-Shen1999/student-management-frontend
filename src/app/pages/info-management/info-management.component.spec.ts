@@ -220,6 +220,37 @@ describe('InfoManagementComponent', () => {
     expect(component.createInfoSuccess).toContain('通知已发布');
   });
 
+  it('createInfo should reject an attachment larger than 30 MB', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.createInfoTitle = '通知标题';
+    component.createInfoContent = '通知内容';
+    component.createInfoAttachments = [
+      { name: 'large.pdf', size: 30 * 1024 * 1024 + 1 } as File,
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('超过 30 MB');
+  });
+
+  it('createInfo should reject attachments larger than 100 MB combined', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.createInfoTitle = '通知标题';
+    component.createInfoContent = '通知内容';
+    component.createInfoAttachments = [
+      { name: 'one.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'two.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'three.pdf', size: 30 * 1024 * 1024 } as File,
+      { name: 'four.pdf', size: 10 * 1024 * 1024 + 1 } as File,
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('合计不能超过 100 MB');
+  });
+
   it('createInfo should validate volunteer task collection', () => {
     component.onCreateStudentToggle(20001, true);
     component.onCreateInfoCategoryChange('VOLUNTEER');
