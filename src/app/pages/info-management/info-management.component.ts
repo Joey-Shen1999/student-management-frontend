@@ -3706,7 +3706,10 @@ export class InfoManagementComponent implements OnInit {
   }
 
   private validateCreateInfoAttachments(files: File[]): string {
-    let totalSize = 0;
+    let totalSize = this.existingInfoAttachments.reduce(
+      (sum, attachment) => sum + Math.max(0, Number(attachment.sizeBytes) || 0),
+      0
+    );
     for (const file of files || []) {
       if (file.size > INFO_ATTACHMENT_MAX_FILE_SIZE_BYTES) {
         return `附件“${file.name}”超过 30 MB。`;
