@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 
 import {
   type AssignableStudentOptionVm,
+  type InfoAttachmentVm,
   type InfoTaskVm,
   TaskCenterService,
 } from '../../services/task-center.service';
@@ -243,6 +244,25 @@ describe('InfoManagementComponent', () => {
       { name: 'two.pdf', size: 30 * 1024 * 1024 } as File,
       { name: 'three.pdf', size: 30 * 1024 * 1024 } as File,
       { name: 'four.pdf', size: 10 * 1024 * 1024 + 1 } as File,
+    ];
+
+    component.createInfo();
+
+    expect(taskCenter.createInfo).not.toHaveBeenCalled();
+    expect(component.createInfoError).toContain('合计不能超过 100 MB');
+  });
+
+  it('createInfo should include existing attachments in the 100 MB edit limit', () => {
+    component.onCreateStudentToggle(20001, true);
+    component.editingInfoId = 123;
+    component.editingInfoTaskGroupId = 'INFO-existing-attachments';
+    component.createInfoTitle = '通知标题';
+    component.createInfoContent = '通知内容';
+    component.existingInfoAttachments = [
+      { id: 1, fileName: 'existing.pdf', sizeBytes: 75 * 1024 * 1024 } as InfoAttachmentVm,
+    ];
+    component.createInfoAttachments = [
+      { name: 'new.pdf', size: 30 * 1024 * 1024 } as File,
     ];
 
     component.createInfo();

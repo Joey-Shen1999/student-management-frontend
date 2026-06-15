@@ -225,6 +225,7 @@
             </div>
 
             <div class="attachment-list existing" *ngIf="isEditMode && existingInfoAttachments.length > 0">
+              <small>已有附件（保存时保留）</small>
               <div class="attachment-row" *ngFor="let attachment of existingInfoAttachments">
                 <div class="attachment-meta">
                   <strong>{{ attachment.fileName }}</strong>
