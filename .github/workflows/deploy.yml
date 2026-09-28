@@ -19,6 +19,7 @@ jobs:
       AWS_HOST: ${{ vars.AWS_HOST }}
       AWS_USER: ${{ vars.AWS_USER }}
       AWS_PORT: ${{ vars.AWS_PORT }}
+      AWS_HOST_KEY_FINGERPRINT: ${{ vars.AWS_HOST_KEY_FINGERPRINT }}
       DEPLOY_PATH: /var/www/student-management-frontend
       LEGACY_DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       NGINX_SITE_PATH: ${{ vars.NGINX_SITE_PATH }}
@@ -38,7 +39,7 @@ jobs:
       - name: Validate deployment variables
         run: |
           set -euo pipefail
-          required_vars=(AWS_HOST AWS_USER AWS_PORT NGINX_SITE_PATH)
+          required_vars=(AWS_HOST AWS_USER AWS_PORT AWS_HOST_KEY_FINGERPRINT NGINX_SITE_PATH)
           for var_name in "${required_vars[@]}"; do
             if [[ -z "${!var_name:-}" ]]; then
               echo "::error::Missing required GitHub Variable: ${var_name}"
@@ -114,14 +115,17 @@ jobs:
           echo "Resolved build output: ${build_dir}"
 
       - name: Configure SSH
+        env:
+          AWS_SSH_KEY: ${{ secrets.AWS_SSH_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p "${AWS_PORT}" -H "${AWS_HOST}" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          test -n "$AWS_SSH_KEY" || { echo 'Missing AWS_SSH_KEY'; exit 1; }
+          install -d -m 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$AWS_SSH_KEY" > ~/.ssh/id_ed25519
+          ssh-keyscan -T 10 -t ed25519 -p "$AWS_PORT" "$AWS_HOST" 2>/dev/null > ~/.ssh/known_hosts
+          actual="$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')"
+          test "$actual" = "$AWS_HOST_KEY_FINGERPRINT" || { echo 'SSH host key fingerprint mismatch'; exit 1; }
 
       - name: Upload build artifacts to server tmp directory
         run: |
@@ -212,15 +216,12 @@ jobs:
             exit 1
           fi
 
-          if [[ ! -f "${NGINX_SITE_PATH}" ]]; then
-            echo "Nginx site config not found. Creating from template..."
-            sudo -n mkdir -p "$(dirname "${NGINX_SITE_PATH}")"
-            sudo -n install -m 644 "${REMOTE_NGINX_CONF_PATH}" "${NGINX_SITE_PATH}"
+          sudo -n mkdir -p "$(dirname "${NGINX_SITE_PATH}")"
+          sudo -n install -m 644 "${REMOTE_NGINX_CONF_PATH}" "${NGINX_SITE_PATH}"
 
-            if [[ "${NGINX_SITE_PATH}" == /etc/nginx/sites-available/* ]]; then
-              site_name="$(basename "${NGINX_SITE_PATH}")"
-              sudo -n ln -sfn "/etc/nginx/sites-available/${site_name}" "/etc/nginx/sites-enabled/${site_name}"
-            fi
+          if [[ "${NGINX_SITE_PATH}" == /etc/nginx/sites-available/* ]]; then
+            site_name="$(basename "${NGINX_SITE_PATH}")"
+            sudo -n ln -sfn "/etc/nginx/sites-available/${site_name}" "/etc/nginx/sites-enabled/${site_name}"
           fi
 
           sudo -n mkdir -p "${DEPLOY_PATH}"
