@@ -502,10 +502,11 @@
           </div>
         </label>
 
-        <label class="autocomplete-field">
+        <div class="autocomplete-field">
           <span>专业</span>
-          <input
+          <input *ngIf="!otherProgram"
             type="text"
+            aria-label="专业"
             [(ngModel)]="form.programName"
             (ngModelChange)="onFormProgramInput()"
             (focus)="onFormProgramFocus()"
@@ -513,7 +514,9 @@
             [placeholder]="loadingPrograms ? '读取专业中...' : '输入或选择专业'"
             autocomplete="off"
           />
-          <div *ngIf="programSuggestionsOpen && selectedFormUniversity && visibleFormPrograms.length > 0" class="suggestion-list">
+          <input *ngIf="otherProgram" type="text" [(ngModel)]="form.programName" aria-label="手动输入专业名称"
+            [disabled]="formSaving" maxlength="180" placeholder="手动输入专业名称" autocomplete="off" />
+          <div *ngIf="!otherProgram && programSuggestionsOpen && selectedFormUniversity && visibleFormPrograms.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let program of visibleFormPrograms; trackBy: trackProgram"
@@ -525,7 +528,9 @@
               {{ program.programName }}
             </button>
           </div>
-        </label>
+          <button class="ghost-btn compact" *ngIf="selectedFormUniversity && !otherProgram" type="button" (click)="selectOtherProgram()" [disabled]="formSaving">Other / 其他（手动输入）</button>
+          <button class="ghost-btn compact" *ngIf="otherProgram" type="button" (click)="otherProgram = false; form.programName = ''; form.programId = null" [disabled]="formSaving">返回专业列表</button>
+        </div>
 
         <label class="autocomplete-field">
           <span>进度</span>

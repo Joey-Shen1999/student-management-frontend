@@ -218,12 +218,22 @@
   gap: 12px;
 }
 
-.dialog-form label {
+.dialog-form label,
+.dialog-form .autocomplete-field {
   display: grid;
   gap: 5px;
   color: #41516a;
   font-size: 13px;
   font-weight: 700;
+}
+
+.other-program-btn {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #1d5fbf;
+  padding: 2px 0;
+  cursor: pointer;
 }
 
 .suggestion-list {

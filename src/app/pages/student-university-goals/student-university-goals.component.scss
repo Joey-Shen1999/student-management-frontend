@@ -242,10 +242,20 @@ dd {
   gap: 12px;
 }
 
-label {
+label,
+.program-field {
   display: grid;
   gap: 6px;
   font-weight: 800;
+}
+
+.other-program-btn {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #1d5fbf;
+  padding: 2px 0;
+  cursor: pointer;
 }
 
 input,

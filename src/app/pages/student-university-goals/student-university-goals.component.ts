@@ -104,6 +104,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   dragIndex: number | null = null;
   universitySuggestionsOpen = false;
   programSuggestionsOpen = false;
+  otherProgram = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -165,6 +166,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   openModal(): void {
+    this.otherProgram = false;
     this.draft = this.createEmptyDraft();
     this.editingChoiceId = null;
     this.message = '';
@@ -175,6 +177,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   openEditModal(choice: UniversityChoice): void {
+    this.otherProgram = false;
     this.editingChoiceId = choice.id;
     this.draft = {
       universityName: choice.universityName,
@@ -191,6 +194,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
   closeModal(): void {
     if (this.saving) return;
     this.modalOpen = false;
+    this.otherProgram = false;
     this.editingChoiceId = null;
     this.universitySuggestionsOpen = false;
     this.programSuggestionsOpen = false;
@@ -219,7 +223,14 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   selectProgram(program: UniversityProgram): void {
+    this.otherProgram = false;
     this.draft.programName = program.programName;
+    this.programSuggestionsOpen = false;
+  }
+
+  selectOtherProgram(): void {
+    this.otherProgram = true;
+    this.draft.programName = '';
     this.programSuggestionsOpen = false;
   }
 
@@ -229,6 +240,35 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
     if (!university) {
       this.error = this.ui.universityRequired;
+      return;
+    }
+    if (this.otherProgram) {
+      const name = this.draft.programName.trim();
+      if (!name || name.length > 180 || name.toLowerCase() === 'other') {
+        this.error = uiText('请输入 1–180 个字符的专业名称。', 'Enter a program name of 1–180 characters.');
+        return;
+      }
+      if (!this.studentId || this.usingLocalDraft) {
+        this.otherProgram = false;
+        this.saveLocalChoice(university, { id: Date.now(), universityId: university.id, programName: name });
+        return;
+      }
+      this.saving = true;
+      this.universityApi.createCustomProgram(university.id, name).subscribe({
+        next: (saved) => {
+          const programs = this.programsByUniversityId.get(university.id) ?? [];
+          this.programsByUniversityId.set(university.id, [...programs, saved]);
+          this.draft.programName = saved.programName;
+          this.otherProgram = false;
+          this.saving = false;
+          this.addChoice();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.saving = false;
+          this.error = this.extractErrorMessage(err) || this.ui.saveFailed;
+          this.cdr.detectChanges();
+        },
+      });
       return;
     }
     if (!program || program.universityId !== university.id) {

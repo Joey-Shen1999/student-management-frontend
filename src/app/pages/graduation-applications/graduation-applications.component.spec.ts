@@ -102,6 +102,9 @@ describe('GraduationApplicationsComponent', () => {
           },
         ])
       ),
+      createCustomProgram: vi.fn().mockImplementation((universityId: number, programName: string) =>
+        of({ id: 99, universityId, programName })
+      ),
     } as unknown as UniversityAspirationService;
     const cdr = {
       markForCheck: vi.fn(),
@@ -243,6 +246,24 @@ describe('GraduationApplicationsComponent', () => {
       sourceAspirationId: undefined,
     });
     expect(component.applications.map((application) => application.id)).toEqual([1, 2]);
+    expect(component.formOpen).toBe(false);
+  });
+
+  it('saves an Other program before creating the formal application', () => {
+    const { component, graduationStage, universityApi } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    component.openAddUniversity();
+    component.selectFormUniversity({ id: 2, name: 'University B' });
+    component.selectOtherProgram();
+    component.form.programName = '  New 2027 Program  ';
+
+    component.saveApplicationForm();
+
+    expect(universityApi.createCustomProgram).toHaveBeenCalledWith(2, 'New 2027 Program');
+    expect(graduationStage.createApplication).toHaveBeenCalledWith(101, expect.objectContaining({
+      universityId: 2,
+      programId: 99,
+    }));
     expect(component.formOpen).toBe(false);
   });
 
