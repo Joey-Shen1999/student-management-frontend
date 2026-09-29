@@ -73,6 +73,14 @@ export class UniversityAspirationService {
     );
   }
 
+  createCustomProgram(universityId: number, programName: string): Observable<UniversityProgram> {
+    return this.http.post<UniversityProgram>(
+      `${this.universityUrl}/${Math.trunc(universityId)}/programs`,
+      { programName: programName.trim() },
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
   listAspirations(studentId: number): Observable<UniversityAspiration[]> {
     return this.http.get<UniversityAspiration[]>(
       `${this.aspirationStudentUrl}/${Math.trunc(studentId)}/university-aspirations`,

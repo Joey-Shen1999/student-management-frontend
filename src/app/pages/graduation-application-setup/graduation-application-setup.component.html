@@ -149,17 +149,20 @@
             </div>
           </label>
 
-          <label class="autocomplete-field">
+          <div class="autocomplete-field">
             <span>专业</span>
-            <input
+            <input *ngIf="!otherProgram"
               type="text"
+              aria-label="专业"
               [(ngModel)]="newProgramName"
               (ngModelChange)="onNewProgramInput()"
               (focus)="onNewProgramFocus()"
               [disabled]="!selectedNewUniversity || loadingPrograms"
               [placeholder]="loadingPrograms ? '读取专业中...' : '输入或选择专业'"
             />
-            <div *ngIf="programSuggestionsOpen && selectedNewUniversity && visibleNewPrograms.length > 0" class="suggestion-list">
+            <input *ngIf="otherProgram" type="text" [(ngModel)]="newProgramName" maxlength="180" aria-label="手动输入专业名称"
+              placeholder="手动输入专业名称" />
+            <div *ngIf="!otherProgram && programSuggestionsOpen && selectedNewUniversity && visibleNewPrograms.length > 0" class="suggestion-list">
               <button
                 type="button"
                 *ngFor="let program of visibleNewPrograms; trackBy: trackProgram"
@@ -171,7 +174,9 @@
                 {{ program.programName }}
               </button>
             </div>
-          </label>
+            <button class="other-program-btn" *ngIf="selectedNewUniversity && !otherProgram" type="button" (click)="selectOtherProgram()">Other / 其他（手动输入）</button>
+            <button class="other-program-btn" *ngIf="otherProgram" type="button" (click)="otherProgram = false; newProgramName = ''; newProgramId = null">返回专业列表</button>
+          </div>
         </div>
 
         <footer class="dialog-actions">

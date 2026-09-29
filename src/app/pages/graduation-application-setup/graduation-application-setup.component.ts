@@ -49,6 +49,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   universities: University[] = [];
   newUniversityName = '';
   newProgramName = '';
+  otherProgram = false;
   newUniversityId: number | null = null;
   newProgramId: number | null = null;
   newProgramOptions: UniversityProgram[] = [];
@@ -183,6 +184,27 @@ export class GraduationApplicationSetupComponent implements OnInit {
       this.markViewForCheck();
       return;
     }
+    if (this.otherProgram) {
+      const name = this.newProgramName.trim();
+      if (!name || name.length > 180 || name.toLowerCase() === 'other') {
+        this.addDialogError = '请输入 1–180 个字符的专业名称。';
+        return;
+      }
+      this.aspirationApi.createCustomProgram(university.id, name).subscribe({
+        next: (saved) => {
+          this.newProgramOptions = [...this.newProgramOptions, saved];
+          this.newProgramName = saved.programName;
+          this.newProgramId = saved.id;
+          this.otherProgram = false;
+          this.addDraft();
+        },
+        error: () => {
+          this.addDialogError = '保存自填专业失败，请稍后重试。';
+          this.markViewForCheck();
+        },
+      });
+      return;
+    }
     if (!program || (program.universityId && Number(program.universityId) !== university.id)) {
       this.addDialogError = '请选择该大学下的专业。';
       this.programSuggestionsOpen = true;
@@ -234,6 +256,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   openAddDraftDialog(): void {
+    this.otherProgram = false;
     this.addDialogOpen = true;
     this.addDialogError = '';
     this.editingDraftId = null;
@@ -242,6 +265,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   openEditDraftDialog(draft: ApplicationDraft): void {
+    this.otherProgram = false;
     this.editingDraftId = String(draft.id);
     this.addDialogOpen = true;
     this.addDialogError = '';
@@ -259,6 +283,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   closeAddDraftDialog(): void {
+    this.otherProgram = false;
     this.addDialogOpen = false;
     this.addDialogError = '';
     this.editingDraftId = null;
@@ -430,10 +455,20 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   selectNewProgram(program: UniversityProgram): void {
+    this.otherProgram = false;
     this.newProgramName = program.programName;
     this.newProgramId = program.id;
     this.addDialogError = '';
     this.programSuggestionsOpen = false;
+    this.markViewForCheck();
+  }
+
+  selectOtherProgram(): void {
+    this.otherProgram = true;
+    this.newProgramId = null;
+    this.newProgramName = '';
+    this.programSuggestionsOpen = false;
+    this.addDialogError = '';
     this.markViewForCheck();
   }
 

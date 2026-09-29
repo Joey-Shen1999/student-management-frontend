@@ -88,16 +88,19 @@
           </div>
         </label>
 
-        <label>
+        <div class="program-field">
           <span>{{ ui.program | appTranslate }}</span>
-          <input
+          <input *ngIf="!otherProgram"
             type="text"
+            aria-label="Program"
             [(ngModel)]="draft.programName"
             (ngModelChange)="onProgramInput()"
             [disabled]="!selectedUniversity || saving"
             [placeholder]="ui.programPlaceholder | appTranslate"
           />
-          <div *ngIf="programSuggestionsOpen && selectedUniversity && visiblePrograms.length > 0" class="suggestion-list">
+          <input *ngIf="otherProgram" type="text" [(ngModel)]="draft.programName" aria-label="Custom program name"
+            [disabled]="saving" maxlength="180" [placeholder]="'手动输入专业名称' | appTranslate" />
+          <div *ngIf="!otherProgram && programSuggestionsOpen && selectedUniversity && visiblePrograms.length > 0" class="suggestion-list">
             <button
               type="button"
               *ngFor="let program of visiblePrograms"
@@ -110,7 +113,9 @@
               {{ program.programName }}
             </button>
           </div>
-        </label>
+          <button class="other-program-btn" *ngIf="selectedUniversity && !otherProgram" type="button" (click)="selectOtherProgram()" [disabled]="saving">Other / 其他</button>
+          <button class="other-program-btn" *ngIf="otherProgram" type="button" (click)="otherProgram = false; draft.programName = ''" [disabled]="saving">返回专业列表</button>
+        </div>
       </div>
 
       <footer>

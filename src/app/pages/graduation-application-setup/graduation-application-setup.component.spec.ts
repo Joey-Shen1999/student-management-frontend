@@ -33,6 +33,9 @@ describe('GraduationApplicationSetupComponent', () => {
     const aspirationApi = {
       listUniversities: vi.fn().mockReturnValue(of([])),
       listPrograms: vi.fn().mockReturnValue(of([])),
+      createCustomProgram: vi.fn().mockImplementation((universityId: number, programName: string) =>
+        of({ id: 99, universityId, programName })
+      ),
       listAspirations: vi.fn().mockReturnValue(options?.aspirations$ ?? of([])),
     } as unknown as UniversityAspirationService;
     const graduationStage = {
@@ -82,6 +85,21 @@ describe('GraduationApplicationSetupComponent', () => {
     component.goBack();
 
     expect(location.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds a manually entered program to the confirmation draft', () => {
+    const { component, aspirationApi } = createComponent();
+    component.universities = [{ id: 1, name: 'University A' }];
+    component.openAddDraftDialog();
+    component.newUniversityName = 'University A';
+    component.selectOtherProgram();
+    component.newProgramName = 'Emerging Studies';
+
+    component.addDraft();
+
+    expect(aspirationApi.createCustomProgram).toHaveBeenCalledWith(1, 'Emerging Studies');
+    expect(component.drafts[0]).toMatchObject({ programId: 99, programName: 'Emerging Studies' });
+    expect(component.addDialogOpen).toBe(false);
   });
 
   it('clears the loading state when both backend reads stall', () => {

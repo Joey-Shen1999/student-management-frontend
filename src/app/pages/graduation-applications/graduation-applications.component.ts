@@ -321,6 +321,7 @@ export class GraduationApplicationsComponent implements OnInit {
   loadingPrograms = false;
   universitySuggestionsOpen = false;
   programSuggestionsOpen = false;
+  otherProgram = false;
 
   historyPanelOpen = false;
   historyLoading = false;
@@ -554,6 +555,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   openAddUniversity(): void {
+    this.otherProgram = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'addUniversity';
@@ -566,6 +568,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   openAddProgram(group: ApplicationGroup): void {
+    this.otherProgram = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'addProgram';
@@ -587,6 +590,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   openEditApplication(application: GraduationApplication): void {
+    this.otherProgram = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'editProgram';
@@ -610,6 +614,7 @@ export class GraduationApplicationsComponent implements OnInit {
   closeApplicationForm(force = false): void {
     if (this.formSaving && !force) return;
     this.formOpen = false;
+    this.otherProgram = false;
     this.formError = '';
     this.formMode = 'addUniversity';
     this.editingApplication = null;
@@ -622,6 +627,30 @@ export class GraduationApplicationsComponent implements OnInit {
 
   saveApplicationForm(): void {
     if (this.formSaving) return;
+    if (this.otherProgram) {
+      const university = this.selectedFormUniversity;
+      const name = this.form.programName.trim();
+      if (!university || !name || name.length > 180 || name.toLowerCase() === 'other') {
+        this.formError = '请先选择大学，并输入 1–180 个字符的专业名称。';
+        return;
+      }
+      this.formSaving = true;
+      this.universityApi.createCustomProgram(university.id, name).subscribe({
+        next: (program) => {
+          this.formSaving = false;
+          this.programOptions = [...this.programOptions, program];
+          this.selectFormProgram(program);
+          this.otherProgram = false;
+          this.saveApplicationForm();
+        },
+        error: (error: unknown) => {
+          this.formSaving = false;
+          this.formError = this.extractErrorMessage(error) || '保存自填专业失败。';
+          this.cdr.markForCheck();
+        },
+      });
+      return;
+    }
     const payload = this.buildApplicationFormPayload();
     if (!payload) return;
 
@@ -1294,10 +1323,20 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   selectFormProgram(program: UniversityProgram): void {
+    this.otherProgram = false;
     this.form.programName = program.programName;
     this.form.programId = program.id;
     this.formError = '';
     this.programSuggestionsOpen = false;
+    this.cdr.markForCheck();
+  }
+
+  selectOtherProgram(): void {
+    this.otherProgram = true;
+    this.form.programId = null;
+    this.form.programName = '';
+    this.programSuggestionsOpen = false;
+    this.formError = '';
     this.cdr.markForCheck();
   }
 
