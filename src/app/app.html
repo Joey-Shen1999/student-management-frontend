@@ -1,15 +1,14 @@
 <div class="app-shell">
   <app-language-toggle></app-language-toggle>
 
-  @if (showGlobalSignOut) {
-    <button
-      type="button"
-      class="global-signout-btn"
-      [disabled]="signingOut"
-      (click)="signOut()"
-    >
-      {{ globalSignOutLabel }}
-    </button>
+  @if (showPageNavigation) {
+    <nav class="page-navigation" aria-label="页面导航">
+      <button type="button" (click)="goHome()">{{ homeLabel }}</button>
+      <button type="button" (click)="goBack()">{{ backLabel }}</button>
+      <button type="button" [disabled]="signingOut" (click)="signOut()">
+        {{ globalSignOutLabel }}
+      </button>
+    </nav>
   }
 
   <router-outlet></router-outlet>

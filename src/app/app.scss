@@ -2,37 +2,47 @@
   min-height: 100vh;
 }
 
-.global-signout-btn {
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  z-index: 2000;
+.page-navigation {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 8px 14px 8px 150px;
+  border-bottom: 1px solid #dbe4f0;
+  background: rgba(246, 248, 252, 0.97);
+}
+
+.page-navigation button {
   border: 1px solid #c8d2e0;
   border-radius: 999px;
-  background: #ffffff;
+  background: #fff;
   color: #1f2f47;
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(21, 40, 68, 0.14);
+}
 
-  &:hover:not(:disabled) {
-    border-color: #9eb4d3;
-    box-shadow: 0 12px 28px rgba(21, 40, 68, 0.18);
-  }
+.page-navigation button:hover:not(:disabled),
+.page-navigation button:focus-visible {
+  border-color: #9eb4d3;
+  box-shadow: 0 2px 8px rgba(21, 40, 68, 0.14);
+}
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.75;
-  }
+.page-navigation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
 }
 
 @media (max-width: 640px) {
-  .global-signout-btn {
-    top: 10px;
-    right: 10px;
-    padding: 7px 12px;
+  .page-navigation {
+    padding: 52px 10px 8px;
+  }
+
+  .page-navigation button {
+    padding: 7px 11px;
   }
 }
