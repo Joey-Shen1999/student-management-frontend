@@ -311,6 +311,14 @@ export class GraduationApplicationStageService {
     );
   }
 
+  deleteUniversityApplications(studentId: number, universityId: number): Observable<void> {
+    if (!this.http) return of(undefined);
+    return this.http.delete<void>(
+      `${this.studentUrl}/${Math.trunc(studentId)}/graduation-applications/universities/${Math.trunc(universityId)}`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
   reorderApplications(
     studentId: number,
     payload: GraduationApplicationReorderRequest[]
