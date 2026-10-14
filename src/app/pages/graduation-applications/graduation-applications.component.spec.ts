@@ -1,5 +1,5 @@
 import { ActivatedRoute, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { GraduationApplicationsComponent } from './graduation-applications.component';
@@ -58,6 +58,7 @@ describe('GraduationApplicationsComponent', () => {
         of(createApplication(2, 'University B', 'Program B', 2))
       ),
       deleteApplication: vi.fn().mockReturnValue(of(undefined)),
+      deleteUniversityApplications: vi.fn().mockReturnValue(of(undefined)),
       getPortalCredential: vi.fn().mockReturnValue(
         of({
           studentId: 101,
@@ -367,11 +368,33 @@ describe('GraduationApplicationsComponent', () => {
 
     component.deleteUniversityGroup(component.groups[0]);
 
-    expect(graduationStage.deleteApplication).toHaveBeenCalledWith(1);
-    expect(graduationStage.deleteApplication).toHaveBeenCalledWith(2);
+    expect(graduationStage.deleteUniversityApplications).toHaveBeenCalledWith(101, 1);
+    expect(graduationStage.deleteApplication).not.toHaveBeenCalled();
     expect(component.applications.map((application) => application.universityName)).toEqual([
       'University B',
     ]);
+  });
+
+  it('does not start a second group deletion while the first is in progress', () => {
+    const { component, graduationStage } = createComponent({
+      routeStudentId: '101',
+      applications: [
+        createApplication(1, 'University A', 'Program A', 1),
+        createApplication(2, 'University B', 'Program B', 2),
+      ],
+    });
+    const pending = new Subject<void>();
+    vi.mocked(graduationStage.deleteUniversityApplications).mockReturnValue(pending);
+    vi.spyOn(globalThis, 'confirm').mockReturnValue(true);
+    component.ngOnInit();
+
+    component.deleteUniversityGroup(component.groups[0]);
+    component.deleteUniversityGroup(component.groups[1]);
+
+    expect(graduationStage.deleteUniversityApplications).toHaveBeenCalledTimes(1);
+    pending.next();
+    pending.complete();
+    expect(component.deletingGroupKey).toBeNull();
   });
 
   it('loads and saves a university portal credential from the school card', () => {

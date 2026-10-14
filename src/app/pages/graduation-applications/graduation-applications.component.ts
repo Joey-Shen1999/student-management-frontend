@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { concatMap, finalize, from, Observable, toArray } from 'rxjs';
 
 import {
   GraduationApplication,
@@ -693,6 +693,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   deleteApplication(application: GraduationApplication): void {
+    if (this.deletingGroupKey !== null || this.deletingId !== null) return;
     const applicationId = Math.trunc(Number(application.id));
     if (!Number.isFinite(applicationId) || applicationId <= 0) {
       this.applications = this.applications.filter((item) => String(item.id) !== String(application.id));
@@ -727,6 +728,7 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   deleteUniversityGroup(group: ApplicationGroup): void {
+    if (this.deletingGroupKey !== null || this.deletingId !== null) return;
     const applicationIds = group.applications
       .map((application) => Math.trunc(Number(application.id)))
       .filter((id) => Number.isFinite(id) && id > 0);
@@ -738,7 +740,13 @@ export class GraduationApplicationsComponent implements OnInit {
 
     this.deletingGroupKey = group.key;
     this.error = '';
-    forkJoin(applicationIds.map((id) => this.graduationStage.deleteApplication(id)))
+    const request: Observable<unknown> = group.universityId
+      ? this.graduationStage.deleteUniversityApplications(this.studentId, group.universityId)
+      : from(applicationIds).pipe(
+          concatMap((id) => this.graduationStage.deleteApplication(id)),
+          toArray()
+        );
+    request
       .pipe(
         finalize(() => {
           this.deletingGroupKey = null;
@@ -1188,20 +1196,16 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   isApplicationBusy(application: GraduationApplication): boolean {
-    const applicationKey = String(application.id);
     return (
       this.formSaving ||
       this.updatingId === application.id ||
-      this.deletingId === application.id ||
-      this.groups.some((group) =>
-        this.deletingGroupKey === group.key &&
-        group.applications.some((item) => String(item.id) === applicationKey)
-      )
+      this.deletingId !== null ||
+      this.deletingGroupKey !== null
     );
   }
 
-  isGroupBusy(group: ApplicationGroup): boolean {
-    return this.formSaving || this.deletingGroupKey === group.key;
+  isGroupBusy(_group: ApplicationGroup): boolean {
+    return this.formSaving || this.deletingGroupKey !== null || this.deletingId !== null;
   }
 
   get selectedFormUniversity(): University | null {
