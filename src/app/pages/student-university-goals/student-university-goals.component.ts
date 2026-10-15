@@ -14,6 +14,7 @@ import {
 } from '../../services/university-aspiration.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
+import { OTHER_UNIVERSITY_COUNTRY, UNIVERSITY_COUNTRY_OPTIONS, resolveUniversityCountry } from '../../shared/university-country-options';
 import { navigateBack } from '../../utils/navigate-back';
 
 interface UniversityChoice {
@@ -105,6 +106,11 @@ export class StudentUniversityGoalsComponent implements OnInit {
   universitySuggestionsOpen = false;
   programSuggestionsOpen = false;
   otherProgram = false;
+  otherUniversity = false;
+  customUniversityCountry = '';
+  customUniversityCountryOther = '';
+  readonly universityCountryOptions = UNIVERSITY_COUNTRY_OPTIONS;
+  readonly otherUniversityCountry = OTHER_UNIVERSITY_COUNTRY;
 
   constructor(
     private route: ActivatedRoute,
@@ -167,6 +173,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   openModal(): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.draft = this.createEmptyDraft();
     this.editingChoiceId = null;
     this.message = '';
@@ -178,6 +185,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
 
   openEditModal(choice: UniversityChoice): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.editingChoiceId = choice.id;
     this.draft = {
       universityName: choice.universityName,
@@ -195,6 +203,7 @@ export class StudentUniversityGoalsComponent implements OnInit {
     if (this.saving) return;
     this.modalOpen = false;
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.editingChoiceId = null;
     this.universitySuggestionsOpen = false;
     this.programSuggestionsOpen = false;
@@ -218,6 +227,18 @@ export class StudentUniversityGoalsComponent implements OnInit {
     this.ensureProgramsLoaded(university.id);
   }
 
+  selectOtherUniversity(): void {
+    this.otherUniversity = true;
+    this.otherProgram = true;
+    this.draft.universityName = '';
+    this.draft.programName = '';
+    this.customUniversityCountry = '';
+    this.customUniversityCountryOther = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
+    this.error = '';
+  }
+
   onProgramInput(): void {
     this.programSuggestionsOpen = !!this.selectedUniversity && !this.selectedProgram;
   }
@@ -235,6 +256,44 @@ export class StudentUniversityGoalsComponent implements OnInit {
   }
 
   addChoice(): void {
+    if (this.otherUniversity) {
+      const name = this.draft.universityName.trim();
+      const country = resolveUniversityCountry(this.customUniversityCountry, this.customUniversityCountryOther);
+      const programName = this.draft.programName.trim();
+      if (!name || name.length > 180 || name.toLowerCase() === 'other' || !country || country.length > 80) {
+        this.error = uiText('请输入大学名称（1–180 个字符）和国家/地区（1–80 个字符）。', 'Enter a university name and country/region.');
+        return;
+      }
+      if (!programName || programName.length > 180 || programName.toLowerCase() === 'other') {
+        this.error = uiText('请输入 1–180 个字符的专业名称。', 'Enter a program name of 1–180 characters.');
+        return;
+      }
+      if (!this.studentId || this.usingLocalDraft) {
+        const university = { id: Date.now(), name, country };
+        this.universities = [...this.universities, university];
+        this.otherUniversity = false;
+        this.otherProgram = false;
+        this.saveLocalChoice(university, { id: Date.now() + 1, universityId: university.id, programName });
+        return;
+      }
+      this.saving = true;
+      this.universityApi.createCustomUniversity(name, country).subscribe({
+        next: (university) => {
+          this.universities = [...this.universities.filter((item) => item.id !== university.id), university];
+          this.otherUniversity = false;
+          this.draft.universityName = university.name;
+          this.draft.programName = programName;
+          this.saving = false;
+          this.addChoice();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.saving = false;
+          this.error = this.extractErrorMessage(err) || this.ui.saveFailed;
+          this.cdr.detectChanges();
+        },
+      });
+      return;
+    }
     const university = this.selectedUniversity;
     const program = this.selectedProgram;
 

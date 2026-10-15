@@ -20,6 +20,7 @@ import {
   UniversityProgram,
 } from '../../services/university-aspiration.service';
 import { navigateBack } from '../../utils/navigate-back';
+import { OTHER_UNIVERSITY_COUNTRY, UNIVERSITY_COUNTRY_OPTIONS, resolveUniversityCountry } from '../../shared/university-country-options';
 
 interface ApplicationGroup {
   key: string;
@@ -322,6 +323,11 @@ export class GraduationApplicationsComponent implements OnInit {
   universitySuggestionsOpen = false;
   programSuggestionsOpen = false;
   otherProgram = false;
+  otherUniversity = false;
+  customUniversityCountry = '';
+  customUniversityCountryOther = '';
+  readonly universityCountryOptions = UNIVERSITY_COUNTRY_OPTIONS;
+  readonly otherUniversityCountry = OTHER_UNIVERSITY_COUNTRY;
 
   historyPanelOpen = false;
   historyLoading = false;
@@ -556,6 +562,7 @@ export class GraduationApplicationsComponent implements OnInit {
 
   openAddUniversity(): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'addUniversity';
@@ -569,6 +576,7 @@ export class GraduationApplicationsComponent implements OnInit {
 
   openAddProgram(group: ApplicationGroup): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'addProgram';
@@ -591,6 +599,7 @@ export class GraduationApplicationsComponent implements OnInit {
 
   openEditApplication(application: GraduationApplication): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.formOpen = true;
     this.formError = '';
     this.formMode = 'editProgram';
@@ -615,6 +624,7 @@ export class GraduationApplicationsComponent implements OnInit {
     if (this.formSaving && !force) return;
     this.formOpen = false;
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.formError = '';
     this.formMode = 'addUniversity';
     this.editingApplication = null;
@@ -627,6 +637,42 @@ export class GraduationApplicationsComponent implements OnInit {
 
   saveApplicationForm(): void {
     if (this.formSaving) return;
+    if (this.otherUniversity) {
+      const name = this.form.universityName.trim();
+      const country = resolveUniversityCountry(this.customUniversityCountry, this.customUniversityCountryOther);
+      if (!name || name.length > 180 || name.toLowerCase() === 'other' || !country || country.length > 80) {
+        this.formError = '请输入大学名称（1–180 个字符）和国家/地区（1–80 个字符）。';
+        return;
+      }
+      const programName = this.form.programName.trim();
+      if (!programName || programName.length > 180 || programName.toLowerCase() === 'other') {
+        this.formError = '请输入 1–180 个字符的专业名称。';
+        return;
+      }
+      this.formSaving = true;
+      this.universityApi.createCustomUniversity(name, country).subscribe({
+        next: (university) => {
+          this.formSaving = false;
+          this.universities = [...this.universities.filter((item) => item.id !== university.id), university];
+          this.otherUniversity = false;
+          this.form.universityId = university.id;
+          this.form.universityName = university.name;
+          this.form.programId = null;
+          this.programOptions = [];
+          this.form.programName = programName;
+          this.otherProgram = true;
+          this.universitySuggestionsOpen = false;
+          this.programSuggestionsOpen = false;
+          this.saveApplicationForm();
+        },
+        error: (error: unknown) => {
+          this.formSaving = false;
+          this.formError = this.extractErrorMessage(error) || '保存自填大学失败。';
+          this.cdr.markForCheck();
+        },
+      });
+      return;
+    }
     if (this.otherProgram) {
       const university = this.selectedFormUniversity;
       const name = this.form.programName.trim();
@@ -1292,6 +1338,22 @@ export class GraduationApplicationsComponent implements OnInit {
     if (university) {
       this.loadPrograms(university.id);
     }
+    this.cdr.markForCheck();
+  }
+
+  selectOtherUniversity(): void {
+    if (this.isUniversityLockedInForm) return;
+    this.otherUniversity = true;
+    this.otherProgram = true;
+    this.form.universityId = null;
+    this.form.universityName = '';
+    this.form.programId = null;
+    this.form.programName = '';
+    this.customUniversityCountry = '';
+    this.customUniversityCountryOther = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
+    this.formError = '';
     this.cdr.markForCheck();
   }
 

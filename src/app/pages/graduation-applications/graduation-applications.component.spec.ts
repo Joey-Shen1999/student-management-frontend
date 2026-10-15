@@ -106,6 +106,9 @@ describe('GraduationApplicationsComponent', () => {
       createCustomProgram: vi.fn().mockImplementation((universityId: number, programName: string) =>
         of({ id: 99, universityId, programName })
       ),
+      createCustomUniversity: vi.fn().mockImplementation((name: string, country: string) =>
+        of({ id: 3, name, country })
+      ),
     } as unknown as UniversityAspirationService;
     const cdr = {
       markForCheck: vi.fn(),
@@ -266,6 +269,54 @@ describe('GraduationApplicationsComponent', () => {
       programId: 99,
     }));
     expect(component.formOpen).toBe(false);
+  });
+
+  it('saves a manually entered university and program before creating the application', () => {
+    const { component, graduationStage, universityApi } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    component.openAddUniversity();
+    component.selectOtherUniversity();
+    component.form.universityName = '  New Hong Kong University  ';
+    component.customUniversityCountry = ' Hong Kong ';
+    component.form.programName = 'Digital Media';
+
+    component.saveApplicationForm();
+
+    expect(universityApi.createCustomUniversity).toHaveBeenCalledWith('New Hong Kong University', 'Hong Kong');
+    expect(universityApi.createCustomProgram).toHaveBeenCalledWith(3, 'Digital Media');
+    expect(graduationStage.createApplication).toHaveBeenCalledWith(101, expect.objectContaining({
+      universityId: 3,
+      programId: 99,
+    }));
+    expect(component.formOpen).toBe(false);
+  });
+
+  it('does not create a university when its manual form is incomplete', () => {
+    const { component, universityApi } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    component.openAddUniversity();
+    component.selectOtherUniversity();
+    component.form.universityName = 'New University';
+    component.customUniversityCountry = 'Hong Kong';
+
+    component.saveApplicationForm();
+
+    expect(universityApi.createCustomUniversity).not.toHaveBeenCalled();
+  });
+
+  it('requires a region name when Other is selected', () => {
+    const { component, universityApi } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    component.openAddUniversity();
+    component.selectOtherUniversity();
+    component.form.universityName = 'Example University';
+    component.form.programName = 'Example Program';
+    component.customUniversityCountry = component.otherUniversityCountry;
+
+    component.saveApplicationForm();
+
+    expect(universityApi.createCustomUniversity).not.toHaveBeenCalled();
+    expect(component.formError).toContain('国家/地区');
   });
 
   it('adds a program under an existing university group', () => {

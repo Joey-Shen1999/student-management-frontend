@@ -36,6 +36,9 @@ describe('GraduationApplicationSetupComponent', () => {
       createCustomProgram: vi.fn().mockImplementation((universityId: number, programName: string) =>
         of({ id: 99, universityId, programName })
       ),
+      createCustomUniversity: vi.fn().mockImplementation((name: string, country: string) =>
+        of({ id: 3, name, country })
+      ),
       listAspirations: vi.fn().mockReturnValue(options?.aspirations$ ?? of([])),
     } as unknown as UniversityAspirationService;
     const graduationStage = {
@@ -100,6 +103,40 @@ describe('GraduationApplicationSetupComponent', () => {
     expect(aspirationApi.createCustomProgram).toHaveBeenCalledWith(1, 'Emerging Studies');
     expect(component.drafts[0]).toMatchObject({ programId: 99, programName: 'Emerging Studies' });
     expect(component.addDialogOpen).toBe(false);
+  });
+
+  it('adds a manually entered university and program to the confirmation draft', () => {
+    const { component, aspirationApi } = createComponent();
+    component.openAddDraftDialog();
+    component.selectOtherUniversity();
+    component.newUniversityName = 'New Hong Kong University';
+    component.customUniversityCountry = 'Hong Kong';
+    component.newProgramName = 'Digital Media';
+
+    component.addDraft();
+
+    expect(aspirationApi.createCustomUniversity).toHaveBeenCalledWith('New Hong Kong University', 'Hong Kong');
+    expect(aspirationApi.createCustomProgram).toHaveBeenCalledWith(3, 'Digital Media');
+    expect(component.drafts[0]).toMatchObject({
+      universityId: 3,
+      universityName: 'New Hong Kong University',
+      programId: 99,
+      programName: 'Digital Media',
+    });
+  });
+
+  it('uses the manually entered region when Other is selected', () => {
+    const { component, aspirationApi } = createComponent();
+    component.openAddDraftDialog();
+    component.selectOtherUniversity();
+    component.newUniversityName = 'Example University';
+    component.customUniversityCountry = component.otherUniversityCountry;
+    component.customUniversityCountryOther = '  Iceland  ';
+    component.newProgramName = 'Example Program';
+
+    component.addDraft();
+
+    expect(aspirationApi.createCustomUniversity).toHaveBeenCalledWith('Example University', 'Iceland');
   });
 
   it('clears the loading state when both backend reads stall', () => {

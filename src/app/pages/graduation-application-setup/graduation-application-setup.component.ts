@@ -16,6 +16,7 @@ import {
   UniversityAspirationService,
   UniversityProgram,
 } from '../../services/university-aspiration.service';
+import { OTHER_UNIVERSITY_COUNTRY, UNIVERSITY_COUNTRY_OPTIONS, resolveUniversityCountry } from '../../shared/university-country-options';
 
 interface ApplicationDraft extends GraduationApplication {
   selected: boolean;
@@ -50,6 +51,11 @@ export class GraduationApplicationSetupComponent implements OnInit {
   newUniversityName = '';
   newProgramName = '';
   otherProgram = false;
+  otherUniversity = false;
+  customUniversityCountry = '';
+  customUniversityCountryOther = '';
+  readonly universityCountryOptions = UNIVERSITY_COUNTRY_OPTIONS;
+  readonly otherUniversityCountry = OTHER_UNIVERSITY_COUNTRY;
   newUniversityId: number | null = null;
   newProgramId: number | null = null;
   newProgramOptions: UniversityProgram[] = [];
@@ -57,6 +63,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   isAlreadyEnabled = false;
   addDialogOpen = false;
   addDialogError = '';
+  catalogSaving = false;
   editingDraftId: string | null = null;
   universitySuggestionsOpen = false;
   programSuggestionsOpen = false;
@@ -176,6 +183,43 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   addDraft(): void {
+    if (this.catalogSaving) return;
+    if (this.otherUniversity) {
+      const name = this.newUniversityName.trim();
+      const country = resolveUniversityCountry(this.customUniversityCountry, this.customUniversityCountryOther);
+      const programName = this.newProgramName.trim();
+      if (!name || name.length > 180 || name.toLowerCase() === 'other' || !country || country.length > 80) {
+        this.addDialogError = '请输入大学名称（1–180 个字符）和国家/地区（1–80 个字符）。';
+        return;
+      }
+      if (!programName || programName.length > 180 || programName.toLowerCase() === 'other') {
+        this.addDialogError = '请输入 1–180 个字符的专业名称。';
+        return;
+      }
+      this.catalogSaving = true;
+      this.aspirationApi.createCustomUniversity(name, country).subscribe({
+        next: (university) => {
+          this.catalogSaving = false;
+          this.universities = [...this.universities.filter((item) => item.id !== university.id), university];
+          this.otherUniversity = false;
+          this.newUniversityName = university.name;
+          this.newUniversityId = university.id;
+          this.newProgramId = null;
+          this.newProgramOptions = [];
+          this.newProgramName = programName;
+          this.otherProgram = true;
+          this.universitySuggestionsOpen = false;
+          this.programSuggestionsOpen = false;
+          this.addDraft();
+        },
+        error: () => {
+          this.catalogSaving = false;
+          this.addDialogError = '保存自填大学失败，请稍后重试。';
+          this.markViewForCheck();
+        },
+      });
+      return;
+    }
     const university = this.selectedNewUniversity;
     const program = this.selectedNewProgram;
     if (!university) {
@@ -257,6 +301,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
 
   openAddDraftDialog(): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.addDialogOpen = true;
     this.addDialogError = '';
     this.editingDraftId = null;
@@ -266,6 +311,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
 
   openEditDraftDialog(draft: ApplicationDraft): void {
     this.otherProgram = false;
+    this.otherUniversity = false;
     this.editingDraftId = String(draft.id);
     this.addDialogOpen = true;
     this.addDialogError = '';
@@ -283,6 +329,7 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   closeAddDraftDialog(): void {
+    if (this.catalogSaving) return;
     this.otherProgram = false;
     this.addDialogOpen = false;
     this.addDialogError = '';
@@ -425,6 +472,22 @@ export class GraduationApplicationSetupComponent implements OnInit {
     this.markViewForCheck();
   }
 
+  selectOtherUniversity(): void {
+    this.otherUniversity = true;
+    this.otherProgram = true;
+    this.newUniversityName = '';
+    this.newUniversityId = null;
+    this.newProgramName = '';
+    this.newProgramId = null;
+    this.newProgramOptions = [];
+    this.customUniversityCountry = '';
+    this.customUniversityCountryOther = '';
+    this.universitySuggestionsOpen = false;
+    this.programSuggestionsOpen = false;
+    this.addDialogError = '';
+    this.markViewForCheck();
+  }
+
   onNewUniversityFocus(): void {
     this.universitySuggestionsOpen = !this.selectedNewUniversity;
     this.markViewForCheck();
@@ -517,6 +580,9 @@ export class GraduationApplicationSetupComponent implements OnInit {
   }
 
   private resetNewDraftForm(): void {
+    this.otherUniversity = false;
+    this.customUniversityCountry = '';
+    this.customUniversityCountryOther = '';
     this.newUniversityName = '';
     this.newProgramName = '';
     this.newUniversityId = null;

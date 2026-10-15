@@ -66,6 +66,14 @@ export class UniversityAspirationService {
     return this.http.get<University[]>(this.universityUrl, this.withAuthHeaderIfAvailable());
   }
 
+  createCustomUniversity(name: string, country: string): Observable<University> {
+    return this.http.post<University>(
+      this.universityUrl,
+      { name: name.trim(), country: country.trim() },
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
   listPrograms(universityId: number): Observable<UniversityProgram[]> {
     return this.http.get<UniversityProgram[]>(
       `${this.universityUrl}/${Math.trunc(universityId)}/programs`,
