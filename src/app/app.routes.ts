@@ -273,6 +273,14 @@ export const routes: Routes = [
       },
 
       {
+        path: 'applications/interviews',
+        loadComponent: () =>
+          import('./pages/interview-students/interview-students.component').then(
+            (m) => m.InterviewStudentsComponent
+          ),
+      },
+
+      {
         path: 'service-progress',
         loadComponent: () =>
           import('./pages/teacher-service-progress/teacher-service-progress.component').then(

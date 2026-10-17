@@ -25,7 +25,7 @@ import { navigateBack } from '../../utils/navigate-back';
 
 type OverviewMessage = '' | LocalizedText;
 type PortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPassword';
-type PortalRequirementField = 'interviewRequired' | 'languageScoreRequired';
+type PortalRequirementField = 'interviewRequired' | 'videoInterviewRequired' | 'languageScoreRequired';
 
 interface PortalCredentialDraft {
   schoolAccount: string;
@@ -33,6 +33,7 @@ interface PortalCredentialDraft {
   schoolPassword: string;
   studentVisible: boolean;
   interviewRequired: boolean;
+  videoInterviewRequired: boolean;
   languageScoreRequired: boolean;
 }
 
@@ -144,6 +145,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
     studentVisible: uiText('\u5b66\u751f\u53ef\u89c1', 'Student Visible'),
     studentHidden: uiText('\u5b66\u751f\u9690\u85cf', 'Hidden from Student'),
     interview: uiText('\u9700\u5b8c\u6210\u9762\u8bd5', 'Interview Required'),
+    videoInterview: uiText('需要视频面试', 'Video Interview Required'),
     languageScore: uiText('\u9700\u63d0\u4ea4\u8bed\u8a00\u6210\u7ee9', 'Language Scores Required'),
     operationHistory: uiText('\u64cd\u4f5c\u8bb0\u5f55', 'Operation History'),
     hideHistory: uiText('\u6536\u8d77\u8bb0\u5f55', 'Hide History'),
@@ -611,6 +613,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       draft.schoolPassword.trim() === current.schoolPassword.trim() &&
       draft.studentVisible === current.studentVisible &&
       draft.interviewRequired === current.interviewRequired &&
+      draft.videoInterviewRequired === current.videoInterviewRequired &&
       draft.languageScoreRequired === current.languageScoreRequired
     ) {
       this.portalEditingKeys.delete(key);
@@ -788,6 +791,8 @@ export class UniversityApplicationOverviewComponent implements OnInit {
         return this.ui.studentVisible;
       case 'interviewRequired':
         return this.ui.interview;
+      case 'videoInterviewRequired':
+        return this.ui.videoInterview;
       case 'languageScoreRequired':
         return this.ui.languageScore;
       default: {
@@ -927,6 +932,7 @@ export class UniversityApplicationOverviewComponent implements OnInit {
       schoolPassword: String(credential?.schoolPassword || credential?.defaultSchoolPassword || 'ZAQ!2wsxcde3'),
       studentVisible: credential?.studentVisible === true,
       interviewRequired: credential?.interviewRequired === true,
+      videoInterviewRequired: credential?.videoInterviewRequired === true,
       languageScoreRequired: credential?.languageScoreRequired === true,
     };
   }

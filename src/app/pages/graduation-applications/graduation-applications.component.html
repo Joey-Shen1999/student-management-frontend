@@ -391,6 +391,19 @@
             </label>
             <label
               class="requirement-check"
+              [class.active]="getPortalDraft(group).videoInterviewRequired"
+              (click)="$event.stopPropagation()"
+            >
+              <input
+                type="checkbox"
+                [checked]="getPortalDraft(group).videoInterviewRequired"
+                (change)="togglePortalRequirement(group, 'videoInterviewRequired', $any($event.target).checked)"
+                [disabled]="isPortalSaving(group)"
+              />
+              <span>视频面试</span>
+            </label>
+            <label
+              class="requirement-check"
               [class.active]="getPortalDraft(group).languageScoreRequired"
               (click)="$event.stopPropagation()"
             >

@@ -1,0 +1,54 @@
+<main class="interview-page">
+  <div class="interview-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">{{ ui.section | appTranslate }} · {{ year }}</p>
+        <h1>{{ ui.title | appTranslate }}</h1>
+        <p class="description">{{ ui.description | appTranslate }}</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
+        <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
+      </div>
+    </header>
+
+    <section class="overview" aria-label="Interview summary">
+      <div><span>{{ ui.studentCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : groups.length }}</strong></div>
+      <div><span>{{ ui.universityCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : rows.length }}</strong></div>
+    </section>
+
+    <label class="search-box">
+      <span>{{ ui.search | appTranslate }}</span>
+      <input type="search" [(ngModel)]="search" [placeholder]="ui.search | appTranslate" />
+    </label>
+
+    <div class="state" *ngIf="loading">{{ ui.loading | appTranslate }}</div>
+    <div class="state error" *ngIf="failed">
+      {{ ui.error | appTranslate }}
+      <button type="button" (click)="load()">{{ ui.refresh | appTranslate }}</button>
+    </div>
+    <div class="state" *ngIf="!loading && !failed && groups.length === 0">{{ ui.empty | appTranslate }}</div>
+    <div class="state" *ngIf="!loading && !failed && groups.length > 0 && filteredGroups.length === 0">
+      {{ ui.noMatches | appTranslate }}
+    </div>
+
+    <section class="student-list" *ngIf="!loading && !failed && filteredGroups.length > 0">
+      <article class="student-card" *ngFor="let group of filteredGroups; trackBy: trackStudent">
+        <div class="student-head">
+          <div>
+            <h2 class="notranslate" translate="no" data-no-auto-translate>{{ group.studentName }}</h2>
+            <small class="notranslate" translate="no" data-no-auto-translate>{{ group.username }}</small>
+          </div>
+          <a [routerLink]="['/teacher/students', group.studentId, 'graduation-applications']">
+            {{ ui.view | appTranslate }}
+          </a>
+        </div>
+        <p>{{ ui.universities | appTranslate }}</p>
+        <div class="university-list">
+          <span class="notranslate" translate="no" data-no-auto-translate
+            *ngFor="let university of group.universities; trackBy: trackUniversity">{{ university.name }}</span>
+        </div>
+      </article>
+    </section>
+  </div>
+</main>

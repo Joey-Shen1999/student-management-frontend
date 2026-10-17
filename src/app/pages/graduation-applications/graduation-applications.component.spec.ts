@@ -69,6 +69,7 @@ describe('GraduationApplicationsComponent', () => {
           schoolPassword: 'ZAQ!2wsxcde3',
           studentVisible: false,
           interviewRequired: false,
+          videoInterviewRequired: false,
           languageScoreRequired: false,
         })
       ),
@@ -82,6 +83,7 @@ describe('GraduationApplicationsComponent', () => {
           schoolPassword: payload.schoolPassword,
           studentVisible: payload.studentVisible === true,
           interviewRequired: payload.interviewRequired === true,
+          videoInterviewRequired: payload.videoInterviewRequired === true,
           languageScoreRequired: payload.languageScoreRequired === true,
         })
       ),
@@ -495,10 +497,25 @@ describe('GraduationApplicationsComponent', () => {
       schoolPassword: 'Changed!234',
       studentVisible: true,
       interviewRequired: false,
+      videoInterviewRequired: false,
       languageScoreRequired: false,
     });
     expect(component.isPortalEditing(group)).toBe(false);
     expect(component.getPortalDraft(group).schoolAccount).toBe('portal-user');
+  });
+
+  it('saves video interview as an independent requirement', () => {
+    const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    const group = component.groups[0];
+    component.onUniversityPanelClick(group, { target: document.createElement('div') } as unknown as MouseEvent);
+
+    component.togglePortalRequirement(group, 'videoInterviewRequired', true);
+
+    expect(graduationStage.updatePortalCredential).toHaveBeenCalledWith(
+      101, 1, expect.objectContaining({ videoInterviewRequired: true, interviewRequired: false })
+    );
+    expect(component.getPortalDraft(group).videoInterviewRequired).toBe(true);
   });
 
   it('updates the shared application account and syncs visible school account drafts', () => {

@@ -40,7 +40,7 @@ interface ApplicationFormModel {
 }
 
 type PortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPassword';
-type PortalRequirementField = 'interviewRequired' | 'languageScoreRequired';
+type PortalRequirementField = 'interviewRequired' | 'videoInterviewRequired' | 'languageScoreRequired';
 
 interface PortalCredentialDraft {
   schoolAccount: string;
@@ -48,6 +48,7 @@ interface PortalCredentialDraft {
   schoolPassword: string;
   studentVisible: boolean;
   interviewRequired: boolean;
+  videoInterviewRequired: boolean;
   languageScoreRequired: boolean;
 }
 
@@ -976,6 +977,7 @@ export class GraduationApplicationsComponent implements OnInit {
       draft.schoolPassword.trim() === current.schoolPassword.trim() &&
       draft.studentVisible === current.studentVisible &&
       draft.interviewRequired === current.interviewRequired &&
+      draft.videoInterviewRequired === current.videoInterviewRequired &&
       draft.languageScoreRequired === current.languageScoreRequired
     ) {
       this.portalEditingKey = null;
@@ -1453,6 +1455,7 @@ export class GraduationApplicationsComponent implements OnInit {
       schoolPassword: String(credential?.schoolPassword || credential?.defaultSchoolPassword || 'ZAQ!2wsxcde3'),
       studentVisible: credential?.studentVisible === true,
       interviewRequired: credential?.interviewRequired === true,
+      videoInterviewRequired: credential?.videoInterviewRequired === true,
       languageScoreRequired: credential?.languageScoreRequired === true,
     };
   }

@@ -681,6 +681,14 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
           </button>
 
           <button
+            *ngIf="isGraduationApplicationsContext"
+            type="button"
+            [routerLink]="['/teacher/applications/interviews']"
+          >
+            本年视频面试学生
+          </button>
+
+          <button
             type="button"
             (click)="createInviteLink()"
             [disabled]="creatingInvite"

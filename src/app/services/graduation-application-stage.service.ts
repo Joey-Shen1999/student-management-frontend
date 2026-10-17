@@ -79,6 +79,7 @@ export interface GraduationApplicationPortalCredential {
   defaultSchoolPassword?: string;
   studentVisible: boolean;
   interviewRequired: boolean;
+  videoInterviewRequired: boolean;
   languageScoreRequired: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -90,6 +91,7 @@ export interface GraduationApplicationPortalCredentialRequest {
   schoolPassword?: string;
   studentVisible?: boolean;
   interviewRequired?: boolean;
+  videoInterviewRequired?: boolean;
   languageScoreRequired?: boolean;
 }
 
@@ -120,6 +122,15 @@ export interface GraduationApplicationUniversitySummary {
   universityName: string;
   studentCount: number;
   applicationCount: number;
+}
+
+export interface GraduationApplicationInterviewStudent {
+  studentId: number;
+  studentName: string;
+  username?: string;
+  universityId: number;
+  universityName: string;
+  graduationYear: number;
 }
 
 interface UniversityPortalLoginLink {
@@ -214,6 +225,17 @@ export class GraduationApplicationStageService {
     return this.http.get<GraduationApplicationUniversitySummary[]>(
       `${this.applicationUrl}/universities/summary`,
       this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  listInterviewStudents(year: number): Observable<GraduationApplicationInterviewStudent[]> {
+    if (!this.http) return of([]);
+    return this.http.get<GraduationApplicationInterviewStudent[]>(
+      `${this.applicationUrl}/video-interviews`,
+      {
+        ...this.withAuthHeaderIfAvailable(),
+        params: new HttpParams().set('year', String(year)),
+      }
     );
   }
 
@@ -424,6 +446,7 @@ export class GraduationApplicationStageService {
       schoolPassword: String(payload.schoolPassword || '').trim(),
       studentVisible: payload.studentVisible === true,
       interviewRequired: payload.interviewRequired === true,
+      videoInterviewRequired: payload.videoInterviewRequired === true,
       languageScoreRequired: payload.languageScoreRequired === true,
     };
     if (student <= 0 || !university || !this.http) {
@@ -530,6 +553,7 @@ export class GraduationApplicationStageService {
       defaultSchoolPassword: account.defaultApplicationPassword,
       studentVisible: false,
       interviewRequired: false,
+      videoInterviewRequired: false,
       languageScoreRequired: false,
     };
   }

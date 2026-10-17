@@ -71,6 +71,7 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
               </header>
               <section class="student-requirement-alerts" *ngIf="hasStudentRequirementAlerts(group)">
                 <span *ngIf="group.portalCredential?.interviewRequired">需要完成面试</span>
+                <span *ngIf="group.portalCredential?.videoInterviewRequired">需要完成视频面试</span>
                 <span *ngIf="group.portalCredential?.languageScoreRequired">需要提交语言成绩</span>
               </section>
               <section class="student-portal-card" *ngIf="group.portalCredential?.studentVisible">
@@ -376,6 +377,7 @@ export class DashboardComponent implements OnInit {
   hasStudentRequirementAlerts(group: ApplicationProgressGroup): boolean {
     return (
       group.portalCredential?.interviewRequired === true ||
+      group.portalCredential?.videoInterviewRequired === true ||
       group.portalCredential?.languageScoreRequired === true
     );
   }
@@ -767,7 +769,7 @@ export class DashboardComponent implements OnInit {
         .subscribe({
           next: (credential) => {
             group.portalCredential =
-              credential?.studentVisible || credential?.interviewRequired || credential?.languageScoreRequired
+              credential?.studentVisible || credential?.interviewRequired || credential?.videoInterviewRequired || credential?.languageScoreRequired
                 ? credential
                 : null;
             this.cdr.detectChanges();
