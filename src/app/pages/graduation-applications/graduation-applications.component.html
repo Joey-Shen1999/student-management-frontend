@@ -479,7 +479,7 @@
       <div class="dialog-form">
         <label class="autocomplete-field">
           <span>大学</span>
-          <input
+          <input *ngIf="!otherUniversity"
             type="text"
             [(ngModel)]="form.universityName"
             (ngModelChange)="onFormUniversityInput()"
@@ -488,6 +488,9 @@
             [placeholder]="loadingUniversities ? '读取大学中...' : '输入或选择大学'"
             autocomplete="off"
           />
+          <input *ngIf="otherUniversity" type="text" [(ngModel)]="form.universityName"
+            aria-label="手动输入大学名称" [disabled]="formSaving" maxlength="180"
+            placeholder="手动输入大学名称" autocomplete="off" />
           <div *ngIf="universitySuggestionsOpen && visibleFormUniversities.length > 0" class="suggestion-list">
             <button
               type="button"
@@ -500,6 +503,25 @@
               {{ university.name }}
             </button>
           </div>
+          <button class="ghost-btn compact" *ngIf="!otherUniversity && !isUniversityLockedInForm" type="button"
+            (click)="selectOtherUniversity()" [disabled]="formSaving">Other / 其他大学（手动输入）</button>
+          <button class="ghost-btn compact" *ngIf="otherUniversity" type="button"
+            (click)="otherUniversity = false; otherProgram = false; form.universityName = ''; form.programName = ''; customUniversityCountry = ''"
+            [disabled]="formSaving">返回大学列表</button>
+        </label>
+
+        <label class="autocomplete-field" *ngIf="otherUniversity">
+          <span>国家/地区</span>
+          <select [(ngModel)]="customUniversityCountry" [disabled]="formSaving" aria-label="国家/地区">
+            <option value="" disabled>请选择国家/地区</option>
+            <option *ngFor="let country of universityCountryOptions" [value]="country">{{ country }}</option>
+            <option [value]="otherUniversityCountry">其他地区（手动输入）</option>
+          </select>
+        </label>
+        <label class="autocomplete-field" *ngIf="otherUniversity && customUniversityCountry === otherUniversityCountry">
+          <span>其他地区</span>
+          <input type="text" [(ngModel)]="customUniversityCountryOther" maxlength="80"
+            [disabled]="formSaving" placeholder="输入国家/地区名称" />
         </label>
 
         <div class="autocomplete-field">
@@ -529,7 +551,7 @@
             </button>
           </div>
           <button class="ghost-btn compact" *ngIf="selectedFormUniversity && !otherProgram" type="button" (click)="selectOtherProgram()" [disabled]="formSaving">Other / 其他（手动输入）</button>
-          <button class="ghost-btn compact" *ngIf="otherProgram" type="button" (click)="otherProgram = false; form.programName = ''; form.programId = null" [disabled]="formSaving">返回专业列表</button>
+          <button class="ghost-btn compact" *ngIf="otherProgram && !otherUniversity" type="button" (click)="otherProgram = false; form.programName = ''; form.programId = null" [disabled]="formSaving">返回专业列表</button>
         </div>
 
         <label class="autocomplete-field">

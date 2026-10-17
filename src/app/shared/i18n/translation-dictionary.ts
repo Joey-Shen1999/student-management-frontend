@@ -1,4 +1,9 @@
 export const ADDITIONAL_UI_TRANSLATIONS = [
+  { zh: '国家/地区', en: 'Country/Region' },
+  { zh: '请选择国家/地区', en: 'Select a country/region' },
+  { zh: '其他地区（手动输入）', en: 'Other region (enter manually)' },
+  { zh: '其他地区', en: 'Other region' },
+  { zh: '输入国家/地区名称', en: 'Enter a country/region' },
   { zh: '编辑', en: 'Edit' },
   { zh: '重新加载', en: 'Reload' },
   { zh: '基础信息', en: 'Basic Information' },

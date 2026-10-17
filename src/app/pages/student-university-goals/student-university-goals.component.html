@@ -66,13 +66,16 @@
 
         <label class="autocomplete-field">
           <span>{{ ui.university | appTranslate }}</span>
-          <input
+          <input *ngIf="!otherUniversity"
             type="text"
             [(ngModel)]="draft.universityName"
             (ngModelChange)="onUniversityInput()"
             [placeholder]="ui.universityPlaceholder | appTranslate"
             [disabled]="saving"
           />
+          <input *ngIf="otherUniversity" type="text" [(ngModel)]="draft.universityName"
+            aria-label="Custom university name" maxlength="180" [disabled]="saving"
+            [placeholder]="'手动输入大学名称' | appTranslate" />
           <div *ngIf="universitySuggestionsOpen && visibleUniversities.length > 0" class="suggestion-list">
             <button
               type="button"
@@ -86,6 +89,25 @@
               {{ university.name }}
             </button>
           </div>
+          <button class="other-program-btn" *ngIf="!otherUniversity" type="button"
+            (click)="selectOtherUniversity()" [disabled]="saving">Other / 其他大学</button>
+          <button class="other-program-btn" *ngIf="otherUniversity" type="button"
+            (click)="otherUniversity = false; otherProgram = false; draft.universityName = ''; draft.programName = ''; customUniversityCountry = ''"
+            [disabled]="saving">返回大学列表</button>
+        </label>
+
+        <label class="autocomplete-field" *ngIf="otherUniversity">
+          <span>{{ '国家/地区' | appTranslate }}</span>
+          <select [(ngModel)]="customUniversityCountry" [disabled]="saving" aria-label="国家/地区">
+            <option value="" disabled>{{ '请选择国家/地区' | appTranslate }}</option>
+            <option *ngFor="let country of universityCountryOptions" [value]="country">{{ country }}</option>
+            <option [value]="otherUniversityCountry">{{ '其他地区（手动输入）' | appTranslate }}</option>
+          </select>
+        </label>
+        <label class="autocomplete-field" *ngIf="otherUniversity && customUniversityCountry === otherUniversityCountry">
+          <span>{{ '其他地区' | appTranslate }}</span>
+          <input type="text" [(ngModel)]="customUniversityCountryOther" maxlength="80"
+            [disabled]="saving" [placeholder]="'输入国家/地区名称' | appTranslate" />
         </label>
 
         <div class="program-field">
@@ -114,7 +136,7 @@
             </button>
           </div>
           <button class="other-program-btn" *ngIf="selectedUniversity && !otherProgram" type="button" (click)="selectOtherProgram()" [disabled]="saving">Other / 其他</button>
-          <button class="other-program-btn" *ngIf="otherProgram" type="button" (click)="otherProgram = false; draft.programName = ''" [disabled]="saving">返回专业列表</button>
+          <button class="other-program-btn" *ngIf="otherProgram && !otherUniversity" type="button" (click)="otherProgram = false; draft.programName = ''" [disabled]="saving">返回专业列表</button>
         </div>
       </div>
 

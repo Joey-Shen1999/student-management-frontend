@@ -120,7 +120,7 @@
           <div>
             <h2 id="addDraftDialogTitle">{{ editingDraftId ? '修改大学申请' : '添加大学申请' }}</h2>
           </div>
-          <button type="button" class="ghost-btn compact" (click)="closeAddDraftDialog()">取消</button>
+          <button type="button" class="ghost-btn compact" (click)="closeAddDraftDialog()" [disabled]="catalogSaving">取消</button>
         </header>
 
         <div *ngIf="addDialogError" class="notice error dialog-notice">{{ addDialogError }}</div>
@@ -128,13 +128,15 @@
         <div class="dialog-form">
           <label class="autocomplete-field">
             <span>大学</span>
-            <input
+            <input *ngIf="!otherUniversity"
               type="text"
               [(ngModel)]="newUniversityName"
               (ngModelChange)="onNewUniversityInput()"
               (focus)="onNewUniversityFocus()"
               placeholder="输入或选择大学"
             />
+            <input *ngIf="otherUniversity" type="text" [(ngModel)]="newUniversityName"
+              aria-label="手动输入大学名称" maxlength="180" placeholder="手动输入大学名称" />
             <div *ngIf="universitySuggestionsOpen && visibleNewUniversities.length > 0" class="suggestion-list">
               <button
                 type="button"
@@ -147,6 +149,23 @@
                 {{ university.name }}
               </button>
             </div>
+            <button class="other-program-btn" *ngIf="!otherUniversity" type="button"
+              (click)="selectOtherUniversity()">Other / 其他大学（手动输入）</button>
+            <button class="other-program-btn" *ngIf="otherUniversity" type="button"
+              (click)="otherUniversity = false; otherProgram = false; newUniversityName = ''; newProgramName = ''; customUniversityCountry = ''">返回大学列表</button>
+          </label>
+
+          <label class="autocomplete-field" *ngIf="otherUniversity">
+            <span>国家/地区</span>
+            <select [(ngModel)]="customUniversityCountry" aria-label="国家/地区">
+              <option value="" disabled>请选择国家/地区</option>
+              <option *ngFor="let country of universityCountryOptions" [value]="country">{{ country }}</option>
+              <option [value]="otherUniversityCountry">其他地区（手动输入）</option>
+            </select>
+          </label>
+          <label class="autocomplete-field" *ngIf="otherUniversity && customUniversityCountry === otherUniversityCountry">
+            <span>其他地区</span>
+            <input type="text" [(ngModel)]="customUniversityCountryOther" maxlength="80" placeholder="输入国家/地区名称" />
           </label>
 
           <div class="autocomplete-field">
@@ -175,13 +194,13 @@
               </button>
             </div>
             <button class="other-program-btn" *ngIf="selectedNewUniversity && !otherProgram" type="button" (click)="selectOtherProgram()">Other / 其他（手动输入）</button>
-            <button class="other-program-btn" *ngIf="otherProgram" type="button" (click)="otherProgram = false; newProgramName = ''; newProgramId = null">返回专业列表</button>
+            <button class="other-program-btn" *ngIf="otherProgram && !otherUniversity" type="button" (click)="otherProgram = false; newProgramName = ''; newProgramId = null">返回专业列表</button>
           </div>
         </div>
 
         <footer class="dialog-actions">
-          <button type="button" class="ghost-btn" (click)="closeAddDraftDialog()">取消</button>
-          <button type="button" class="secondary-btn" (click)="addDraft()">
+          <button type="button" class="ghost-btn" (click)="closeAddDraftDialog()" [disabled]="catalogSaving">取消</button>
+          <button type="button" class="secondary-btn" (click)="addDraft()" [disabled]="catalogSaving">
             {{ editingDraftId ? '保存修改' : '添加到清单' }}
           </button>
         </footer>
