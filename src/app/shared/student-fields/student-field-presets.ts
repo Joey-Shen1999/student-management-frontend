@@ -30,6 +30,7 @@ export type StudentListColumnKey =
   | 'profile'
   | 'universityGoals'
   | 'graduationStage'
+  | 'interviewCourse'
   | 'extracurricular'
   | 'documents'
   | 'coursePlan'
@@ -84,6 +85,7 @@ export const GRADUATION_APPLICATIONS_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly St
   'graduation',
   'teacherNote',
   'graduationStage',
+  'interviewCourse',
   'universityGoals',
   'ielts',
   'ossltTracking',

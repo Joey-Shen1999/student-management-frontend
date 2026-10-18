@@ -133,6 +133,29 @@ export interface GraduationApplicationInterviewStudent {
   graduationYear: number;
 }
 
+export interface InterviewCourseLesson {
+  id: number;
+  lessonNumber: number;
+  lessonDate: string | null;
+  lessonTime: string | null;
+}
+
+export interface InterviewCourseRequirement {
+  id: number;
+  universityName: string;
+  programName: string;
+}
+
+export interface InterviewCoursePlan {
+  studentId: number;
+  studentName: string;
+  username: string;
+  graduationYear: number | null;
+  enabled: boolean;
+  lessons: InterviewCourseLesson[];
+  requirements: InterviewCourseRequirement[];
+}
+
 interface UniversityPortalLoginLink {
   aliases: string[];
   url: string;
@@ -236,6 +259,72 @@ export class GraduationApplicationStageService {
         ...this.withAuthHeaderIfAvailable(),
         params: new HttpParams().set('year', String(year)),
       }
+    );
+  }
+
+  listInterviewCourseStudents(year: number): Observable<InterviewCoursePlan[]> {
+    if (!this.http) return of([]);
+    return this.http.get<InterviewCoursePlan[]>(`${this.applicationUrl}/interview-courses`, {
+      ...this.withAuthHeaderIfAvailable(),
+      params: new HttpParams().set('year', String(year)),
+    });
+  }
+
+  listInterviewCourseEnabledStudentIds(): Observable<number[]> {
+    if (!this.http) return of([]);
+    return this.http.get<number[]>(`${this.applicationUrl}/interview-courses/enabled-students`,
+      this.withAuthHeaderIfAvailable());
+  }
+
+  getInterviewCourse(studentId: number): Observable<InterviewCoursePlan> {
+    return this.http!.get<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  setInterviewCourseEnabled(studentId: number, enabled: boolean): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/enabled`,
+      { enabled }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  addInterviewCourseLesson(studentId: number): Observable<InterviewCoursePlan> {
+    return this.http!.post<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/lessons`,
+      {}, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateInterviewCourseLesson(studentId: number, lessonId: number,
+                              lessonDate: string | null, lessonTime: string | null): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/lessons/${lessonId}`,
+      { lessonDate, lessonTime }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  addInterviewCourseRequirement(studentId: number, universityName: string,
+                                programName: string): Observable<InterviewCoursePlan> {
+    return this.http!.post<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements`,
+      { universityName, programName }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateInterviewCourseRequirement(studentId: number, requirementId: number,
+                                   universityName: string, programName: string): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements/${requirementId}`,
+      { universityName, programName }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  deleteInterviewCourseRequirement(studentId: number, requirementId: number): Observable<InterviewCoursePlan> {
+    return this.http!.delete<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements/${requirementId}`,
+      this.withAuthHeaderIfAvailable()
     );
   }
 

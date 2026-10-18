@@ -14,6 +14,7 @@ import { VolunteerTrackingService } from '../../services/volunteer-tracking.serv
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { CoursePlanService } from '../../services/course-plan.service';
 import { UniversityAspirationService } from '../../services/university-aspiration.service';
+import { GraduationApplicationStageService } from '../../services/graduation-application-stage.service';
 
 describe('StudentManagementComponent', () => {
   let component: StudentManagementComponent;
@@ -2073,6 +2074,42 @@ describe('StudentManagementComponent', () => {
     expect(component.pageTitle).toBe('申请管理');
   });
 
+  it('loads and changes student interview-course activation from application management', () => {
+    router.url = '/teacher/graduation';
+    (api.listStudents as any).mockReturnValue(of([
+      { studentId: 1, username: 'first', status: 'ACTIVE', graduationStageEnabled: false },
+      { studentId: 2, username: 'second', status: 'ACTIVE', graduationStageEnabled: false },
+    ]));
+    const interviewApi = {
+      listInterviewCourseEnabledStudentIds: vi.fn().mockReturnValue(of([2])),
+      setInterviewCourseEnabled: vi.fn().mockReturnValue(of({ studentId: 1, enabled: true })),
+    };
+    (component as any).graduationStageApi = interviewApi as unknown as GraduationApplicationStageService;
+    component.loadStudents();
+
+    expect(interviewApi.listInterviewCourseEnabledStudentIds).toHaveBeenCalledTimes(1);
+    expect(component.isInterviewCourseEnabledInList(component.students[0])).toBe(false);
+    expect(component.isInterviewCourseEnabledInList(component.students[1])).toBe(true);
+    component.toggleInterviewCourseInList(component.students[0], { target: { checked: true } } as unknown as Event);
+    expect(interviewApi.setInterviewCourseEnabled).toHaveBeenCalledWith(1, true);
+    expect(component.isInterviewCourseEnabledInList(component.students[0])).toBe(true);
+  });
+
+  it('does not show an unknown interview-course state as disabled after a failed load', () => {
+    router.url = '/teacher/graduation';
+    (api.listStudents as any).mockReturnValue(of([{ studentId: 1, username: 'first', status: 'ACTIVE', graduationStageEnabled: false }]));
+    const interviewApi = {
+      listInterviewCourseEnabledStudentIds: vi.fn().mockReturnValue(throwError(() => new Error('offline'))),
+      setInterviewCourseEnabled: vi.fn(),
+    };
+    (component as any).graduationStageApi = interviewApi as unknown as GraduationApplicationStageService;
+    component.loadStudents();
+
+    expect(component.interviewCourseStatusError).toContain('读取失败');
+    component.toggleInterviewCourseInList(component.students[0], { target: { checked: true } } as unknown as Event);
+    expect(interviewApi.setInterviewCourseEnabled).not.toHaveBeenCalled();
+  });
+
   it('default columns on /teacher/graduation should match graduation management defaults', () => {
     router.url = '/teacher/graduation';
 
@@ -2086,12 +2123,52 @@ describe('StudentManagementComponent', () => {
         'graduation',
         'teacherNote',
         'graduationStage',
+        'interviewCourse',
         'universityGoals',
         'ielts',
         'ossltTracking',
         'volunteerTracking',
       ].sort()
     );
+  });
+
+  it('treats interview course as a configurable application-management column', () => {
+    expect(component.columnToggleOptions.map((column) => column.key)).not.toContain('interviewCourse');
+    router.url = '/teacher/graduation';
+    component.ngOnInit();
+    expect(component.columnToggleOptions.map((column) => column.key)).toContain('interviewCourse');
+    expect(component.visibleColumns.map((column) => column.key)).toContain('interviewCourse');
+
+    component.onColumnVisibilityChange('interviewCourse', { target: { checked: false } } as unknown as Event);
+    expect(component.visibleColumns.map((column) => column.key)).not.toContain('interviewCourse');
+    expect(preferenceApi.upsertPagePreference).toHaveBeenCalledWith(
+      'graduation-applications-management.list-columns',
+      expect.objectContaining({ version: 'v13', visibleColumnKeys: expect.not.arrayContaining(['interviewCourse']) })
+    );
+  });
+
+  it('migrates existing application-management field choices and keeps a hidden interview course hidden', () => {
+    router.url = '/teacher/graduation';
+    (preferenceApi.getPagePreference as any).mockReturnValue(of({
+      version: 'v12',
+      visibleColumnKeys: ['name', 'graduationStage'],
+      orderedColumnKeys: ['name', 'graduationStage', 'teacherNote'],
+    }));
+    component.ngOnInit();
+    expect(component.visibleColumns.map((column) => column.key).slice(0, 3))
+      .toEqual(['name', 'graduationStage', 'interviewCourse']);
+    component.onColumnVisibilityChange('interviewCourse', { target: { checked: false } } as unknown as Event);
+    expect(component.visibleColumns.map((column) => column.key)).not.toContain('interviewCourse');
+
+    const restored = new StudentManagementComponent(
+      api as StudentManagementService, profileApi as StudentProfileService,
+      inviteApi as StudentInviteService, auth as AuthService, router as Router,
+      ieltsApi as IeltsTrackingService, ossltApi as OssltTrackingService,
+      volunteerApi as VolunteerTrackingService, coursePlanApi as CoursePlanService,
+      universityAspirationApi as UniversityAspirationService, preferenceApi as TeacherPreferenceService
+    );
+    restored.ngOnInit();
+    expect(restored.visibleColumns.map((column) => column.key)).not.toContain('interviewCourse');
   });
 
   it('graduation management should default graduation stage filter to all', () => {

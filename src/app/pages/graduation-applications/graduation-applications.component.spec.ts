@@ -34,6 +34,16 @@ describe('GraduationApplicationsComponent', () => {
             : of(options?.applications ?? [createApplication(1, 'University A', 'Program A', 1)])
         ),
       listHistory: vi.fn().mockReturnValue(of({ items: [], total: 0, page: 0, size: 20 })),
+      getInterviewCourse: vi.fn().mockReturnValue(of({
+        studentId: 101, studentName: 'Test Student', username: 'test_student',
+        graduationYear: 2026, enabled: false, lessons: [],
+      })),
+      setInterviewCourseEnabled: vi.fn().mockImplementation((_studentId: number, enabled: boolean) =>
+        of({ studentId: 101, studentName: 'Test Student', username: 'test_student',
+          graduationYear: 2026, enabled, lessons: enabled ? [1, 2, 3, 4].map((lessonNumber) => ({
+            id: lessonNumber, lessonNumber, lessonDate: null, lessonTime: null,
+          })) : [] })
+      ),
       getApplicationAccountCredential: vi.fn().mockReturnValue(
         of({
           studentId: 101,
@@ -141,6 +151,17 @@ describe('GraduationApplicationsComponent', () => {
     expect(component.studentId).toBe(101);
     expect(graduationStage.listApplications).toHaveBeenCalledWith(101);
     expect(component.groups.map((group) => group.universityName)).toEqual(['University A', 'University B']);
+  });
+
+  it('activates interview courses for the student independently of university interview flags', () => {
+    const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    expect(component.interviewCourse?.enabled).toBe(false);
+
+    component.toggleInterviewCourse(true);
+    expect(graduationStage.setInterviewCourseEnabled).toHaveBeenCalledWith(101, true);
+    expect(component.interviewCourse?.enabled).toBe(true);
+    expect(component.interviewCourse?.lessons).toHaveLength(4);
   });
 
   it('shows an error when the route student id is missing', () => {

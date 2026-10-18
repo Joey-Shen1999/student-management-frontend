@@ -36,6 +36,27 @@
       </div>
     </header>
 
+    <section class="interview-course-card">
+      <div>
+        <h2>面试课</h2>
+        <p>按学生开启；开启后在“本年面试课学生”名单中标注需要面试的大学与专业，并安排课程。默认四节空课。</p>
+        <p class="interview-course-note" *ngIf="interviewCourse?.enabled && !interviewCourse?.graduationYear">
+          请在学生档案填写预计毕业时间，学生才会出现在按年份筛选的名单中。
+        </p>
+        <p class="interview-course-error" *ngIf="interviewCourseError">{{ interviewCourseError }}</p>
+      </div>
+      <div class="interview-course-actions">
+        <label class="interview-course-toggle">
+          <input type="checkbox" [checked]="interviewCourse?.enabled === true"
+            [disabled]="interviewCourseLoading || interviewCourseSaving || !!interviewCourseError"
+            (change)="toggleInterviewCourse($any($event.target).checked)" />
+          <span>{{ interviewCourseSaving ? '保存中...' : '激活面试课' }}</span>
+        </label>
+        <button type="button" class="ghost-btn compact" (click)="openInterviewCourseList()">查看面试课名单</button>
+        <button type="button" class="ghost-btn compact" *ngIf="interviewCourseError" (click)="loadInterviewCourse()">重试</button>
+      </div>
+    </section>
+
     <section class="application-account-card" [class.expanded]="applicationAccountExpanded">
       <header (click)="toggleApplicationAccount()">
         <div>
@@ -400,7 +421,7 @@
                 (change)="togglePortalRequirement(group, 'videoInterviewRequired', $any($event.target).checked)"
                 [disabled]="isPortalSaving(group)"
               />
-              <span>视频面试</span>
+              <span>大学要求视频面试</span>
             </label>
             <label
               class="requirement-check"

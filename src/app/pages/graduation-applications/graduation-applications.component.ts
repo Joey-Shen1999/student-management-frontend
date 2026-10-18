@@ -13,6 +13,7 @@ import {
   GraduationApplicationPortalCredential,
   GraduationApplicationStageService,
   GraduationApplicationStatus,
+  InterviewCoursePlan,
 } from '../../services/graduation-application-stage.service';
 import {
   University,
@@ -345,6 +346,11 @@ export class GraduationApplicationsComponent implements OnInit {
   applicationAccountError = '';
   copiedApplicationAccountField: ApplicationAccountField | null = null;
 
+  interviewCourse: InterviewCoursePlan | null = null;
+  interviewCourseLoading = false;
+  interviewCourseSaving = false;
+  interviewCourseError = '';
+
   expandedPortalKeys = new Set<string>();
   portalCredentials = new Map<string, GraduationApplicationPortalCredential>();
   portalDrafts = new Map<string, PortalCredentialDraft>();
@@ -367,6 +373,41 @@ export class GraduationApplicationsComponent implements OnInit {
     this.loadUniversities();
     this.loadApplicationAccount();
     this.loadApplications();
+    this.loadInterviewCourse();
+  }
+
+  loadInterviewCourse(): void {
+    if (this.studentId <= 0) return;
+    this.interviewCourseLoading = true;
+    this.interviewCourseError = '';
+    this.graduationStage.getInterviewCourse(this.studentId)
+      .pipe(finalize(() => {
+        this.interviewCourseLoading = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (plan) => this.interviewCourse = plan,
+        error: () => this.interviewCourseError = '面试课状态读取失败，请重试。',
+      });
+  }
+
+  toggleInterviewCourse(enabled: boolean): void {
+    if (this.studentId <= 0 || this.interviewCourseSaving) return;
+    this.interviewCourseSaving = true;
+    this.interviewCourseError = '';
+    this.graduationStage.setInterviewCourseEnabled(this.studentId, enabled)
+      .pipe(finalize(() => {
+        this.interviewCourseSaving = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (plan) => this.interviewCourse = plan,
+        error: () => this.interviewCourseError = '面试课状态保存失败，请重试。',
+      });
+  }
+
+  openInterviewCourseList(): void {
+    this.router.navigate(['/teacher/applications/interviews']);
   }
 
   get groups(): ApplicationGroup[] {
