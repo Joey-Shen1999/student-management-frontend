@@ -23,18 +23,40 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+  border-radius: 22px;
+  padding: 28px 31px;
+  background: linear-gradient(125deg, #183961, #285a9b 70%, #3976bf);
+  box-shadow: 0 18px 36px rgba(24, 57, 97, .17);
 
   h2 {
-    margin: 0;
-    color: #1e2a3b;
+    margin: 8px 0 0;
+    color: #fff;
+    font-size: clamp(27px, 4vw, 37px);
+    letter-spacing: -.035em;
   }
 
   p {
-    margin: 6px 0 0;
-    color: #627085;
+    margin: 8px 0 0;
+    color: #d8e8fb;
     font-size: 14px;
   }
+
+  .signout-btn {
+    border-color: rgba(255,255,255,.45);
+    background: rgba(255,255,255,.12);
+    color: #fff;
+  }
 }
+
+.dashboard-eyebrow,
+.dashboard-section-kicker {
+  color: #bad8ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.dashboard-section-kicker { color: #396bae; }
 
 .dashboard-card {
   margin-bottom: 14px;
@@ -51,6 +73,29 @@
   }
 }
 
+.interview-course-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: linear-gradient(115deg, #f0f6ff, #fff);
+
+  h3 { margin: 4px 0 5px; }
+  p { margin: 0; color: #53647a; font-size: 13px; }
+  a { text-decoration: none; white-space: nowrap; }
+}
+
+.interview-course-eyebrow {
+  color: #2158a4;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 560px) {
+  .interview-course-card { align-items: flex-start; flex-direction: column; }
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -65,8 +110,75 @@
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+}
+
+.settings-label {
+  margin: 21px 0 10px;
+  padding-top: 17px;
+  border-top: 1px solid #e6edf7;
+  color: #5f718b;
+  font-size: 13px;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  .action-tile { min-height: 104px; }
+}
+
+.dashboard-actions-head { margin-bottom: 17px; }
+
+.action-tile {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  min-height: 132px;
+  border: 1px solid #dce6f1;
+  border-radius: 15px;
+  padding: 16px;
+  background: #f9fbff;
+  color: #172941;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+
+  strong { font-size: 14px; }
+  small { color: #6a7d96; font-size: 12px; line-height: 1.35; }
+
+  &:hover, &:focus-visible {
+    border-color: #aac9ed;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(30,65,108,.1);
+    transform: translateY(-2px);
+  }
+}
+
+.action-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 9px;
+  background: #e3efff;
+  color: #285a9b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .dashboard-header { flex-direction: column; align-items: stretch; padding: 25px; }
+  .dashboard-header .signout-btn { align-self: flex-start; }
+  .quick-actions { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .action-tile { min-height: 125px; padding: 12px; }
+}
+
+@media (min-width: 561px) and (max-width: 800px) {
+  .quick-actions { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 
 .student-portal-card {

@@ -244,6 +244,7 @@ const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
   profile: '\u6863\u6848',
   universityGoals: '\u5927\u5b66\u76ee\u6807',
   graduationStage: '\u5347\u5b66\u9636\u6bb5',
+  interviewCourse: '面试课',
   extracurricular: '\u8bfe\u5916\u6d3b\u52a8',
   documents: '\u6587\u6863',
   coursePlan: '\u8bfe\u7a0b\u8868',
@@ -299,6 +300,7 @@ const TEACHER_ACADEMIC_RECORD_TERM_OPTIONS: readonly TeacherAcademicRecordTerm[]
 ] as const;
 
 const STUDENT_LIST_COLUMN_PREFERENCE_VERSION = 'v12';
+const GRADUATION_APPLICATIONS_COLUMN_PREFERENCE_VERSION = 'v13';
 const STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX =
   'student-management.student-list.column-override';
 const STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX =
@@ -491,6 +493,15 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
   },
   {
+    key: 'interviewCourse',
+    label: '面试课',
+    defaultVisible: false,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;min-width:120px;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;vertical-align:middle;',
+  },
+  {
     key: 'extracurricular',
     label: '\u8bfe\u5916\u6d3b\u52a8',
     defaultVisible: false,
@@ -678,6 +689,14 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
             [routerLink]="['/teacher/applications/by-university']"
           >
             {{ ui.applicationsByUniversity | appTranslate }}
+          </button>
+
+          <button
+            *ngIf="isGraduationApplicationsContext"
+            type="button"
+            [routerLink]="['/teacher/applications/interviews']"
+          >
+            本年面试课学生
           </button>
 
           <button
@@ -1136,6 +1155,11 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
       >
         {{ listError }}
       </div>
+      <div *ngIf="isColumnVisible('interviewCourse') && interviewCourseStatusError"
+        style="margin-top:12px;padding:10px;border:1px solid #f2b8b5;background:#fff1f0;border-radius:8px;color:#b00020;">
+        {{ interviewCourseStatusError }}
+        <button type="button" (click)="loadInterviewCourseStatuses()" [disabled]="interviewCourseStatusLoading">重试</button>
+      </div>
 
       <div
         *ngIf="resetResult"
@@ -1260,6 +1284,17 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                     >
                       {{ resolveGraduationStageButtonLabel(student) }}
                     </button>
+                  </ng-container>
+
+                  <ng-container *ngSwitchCase="'interviewCourse'">
+                    <label style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;">
+                      <input type="checkbox" [checked]="isInterviewCourseEnabledInList(student)"
+                        [disabled]="interviewCourseStatusLoading || !!interviewCourseStatusError || isInterviewCourseSavingInList(student) || isArchived(student) || !resolveStudentId(student)"
+                        (change)="toggleInterviewCourseInList(student, $event)" />
+                      <span>{{ interviewCourseStatusLoading ? '读取中...' : interviewCourseStatusError ? '状态不可用' : isInterviewCourseEnabledInList(student) ? '已激活' : '未激活' }}</span>
+                    </label>
+                    <small *ngIf="isInterviewCourseSavingInList(student)" style="display:block;color:#60718a;">保存中...</small>
+                    <small *ngIf="interviewCourseSaveErrors.get(resolveStudentId(student) || 0) as error" style="display:block;color:#b00020;">{{ error }}</small>
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'extracurricular'">
@@ -2055,6 +2090,11 @@ export class StudentManagementComponent implements OnInit {
     ['physics', '物理', '物理学'],
   ];
   students: StudentAccount[] = [];
+  interviewCourseEnabledIds = new Set<number>();
+  interviewCourseSavingIds = new Set<number>();
+  interviewCourseSaveErrors = new Map<number, string>();
+  interviewCourseStatusLoading = false;
+  interviewCourseStatusError = '';
   visibleStudents: StudentAccount[] = [];
   visibleColumnKeys = new Set<StudentListColumnKey>(
     this.studentListColumns
@@ -2559,7 +2599,12 @@ export class StudentManagementComponent implements OnInit {
   private normalizeColumnOrderKeys(keys: readonly string[]): StudentListColumnKey[] {
     const normalized: StudentListColumnKey[] = [];
     const seen = new Set<StudentListColumnKey>();
-    for (const key of keys) {
+    const orderedKeys = [...keys];
+    if (this.isGraduationApplicationsContext && !orderedKeys.includes('interviewCourse')) {
+      const insertAfter = orderedKeys.indexOf('graduationStage');
+      orderedKeys.splice(insertAfter >= 0 ? insertAfter + 1 : 1, 0, 'interviewCourse');
+    }
+    for (const key of orderedKeys) {
       const normalizedKey = String(key ?? '').trim();
       if (!normalizedKey) continue;
       const typedKey = normalizedKey as StudentListColumnKey;
@@ -4247,6 +4292,11 @@ export class StudentManagementComponent implements OnInit {
   loadStudents(): void {
     this.loadingList = true;
     this.listError = '';
+    if (this.isGraduationApplicationsContext) {
+      this.interviewCourseStatusLoading = true;
+      this.interviewCourseStatusError = '';
+      this.interviewCourseSaveErrors.clear();
+    }
     this.closeTeacherDocumentUploadPanel();
     this.ieltsStatusCache.clear();
     this.languageTrackingStatusCache.clear();
@@ -4289,12 +4339,75 @@ export class StudentManagementComponent implements OnInit {
           this.students = this.normalizeStudentList(payload);
           this.applyListView(true);
           this.hydrateStudentMetadata(this.students);
+          if (this.isGraduationApplicationsContext) this.loadInterviewCourseStatuses();
           this.cdr.detectChanges();
         },
         error: (err: HttpErrorResponse) => {
           this.listError = this.extractErrorMessage(err) || '加载学生列表失败。';
           this.students = [];
           this.applyListView(true);
+          this.interviewCourseStatusLoading = false;
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  loadInterviewCourseStatuses(): void {
+    if (!this.isGraduationApplicationsContext) return;
+    this.interviewCourseStatusLoading = true;
+    this.interviewCourseStatusError = '';
+    this.graduationStageApi.listInterviewCourseEnabledStudentIds()
+      .pipe(finalize(() => {
+        this.interviewCourseStatusLoading = false;
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (ids) => {
+          this.interviewCourseEnabledIds = new Set((ids || []).filter((id) => Number.isSafeInteger(id) && id > 0));
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.interviewCourseStatusError = '面试课状态读取失败，请重试。';
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  isInterviewCourseEnabledInList(student: StudentAccount): boolean {
+    const id = this.resolveStudentId(student);
+    return !!id && this.interviewCourseEnabledIds.has(id);
+  }
+
+  isInterviewCourseSavingInList(student: StudentAccount): boolean {
+    const id = this.resolveStudentId(student);
+    return !!id && this.interviewCourseSavingIds.has(id);
+  }
+
+  toggleInterviewCourseInList(student: StudentAccount, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const studentId = this.resolveStudentId(student);
+    if (!studentId || this.interviewCourseStatusLoading || !!this.interviewCourseStatusError ||
+        this.interviewCourseSavingIds.has(studentId) || this.isArchived(student)) {
+      input.checked = this.isInterviewCourseEnabledInList(student);
+      return;
+    }
+    const enabled = input.checked;
+    this.interviewCourseSavingIds.add(studentId);
+    this.interviewCourseSaveErrors.delete(studentId);
+    this.graduationStageApi.setInterviewCourseEnabled(studentId, enabled)
+      .pipe(finalize(() => {
+        this.interviewCourseSavingIds.delete(studentId);
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (plan) => {
+          if (plan.enabled) this.interviewCourseEnabledIds.add(studentId);
+          else this.interviewCourseEnabledIds.delete(studentId);
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          input.checked = this.interviewCourseEnabledIds.has(studentId);
+          this.interviewCourseSaveErrors.set(studentId, '保存失败，请重试。');
           this.cdr.detectChanges();
         },
       });
@@ -5022,20 +5135,25 @@ export class StudentManagementComponent implements OnInit {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return null;
       const storageKey = this.resolveVisibleColumnsStorageKey();
-      const raw = storage.getItem(storageKey);
+      const currentRaw = storage.getItem(storageKey);
+      const legacyRaw = !currentRaw && this.isGraduationApplicationsContext
+        ? storage.getItem(this.resolveVisibleColumnsStorageKey(STUDENT_LIST_COLUMN_PREFERENCE_VERSION))
+        : null;
+      const raw = currentRaw || legacyRaw;
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         return {
-          visibleColumnKeys: parsed.map((value) => String(value ?? '').trim()).filter(Boolean),
+          visibleColumnKeys: this.withMigratedInterviewCourseColumn(
+            parsed.map((value) => String(value ?? '').trim()).filter(Boolean), !!legacyRaw),
         };
       }
       if (!parsed || typeof parsed !== 'object') return null;
       const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown };
       return {
-        visibleColumnKeys: Array.isArray(node.visibleColumnKeys)
+        visibleColumnKeys: this.withMigratedInterviewCourseColumn(Array.isArray(node.visibleColumnKeys)
           ? node.visibleColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
-          : [],
+          : [], !!legacyRaw),
         orderedColumnKeys: Array.isArray(node.orderedColumnKeys)
           ? node.orderedColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
           : [],
@@ -5045,11 +5163,30 @@ export class StudentManagementComponent implements OnInit {
     }
   }
 
-  private resolveVisibleColumnsStorageKey(): string {
+  private withMigratedInterviewCourseColumn(keys: string[], fromLegacy: boolean): string[] {
+    return fromLegacy && !keys.includes('interviewCourse') ? [...keys, 'interviewCourse'] : keys;
+  }
+
+  private resolveVisibleColumnsPreferenceVersion(): string {
+    return this.isGraduationApplicationsContext
+      ? GRADUATION_APPLICATIONS_COLUMN_PREFERENCE_VERSION
+      : STUDENT_LIST_COLUMN_PREFERENCE_VERSION;
+  }
+
+  private resolveVisibleColumnsStorageKey(version = this.resolveVisibleColumnsPreferenceVersion()): string {
     const pageContext = this.resolvePageContext();
     const pageScope = `page-${pageContext}`;
     const scope = this.resolvePreferenceStorageScope(pageScope);
-    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${STUDENT_LIST_COLUMN_PREFERENCE_VERSION}`;
+    return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${version}`;
+  }
+
+  private hasCurrentVisibleColumnsPreference(): boolean {
+    try {
+      const storage = (globalThis as { localStorage?: Storage }).localStorage;
+      return !!storage?.getItem(this.resolveVisibleColumnsStorageKey());
+    } catch {
+      return false;
+    }
   }
 
   private resolveListControlsStorageKey(): string {
@@ -5321,6 +5458,9 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private isColumnAllowedForCurrentContext(columnKey: StudentListColumnKey): boolean {
+    if (columnKey === 'interviewCourse') {
+      return this.resolvePageContext() === 'graduationApplications';
+    }
     if (columnKey === 'documents') {
       return this.resolvePageContext() === 'students';
     }
@@ -5351,7 +5491,14 @@ export class StudentManagementComponent implements OnInit {
     this.teacherPreferenceApi.getPagePreference(pagePreferenceKey).subscribe({
       next: (payload) => {
         const remoteVersion = String(payload?.version ?? '').trim();
-        if (remoteVersion !== STUDENT_LIST_COLUMN_PREFERENCE_VERSION) {
+        const expectedVersion = this.resolveVisibleColumnsPreferenceVersion();
+        const migratingGraduationPreference = this.isGraduationApplicationsContext &&
+          remoteVersion === STUDENT_LIST_COLUMN_PREFERENCE_VERSION;
+        if (remoteVersion !== expectedVersion && !migratingGraduationPreference) {
+          this.syncVisibleColumnsPreferenceToServer();
+          return;
+        }
+        if (migratingGraduationPreference && this.hasCurrentVisibleColumnsPreference()) {
           this.syncVisibleColumnsPreferenceToServer();
           return;
         }
@@ -5359,9 +5506,9 @@ export class StudentManagementComponent implements OnInit {
         const remoteOrderedKeys = Array.isArray(payload?.orderedColumnKeys)
           ? payload.orderedColumnKeys.map((key) => String(key ?? '').trim()).filter(Boolean)
           : [];
-        const remoteKeys = Array.isArray(payload?.visibleColumnKeys)
+        const remoteKeys = this.withMigratedInterviewCourseColumn(Array.isArray(payload?.visibleColumnKeys)
           ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
-          : [];
+          : [], migratingGraduationPreference);
         if (remoteOrderedKeys.length > 0) {
           this.columnOrderKeys = this.normalizeColumnOrderKeys(remoteOrderedKeys);
         }
@@ -5376,6 +5523,7 @@ export class StudentManagementComponent implements OnInit {
         }
         this.persistIndependentColumnOverrides();
         this.persistVisibleColumnsPreference();
+        if (migratingGraduationPreference) this.syncVisibleColumnsPreferenceToServer();
         this.hydrateStudentMetadata(this.students);
         if (this.visibleColumnKeys.has('teacherNote')) {
           this.prefetchVisibleTeacherNotes();
@@ -5430,7 +5578,11 @@ export class StudentManagementComponent implements OnInit {
       const storage = (globalThis as { localStorage?: Storage }).localStorage;
       if (!storage) return null;
       const storageKey = this.resolveIndependentColumnOverrideStorageKey(columnKey);
-      const raw = String(storage.getItem(storageKey) ?? '').trim();
+      const raw = String(storage.getItem(storageKey) ??
+        (this.isGraduationApplicationsContext
+          ? storage.getItem(this.resolveIndependentColumnOverrideStorageKey(
+              columnKey, STUDENT_LIST_COLUMN_PREFERENCE_VERSION))
+          : '') ?? '').trim();
       if (!raw) return null;
       if (raw === '1' || raw.toLowerCase() === 'true') return true;
       if (raw === '0' || raw.toLowerCase() === 'false') return false;
@@ -5440,8 +5592,9 @@ export class StudentManagementComponent implements OnInit {
     }
   }
 
-  private resolveIndependentColumnOverrideStorageKey(columnKey: 'profile' | 'ielts'): string {
-    const sessionScopedKey = this.resolveVisibleColumnsStorageKey();
+  private resolveIndependentColumnOverrideStorageKey(columnKey: 'profile' | 'ielts',
+                                                     version = this.resolveVisibleColumnsPreferenceVersion()): string {
+    const sessionScopedKey = this.resolveVisibleColumnsStorageKey(version);
     return `${STUDENT_LIST_COLUMN_VISIBILITY_OVERRIDE_STORAGE_KEY_PREFIX}.${sessionScopedKey}.${columnKey}`;
   }
 
@@ -5451,7 +5604,7 @@ export class StudentManagementComponent implements OnInit {
 
     const pagePreferenceKey = this.resolveVisibleColumnsPreferencePageKey();
     const payload = {
-      version: STUDENT_LIST_COLUMN_PREFERENCE_VERSION,
+      version: this.resolveVisibleColumnsPreferenceVersion(),
       visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
       orderedColumnKeys: this.normalizeColumnOrderKeys(this.columnOrderKeys),
     };

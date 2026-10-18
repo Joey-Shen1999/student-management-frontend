@@ -311,6 +311,19 @@
               <button
                 type="button"
                 class="requirement-check"
+                [class.active]="getPortalDraft(student).videoInterviewRequired"
+                [attr.aria-pressed]="getPortalDraft(student).videoInterviewRequired"
+                (click)="$event.stopPropagation(); togglePortalRequirement(student, 'videoInterviewRequired', !getPortalDraft(student).videoInterviewRequired)"
+                [disabled]="isPortalSaving(student)"
+              >
+                <span class="requirement-mark" aria-hidden="true">
+                  {{ getPortalDraft(student).videoInterviewRequired ? '✓' : '' }}
+                </span>
+                <span>{{ ui.videoInterview | appTranslate }}</span>
+              </button>
+              <button
+                type="button"
+                class="requirement-check"
                 [class.active]="getPortalDraft(student).languageScoreRequired"
                 [attr.aria-pressed]="getPortalDraft(student).languageScoreRequired"
                 (click)="$event.stopPropagation(); togglePortalRequirement(student, 'languageScoreRequired', !getPortalDraft(student).languageScoreRequired)"

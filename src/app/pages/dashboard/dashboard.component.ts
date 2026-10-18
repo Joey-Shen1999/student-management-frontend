@@ -14,6 +14,7 @@ import {
   GraduationApplication,
   GraduationApplicationPortalCredential,
   GraduationApplicationStageService,
+  type InterviewCoursePlan,
 } from '../../services/graduation-application-stage.service';
 
 interface ApplicationProgressGroup {
@@ -36,8 +37,9 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
       <div class="dashboard-shell">
         <div class="dashboard-header">
           <div>
+            <span class="dashboard-eyebrow">STUDENT WORKSPACE</span>
             <h2>学生工作台</h2>
-            <p>欢迎，{{ welcomeDisplayName }}</p>
+            <p>欢迎回来，{{ welcomeDisplayName }}。从这里继续你的申请准备。</p>
           </div>
           <button
             type="button"
@@ -71,6 +73,7 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
               </header>
               <section class="student-requirement-alerts" *ngIf="hasStudentRequirementAlerts(group)">
                 <span *ngIf="group.portalCredential?.interviewRequired">需要完成面试</span>
+                <span *ngIf="group.portalCredential?.videoInterviewRequired">需要完成视频面试</span>
                 <span *ngIf="group.portalCredential?.languageScoreRequired">需要提交语言成绩</span>
               </section>
               <section class="student-portal-card" *ngIf="group.portalCredential?.studentVisible">
@@ -147,6 +150,15 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
               </div>
             </article>
           </div>
+        </section>
+
+        <section class="dashboard-card interview-course-card" *ngIf="myInterviewCourse?.enabled">
+          <div>
+            <span class="interview-course-eyebrow">专属课程</span>
+            <h3>我的面试课</h3>
+            <p>查看课程安排和需要准备的大学、专业。</p>
+          </div>
+          <a routerLink="/student/interview-course" class="action-btn primary">查看课程 →</a>
         </section>
 
         <section class="dashboard-card">
@@ -269,35 +281,45 @@ type StudentPortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPas
         </section>
 
         <section class="dashboard-card">
-          <h3>快捷操作</h3>
+          <div class="section-head dashboard-actions-head">
+            <div>
+              <span class="dashboard-section-kicker">EXPLORE YOUR SPACE</span>
+              <h3>快捷操作</h3>
+            </div>
+          </div>
           <div class="quick-actions">
-            <button type="button" class="action-btn primary" (click)="goDocumentUpload()">
-              上传材料
+            <button type="button" class="action-tile" (click)="goDocumentUpload()">
+              <span class="action-tile-icon">01</span><strong>上传材料</strong><small>整理申请文件与成绩单</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goProfile()">学生档案</button>
-            <button type="button" class="action-btn primary" (click)="goUniversityGoals()">
-              大学目标
+            <button type="button" class="action-tile" (click)="goProfile()">
+              <span class="action-tile-icon">02</span><strong>学生档案</strong><small>查看和更新个人资料</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goCoursePlanner()">
-              课程规划
+            <button type="button" class="action-tile" (click)="goUniversityGoals()">
+              <span class="action-tile-icon">03</span><strong>大学目标</strong><small>管理想申请的学校</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goIeltsTracking()">
-              语言成绩跟踪
+            <button type="button" class="action-tile" (click)="goCoursePlanner()">
+              <span class="action-tile-icon">04</span><strong>课程规划</strong><small>安排未来课程</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goOssltTracking()">
-              OSSLT 登记
+            <button type="button" class="action-tile" (click)="goIeltsTracking()">
+              <span class="action-tile-icon">05</span><strong>语言成绩跟踪</strong><small>记录语言考试进度</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goVolunteerRecords()">
-              义工记录
+            <button type="button" class="action-tile" (click)="goOssltTracking()">
+              <span class="action-tile-icon">06</span><strong>OSSLT 登记</strong><small>查看毕业语言要求</small>
             </button>
-            <button type="button" class="action-btn primary" (click)="goExtracurricularRecords()">
-              课外活动
+            <button type="button" class="action-tile" (click)="goVolunteerRecords()">
+              <span class="action-tile-icon">07</span><strong>义工记录</strong><small>查看和整理服务时数</small>
             </button>
-            <button type="button" class="action-btn secondary" (click)="goAccountProfile()">
-              姓名设置
+            <button type="button" class="action-tile" (click)="goExtracurricularRecords()">
+              <span class="action-tile-icon">08</span><strong>课外活动</strong><small>记录活动与成果</small>
             </button>
-            <button type="button" class="action-btn secondary" (click)="goAccount()">
-              账号设置
+          </div>
+          <h4 class="settings-label">账户与偏好</h4>
+          <div class="settings-actions">
+            <button type="button" class="action-tile" (click)="goAccountProfile()">
+              <span class="action-tile-icon">09</span><strong>姓名设置</strong><small>维护显示姓名</small>
+            </button>
+            <button type="button" class="action-tile" (click)="goAccount()">
+              <span class="action-tile-icon">10</span><strong>账号设置</strong><small>管理登录与安全</small>
             </button>
           </div>
         </section>
@@ -320,6 +342,7 @@ export class DashboardComponent implements OnInit {
   applicationProgressGroups: ApplicationProgressGroup[] = [];
   applicationProgressLoading = false;
   applicationProgressError = '';
+  myInterviewCourse: InterviewCoursePlan | null = null;
   copiedStudentPortalFieldKey: string | null = null;
   infoAttachmentDownloadKey = '';
 
@@ -350,7 +373,21 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.loadWelcomeNameIfNeeded();
     this.loadApplicationProgress();
+    this.loadMyInterviewCourse();
     this.loadInfos();
+  }
+
+  private loadMyInterviewCourse(): void {
+    this.graduationStage.getMyInterviewCourse().subscribe({
+      next: (plan) => {
+        this.myInterviewCourse = plan.enabled ? plan : null;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.myInterviewCourse = null;
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   goProfile() {
@@ -376,6 +413,7 @@ export class DashboardComponent implements OnInit {
   hasStudentRequirementAlerts(group: ApplicationProgressGroup): boolean {
     return (
       group.portalCredential?.interviewRequired === true ||
+      group.portalCredential?.videoInterviewRequired === true ||
       group.portalCredential?.languageScoreRequired === true
     );
   }
@@ -767,7 +805,7 @@ export class DashboardComponent implements OnInit {
         .subscribe({
           next: (credential) => {
             group.portalCredential =
-              credential?.studentVisible || credential?.interviewRequired || credential?.languageScoreRequired
+              credential?.studentVisible || credential?.interviewRequired || credential?.videoInterviewRequired || credential?.languageScoreRequired
                 ? credential
                 : null;
             this.cdr.detectChanges();

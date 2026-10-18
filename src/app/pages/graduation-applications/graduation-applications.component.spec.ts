@@ -34,6 +34,16 @@ describe('GraduationApplicationsComponent', () => {
             : of(options?.applications ?? [createApplication(1, 'University A', 'Program A', 1)])
         ),
       listHistory: vi.fn().mockReturnValue(of({ items: [], total: 0, page: 0, size: 20 })),
+      getInterviewCourse: vi.fn().mockReturnValue(of({
+        studentId: 101, studentName: 'Test Student', username: 'test_student',
+        graduationYear: 2026, enabled: false, lessons: [],
+      })),
+      setInterviewCourseEnabled: vi.fn().mockImplementation((_studentId: number, enabled: boolean) =>
+        of({ studentId: 101, studentName: 'Test Student', username: 'test_student',
+          graduationYear: 2026, enabled, lessons: enabled ? [1, 2, 3, 4].map((lessonNumber) => ({
+            id: lessonNumber, lessonNumber, lessonDate: null, lessonTime: null,
+          })) : [] })
+      ),
       getApplicationAccountCredential: vi.fn().mockReturnValue(
         of({
           studentId: 101,
@@ -69,6 +79,7 @@ describe('GraduationApplicationsComponent', () => {
           schoolPassword: 'ZAQ!2wsxcde3',
           studentVisible: false,
           interviewRequired: false,
+          videoInterviewRequired: false,
           languageScoreRequired: false,
         })
       ),
@@ -82,6 +93,7 @@ describe('GraduationApplicationsComponent', () => {
           schoolPassword: payload.schoolPassword,
           studentVisible: payload.studentVisible === true,
           interviewRequired: payload.interviewRequired === true,
+          videoInterviewRequired: payload.videoInterviewRequired === true,
           languageScoreRequired: payload.languageScoreRequired === true,
         })
       ),
@@ -139,6 +151,17 @@ describe('GraduationApplicationsComponent', () => {
     expect(component.studentId).toBe(101);
     expect(graduationStage.listApplications).toHaveBeenCalledWith(101);
     expect(component.groups.map((group) => group.universityName)).toEqual(['University A', 'University B']);
+  });
+
+  it('activates interview courses for the student independently of university interview flags', () => {
+    const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    expect(component.interviewCourse?.enabled).toBe(false);
+
+    component.toggleInterviewCourse(true);
+    expect(graduationStage.setInterviewCourseEnabled).toHaveBeenCalledWith(101, true);
+    expect(component.interviewCourse?.enabled).toBe(true);
+    expect(component.interviewCourse?.lessons).toHaveLength(4);
   });
 
   it('shows an error when the route student id is missing', () => {
@@ -495,10 +518,25 @@ describe('GraduationApplicationsComponent', () => {
       schoolPassword: 'Changed!234',
       studentVisible: true,
       interviewRequired: false,
+      videoInterviewRequired: false,
       languageScoreRequired: false,
     });
     expect(component.isPortalEditing(group)).toBe(false);
     expect(component.getPortalDraft(group).schoolAccount).toBe('portal-user');
+  });
+
+  it('saves video interview as an independent requirement', () => {
+    const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+    component.ngOnInit();
+    const group = component.groups[0];
+    component.onUniversityPanelClick(group, { target: document.createElement('div') } as unknown as MouseEvent);
+
+    component.togglePortalRequirement(group, 'videoInterviewRequired', true);
+
+    expect(graduationStage.updatePortalCredential).toHaveBeenCalledWith(
+      101, 1, expect.objectContaining({ videoInterviewRequired: true, interviewRequired: false })
+    );
+    expect(component.getPortalDraft(group).videoInterviewRequired).toBe(true);
   });
 
   it('updates the shared application account and syncs visible school account drafts', () => {

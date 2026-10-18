@@ -1,0 +1,118 @@
+<main class="interview-page">
+  <div class="interview-shell">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">{{ ui.section | appTranslate }} · {{ year }}</p>
+        <h1>{{ ui.title | appTranslate }}</h1>
+        <p class="description">{{ ui.description | appTranslate }}</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
+        <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
+      </div>
+    </header>
+
+    <section class="overview" aria-label="Interview course summary">
+      <div><span>{{ ui.studentCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : rows.length }}</strong></div>
+      <div><span>{{ ui.scheduledCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : scheduledCount }}</strong></div>
+    </section>
+
+    <label class="search-box">
+      <span>{{ ui.search | appTranslate }}</span>
+      <input type="search" [(ngModel)]="search" [placeholder]="ui.search | appTranslate" />
+    </label>
+
+    <div class="state" *ngIf="loading">{{ ui.loading | appTranslate }}</div>
+    <div class="state error" *ngIf="failed">
+      {{ ui.error | appTranslate }}
+      <button type="button" (click)="load()">{{ ui.refresh | appTranslate }}</button>
+    </div>
+    <div class="state" *ngIf="!loading && !failed && rows.length === 0">{{ ui.empty | appTranslate }}</div>
+    <div class="state" *ngIf="!loading && !failed && rows.length > 0 && filteredRows.length === 0">
+      {{ ui.noMatches | appTranslate }}
+    </div>
+
+    <section class="student-list" *ngIf="!loading && !failed && filteredRows.length > 0">
+      <article class="student-card" *ngFor="let row of filteredRows; trackBy: trackStudent">
+        <div class="student-head">
+          <div>
+            <h2 class="notranslate" translate="no" data-no-auto-translate>{{ row.studentName }}</h2>
+            <small class="notranslate" translate="no" data-no-auto-translate>{{ row.username }}</small>
+          </div>
+          <a [routerLink]="['/teacher/students', row.studentId, 'graduation-applications']">
+            {{ ui.view | appTranslate }}
+          </a>
+        </div>
+
+        <section class="requirements" [attr.aria-label]="ui.requirements | appTranslate">
+          <div class="requirements-head">
+            <h3>{{ ui.requirements | appTranslate }}</h3>
+            <button type="button" (click)="startRequirement(row)" [disabled]="isBusy(row.studentId)">
+              {{ ui.addRequirement | appTranslate }}
+            </button>
+          </div>
+          <p class="requirements-empty" *ngIf="!(row.requirements || []).length">
+            {{ ui.requirementsEmpty | appTranslate }}
+          </p>
+          <div class="requirement-row" *ngFor="let requirement of row.requirements">
+            <div>
+              <strong class="notranslate" translate="no" data-no-auto-translate>{{ requirement.universityName }}</strong>
+              <span class="notranslate" translate="no" data-no-auto-translate>{{ requirement.programName }}</span>
+            </div>
+            <div class="requirement-actions">
+              <button type="button" (click)="startRequirement(row, requirement)" [disabled]="isBusy(row.studentId)">
+                {{ ui.editRequirement | appTranslate }}
+              </button>
+              <button type="button" class="delete" (click)="deleteRequirement(row, requirement)"
+                [disabled]="isBusy(row.studentId)">{{ ui.deleteRequirement | appTranslate }}</button>
+            </div>
+          </div>
+          <div class="requirement-form" *ngIf="requirementDrafts.get(row.studentId) as draft">
+            <label>
+              <span>{{ ui.university | appTranslate }}</span>
+              <input type="text" [(ngModel)]="draft.universityName" maxlength="200"
+                [disabled]="isBusy(row.studentId)" [placeholder]="ui.university | appTranslate" />
+            </label>
+            <label>
+              <span>{{ ui.program | appTranslate }}</span>
+              <input type="text" [(ngModel)]="draft.programName" maxlength="200"
+                [disabled]="isBusy(row.studentId)" [placeholder]="ui.program | appTranslate" />
+            </label>
+            <div class="requirement-actions">
+              <button type="button" (click)="saveRequirement(row)" [disabled]="isBusy(row.studentId)">
+                {{ ui.saveRequirement | appTranslate }}
+              </button>
+              <button type="button" (click)="cancelRequirement(row.studentId)" [disabled]="isBusy(row.studentId)">
+                {{ ui.cancel | appTranslate }}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div class="lesson-list">
+          <div class="lesson-row" *ngFor="let lesson of row.lessons; trackBy: trackLesson">
+            <strong>{{ lessonLabel(lesson.lessonNumber) | appTranslate }}</strong>
+            <label>
+              <span>{{ ui.date | appTranslate }}</span>
+              <input type="date" [value]="lesson.lessonDate || ''" [disabled]="isBusy(row.studentId)"
+                (change)="changeLessonDate(row, lesson, $any($event.target).value)" />
+            </label>
+            <label>
+              <span>{{ ui.time | appTranslate }}</span>
+              <input type="time" [value]="lesson.lessonTime?.slice(0, 5) || ''" [disabled]="isBusy(row.studentId)"
+                (change)="changeLessonTime(row, lesson, $any($event.target).value)" />
+            </label>
+          </div>
+        </div>
+
+        <div class="lesson-actions">
+          <button type="button" (click)="addLesson(row)" [disabled]="isBusy(row.studentId)">
+            {{ ui.add | appTranslate }}
+          </button>
+          <span *ngIf="isBusy(row.studentId)">{{ ui.saving | appTranslate }}</span>
+          <span class="save-error" *ngIf="studentErrors.has(row.studentId)">{{ ui.saveError | appTranslate }}</span>
+        </div>
+      </article>
+    </section>
+  </div>
+</main>

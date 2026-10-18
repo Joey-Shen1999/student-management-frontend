@@ -1,4 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+@use './app/shared/styles/student-portal-theme';
+
+/* Shared application styles */
 
 .task-card-chips,
 .task-card-actions,
@@ -527,3 +529,13 @@
     flex-direction: column;
   }
 }
+// Student-level interview course controls on formal application pages.
+.applications-page .interview-course-card { padding: 16px; display: flex; justify-content: space-between; gap: 18px; align-items: center; border: 1px solid #dce4f0; border-radius: 12px; background: #fff; }
+.applications-page .interview-course-card h2 { margin: 0; font-size: 18px; }
+.applications-page .interview-course-card p { margin: 6px 0 0; color: #60718a; line-height: 1.5; }
+.applications-page .interview-course-card .interview-course-note { color: #a15c00; }
+.applications-page .interview-course-card .interview-course-error { color: #b42318; }
+.applications-page .interview-course-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.applications-page .interview-course-toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
+.applications-page .interview-course-toggle input { width: 18px; height: 18px; }
+@media (max-width: 680px) { .applications-page .interview-course-card { flex-direction: column; align-items: stretch; } }

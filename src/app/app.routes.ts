@@ -79,6 +79,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/interview-course',
+    loadComponent: () =>
+      import('./pages/student-interview-course/student-interview-course.component').then(
+        (m) => m.StudentInterviewCourseComponent
+      ),
+  },
+
+  {
     path: 'student/ielts',
     loadComponent: () =>
       import('./pages/ielts-tracking/ielts-tracking.component').then((m) => m.IeltsTrackingComponent),
@@ -269,6 +277,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/university-application-overview/university-application-overview.component').then(
             (m) => m.UniversityApplicationOverviewComponent
+          ),
+      },
+
+      {
+        path: 'applications/interviews',
+        loadComponent: () =>
+          import('./pages/interview-students/interview-students.component').then(
+            (m) => m.InterviewStudentsComponent
           ),
       },
 

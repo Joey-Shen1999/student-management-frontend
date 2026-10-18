@@ -72,6 +72,9 @@ import { uiText } from '../../shared/i18n/ui-translations';
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/applications/by-university']">
               {{ ui.universityApplicationOverview | appTranslate }}
             </button>
+            <button type="button" class="action-btn primary" [routerLink]="['/teacher/applications/interviews']">
+              {{ ui.interviewStudents | appTranslate }}
+            </button>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/service-progress']">
               {{ ui.serviceProgress | appTranslate }}
             </button>
@@ -103,6 +106,7 @@ export class TeacherDashboardComponent {
     universityGoalManagement: uiText('升学目标', 'University Goals'),
     graduationManagement: uiText('申请管理', 'Application Management'),
     universityApplicationOverview: uiText('按大学查看申请', 'Applications by University'),
+    interviewStudents: uiText('本年面试课学生', 'Interview Course Students This Year'),
     serviceProgress: uiText('服务进度档', 'Service Progress'),
     accountSettings: uiText('账号设置', 'Account Settings'),
   };

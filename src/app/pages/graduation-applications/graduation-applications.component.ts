@@ -13,6 +13,7 @@ import {
   GraduationApplicationPortalCredential,
   GraduationApplicationStageService,
   GraduationApplicationStatus,
+  InterviewCoursePlan,
 } from '../../services/graduation-application-stage.service';
 import {
   University,
@@ -40,7 +41,7 @@ interface ApplicationFormModel {
 }
 
 type PortalCredentialField = 'schoolAccount' | 'schoolEmail' | 'schoolPassword';
-type PortalRequirementField = 'interviewRequired' | 'languageScoreRequired';
+type PortalRequirementField = 'interviewRequired' | 'videoInterviewRequired' | 'languageScoreRequired';
 
 interface PortalCredentialDraft {
   schoolAccount: string;
@@ -48,6 +49,7 @@ interface PortalCredentialDraft {
   schoolPassword: string;
   studentVisible: boolean;
   interviewRequired: boolean;
+  videoInterviewRequired: boolean;
   languageScoreRequired: boolean;
 }
 
@@ -344,6 +346,11 @@ export class GraduationApplicationsComponent implements OnInit {
   applicationAccountError = '';
   copiedApplicationAccountField: ApplicationAccountField | null = null;
 
+  interviewCourse: InterviewCoursePlan | null = null;
+  interviewCourseLoading = false;
+  interviewCourseSaving = false;
+  interviewCourseError = '';
+
   expandedPortalKeys = new Set<string>();
   portalCredentials = new Map<string, GraduationApplicationPortalCredential>();
   portalDrafts = new Map<string, PortalCredentialDraft>();
@@ -366,6 +373,41 @@ export class GraduationApplicationsComponent implements OnInit {
     this.loadUniversities();
     this.loadApplicationAccount();
     this.loadApplications();
+    this.loadInterviewCourse();
+  }
+
+  loadInterviewCourse(): void {
+    if (this.studentId <= 0) return;
+    this.interviewCourseLoading = true;
+    this.interviewCourseError = '';
+    this.graduationStage.getInterviewCourse(this.studentId)
+      .pipe(finalize(() => {
+        this.interviewCourseLoading = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (plan) => this.interviewCourse = plan,
+        error: () => this.interviewCourseError = '面试课状态读取失败，请重试。',
+      });
+  }
+
+  toggleInterviewCourse(enabled: boolean): void {
+    if (this.studentId <= 0 || this.interviewCourseSaving) return;
+    this.interviewCourseSaving = true;
+    this.interviewCourseError = '';
+    this.graduationStage.setInterviewCourseEnabled(this.studentId, enabled)
+      .pipe(finalize(() => {
+        this.interviewCourseSaving = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (plan) => this.interviewCourse = plan,
+        error: () => this.interviewCourseError = '面试课状态保存失败，请重试。',
+      });
+  }
+
+  openInterviewCourseList(): void {
+    this.router.navigate(['/teacher/applications/interviews']);
   }
 
   get groups(): ApplicationGroup[] {
@@ -976,6 +1018,7 @@ export class GraduationApplicationsComponent implements OnInit {
       draft.schoolPassword.trim() === current.schoolPassword.trim() &&
       draft.studentVisible === current.studentVisible &&
       draft.interviewRequired === current.interviewRequired &&
+      draft.videoInterviewRequired === current.videoInterviewRequired &&
       draft.languageScoreRequired === current.languageScoreRequired
     ) {
       this.portalEditingKey = null;
@@ -1453,6 +1496,7 @@ export class GraduationApplicationsComponent implements OnInit {
       schoolPassword: String(credential?.schoolPassword || credential?.defaultSchoolPassword || 'ZAQ!2wsxcde3'),
       studentVisible: credential?.studentVisible === true,
       interviewRequired: credential?.interviewRequired === true,
+      videoInterviewRequired: credential?.videoInterviewRequired === true,
       languageScoreRequired: credential?.languageScoreRequired === true,
     };
   }

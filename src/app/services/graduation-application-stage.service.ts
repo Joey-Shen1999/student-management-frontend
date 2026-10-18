@@ -79,6 +79,7 @@ export interface GraduationApplicationPortalCredential {
   defaultSchoolPassword?: string;
   studentVisible: boolean;
   interviewRequired: boolean;
+  videoInterviewRequired: boolean;
   languageScoreRequired: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -90,6 +91,7 @@ export interface GraduationApplicationPortalCredentialRequest {
   schoolPassword?: string;
   studentVisible?: boolean;
   interviewRequired?: boolean;
+  videoInterviewRequired?: boolean;
   languageScoreRequired?: boolean;
 }
 
@@ -120,6 +122,38 @@ export interface GraduationApplicationUniversitySummary {
   universityName: string;
   studentCount: number;
   applicationCount: number;
+}
+
+export interface GraduationApplicationInterviewStudent {
+  studentId: number;
+  studentName: string;
+  username?: string;
+  universityId: number;
+  universityName: string;
+  graduationYear: number;
+}
+
+export interface InterviewCourseLesson {
+  id: number;
+  lessonNumber: number;
+  lessonDate: string | null;
+  lessonTime: string | null;
+}
+
+export interface InterviewCourseRequirement {
+  id: number;
+  universityName: string;
+  programName: string;
+}
+
+export interface InterviewCoursePlan {
+  studentId: number;
+  studentName: string;
+  username: string;
+  graduationYear: number | null;
+  enabled: boolean;
+  lessons: InterviewCourseLesson[];
+  requirements: InterviewCourseRequirement[];
 }
 
 interface UniversityPortalLoginLink {
@@ -213,6 +247,93 @@ export class GraduationApplicationStageService {
 
     return this.http.get<GraduationApplicationUniversitySummary[]>(
       `${this.applicationUrl}/universities/summary`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  listInterviewStudents(year: number): Observable<GraduationApplicationInterviewStudent[]> {
+    if (!this.http) return of([]);
+    return this.http.get<GraduationApplicationInterviewStudent[]>(
+      `${this.applicationUrl}/video-interviews`,
+      {
+        ...this.withAuthHeaderIfAvailable(),
+        params: new HttpParams().set('year', String(year)),
+      }
+    );
+  }
+
+  listInterviewCourseStudents(year: number): Observable<InterviewCoursePlan[]> {
+    if (!this.http) return of([]);
+    return this.http.get<InterviewCoursePlan[]>(`${this.applicationUrl}/interview-courses`, {
+      ...this.withAuthHeaderIfAvailable(),
+      params: new HttpParams().set('year', String(year)),
+    });
+  }
+
+  listInterviewCourseEnabledStudentIds(): Observable<number[]> {
+    if (!this.http) return of([]);
+    return this.http.get<number[]>(`${this.applicationUrl}/interview-courses/enabled-students`,
+      this.withAuthHeaderIfAvailable());
+  }
+
+  getInterviewCourse(studentId: number): Observable<InterviewCoursePlan> {
+    return this.http!.get<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course`,
+      this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  getMyInterviewCourse(): Observable<InterviewCoursePlan> {
+    if (!this.http) return of({
+      studentId: 0, studentName: '', username: '', graduationYear: null,
+      enabled: false, lessons: [], requirements: [],
+    });
+    return this.http!.get<InterviewCoursePlan>(
+      '/api/me/interview-course', this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  setInterviewCourseEnabled(studentId: number, enabled: boolean): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/enabled`,
+      { enabled }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  addInterviewCourseLesson(studentId: number): Observable<InterviewCoursePlan> {
+    return this.http!.post<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/lessons`,
+      {}, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateInterviewCourseLesson(studentId: number, lessonId: number,
+                              lessonDate: string | null, lessonTime: string | null): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/lessons/${lessonId}`,
+      { lessonDate, lessonTime }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  addInterviewCourseRequirement(studentId: number, universityName: string,
+                                programName: string): Observable<InterviewCoursePlan> {
+    return this.http!.post<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements`,
+      { universityName, programName }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  updateInterviewCourseRequirement(studentId: number, requirementId: number,
+                                   universityName: string, programName: string): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements/${requirementId}`,
+      { universityName, programName }, this.withAuthHeaderIfAvailable()
+    );
+  }
+
+  deleteInterviewCourseRequirement(studentId: number, requirementId: number): Observable<InterviewCoursePlan> {
+    return this.http!.delete<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/requirements/${requirementId}`,
       this.withAuthHeaderIfAvailable()
     );
   }
@@ -424,6 +545,7 @@ export class GraduationApplicationStageService {
       schoolPassword: String(payload.schoolPassword || '').trim(),
       studentVisible: payload.studentVisible === true,
       interviewRequired: payload.interviewRequired === true,
+      videoInterviewRequired: payload.videoInterviewRequired === true,
       languageScoreRequired: payload.languageScoreRequired === true,
     };
     if (student <= 0 || !university || !this.http) {
@@ -530,6 +652,7 @@ export class GraduationApplicationStageService {
       defaultSchoolPassword: account.defaultApplicationPassword,
       studentVisible: false,
       interviewRequired: false,
+      videoInterviewRequired: false,
       languageScoreRequired: false,
     };
   }
