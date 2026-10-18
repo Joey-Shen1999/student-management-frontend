@@ -18,6 +18,7 @@ import { LanguageToggleComponent } from './shared/language-toggle/language-toggl
 export class App {
   showGlobalSignOut = false;
   showPageNavigation = false;
+  showStudentSurface = false;
   signingOut = false;
   private pageTrail: string[] = [];
 
@@ -103,6 +104,8 @@ export class App {
 
     this.showGlobalSignOut = hasSession && !isPreLoginRoute && !isDashboardRoute;
     this.showPageNavigation = this.showGlobalSignOut;
+    this.showStudentSurface = this.auth.getSession()?.role?.toUpperCase() === 'STUDENT' &&
+      (path === '/dashboard' || path.startsWith('/student/') || path === '/account' || path === '/account/profile');
   }
 
   private recordPageRoute(url: string): void {

@@ -329,6 +329,7 @@ describe('DashboardComponent', () => {
     ];
     const graduationStage = {
       listApplications: vi.fn().mockReturnValue(of(applications)),
+      getMyInterviewCourse: vi.fn().mockReturnValue(of({ enabled: false, lessons: [], requirements: [] })),
       getPortalCredential: vi.fn().mockReturnValue(
         of({
           studentId: 1001,

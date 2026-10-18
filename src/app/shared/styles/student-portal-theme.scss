@@ -1,0 +1,261 @@
+.student-surface {
+  --student-ink: #172941;
+  --student-muted: #61748c;
+  --student-blue: #285a9b;
+  --student-line: #dce6f1;
+  --student-shadow: 0 9px 26px rgba(30, 65, 108, .055);
+  color: var(--student-ink);
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+}
+
+.student-surface :is(
+  .dashboard-page, .documents-page, .ouac-page, .course-plan-page,
+  .ielts-page, .student-osslt-page, .volunteer-page, .student-profile-page,
+  .account-profile-page
+) {
+  min-height: 100vh;
+  padding: 34px 18px 80px;
+  background: radial-gradient(circle at 90% 0, #dcecff 0, transparent 32%), #f4f7fc;
+  color: var(--student-ink);
+  font-family: inherit;
+}
+
+.student-surface :is(
+  .dashboard-shell, .documents-shell, .ielts-shell, .student-osslt-shell,
+  .volunteer-shell, .course-plan-shell
+) {
+  max-width: 1080px;
+  margin-inline: auto;
+  font-family: inherit;
+}
+
+.student-surface :is(
+  .documents-header, .ouac-header, .course-plan-page .page-head,
+  .ielts-page .header-row, .student-osslt-page .header-row, .volunteer-page .header-row
+) {
+  margin-bottom: 22px;
+}
+
+.student-surface :is(
+  .documents-header h2, .ouac-header h1, .course-plan-page .page-head h2,
+  .ielts-page .header-row h2, .student-osslt-page .header-row h2,
+  .volunteer-page .header-row h2, .student-profile-page > h2
+) {
+  color: var(--student-ink);
+  font-size: clamp(27px, 4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.15;
+}
+
+.student-surface :is(
+  .documents-header h2, .ouac-header h1, .course-plan-page .page-head h2,
+  .ielts-page .header-row h2, .student-osslt-page .header-row h2,
+  .volunteer-page .header-row h2, .student-profile-page > h2
+)::before {
+  display: block;
+  margin-bottom: 9px;
+  color: #396bae;
+  content: 'STUDENT PORTAL';
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.student-surface :is(
+  .documents-header p, .course-plan-page .page-subtitle,
+  .ielts-page .sub-title, .student-osslt-page .sub-title,
+  .volunteer-page .sub-title
+) {
+  color: var(--student-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.student-surface :is(
+  .dashboard-card, .documents-card, .choice-tile, .add-tile,
+  .ielts-page .card, .student-osslt-page .card, .volunteer-page .card,
+  .volunteer-page .summary-card
+) {
+  border-color: var(--student-line);
+  border-radius: 17px;
+  box-shadow: var(--student-shadow);
+}
+
+.student-surface .account-profile-card {
+  border: 1px solid var(--student-line);
+  border-radius: 19px;
+  box-shadow: var(--student-shadow);
+}
+
+.student-surface .account-profile-card h2::before {
+  display: block;
+  margin-bottom: 9px;
+  color: #396bae;
+  content: 'STUDENT PORTAL';
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.student-surface .account-profile-card h2 {
+  color: var(--student-ink);
+  font-size: 31px;
+}
+
+.student-surface app-change-password {
+  display: block;
+  min-height: 100vh;
+  padding: 34px 18px 80px;
+  background: radial-gradient(circle at 90% 0, #dcecff 0, transparent 32%), #f4f7fc;
+}
+
+.student-surface app-change-password > div {
+  border: 1px solid var(--student-line);
+  border-radius: 19px;
+  padding: 28px;
+  background: #fff;
+  box-shadow: var(--student-shadow);
+}
+
+.student-surface app-change-password h2::before {
+  display: block;
+  margin-bottom: 9px;
+  color: #396bae;
+  content: 'STUDENT PORTAL';
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.student-surface :is(.choice-tile, .add-tile) {
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.student-surface :is(.choice-tile, .add-tile):hover {
+  border-color: #acc9eb;
+  box-shadow: 0 16px 35px rgba(30, 65, 108, .11);
+  transform: translateY(-2px);
+}
+
+.student-surface :is(
+  .primary-btn, .save-btn, .action-btn.primary,
+  .documents-page .primary-btn, .volunteer-page .primary-btn
+) {
+  border: 1px solid #285a9b;
+  border-radius: 10px;
+  background: #285a9b;
+  color: #fff;
+  font-weight: 700;
+}
+
+.student-surface :is(
+  .ghost-btn, .plain-btn, .action-btn.ghost, .action-btn.secondary,
+  .edit-btn
+) {
+  border: 1px solid #cddbee;
+  border-radius: 10px;
+  background: #fff;
+  color: #315f9e;
+}
+
+.student-surface :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #77a9e8;
+  outline-offset: 2px;
+}
+
+.student-surface :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  border-radius: 9px;
+  border-color: #cbd9eb;
+}
+
+.student-surface .student-profile-page {
+  max-width: 1080px;
+  margin-inline: auto;
+}
+
+.student-surface .student-profile-page > div:first-of-type {
+  flex-wrap: wrap;
+  gap: 9px !important;
+  margin: 20px 0 !important;
+}
+
+.student-surface .student-profile-page button {
+  border: 1px solid #cddbee;
+  border-radius: 10px;
+  padding: 9px 13px;
+  background: #fff;
+  color: #315f9e;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-surface .student-profile-page :is(form, fieldset) {
+  border: 1px solid var(--student-line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.student-surface .student-profile-page form {
+  padding: 20px;
+  box-shadow: var(--student-shadow);
+}
+
+.student-surface .student-profile-page fieldset {
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.student-surface .student-profile-page legend {
+  padding: 0 7px;
+  color: #244d80;
+  font-weight: 800;
+}
+
+.student-surface .profile-readonly > fieldset:nth-child(-n+3) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 7px 18px;
+}
+
+.student-surface .profile-readonly > fieldset:nth-child(-n+3) > div {
+  min-width: 0;
+  border-bottom: 1px solid #eef2f8;
+  padding: 9px 2px;
+  color: #435873;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.student-surface .profile-readonly > fieldset:nth-child(-n+3) > div > strong {
+  color: #263e5d;
+}
+
+.student-surface .student-profile-page :is(input, select, textarea) {
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd9eb;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+@media (max-width: 640px) {
+  .student-surface :is(
+    .dashboard-page, .documents-page, .ouac-page, .course-plan-page,
+    .ielts-page, .student-osslt-page, .volunteer-page, .student-profile-page,
+    .account-profile-page
+  ) { padding: 24px 13px 74px; }
+
+  .student-surface app-change-password { padding: 24px 13px 74px; }
+  .student-surface app-change-password > div { padding: 18px; }
+
+  .student-surface :is(
+    .documents-header, .ouac-header, .course-plan-page .page-head,
+    .ielts-page .header-row, .student-osslt-page .header-row, .volunteer-page .header-row
+  ) { align-items: flex-start; flex-wrap: wrap; }
+
+  .student-surface .student-profile-page form { padding: 13px; }
+  .student-surface .student-profile-page fieldset { padding: 12px; }
+}

@@ -283,6 +283,16 @@ export class GraduationApplicationStageService {
     );
   }
 
+  getMyInterviewCourse(): Observable<InterviewCoursePlan> {
+    if (!this.http) return of({
+      studentId: 0, studentName: '', username: '', graduationYear: null,
+      enabled: false, lessons: [], requirements: [],
+    });
+    return this.http!.get<InterviewCoursePlan>(
+      '/api/me/interview-course', this.withAuthHeaderIfAvailable()
+    );
+  }
+
   setInterviewCourseEnabled(studentId: number, enabled: boolean): Observable<InterviewCoursePlan> {
     return this.http!.put<InterviewCoursePlan>(
       `${this.studentUrl}/${studentId}/graduation-applications/interview-course/enabled`,

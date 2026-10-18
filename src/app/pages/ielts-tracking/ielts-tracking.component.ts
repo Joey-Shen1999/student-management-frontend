@@ -40,7 +40,7 @@ import { navigateBack } from '../../utils/navigate-back';
           <div>
             <h2>语言成绩要求</h2>
             <p class="sub-title">
-              {{ managedMode ? ('Teacher mode - Student #' + studentId) : 'Student mode' }}
+              {{ managedMode ? ('Teacher mode - Student #' + studentId) : '学生模式' }}
             </p>
           </div>
           <button type="button" class="ghost-btn" (click)="goBack()">Back</button>

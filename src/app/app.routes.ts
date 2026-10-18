@@ -79,6 +79,14 @@ export const routes: Routes = [
   },
 
   {
+    path: 'student/interview-course',
+    loadComponent: () =>
+      import('./pages/student-interview-course/student-interview-course.component').then(
+        (m) => m.StudentInterviewCourseComponent
+      ),
+  },
+
+  {
     path: 'student/ielts',
     loadComponent: () =>
       import('./pages/ielts-tracking/ielts-tracking.component').then((m) => m.IeltsTrackingComponent),

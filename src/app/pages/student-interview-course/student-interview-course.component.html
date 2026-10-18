@@ -1,0 +1,89 @@
+<main class="interview-page">
+  <div class="interview-shell">
+    <a class="back-link" routerLink="/dashboard">← 返回学生工作台</a>
+
+    <header class="page-header">
+      <div>
+        <span class="eyebrow">MY INTERVIEW COURSE</span>
+        <h1>我的面试课</h1>
+        <p>查看老师为你安排的课程时间，以及需要准备的大学和专业。</p>
+      </div>
+      <button class="refresh-button" type="button" (click)="load()" [disabled]="loading">刷新安排</button>
+    </header>
+
+    <div class="state-card" *ngIf="loading">正在加载你的面试课...</div>
+    <div class="state-card error" *ngIf="!loading && error">
+      <span>{{ error }}</span>
+      <button type="button" (click)="load()">重试</button>
+    </div>
+    <div class="state-card" *ngIf="!loading && !error && !plan?.enabled">
+      目前没有为你开通面试课。如需确认安排，请联系老师。
+    </div>
+
+    <ng-container *ngIf="!loading && !error && plan?.enabled">
+      <section class="overview-card">
+        <div class="overview-copy">
+          <span class="status-pill">课程已开通</span>
+          <h2>做好准备，稳稳走进面试。</h2>
+          <p>老师更新课程时间后，这里会同步显示。</p>
+        </div>
+        <div class="overview-stats">
+          <div><strong>{{ lessons.length }}</strong><span>课程总数</span></div>
+          <div><strong>{{ scheduledCount }}</strong><span>已安排时间</span></div>
+        </div>
+      </section>
+
+      <section class="next-card" *ngIf="nextLesson as upcoming">
+        <div class="next-icon">日</div>
+        <div>
+          <span class="section-kicker">下一节课</span>
+          <h2>第 {{ upcoming.lessonNumber }} 节面试课</h2>
+          <p>{{ displayDate(upcoming.lessonDate) }} · {{ displayTime(upcoming.lessonTime) }}</p>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">LESSON SCHEDULE</span>
+            <h2>课程安排</h2>
+          </div>
+          <span class="count-pill">{{ lessons.length }} 节课</span>
+        </div>
+        <div class="lesson-list">
+          <article class="lesson-row" *ngFor="let lesson of lessons; trackBy: trackLesson">
+            <span class="lesson-number">{{ displayLessonNumber(lesson.lessonNumber) }}</span>
+            <div class="lesson-main">
+              <strong>第 {{ lesson.lessonNumber }} 节面试课</strong>
+              <span *ngIf="isScheduled(lesson)">{{ displayDate(lesson.lessonDate) }} · {{ displayTime(lesson.lessonTime) }}</span>
+              <span *ngIf="!isScheduled(lesson)">老师尚未安排时间</span>
+            </div>
+            <span class="lesson-status" [class.pending]="!isScheduled(lesson)">
+              {{ isScheduled(lesson) ? '已安排' : '待安排' }}
+            </span>
+          </article>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">APPLICATION FOCUS</span>
+            <h2>需要准备的申请</h2>
+          </div>
+        </div>
+        <p class="helper-text">以下大学和专业由老师添加，用于明确面试课的准备方向。</p>
+        <div class="requirement-list" *ngIf="plan?.requirements?.length; else noRequirements">
+          <article class="requirement-card" *ngFor="let requirement of plan?.requirements">
+            <span class="requirement-marker">◈</span>
+            <div>
+              <strong data-no-auto-translate>{{ requirement.universityName }}</strong>
+              <span data-no-auto-translate>{{ requirement.programName }}</span>
+            </div>
+          </article>
+        </div>
+        <ng-template #noRequirements><p class="empty-requirements">老师尚未添加具体大学或专业。</p></ng-template>
+      </section>
+    </ng-container>
+  </div>
+</main>

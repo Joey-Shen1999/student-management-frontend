@@ -1,4 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+@use './app/shared/styles/student-portal-theme';
+
+/* Shared application styles */
 
 .task-card-chips,
 .task-card-actions,

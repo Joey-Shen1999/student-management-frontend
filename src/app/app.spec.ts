@@ -61,6 +61,23 @@ describe('App', () => {
     expect(app.showPageNavigation).toBe(false);
   });
 
+  it('applies the refreshed page style only to student routes for a student account', () => {
+    session = { accessToken: 'test-token', role: 'STUDENT' };
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    const refresh = (app as unknown as { refreshSignOutVisibility: (route: string) => void })
+      .refreshSignOutVisibility.bind(app);
+
+    refresh('/student/profile');
+    fixture.detectChanges();
+    expect(app.showStudentSurface).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.app-shell.student-surface')).toBeTruthy();
+
+    session = { accessToken: 'test-token', role: 'TEACHER' };
+    refresh('/student/profile?studentId=1');
+    expect(app.showStudentSurface).toBe(false);
+  });
+
   it('returns through teacher pages one level at a time and home skips to dashboard', () => {
     session = { accessToken: 'test-token', role: 'TEACHER' };
     const fixture = TestBed.createComponent(App);

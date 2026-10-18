@@ -1,3 +1,4 @@
+<main class="student-profile-page">
 <h2>
   {{ managedMode ? ('学生档案（学生#' + managedStudentId + '）') : '学生档案' }}
 </h2>
@@ -98,6 +99,7 @@
 </section>
 
 <ng-container *ngIf="!editing; else editModeTpl">
+  <div class="profile-readonly">
   <fieldset style="margin-bottom: 16px;">
     <legend>基础信息</legend>
     <div><strong>在加拿大的身份：</strong>{{ displayText(model.statusInCanada) }}</div>
@@ -195,6 +197,7 @@
       <div><strong>结束日期：</strong>{{ displayText(c.endTime) }}</div>
     </div>
   </fieldset>
+  </div>
 </ng-container>
 
 <ng-template #editModeTpl>
@@ -758,3 +761,4 @@
     </button>
   </form>
 </ng-template>
+</main>
