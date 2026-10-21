@@ -528,11 +528,11 @@
               [(ngModel)]="s.schoolBoard"
               (ngModelChange)="onHighSchoolBoardInputChange(i, $event)"
               [name]="'highSchoolBoard_' + i"
-              list="schoolBoardOptions"
-              placeholder="例如：YRDSB / TDSB / 私校"
+              [attr.list]="'schoolBoardOptions_' + i"
+              placeholder="选择教育局或手动输入（私校可填私校）"
             />
-            <datalist id="schoolBoardOptions" *ngIf="i === 0">
-              <option *ngFor="let option of schoolBoardOptions" [value]="option"></option>
+            <datalist [id]="'schoolBoardOptions_' + i">
+              <option *ngFor="let option of getSchoolBoardOptions(i)" [value]="option"></option>
             </datalist>
           </div>
 
@@ -548,7 +548,7 @@
 
           <div>
             <label>省 / 州：</label>
-            <input [(ngModel)]="s.state" [name]="'highSchoolState_' + i" placeholder="e.g. Ontario" />
+            <input [(ngModel)]="s.state" [name]="'highSchoolState_' + i" list="provinceOptions" placeholder="选择省份以筛选教育局" />
           </div>
 
           <div>

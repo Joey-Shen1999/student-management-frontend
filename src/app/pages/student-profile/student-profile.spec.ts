@@ -1640,13 +1640,42 @@ describe('StudentProfile', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const boardInput = fixture.nativeElement.querySelector('input[list="schoolBoardOptions"]');
-    const boardDatalist = fixture.nativeElement.querySelector('datalist#schoolBoardOptions');
+    const boardInput = fixture.nativeElement.querySelector('input[list="schoolBoardOptions_0"]');
+    const boardDatalist = fixture.nativeElement.querySelector('datalist#schoolBoardOptions_0');
 
     expect(boardInput).not.toBeNull();
-    expect(boardInput.getAttribute('list')).toBe('schoolBoardOptions');
+    expect(boardInput.getAttribute('list')).toBe('schoolBoardOptions_0');
     expect(boardDatalist).not.toBeNull();
     expect(boardDatalist.querySelectorAll('option').length).toBeGreaterThan(5);
+  });
+
+  it('shows boards for each high school province while preserving manual entries', async () => {
+    component.enterEditMode();
+    component.addHighSchool();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    component.model.highSchools[0].country = 'Canada';
+    component.model.highSchools[0].state = 'BC';
+    component.model.highSchools[0].schoolBoard = 'My custom authority';
+    component.model.highSchools[1].country = 'Canada';
+    component.model.highSchools[1].state = 'Ontario';
+    fixture.detectChanges();
+
+    const options = Array.from(fixture.nativeElement.querySelectorAll(
+      'datalist#schoolBoardOptions_0 option'
+    )) as HTMLOptionElement[];
+    expect(options.map((option) => option.value)).toContain('Vancouver School District');
+    expect(options.map((option) => option.value)).not.toContain('Toronto DSB');
+    expect(component.model.highSchools[0].schoolBoard).toBe('My custom authority');
+    const ontarioOptions = Array.from(fixture.nativeElement.querySelectorAll(
+      'datalist#schoolBoardOptions_1 option'
+    )) as HTMLOptionElement[];
+    expect(ontarioOptions.map((option) => option.value)).toContain('Toronto DSB');
+    expect(ontarioOptions.map((option) => option.value)).not.toContain('Vancouver School District');
+
+    component.model.highSchools[0].state = 'Ontario';
+    expect(component.getSchoolBoardOptions(0)).toContain('Toronto DSB');
+    expect(component.getSchoolBoardOptions(0)).not.toContain('Vancouver School District');
   });
 
   it('should include schoolBoard in save payload', () => {
