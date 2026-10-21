@@ -20,6 +20,10 @@ import {
   StudentProfileService,
 } from '../../services/student-profile.service';
 import { navigateBack } from '../../utils/navigate-back';
+import {
+  CANADIAN_EDUCATION_BOARDS_BY_PROVINCE,
+  resolveCanadianProvince,
+} from '../../shared/student-location/canadian-education-boards';
 type Gender = '' | 'Male' | 'Female' | 'Other';
 type StudentRegion =
   | ''
@@ -632,7 +636,16 @@ export class StudentProfile implements OnInit {
   readonly provinceOptions: string[] = this.buildProvinceOptions();
   readonly countryOptions: string[] = this.buildCountryOptions();
   readonly studentRegionOptions = STUDENT_REGION_OPTIONS;
-  readonly schoolBoardOptions: string[] = [...EDUCATION_BOARD_LIBRARY_OPTIONS];
+  readonly schoolBoardOptionsByProvince: Readonly<Record<string, readonly string[]>> = {
+    ...Object.fromEntries(Object.entries(CANADIAN_EDUCATION_BOARDS_BY_PROVINCE)
+      .map(([province, boards]) => [province, ['私校', ...boards]])),
+    Ontario: EDUCATION_BOARD_LIBRARY_OPTIONS,
+  };
+  readonly allSchoolBoardOptions: readonly string[] = Array.from(new Set([
+    '私校',
+    ...Object.values(this.schoolBoardOptionsByProvince).flat(),
+  ])).sort((a, b) => a.localeCompare(b));
+  readonly privateSchoolBoardOption: readonly string[] = ['私校'];
   readonly serviceItemOptions: readonly string[] = [...SERVICE_ITEM_OPTIONS];
   readonly identityDocumentTypeOptions: readonly IdentityDocumentType[] = [...IDENTITY_DOCUMENT_TYPE_OPTIONS];
   readonly academicRecordTypeOptions: readonly AcademicRecordType[] = [...ACADEMIC_RECORD_TYPE_OPTIONS];
@@ -800,6 +813,20 @@ export class StudentProfile implements OnInit {
 
     school.schoolName = this.toText(value);
     this.fetchHighSchoolLookupOptions(index, school.schoolName);
+  }
+
+  getSchoolBoardOptions(index: number): readonly string[] {
+    const school = this.model.highSchools[index];
+    if (!school) return this.allSchoolBoardOptions;
+
+    const country = String(school.country ?? '').trim().toLowerCase();
+    if (country && country !== 'canada' && country !== '加拿大') {
+      return this.privateSchoolBoardOption;
+    }
+
+    const province = resolveCanadianProvince(school.state);
+    if (!province) return this.allSchoolBoardOptions;
+    return this.schoolBoardOptionsByProvince[province] ?? this.allSchoolBoardOptions;
   }
 
   onHighSchoolBoardInputChange(index: number, value: string): void {
