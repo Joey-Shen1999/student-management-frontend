@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { concatMap, finalize, from, Observable, toArray } from 'rxjs';
+import { concatMap, finalize, from, Observable, timeout, toArray } from 'rxjs';
 
 import {
   GraduationApplication,
@@ -377,11 +377,12 @@ export class GraduationApplicationsComponent implements OnInit {
   }
 
   loadInterviewCourse(): void {
-    if (this.studentId <= 0) return;
+    if (this.studentId <= 0 || this.interviewCourseLoading || this.interviewCourseSaving) return;
     this.interviewCourseLoading = true;
+    this.interviewCourse = null;
     this.interviewCourseError = '';
     this.graduationStage.getInterviewCourse(this.studentId)
-      .pipe(finalize(() => {
+      .pipe(timeout(10000), finalize(() => {
         this.interviewCourseLoading = false;
         this.cdr.markForCheck();
       }))
@@ -391,12 +392,14 @@ export class GraduationApplicationsComponent implements OnInit {
       });
   }
 
-  toggleInterviewCourse(enabled: boolean): void {
-    if (this.studentId <= 0 || this.interviewCourseSaving) return;
+  toggleInterviewCourse(enabled: boolean, input?: HTMLInputElement): void {
+    // Keep the native checkbox consistent with the last confirmed server state.
+    if (input) input.checked = this.interviewCourse?.enabled === true;
+    if (this.studentId <= 0 || !this.interviewCourse || this.interviewCourseLoading || this.interviewCourseSaving) return;
     this.interviewCourseSaving = true;
     this.interviewCourseError = '';
     this.graduationStage.setInterviewCourseEnabled(this.studentId, enabled)
-      .pipe(finalize(() => {
+      .pipe(timeout(10000), finalize(() => {
         this.interviewCourseSaving = false;
         this.cdr.markForCheck();
       }))

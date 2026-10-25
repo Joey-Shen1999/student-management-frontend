@@ -1,4 +1,5 @@
 import { ActivatedRoute, Router } from '@angular/router';
+import { TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -6,6 +7,7 @@ import { GraduationApplicationsComponent } from './graduation-applications.compo
 import {
   GraduationApplication,
   GraduationApplicationStageService,
+  InterviewCoursePlan,
 } from '../../services/graduation-application-stage.service';
 import { UniversityAspirationService } from '../../services/university-aspiration.service';
 
@@ -134,7 +136,7 @@ describe('GraduationApplicationsComponent', () => {
       cdr as any
     );
 
-    return { component, router, graduationStage, universityApi };
+    return { component, route, router, graduationStage, universityApi };
   }
 
   it('loads teacher student applications from the route student id', () => {
@@ -162,6 +164,86 @@ describe('GraduationApplicationsComponent', () => {
     expect(graduationStage.setInterviewCourseEnabled).toHaveBeenCalledWith(101, true);
     expect(component.interviewCourse?.enabled).toBe(true);
     expect(component.interviewCourse?.lessons).toHaveLength(4);
+  });
+
+  it('restores the interview-course checkbox after a failed save and allows another click', async () => {
+    const { route, router, graduationStage, universityApi } = createComponent({ routeStudentId: '101' });
+    const save = new Subject<InterviewCoursePlan>();
+    vi.mocked(graduationStage.setInterviewCourseEnabled).mockReturnValueOnce(save);
+    await TestBed.configureTestingModule({
+      imports: [GraduationApplicationsComponent],
+      providers: [
+        { provide: ActivatedRoute, useValue: route },
+        { provide: Router, useValue: router },
+        { provide: GraduationApplicationStageService, useValue: graduationStage },
+        { provide: UniversityAspirationService, useValue: universityApi },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(GraduationApplicationsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const checkbox = fixture.nativeElement.querySelector('.interview-course-toggle input') as HTMLInputElement;
+
+    checkbox.click();
+    fixture.detectChanges();
+    expect(checkbox.disabled).toBe(true);
+    save.error(new Error('offline'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(checkbox.checked).toBe(false);
+    expect(checkbox.disabled).toBe(false);
+    expect(fixture.nativeElement.querySelector('.interview-course-error').textContent).toContain('保存失败');
+    checkbox.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(graduationStage.setInterviewCourseEnabled).toHaveBeenCalledTimes(2);
+    expect(checkbox.checked).toBe(true);
+    expect(fixture.componentInstance.interviewCourse?.lessons).toHaveLength(4);
+  });
+
+  it('requires a known interview-course state and recovers when reloading succeeds', () => {
+    const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+    vi.mocked(graduationStage.getInterviewCourse).mockReturnValueOnce(throwError(() => new Error('offline')));
+    component.ngOnInit();
+    component.toggleInterviewCourse(true);
+
+    expect(component.interviewCourse).toBeNull();
+    expect(component.interviewCourseError).toContain('读取失败');
+    expect(graduationStage.setInterviewCourseEnabled).not.toHaveBeenCalled();
+
+    component.loadInterviewCourse();
+    expect(component.interviewCourseError).toBe('');
+    expect(component.interviewCourse?.enabled).toBe(false);
+    component.toggleInterviewCourse(true);
+    expect(component.interviewCourse?.enabled).toBe(true);
+  });
+
+  it('releases interview-course controls when loading or saving never responds', () => {
+    vi.useFakeTimers();
+    try {
+      const { component, graduationStage } = createComponent({ routeStudentId: '101' });
+      vi.mocked(graduationStage.getInterviewCourse).mockReturnValueOnce(new Subject<InterviewCoursePlan>());
+      component.ngOnInit();
+      expect(component.interviewCourseLoading).toBe(true);
+      vi.advanceTimersByTime(10000);
+      expect(component.interviewCourseLoading).toBe(false);
+      expect(component.interviewCourseError).toContain('读取失败');
+
+      component.loadInterviewCourse();
+      vi.mocked(graduationStage.setInterviewCourseEnabled).mockReturnValueOnce(new Subject<InterviewCoursePlan>());
+      component.toggleInterviewCourse(true);
+      expect(component.interviewCourseSaving).toBe(true);
+      vi.advanceTimersByTime(10000);
+      expect(component.interviewCourseSaving).toBe(false);
+      expect(component.interviewCourse?.enabled).toBe(false);
+      expect(component.interviewCourseError).toContain('保存失败');
+
+      component.toggleInterviewCourse(true);
+      expect(component.interviewCourse?.enabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows an error when the route student id is missing', () => {
