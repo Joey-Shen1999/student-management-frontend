@@ -48,12 +48,13 @@
       <div class="interview-course-actions">
         <label class="interview-course-toggle">
           <input type="checkbox" [checked]="interviewCourse?.enabled === true"
-            [disabled]="interviewCourseLoading || interviewCourseSaving || !!interviewCourseError"
-            (change)="toggleInterviewCourse($any($event.target).checked)" />
+            [disabled]="interviewCourseLoading || interviewCourseSaving || !interviewCourse"
+            (change)="toggleInterviewCourse($any($event.target).checked, $any($event.target))" />
           <span>{{ interviewCourseSaving ? '保存中...' : '激活面试课' }}</span>
         </label>
         <button type="button" class="ghost-btn compact" (click)="openInterviewCourseList()">查看面试课名单</button>
-        <button type="button" class="ghost-btn compact" *ngIf="interviewCourseError" (click)="loadInterviewCourse()">重试</button>
+        <button type="button" class="ghost-btn compact" *ngIf="interviewCourseError"
+          [disabled]="interviewCourseLoading || interviewCourseSaving" (click)="loadInterviewCourse()">重试</button>
       </div>
     </section>
 
