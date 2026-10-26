@@ -8,16 +8,38 @@ import {
 import { InterviewStudentsComponent } from './interview-students.component';
 
 const plans: InterviewCoursePlan[] = [
-  { studentId: 1, studentName: 'Alice Anderson', username: 'alice', graduationYear: 2026,
+  { studentId: 1, studentName: 'Alice Anderson', username: 'alice', graduationYear: 2027,
     enabled: true, requirements: [{ id: 101, universityName: 'McMaster University', programName: 'Engineering I' }], lessons: [
       { id: 11, lessonNumber: 1, lessonDate: null, lessonTime: null },
       { id: 12, lessonNumber: 2, lessonDate: '2026-05-01', lessonTime: '15:30:00' },
     ] },
-  { studentId: 2, studentName: 'Bob Brown', username: 'bob', graduationYear: 2026,
+  { studentId: 2, studentName: 'Bob Brown', username: 'bob', graduationYear: 2027,
     enabled: true, requirements: [], lessons: [{ id: 21, lessonNumber: 1, lessonDate: null, lessonTime: null }] },
 ];
 
 describe('InterviewStudentsComponent', () => {
+  it.each([
+    [2026, 7, 31, 2026],
+    [2026, 8, 1, 2027],
+    [2026, 9, 26, 2027],
+    [2027, 0, 1, 2027],
+    [2027, 5, 30, 2027],
+    [2027, 7, 31, 2027],
+    [2027, 8, 1, 2028],
+  ])('requests the graduation cohort for %i-%i-%i', (year, month, day, cohort) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(year, month, day, 12));
+      const api = { listInterviewCourseStudents: vi.fn().mockReturnValue(of([])) } as unknown as GraduationApplicationStageService;
+      const component = new InterviewStudentsComponent(api, { markForCheck: vi.fn() } as any);
+      component.ngOnInit();
+      expect(api.listInterviewCourseStudents).toHaveBeenCalledWith(cohort);
+      expect(component.ui.cohort.zh).toBe(`${cohort} 届`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows student-level plans, counts scheduled lessons, and searches students', () => {
     const api = { listInterviewCourseStudents: vi.fn().mockReturnValue(of(plans)) } as unknown as GraduationApplicationStageService;
     const cdr = { markForCheck: vi.fn() };

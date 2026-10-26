@@ -22,10 +22,12 @@ import { uiText } from '../../shared/i18n/ui-translations';
   styleUrl: './interview-students.component.scss',
 })
 export class InterviewStudentsComponent implements OnInit {
-  readonly year = new Date().getFullYear();
+  private readonly today = new Date();
+  readonly year = this.today.getFullYear() + (this.today.getMonth() >= 8 ? 1 : 0);
   readonly ui = {
     section: uiText('申请管理', 'Application Management'),
-    title: uiText('本年面试课学生', 'Interview Course Students This Year'),
+    title: uiText('本年面试课学生', 'Interview Course Students This Academic Year'),
+    cohort: uiText(`${this.year} 届`, `Class of ${this.year}`),
     description: uiText('按学生管理面试课，标注需要面试的大学与专业。每位学生默认四节空课，可继续添加。',
       'Manage interview courses by student, including universities and programs that require interviews. Each student starts with four empty lessons.'),
     studentCount: uiText('学生人数', 'Students'),
@@ -35,7 +37,7 @@ export class InterviewStudentsComponent implements OnInit {
     back: uiText('返回申请管理', 'Back to Applications'),
     loading: uiText('正在读取面试课名单...', 'Loading interview course students...'),
     error: uiText('面试课名单读取失败，请重试。', 'Failed to load interview courses. Please retry.'),
-    empty: uiText('本年暂无已激活面试课的学生。', 'No students have interview courses enabled this year.'),
+    empty: uiText(`${this.year} 届暂无已激活面试课的学生。`, `No students in the class of ${this.year} have interview courses enabled.`),
     noMatches: uiText('没有符合搜索条件的学生。', 'No students match your search.'),
     view: uiText('查看学生申请', 'View Student Applications'),
     date: uiText('日期', 'Date'),
