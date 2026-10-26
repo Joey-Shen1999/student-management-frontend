@@ -4,7 +4,6 @@
       <div>
         <p class="eyebrow">{{ ui.section | appTranslate }} · {{ ui.cohort | appTranslate }}</p>
         <h1>{{ ui.title | appTranslate }}</h1>
-        <p class="description">{{ ui.description | appTranslate }}</p>
       </div>
       <div class="head-actions">
         <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
@@ -12,15 +11,17 @@
       </div>
     </header>
 
-    <section class="overview" aria-label="Interview course summary">
-      <div><span>{{ ui.studentCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : rows.length }}</strong></div>
-      <div><span>{{ ui.scheduledCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : scheduledCount }}</strong></div>
-    </section>
+    <div class="list-toolbar">
+      <section class="overview" aria-label="Interview course summary">
+        <div><span>{{ ui.studentCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : rows.length }}</strong></div>
+        <div><span>{{ ui.scheduledCount | appTranslate }}</span><strong>{{ loading || failed ? '—' : scheduledCount }}</strong></div>
+      </section>
 
-    <label class="search-box">
-      <span>{{ ui.search | appTranslate }}</span>
-      <input type="search" [(ngModel)]="search" [placeholder]="ui.search | appTranslate" />
-    </label>
+      <label class="search-box">
+        <span>{{ ui.search | appTranslate }}</span>
+        <input type="search" [(ngModel)]="search" [placeholder]="ui.search | appTranslate" />
+      </label>
+    </div>
 
     <div class="state" *ngIf="loading">{{ ui.loading | appTranslate }}</div>
     <div class="state error" *ngIf="failed">

@@ -1,30 +1,54 @@
-.interview-page{min-height:100vh;padding:28px 16px 48px;background:#f4f7fb;color:#172033}
-.interview-shell{max-width:1060px;margin:auto;display:grid;gap:16px;font-family:'Segoe UI',sans-serif}
-.page-head,.overview,.search-box,.student-card,.state{border:1px solid #dce4f0;border-radius:12px;background:#fff;padding:18px}
-.page-head,.student-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-.eyebrow{margin:0 0 5px;color:#1d4f9b;font-size:13px;font-weight:800}
-h1,h2{margin:0}h1{font-size:26px}h2{font-size:20px}
-.description,.student-card small{color:#60718a}.description{margin:8px 0 0;line-height:1.5}
-.head-actions{display:flex;flex-wrap:wrap;gap:8px}
-.head-actions button,.head-actions a,.student-head a,.state button,.lesson-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 12px;border:1px solid #c9d5e8;border-radius:9px;background:#fff;color:#21324a;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}
-button:disabled{opacity:.55;cursor:default}
-.overview{display:flex;gap:36px}.overview div{display:grid;gap:3px}.overview span,.search-box span{font-size:13px;color:#60718a}.overview strong{font-size:24px}
-.search-box{display:grid;gap:8px;font-weight:700}.search-box input{min-height:40px;border:1px solid #c9d5e8;border-radius:9px;padding:0 12px;font:inherit}
-.student-list{display:grid;gap:14px}.student-card small{display:block;margin-top:4px}
-.lesson-list{display:grid;gap:8px;margin-top:18px}
-.lesson-row{display:grid;grid-template-columns:minmax(80px,1fr) minmax(175px,1.5fr) minmax(150px,1fr);align-items:end;gap:12px;padding:12px;border:1px solid #e1e8f2;border-radius:9px;background:#f9fbfe}
-.lesson-row strong{align-self:center}.lesson-row label{display:grid;gap:5px;color:#5b6d85;font-size:13px;font-weight:700}
-.lesson-row input{box-sizing:border-box;width:100%;min-height:38px;padding:6px 9px;border:1px solid #c9d5e8;border-radius:8px;background:#fff;color:#172033;font:inherit}
-.lesson-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:14px;color:#60718a;font-size:13px}
-.save-error{color:#b42318}.state{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#41516a}.error{border-color:#fecaca;background:#fff7f7;color:#b42318}
-.requirements{margin-top:18px;padding:16px;border:1px solid #dce8f8;border-radius:10px;background:#f5f9ff}
-.requirements-head,.requirement-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.requirements h3{margin:0;font-size:16px}.requirements-empty{margin:12px 0 0;color:#60718a;font-size:14px}
-.requirements-head button,.requirement-actions button{min-height:34px;padding:0 10px;border:1px solid #c9d5e8;border-radius:8px;background:#fff;color:#21324a;font:inherit;font-weight:700;cursor:pointer}
-.requirement-row{margin-top:10px;padding:11px 12px;border:1px solid #dce4f0;border-radius:8px;background:#fff}
-.requirement-row strong,.requirement-row span{display:block}.requirement-row span{margin-top:3px;color:#52657f;font-size:14px}
-.requirement-actions{display:flex;flex-wrap:wrap;gap:7px}.requirement-actions .delete{color:#b42318;border-color:#f4b4b4}
-.requirement-form{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:10px;margin-top:12px;padding:12px;border:1px solid #bed5f7;border-radius:8px;background:#fff}
-.requirement-form label{display:grid;gap:5px;color:#52657f;font-size:13px;font-weight:700}
-.requirement-form input{box-sizing:border-box;width:100%;min-height:36px;padding:6px 9px;border:1px solid #c9d5e8;border-radius:8px;font:inherit}
-@media(max-width:650px){.page-head,.student-head{flex-direction:column}.overview{gap:24px}.lesson-row{grid-template-columns:1fr 1fr}.lesson-row strong{grid-column:1/-1}.requirement-form{grid-template-columns:1fr}.requirements-head,.requirement-row{align-items:flex-start;flex-direction:column}}
+.interview-page { min-height: 100vh; padding: 18px 24px 32px; background: #f4f7fb; color: #172033; }
+.interview-shell { display: grid; gap: 12px; font-family: 'Segoe UI', sans-serif; }
+.page-head, .student-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.eyebrow { margin: 0 0 4px; color: #1d4f9b; font-size: 12px; font-weight: 700; }
+h1, h2 { margin: 0; overflow-wrap: anywhere; }
+h1 { font-size: 22px; }
+h2 { font-size: 17px; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button, .head-actions a, .student-head a { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 4px 10px; box-sizing: border-box; border: 1px solid #c9d5e8; border-radius: 6px; background: #fff; color: #21324a; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 0; }
+.overview { display: flex; flex-wrap: wrap; gap: 24px; }
+.overview div { display: flex; align-items: baseline; gap: 8px; }
+.overview span, .search-box span { font-size: 13px; color: #60718a; }
+.overview strong { font-size: 20px; }
+.search-box { display: flex; align-items: center; gap: 10px; width: min(480px, 50%); }
+.search-box span { white-space: nowrap; }
+.search-box input { width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; border: 1px solid #c9d5e8; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; }
+.student-list { display: grid; gap: 12px; }
+.student-card { min-width: 0; border: 1px solid #dce4f0; border-radius: 8px; background: #fff; padding: 12px 16px; }
+.student-head > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; min-width: 0; }
+.student-card small { color: #60718a; overflow-wrap: anywhere; }
+.requirements { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e1e8f2; }
+.requirements-head, .requirement-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
+.requirements h3 { margin: 0; font-size: 13px; white-space: nowrap; }
+.requirements-empty { margin: 0; color: #60718a; font-size: 13px; }
+.requirement-row { grid-column: 1 / -1; padding: 4px 0; border-bottom: 1px solid #edf0f4; }
+.requirement-row > div:first-child { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.requirement-row span { color: #52657f; }
+.requirement-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.requirement-actions .delete { color: #b42318; border-color: #f4b4b4; }
+.requirement-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 6px 0; }
+.requirement-form label, .lesson-row label { display: grid; gap: 4px; min-width: 0; color: #5b6d85; font-size: 12px; }
+.requirement-form input, .lesson-row input { box-sizing: border-box; width: 100%; min-width: 0; height: 34px; padding: 4px 6px; border: 1px solid #c9d5e8; border-radius: 5px; background: #fff; color: #172033; font: inherit; font-size: 13px; }
+.lesson-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; margin-top: 10px; }
+.lesson-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 6px 8px; padding: 0 0 0 12px; border-left: 2px solid #dce4f0; min-width: 0; }
+.lesson-row strong { grid-column: 1 / -1; font-size: 13px; }
+.lesson-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; color: #60718a; font-size: 13px; }
+.save-error, .error { color: #b42318; }
+.state { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; color: #41516a; }
+@media (max-width: 1100px) {
+  .lesson-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .search-box { flex-direction: column; align-items: stretch; gap: 4px; }
+}
+@media (max-width: 600px) {
+  .interview-page { padding: 14px 12px 24px; }
+  .page-head, .list-toolbar { align-items: stretch; flex-direction: column; gap: 10px; }
+  .search-box { width: 100%; }
+  .student-card { padding: 12px; }
+  .student-head { flex-wrap: wrap; }
+  .lesson-list, .requirement-form { grid-template-columns: minmax(0, 1fr); }
+  .requirements { grid-template-columns: minmax(0, 1fr); }
+  .requirement-row { align-items: flex-start; flex-direction: column; gap: 6px; }
+}
