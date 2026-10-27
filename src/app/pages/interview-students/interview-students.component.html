@@ -6,6 +6,10 @@
         <h1>{{ ui.title | appTranslate }}</h1>
       </div>
       <div class="head-actions">
+        <button type="button" (click)="showHidden = !showHidden" [attr.aria-pressed]="showHidden"
+          [disabled]="loading || failed">
+          {{ (showHidden ? ui.hideCompleted : ui.showHidden) | appTranslate }} ({{ hiddenCount }})
+        </button>
         <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
         <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
       </div>
@@ -30,15 +34,18 @@
     </div>
     <div class="state" *ngIf="!loading && !failed && rows.length === 0">{{ ui.empty | appTranslate }}</div>
     <div class="state" *ngIf="!loading && !failed && rows.length > 0 && filteredRows.length === 0">
-      {{ ui.noMatches | appTranslate }}
+      {{ ((!search.trim() && !showHidden && hiddenCount > 0) ? ui.noVisible : ui.noMatches) | appTranslate }}
     </div>
 
     <section class="student-list" *ngIf="!loading && !failed && filteredRows.length > 0">
-      <article class="student-card" *ngFor="let row of filteredRows; trackBy: trackStudent">
+      <article class="student-card" *ngFor="let row of filteredRows; trackBy: trackStudent"
+        [class.needs-school]="row.graduationStageEnabled === false">
         <div class="student-head">
           <div>
             <h2 class="notranslate" translate="no" data-no-auto-translate>{{ row.studentName }}</h2>
             <small class="notranslate" translate="no" data-no-auto-translate>{{ row.username }}</small>
+            <span class="school-warning" *ngIf="row.graduationStageEnabled === false">{{ ui.missingSchool | appTranslate }}</span>
+            <small *ngIf="row.graduationYear === null">{{ ui.missingYear | appTranslate }}</small>
           </div>
           <a [routerLink]="['/teacher/students', row.studentId, 'graduation-applications']">
             {{ ui.view | appTranslate }}
@@ -52,9 +59,18 @@
               {{ ui.addRequirement | appTranslate }}
             </button>
           </div>
-          <p class="requirements-empty" *ngIf="!(row.requirements || []).length">
+          <p class="requirements-empty" *ngIf="!(row.requirements || []).length && !row.engineeringApplications?.length">
             {{ ui.requirementsEmpty | appTranslate }}
           </p>
+          <details class="engineering-applications" *ngIf="row.engineeringApplications?.length">
+            <summary>{{ ui.engineeringApplications | appTranslate }} ({{ row.engineeringApplications?.length }})</summary>
+            <div class="requirement-row" *ngFor="let application of row.engineeringApplications">
+              <div class="notranslate" translate="no" data-no-auto-translate>
+                <strong>{{ application.universityName }}</strong>
+                <span>{{ application.programName }}</span>
+              </div>
+            </div>
+          </details>
           <div class="requirement-row" *ngFor="let requirement of row.requirements">
             <div>
               <strong class="notranslate" translate="no" data-no-auto-translate>{{ requirement.universityName }}</strong>

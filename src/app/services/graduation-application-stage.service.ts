@@ -155,6 +155,8 @@ export interface InterviewCoursePlan {
   enabled: boolean;
   lessons: InterviewCourseLesson[];
   requirements: InterviewCourseRequirement[];
+  graduationStageEnabled?: boolean;
+  engineeringApplications?: InterviewCourseRequirement[];
 }
 
 interface UniversityPortalLoginLink {

@@ -66,10 +66,17 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     saveRequirement: uiText('保存', 'Save'),
     cancel: uiText('取消', 'Cancel'),
     requiredFields: uiText('请填写大学和专业／学科。', 'Enter both university and program / subject.'),
+    showHidden: uiText('显示本年已隐藏', 'Show Hidden This Year'),
+    hideCompleted: uiText('隐藏已结束', 'Hide Past Lessons'),
+    noVisible: uiText('其余学生的课程均已结束，可查看已隐藏学生。', 'All remaining students have past lessons. Show hidden students to view them.'),
+    engineeringApplications: uiText('已报名工程申请', 'Engineering Applications'),
+    missingSchool: uiText('尚未进入升学阶段，未选择具体学校', 'Not in the application stage: no schools selected'),
+    missingYear: uiText('未填写毕业年份', 'Graduation year not set'),
   };
 
   rows: InterviewCoursePlan[] = [];
   search = '';
+  showHidden = false;
   loading = false;
   failed = false;
   private busyStudentIds = new Set<number>();
@@ -89,11 +96,20 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
 
   get filteredRows(): InterviewCoursePlan[] {
     const query = this.search.trim().toLocaleLowerCase();
-    if (!query) return this.rows;
-    return this.rows.filter((row) => [row.studentName, row.username,
-      ...(row.requirements || []).flatMap((item) => [item.universityName, item.programName])]
+    const visible = this.rows.filter(row => this.showHidden || !this.isHidden(row));
+    if (!query) return visible;
+    return visible.filter((row) => [row.studentName, row.username,
+      ...(row.requirements || []).flatMap((item) => [item.universityName, item.programName]),
+      ...(row.engineeringApplications || []).flatMap((item) => [item.universityName, item.programName])]
       .some((value) => (value || '').toLocaleLowerCase().includes(query)));
   }
+
+  isHidden(row: InterviewCoursePlan): boolean {
+    return row.lessons.length >= 4 && row.lessons.every(lesson => this.lessonState(lesson) === 'past')
+      && !this.isBusy(row.studentId) && !this.studentErrors.has(row.studentId);
+  }
+
+  get hiddenCount(): number { return this.rows.filter(row => this.isHidden(row)).length; }
 
   get scheduledCount(): number {
     return this.rows.reduce((count, row) => count + row.lessons.filter(
