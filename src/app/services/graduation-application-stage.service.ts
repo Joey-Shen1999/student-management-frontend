@@ -138,6 +138,7 @@ export interface InterviewCourseLesson {
   lessonNumber: number;
   lessonDate: string | null;
   lessonTime: string | null;
+  confirmed?: boolean;
 }
 
 export interface InterviewCourseRequirement {
@@ -308,10 +309,11 @@ export class GraduationApplicationStageService {
   }
 
   updateInterviewCourseLesson(studentId: number, lessonId: number,
-                              lessonDate: string | null, lessonTime: string | null): Observable<InterviewCoursePlan> {
+                              lessonDate: string | null, lessonTime: string | null,
+                              confirmed?: boolean): Observable<InterviewCoursePlan> {
     return this.http!.put<InterviewCoursePlan>(
       `${this.studentUrl}/${studentId}/graduation-applications/interview-course/lessons/${lessonId}`,
-      { lessonDate, lessonTime }, this.withAuthHeaderIfAvailable()
+      { lessonDate, lessonTime, ...(confirmed === undefined ? {} : { confirmed }) }, this.withAuthHeaderIfAvailable()
     );
   }
 

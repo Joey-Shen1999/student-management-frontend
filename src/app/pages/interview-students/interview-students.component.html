@@ -91,18 +91,45 @@
         </section>
 
         <div class="lesson-list">
-          <div class="lesson-row" *ngFor="let lesson of row.lessons; trackBy: trackLesson">
-            <strong>{{ lessonLabel(lesson.lessonNumber) | appTranslate }}</strong>
+          <div class="lesson-row" *ngFor="let lesson of row.lessons; trackBy: trackLesson"
+            [attr.data-state]="lessonState(lesson)">
+            <div class="lesson-heading">
+              <strong>{{ lessonLabel(lesson.lessonNumber) | appTranslate }}</strong>
+              <span class="lesson-status">{{ ui[lessonState(lesson)] | appTranslate }}</span>
+              <button type="button" class="confirmation-toggle"
+                *ngIf="lessonState(lesson) === 'tentative' || lessonState(lesson) === 'confirmed'"
+                [disabled]="isBusy(row.studentId)" [attr.aria-pressed]="!!lesson.confirmed"
+                [attr.aria-label]="(lesson.confirmed ? ui.unconfirm : ui.confirm) | appTranslate"
+                [title]="(lesson.confirmed ? ui.unconfirm : ui.confirm) | appTranslate"
+                (click)="toggleConfirmation(row, lesson)">
+                <span class="confirmation-swatch" aria-hidden="true"></span>
+              </button>
+            </div>
             <label>
               <span>{{ ui.date | appTranslate }}</span>
               <input type="date" [value]="lesson.lessonDate || ''" [disabled]="isBusy(row.studentId)"
                 (change)="changeLessonDate(row, lesson, $any($event.target).value)" />
             </label>
-            <label>
-              <span>{{ ui.time | appTranslate }}</span>
-              <input type="time" [value]="lesson.lessonTime?.slice(0, 5) || ''" [disabled]="isBusy(row.studentId)"
-                (change)="changeLessonTime(row, lesson, $any($event.target).value)" />
-            </label>
+            <div class="time-fields">
+              <label>
+                <span>{{ ui.hour | appTranslate }}</span>
+                <select [ngModel]="lessonHour(lesson)" [disabled]="isBusy(row.studentId)"
+                  (ngModelChange)="changeLessonHour(row, lesson, $event)">
+                  <option value="">--</option>
+                  <option *ngFor="let hour of hours" [value]="hour">{{ hour }}</option>
+                </select>
+              </label>
+              <label>
+                <span>{{ ui.minute | appTranslate }}</span>
+                <select [ngModel]="lessonMinute(lesson)" [disabled]="isBusy(row.studentId) || !lesson.lessonTime"
+                  (ngModelChange)="changeLessonMinute(row, lesson, $event)">
+                  <option value="" disabled>--</option>
+                  <option *ngIf="lessonMinute(lesson) && !minutes.includes(lessonMinute(lesson))"
+                    [value]="lessonMinute(lesson)" disabled>{{ lessonMinute(lesson) }}</option>
+                  <option *ngFor="let minute of minutes" [value]="minute">{{ minute }}</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
