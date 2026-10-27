@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { finalize, timeout } from 'rxjs/operators';
@@ -21,7 +21,10 @@ import { uiText } from '../../shared/i18n/ui-translations';
   templateUrl: './interview-students.component.html',
   styleUrl: './interview-students.component.scss',
 })
-export class InterviewStudentsComponent implements OnInit {
+export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
+  readonly minutes = ['00', '15', '30', '45'];
+  private clockTimer?: ReturnType<typeof setInterval>;
   private readonly today = new Date();
   readonly year = this.today.getFullYear() + (this.today.getMonth() >= 8 ? 1 : 0);
   readonly ui = {
@@ -42,6 +45,14 @@ export class InterviewStudentsComponent implements OnInit {
     view: uiText('查看学生申请', 'View Student Applications'),
     date: uiText('日期', 'Date'),
     time: uiText('时间', 'Time'),
+    hour: uiText('小时', 'Hour'),
+    minute: uiText('分钟', 'Minute'),
+    unscheduled: uiText('待安排', 'Unscheduled'),
+    tentative: uiText('待确认', 'Unconfirmed'),
+    confirmed: uiText('已确认', 'Confirmed'),
+    past: uiText('已过时间', 'Past'),
+    confirm: uiText('确认时间（蓝色）', 'Confirm time (blue)'),
+    unconfirm: uiText('改为待确认（黄色）', 'Mark unconfirmed (yellow)'),
     add: uiText('添加一节课', 'Add a Lesson'),
     saving: uiText('保存中...', 'Saving...'),
     saveError: uiText('课程保存失败，请重试。', 'Could not save the lesson. Please retry.'),
@@ -69,6 +80,12 @@ export class InterviewStudentsComponent implements OnInit {
               private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void { this.load(); }
+
+  ngAfterViewInit(): void {
+    this.clockTimer = setInterval(() => this.cdr.markForCheck(), 30000);
+  }
+
+  ngOnDestroy(): void { clearInterval(this.clockTimer); }
 
   get filteredRows(): InterviewCoursePlan[] {
     const query = this.search.trim().toLocaleLowerCase();
@@ -105,13 +122,36 @@ export class InterviewStudentsComponent implements OnInit {
   isBusy(studentId: number): boolean { return this.busyStudentIds.has(studentId); }
 
   changeLessonDate(row: InterviewCoursePlan, lesson: InterviewCourseLesson, value: string): void {
-    lesson.lessonDate = value || null;
-    this.saveLesson(row, lesson);
+    this.saveLesson(row, lesson, { lessonDate: value || null, confirmed: false });
   }
 
   changeLessonTime(row: InterviewCoursePlan, lesson: InterviewCourseLesson, value: string): void {
-    lesson.lessonTime = value || null;
-    this.saveLesson(row, lesson);
+    this.saveLesson(row, lesson, { lessonTime: value || null, confirmed: false });
+  }
+
+  changeLessonHour(row: InterviewCoursePlan, lesson: InterviewCourseLesson, value: string): void {
+    if (value && !this.hours.includes(value)) return;
+    this.changeLessonTime(row, lesson, value ? `${value}:${this.lessonMinute(lesson) || '00'}` : '');
+  }
+
+  changeLessonMinute(row: InterviewCoursePlan, lesson: InterviewCourseLesson, value: string): void {
+    if (!lesson.lessonTime || !this.minutes.includes(value)) return;
+    this.changeLessonTime(row, lesson, `${this.lessonHour(lesson)}:${value}`);
+  }
+
+  lessonHour(lesson: InterviewCourseLesson): string { return lesson.lessonTime?.slice(0, 2) || ''; }
+  lessonMinute(lesson: InterviewCourseLesson): string { return lesson.lessonTime?.slice(3, 5) || ''; }
+
+  lessonState(lesson: InterviewCourseLesson): 'unscheduled' | 'tentative' | 'confirmed' | 'past' {
+    if (!lesson.lessonDate || !lesson.lessonTime) return 'unscheduled';
+    if (new Date(`${lesson.lessonDate}T${lesson.lessonTime}`).getTime() <= Date.now()) return 'past';
+    return lesson.confirmed ? 'confirmed' : 'tentative';
+  }
+
+  toggleConfirmation(row: InterviewCoursePlan, lesson: InterviewCourseLesson): void {
+    const state = this.lessonState(lesson);
+    if (state === 'unscheduled' || state === 'past') return;
+    this.saveLesson(row, lesson, { confirmed: !lesson.confirmed });
   }
 
   addLesson(row: InterviewCoursePlan): void {
@@ -156,14 +196,18 @@ export class InterviewStudentsComponent implements OnInit {
   trackLesson(_index: number, lesson: InterviewCourseLesson): number { return lesson.id; }
   lessonLabel(number: number) { return uiText(`第 ${number} 节`, `Lesson ${number}`); }
 
-  private saveLesson(row: InterviewCoursePlan, lesson: InterviewCourseLesson): void {
+  private saveLesson(row: InterviewCoursePlan, lesson: InterviewCourseLesson,
+                     changes: Partial<InterviewCourseLesson>): void {
     if (this.isBusy(row.studentId)) return;
+    const previous = { ...lesson };
+    Object.assign(lesson, changes);
     this.runMutation(row.studentId, this.applications.updateInterviewCourseLesson(
-      row.studentId, lesson.id, lesson.lessonDate, lesson.lessonTime
-    ));
+      row.studentId, lesson.id, lesson.lessonDate, lesson.lessonTime, lesson.confirmed ?? false
+    ), undefined, () => Object.assign(lesson, previous));
   }
 
-  private runMutation(studentId: number, request: Observable<InterviewCoursePlan>, onSuccess?: () => void): void {
+  private runMutation(studentId: number, request: Observable<InterviewCoursePlan>,
+                      onSuccess?: () => void, onError?: () => void): void {
     this.busyStudentIds.add(studentId);
     this.studentErrors.delete(studentId);
     request.pipe(finalize(() => {
@@ -174,7 +218,10 @@ export class InterviewStudentsComponent implements OnInit {
         this.rows = this.rows.map((row) => row.studentId === studentId ? plan : row);
         onSuccess?.();
       },
-      error: () => this.studentErrors.set(studentId, this.ui.saveError.zh),
+      error: () => {
+        onError?.();
+        this.studentErrors.set(studentId, this.ui.saveError.zh);
+      },
     });
   }
 }
