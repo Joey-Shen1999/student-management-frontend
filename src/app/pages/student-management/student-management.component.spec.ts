@@ -161,6 +161,14 @@ describe('StudentManagementComponent', () => {
     );
   });
 
+  it('places birthday after name when restoring an older student list column order', () => {
+    expect((component as any).normalizeColumnOrderKeys(['name', 'email', 'phone']).slice(0, 3))
+      .toEqual(['name', 'birthday', 'email']);
+    // A teacher can still keep a deliberately customized order.
+    expect((component as any).normalizeColumnOrderKeys(['email', 'birthday', 'name']).slice(0, 3))
+      .toEqual(['email', 'birthday', 'name']);
+  });
+
   it('shows a complete birthday as one independent student list field without timezone conversion', () => {
     expect(component.resolveStudentColumnValue({ username: 'student', birthday: '2008-09-01' }, 'birthday'))
       .toBe('2008-09-01');

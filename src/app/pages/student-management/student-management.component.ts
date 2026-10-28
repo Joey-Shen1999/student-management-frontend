@@ -2622,6 +2622,10 @@ export class StudentManagementComponent implements OnInit {
     const normalized: StudentListColumnKey[] = [];
     const seen = new Set<StudentListColumnKey>();
     const orderedKeys = [...keys];
+    if (this.resolvePageContext() === 'students' && !orderedKeys.includes('birthday')) {
+      const nameIndex = orderedKeys.indexOf('name');
+      orderedKeys.splice(nameIndex >= 0 ? nameIndex + 1 : 0, 0, 'birthday');
+    }
     if (this.isGraduationApplicationsContext && !orderedKeys.includes('interviewCourse')) {
       const insertAfter = orderedKeys.indexOf('graduationStage');
       orderedKeys.splice(insertAfter >= 0 ? insertAfter + 1 : 1, 0, 'interviewCourse');
@@ -5117,6 +5121,9 @@ export class StudentManagementComponent implements OnInit {
 
     const restored = this.normalizeVisibleColumnKeys(persisted.visibleColumnKeys || []);
     const base = restored.size > 0 ? restored : defaults;
+    if (this.resolvePageContext() === 'students' && !persisted.orderedColumnKeys?.includes('birthday')) {
+      base.add('birthday');
+    }
     this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
       this.applyIndependentColumnOverrides(base)
     );
@@ -5540,6 +5547,9 @@ export class StudentManagementComponent implements OnInit {
 
         if (remoteKeys.length > 0) {
           const normalized = this.normalizeVisibleColumnKeys(remoteKeys);
+          if (this.resolvePageContext() === 'students' && !remoteOrderedKeys.includes('birthday')) {
+            normalized.add('birthday');
+          }
           if (normalized.size > 0) {
             this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
               this.applyIndependentColumnOverrides(normalized)
