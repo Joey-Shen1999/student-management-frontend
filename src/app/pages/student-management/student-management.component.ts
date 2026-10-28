@@ -1,5 +1,6 @@
 import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { PinnedColumnsDirective } from './pinned-columns.directive';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -145,6 +146,7 @@ interface StudentSchoolContext {
 interface StudentListColumnPreferenceVm {
   visibleColumnKeys?: string[];
   orderedColumnKeys?: string[];
+  pinnedColumnKeys?: string[];
 }
 
 interface StudentListFilterPreferenceVm {
@@ -678,9 +680,9 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
 @Component({
   selector: 'app-student-management',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, StudentFilterFieldsComponent, TranslatePipe, PinnedColumnsDirective],
   template: `
-    <div class="student-management-page" style="max-width:1320px;margin:56px auto 40px;font-family:Arial">
+    <div class="student-management-page" style="width:100%;min-width:0;box-sizing:border-box;margin:56px 0 40px;font-family:Arial">
       <div class="student-page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <h2 style="margin:0;">{{ resolvedPageTitle }}</h2>
         <button type="button" (click)="goBack()" class="student-back-btn" style="margin-left:auto;">
@@ -1187,15 +1189,22 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
       </div>
 
       <div class="student-list-table-wrap">
-        <table class="student-list-table">
+        <table class="student-list-table" [appPinnedColumns]="pinnedColumnKeys">
           <thead style="background:#f6f7fb;">
             <tr *ngIf="visibleColumns.length > 0">
               <th
                 *ngFor="let column of visibleColumns; trackBy: trackColumn"
                 [attr.style]="column.headerStyle"
                 class="draggable-column-header"
-                [class.draggable-enabled]="canDragColumnHeaders()"
-                [draggable]="canDragColumnHeaders()"
+                [class.pinned-column]="pinnedColumnKeys.has(column.key)"
+                [attr.data-column-key]="column.key"
+                (dblclick)="togglePinnedColumn(column.key); $event.preventDefault()"
+                [attr.title]="pinnedColumnKeys.has(column.key) ? '已锁定，双击取消' : '双击锁定此列'"
+                tabindex="0"
+                (keydown.enter)="togglePinnedColumn(column.key); $event.preventDefault()"
+                [attr.aria-label]="resolveUnifiedStudentListColumnLabel(column) + (pinnedColumnKeys.has(column.key) ? '，已锁定，双击或按回车取消' : '，双击或按回车锁定')"
+                [class.draggable-enabled]="canDragColumnHeaders() && !pinnedColumnKeys.has(column.key)"
+                [draggable]="canDragColumnHeaders() && !pinnedColumnKeys.has(column.key)"
                 (dragstart)="onColumnHeaderDragStart(column.key, $event)"
                 (dragover)="onColumnHeaderDragOver($event)"
                 (drop)="onColumnHeaderDrop(column.key, $event)"
@@ -1220,6 +1229,8 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
               <td
                 *ngFor="let column of visibleColumns; trackBy: trackColumn"
                 [attr.style]="column.cellStyle"
+                [class.pinned-column]="pinnedColumnKeys.has(column.key)"
+                [attr.data-column-key]="column.key"
               >
                 <ng-container [ngSwitch]="column.key">
                   <ng-container *ngSwitchCase="'teacherNote'">
@@ -1496,17 +1507,19 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'ossltResult'">
-                    <button
-                      type="button"
-                      [routerLink]="ossltRoute(student)"
+                    <select
+                      aria-label="OSSLT 成绩"
+                      [ngModel]="resolveOssltResultSelection(student)"
+                      (ngModelChange)="onOssltResultSelectionChange(student, $event)"
                       style="min-width:150px;white-space:nowrap;padding:6px 10px;border-radius:999px;border:1px solid;font-weight:600;"
                       [style.background]="resolveOssltResultStatusBackground(student)"
                       [style.color]="resolveOssltResultStatusTextColor(student)"
                       [style.borderColor]="resolveOssltResultStatusBorderColor(student)"
-                      [disabled]="!resolveStudentId(student)"
+                      [disabled]="!resolveStudentId(student) || isOssltTrackingStatusLoading(student) || isOssltTrackingStatusUnavailable(student) || ossltResultSaving.has(resolveStudentId(student) || 0)"
                     >
-                      {{ resolveOssltResultStatusLabel(student) }}
-                    </button>
+                      <option value="" disabled *ngIf="!resolveOssltResultSelection(student)">{{ resolveOssltResultStatusLabel(student) }}</option>
+                      <option *ngFor="let result of ossltResultStatusOptions" [ngValue]="result">{{ resolveOssltResultFilterOptionLabel(result) }}</option>
+                    </select>
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'languageTracking'">
@@ -1911,10 +1924,24 @@ const PROVINCE_FILTER_ALIASES_BY_COUNTRY: Partial<
       .student-list-table {
         width: max-content;
         min-width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         font-size: 13px;
         table-layout: auto;
       }
+
+      .student-list-table .pinned-column {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+        isolation: isolate;
+      }
+      .student-list-table .pinned-column::after { content: ''; position: absolute; inset: -1px 0; border-left: 1px solid #111; border-right: 1px solid #111; pointer-events: none; z-index: 1; }
+      .student-list-table th.pinned-column { z-index: 3; background: #f6f7fb; }
+      .student-list-table th.pinned-column::after { top: 0; border-top: 1px solid #111; }
+      .student-list-table tbody tr:last-child td.pinned-column::after { bottom: 0; border-bottom: 1px solid #111; }
+      .draggable-column-header { user-select: none; }
 
       .student-list-table th,
       .student-list-table td {
@@ -2113,6 +2140,8 @@ export class StudentManagementComponent implements OnInit {
       .map((column) => column.key)
   );
   columnOrderKeys: StudentListColumnKey[] = this.studentListColumns.map((column) => column.key);
+  pinnedColumnKeys = new Set<StudentListColumnKey>();
+  private pinnedPreferenceRevision = 0;
   filteredCount = 0;
   loadingList = false;
   listError = '';
@@ -2195,6 +2224,7 @@ export class StudentManagementComponent implements OnInit {
   private readonly languageTrackingStatusSaveInFlight = new Set<number>();
   private readonly languageCourseStatusSaveInFlight = new Set<number>();
   private readonly ossltResultCache = new Map<number, OssltResult>();
+  readonly ossltResultSaving = new Set<number>();
   private readonly ossltTrackingStatusCache = new Map<number, OssltTrackingStatus>();
   private readonly osslcCourseLocationCache = new Map<number, string | null>();
   private readonly ossltStatusLoadInFlight = new Set<number>();
@@ -2303,7 +2333,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   onColumnHeaderDragStart(columnKey: StudentListColumnKey, event: DragEvent): void {
-    if (!this.canDragColumnHeaders()) {
+    if (!this.canDragColumnHeaders() || this.pinnedColumnKeys.has(columnKey)) {
       event.preventDefault();
       return;
     }
@@ -2327,9 +2357,11 @@ export class StudentManagementComponent implements OnInit {
     const sourceColumnKey =
       this.draggingColumnKey || (event.dataTransfer?.getData('text/plain') as StudentListColumnKey);
     this.draggingColumnKey = null;
-    if (!sourceColumnKey || sourceColumnKey === targetColumnKey) return;
+    if (!sourceColumnKey || sourceColumnKey === targetColumnKey || this.pinnedColumnKeys.has(sourceColumnKey)
+        || this.pinnedColumnKeys.has(targetColumnKey)) return;
 
-    const orderedVisibleColumnKeys = this.visibleColumns.map((column) => column.key);
+    const orderedVisibleColumnKeys = this.getOrderedColumnsForCurrentContext()
+      .filter(column => this.isColumnVisible(column.key)).map(column => column.key);
     const sourceIndex = orderedVisibleColumnKeys.indexOf(sourceColumnKey);
     const targetIndex = orderedVisibleColumnKeys.indexOf(targetColumnKey);
     if (sourceIndex < 0 || targetIndex < 0) return;
@@ -2681,9 +2713,24 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get visibleColumns(): readonly StudentListColumnConfig[] {
-    return this.getOrderedColumnsForCurrentContext().filter(
+    const columns = this.getOrderedColumnsForCurrentContext().filter(
       (column) => this.visibleColumnKeys.has(column.key) && this.isColumnAllowedForCurrentContext(column.key)
     );
+    return columns;
+  }
+
+  togglePinnedColumn(key: StudentListColumnKey): void {
+    const next = new Set(this.pinnedColumnKeys);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    this.pinnedColumnKeys = next;
+    this.pinnedPreferenceRevision++;
+    this.persistVisibleColumnsPreference();
+    this.syncVisibleColumnsPreferenceToServer();
+  }
+
+  private normalizePinnedColumnKeys(keys: readonly string[]): Set<StudentListColumnKey> {
+    return new Set(this.studentListColumns.filter(column =>
+      keys.includes(column.key) && this.isColumnAllowedForCurrentContext(column.key)).map(column => column.key));
   }
 
   get columnToggleOptions(): readonly StudentListColumnConfig[] {
@@ -3875,6 +3922,33 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveOssltResultLabel(this.resolveStudentId(student));
   }
 
+  resolveOssltResultSelection(student: StudentAccount): OssltResult | '' {
+    return this.ossltResultCache.get(this.resolveStudentId(student) || 0) || '';
+  }
+
+  onOssltResultSelectionChange(student: StudentAccount, value: unknown): void {
+    const id = this.resolveStudentId(student);
+    if (!id || !this.ossltResultStatusOptions.includes(value as OssltResult)
+        || this.ossltResultSaving.has(id) || this.isOssltTrackingStatusUnavailable(student)) return;
+    const previous = this.ossltResultCache.get(id);
+    if (!previous || previous === value) return;
+    this.ossltResultCache.set(id, value as OssltResult);
+    this.ossltResultSaving.add(id);
+    this.actionError = '';
+    this.ossltApi.updateTeacherStudentOssltData(id, { latestOssltResult: value as OssltResult })
+      .pipe(finalize(() => { this.ossltResultSaving.delete(id); this.cdr.detectChanges(); }))
+      .subscribe({
+        next: state => {
+          this.ossltResultCache.set(id, state.latestOssltResult);
+          this.ossltTrackingStatusCache.set(id, deriveStudentOssltSummary(state).trackingStatus);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.ossltResultCache.set(id, previous);
+          this.actionError = this.extractErrorMessage(error) || '保存 OSSLT 成绩失败，请重试。';
+        },
+      });
+  }
+
   resolveOssltResultStatusBackground(student: StudentAccount): string {
     return this.resolveOssltResultBackground(this.resolveStudentId(student));
   }
@@ -5053,6 +5127,8 @@ export class StudentManagementComponent implements OnInit {
   }
 
   resetVisibleColumns(): void {
+    this.pinnedColumnKeys = new Set();
+    this.pinnedPreferenceRevision++;
     this.columnOrderKeys = this.studentListColumns.map((column) => column.key);
     this.visibleColumnKeys = this.buildDefaultVisibleColumnKeys();
     this.persistIndependentColumnOverrides();
@@ -5086,6 +5162,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   isColumnSelectionAtDefault(): boolean {
+    if (this.pinnedColumnKeys.size > 0) return false;
     const defaultSet = this.buildDefaultVisibleColumnKeys();
     if (defaultSet.size !== this.visibleColumnKeys.size) {
       return false;
@@ -5103,9 +5180,18 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private initializeVisibleColumns(): void {
+    try {
+      const pinned = globalThis.localStorage?.getItem(this.resolveVisibleColumnsStorageKey() + ':pinned');
+      const keys: unknown = pinned?.startsWith('[') ? JSON.parse(pinned) : pinned ? [pinned] : [];
+      this.pinnedColumnKeys = new Set(this.studentListColumns.filter(column =>
+        Array.isArray(keys) && keys.includes(column.key)).map(column => column.key));
+    } catch { this.pinnedColumnKeys = new Set(); }
     const defaults = this.buildDefaultVisibleColumnKeys();
     const defaultOrder = this.studentListColumns.map((column) => column.key);
     const persisted = this.readVisibleColumnsPreference();
+    if (persisted?.pinnedColumnKeys) {
+      this.pinnedColumnKeys = this.normalizePinnedColumnKeys(persisted.pinnedColumnKeys);
+    }
     this.columnOrderKeys = defaultOrder;
     if (!persisted) {
       this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
@@ -5149,6 +5235,7 @@ export class StudentManagementComponent implements OnInit {
       if (!storage) return;
       const storageKey = this.resolveVisibleColumnsStorageKey();
       const payload: StudentListColumnPreferenceVm = {
+        pinnedColumnKeys: [...this.pinnedColumnKeys],
         visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
         orderedColumnKeys: this.normalizeColumnOrderKeys(this.columnOrderKeys),
       };
@@ -5178,8 +5265,10 @@ export class StudentManagementComponent implements OnInit {
         };
       }
       if (!parsed || typeof parsed !== 'object') return null;
-      const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown };
+      const node = parsed as { visibleColumnKeys?: unknown; orderedColumnKeys?: unknown; pinnedColumnKeys?: unknown };
       return {
+        pinnedColumnKeys: Array.isArray(node.pinnedColumnKeys) ? node.pinnedColumnKeys.filter(
+          (value): value is string => typeof value === 'string') : undefined,
         visibleColumnKeys: this.withMigratedInterviewCourseColumn(Array.isArray(node.visibleColumnKeys)
           ? node.visibleColumnKeys.map((value) => String(value ?? '').trim()).filter(Boolean)
           : [], !!legacyRaw),
@@ -5516,6 +5605,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private loadVisibleColumnsPreferenceFromServer(): void {
+    const pinnedRevision = this.pinnedPreferenceRevision;
     const authorization = this.auth.getAuthorizationHeaderValue();
     if (!authorization) return;
 
@@ -5538,6 +5628,9 @@ export class StudentManagementComponent implements OnInit {
         const remoteOrderedKeys = Array.isArray(payload?.orderedColumnKeys)
           ? payload.orderedColumnKeys.map((key) => String(key ?? '').trim()).filter(Boolean)
           : [];
+        if (pinnedRevision === this.pinnedPreferenceRevision && Array.isArray(payload?.pinnedColumnKeys)) {
+          this.pinnedColumnKeys = this.normalizePinnedColumnKeys(payload.pinnedColumnKeys);
+        }
         const remoteKeys = this.withMigratedInterviewCourseColumn(Array.isArray(payload?.visibleColumnKeys)
           ? payload.visibleColumnKeys.map((key) => String(key ?? '').trim())
           : [], migratingGraduationPreference);
@@ -5558,7 +5651,9 @@ export class StudentManagementComponent implements OnInit {
         }
         this.persistIndependentColumnOverrides();
         this.persistVisibleColumnsPreference();
-        if (migratingGraduationPreference) this.syncVisibleColumnsPreferenceToServer();
+        if (migratingGraduationPreference || (payload.pinnedColumnKeys == null && this.pinnedColumnKeys.size > 0)) {
+          this.syncVisibleColumnsPreferenceToServer();
+        }
         this.hydrateStudentMetadata(this.students);
         if (this.visibleColumnKeys.has('teacherNote')) {
           this.prefetchVisibleTeacherNotes();
@@ -5640,6 +5735,7 @@ export class StudentManagementComponent implements OnInit {
     const pagePreferenceKey = this.resolveVisibleColumnsPreferencePageKey();
     const payload = {
       version: this.resolveVisibleColumnsPreferenceVersion(),
+      pinnedColumnKeys: [...this.pinnedColumnKeys],
       visibleColumnKeys: Array.from(this.visibleColumnKeys.values()),
       orderedColumnKeys: this.normalizeColumnOrderKeys(this.columnOrderKeys),
     };
