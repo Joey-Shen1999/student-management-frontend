@@ -17,6 +17,64 @@ import { UniversityAspirationService } from '../../services/university-aspiratio
 import { GraduationApplicationStageService } from '../../services/graduation-application-stage.service';
 
 describe('StudentManagementComponent', () => {
+  it('saves inline OSSLT results without replacing other fields and restores failed edits', () => {
+    const student = { studentId: 1, id: 1 } as any;
+    (component as any).ossltResultCache.set(1, 'UNKNOWN');
+    (ossltApi.updateTeacherStudentOssltData as any).mockReturnValue(of({
+      latestOssltResult: 'PASS', ossltTrackingManualStatus: null, hasOsslc: null,
+    }));
+    component.onOssltResultSelectionChange(student, 'PASS');
+    expect(ossltApi.updateTeacherStudentOssltData).toHaveBeenCalledWith(1, { latestOssltResult: 'PASS' });
+    expect(component.resolveOssltResultSelection(student)).toBe('PASS');
+    expect(component.resolveOssltTrackingStatusSelection(student)).toBe('PASSED');
+    (ossltApi.updateTeacherStudentOssltData as any).mockReturnValue(throwError(() => new Error('offline')));
+    component.onOssltResultSelectionChange(student, 'FAIL');
+    expect(component.resolveOssltResultSelection(student)).toBe('PASS');
+    expect(component.ossltResultSaving.size).toBe(0);
+    expect(component.actionError).toBeTruthy();
+  });
+
+  it('loads server locks including an explicitly empty selection', () => {
+    (preferenceApi.getPagePreference as any).mockReturnValue(of({
+      version: 'v12', visibleColumnKeys: ['name', 'email'], pinnedColumnKeys: ['email'],
+    }));
+    (component as any).loadVisibleColumnsPreferenceFromServer();
+    expect(component.pinnedColumnKeys).toEqual(new Set(['email']));
+    (preferenceApi.getPagePreference as any).mockReturnValue(of({
+      version: 'v12', visibleColumnKeys: ['name', 'email'], pinnedColumnKeys: [],
+    }));
+    (component as any).loadVisibleColumnsPreferenceFromServer();
+    expect(component.pinnedColumnKeys.size).toBe(0);
+  });
+
+  it('saves locked columns with the current page preference and clears them on reset', () => {
+    component.togglePinnedColumn('name');
+    component.togglePinnedColumn('email');
+    expect(preferenceApi.upsertPagePreference).toHaveBeenLastCalledWith(
+      'student-management.list-columns', expect.objectContaining({ pinnedColumnKeys: ['name', 'email'] }));
+    expect(component.isColumnSelectionAtDefault()).toBe(false);
+    component.resetVisibleColumns();
+    expect(component.pinnedColumnKeys.size).toBe(0);
+    expect(preferenceApi.upsertPagePreference).toHaveBeenLastCalledWith(
+      'student-management.list-columns', expect.objectContaining({ pinnedColumnKeys: [] }));
+  });
+
+  it('locks multiple columns independently without changing their visible or underlying order', () => {
+    const original = component.visibleColumns.map(column => column.key);
+    const order = [...component.columnOrderKeys];
+    const key = original[original.length - 1];
+    component.togglePinnedColumn(key);
+    expect(component.pinnedColumnKeys.has(key)).toBe(true);
+    expect(component.visibleColumns.map(column => column.key)).toEqual(original);
+    expect(component.columnOrderKeys).toEqual(order);
+    component.togglePinnedColumn(original[1]);
+    expect(component.pinnedColumnKeys).toEqual(new Set([key, original[1]]));
+    expect(component.visibleColumns.map(column => column.key)).toEqual(original);
+    component.togglePinnedColumn(original[1]);
+    expect(component.pinnedColumnKeys).toEqual(new Set([key]));
+    expect(component.visibleColumns.map(column => column.key)).toEqual(original);
+  });
+
   let component: StudentManagementComponent;
   let api: Pick<
     StudentManagementService,
