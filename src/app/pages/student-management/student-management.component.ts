@@ -118,6 +118,7 @@ type StudentProvinceFilter = string;
 type TrackingManualStatusOption = LanguageTrackingStatus | OssltTrackingStatus;
 
 interface StudentListMetadata {
+  birthday?: string;
   email: string;
   phone: string;
   schoolName: string;
@@ -225,6 +226,7 @@ const PAGE_TITLE_BY_CONTEXT: Record<StudentManagementPageContext, string> = {
 };
 
 const STUDENT_LIST_COLUMN_LABEL_BY_KEY: Record<StudentListColumnKey, string> = {
+  birthday: '出生年月日',
   name: '\u59d3\u540d',
   email: '\u90ae\u7bb1',
   phone: '\u7535\u8bdd',
@@ -316,6 +318,15 @@ const STUDENT_LIST_COLUMNS: readonly StudentListColumnConfig[] = [
     backendDependent: false,
     headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;',
     cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;',
+  },
+  {
+    key: 'birthday',
+    label: '出生年月日',
+    defaultVisible: true,
+    hideable: true,
+    backendDependent: false,
+    headerStyle: 'text-align:left;padding:6px 8px;border-bottom:1px solid #e5e5e5;white-space:nowrap;',
+    cellStyle: 'padding:6px 8px;border-bottom:1px solid #f0f0f0;white-space:nowrap;',
   },
   {
     key: 'email',
@@ -2479,6 +2490,15 @@ export class StudentManagementComponent implements OnInit {
     return this.resolveIdentityInCanadaValue(student) || '-';
   }
 
+  resolveStudentBirthday(student: StudentAccount): string {
+    const profile = student?.['profile'] as Record<string, unknown> | undefined;
+    const studentId = this.resolveStudentId(student);
+    const cached = studentId ? this.studentContactCache.get(studentId) : undefined;
+    const value = this.pickFirstText([student?.['birthday'], profile?.['birthday'], cached?.birthday]);
+    // Birthdays are calendar dates: do not convert through timezone-sensitive Date parsing.
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '-';
+  }
+
   resolveStudentGender(student: StudentAccount): string {
     return this.resolveGenderValue(student) || '-';
   }
@@ -2520,6 +2540,8 @@ export class StudentManagementComponent implements OnInit {
     switch (columnKey) {
       case 'name':
         return this.displayName(student);
+      case 'birthday':
+        return this.resolveStudentBirthday(student);
       case 'email':
         return this.resolveStudentEmail(student);
       case 'phone':
@@ -2600,6 +2622,10 @@ export class StudentManagementComponent implements OnInit {
     const normalized: StudentListColumnKey[] = [];
     const seen = new Set<StudentListColumnKey>();
     const orderedKeys = [...keys];
+    if (this.resolvePageContext() === 'students' && !orderedKeys.includes('birthday')) {
+      const nameIndex = orderedKeys.indexOf('name');
+      orderedKeys.splice(nameIndex >= 0 ? nameIndex + 1 : 0, 0, 'birthday');
+    }
     if (this.isGraduationApplicationsContext && !orderedKeys.includes('interviewCourse')) {
       const insertAfter = orderedKeys.indexOf('graduationStage');
       orderedKeys.splice(insertAfter >= 0 ? insertAfter + 1 : 1, 0, 'interviewCourse');
@@ -5095,6 +5121,9 @@ export class StudentManagementComponent implements OnInit {
 
     const restored = this.normalizeVisibleColumnKeys(persisted.visibleColumnKeys || []);
     const base = restored.size > 0 ? restored : defaults;
+    if (this.resolvePageContext() === 'students' && !persisted.orderedColumnKeys?.includes('birthday')) {
+      base.add('birthday');
+    }
     this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
       this.applyIndependentColumnOverrides(base)
     );
@@ -5461,6 +5490,9 @@ export class StudentManagementComponent implements OnInit {
     if (columnKey === 'interviewCourse') {
       return this.resolvePageContext() === 'graduationApplications';
     }
+    if (columnKey === 'birthday') {
+      return this.resolvePageContext() === 'students';
+    }
     if (columnKey === 'documents') {
       return this.resolvePageContext() === 'students';
     }
@@ -5515,6 +5547,9 @@ export class StudentManagementComponent implements OnInit {
 
         if (remoteKeys.length > 0) {
           const normalized = this.normalizeVisibleColumnKeys(remoteKeys);
+          if (this.resolvePageContext() === 'students' && !remoteOrderedKeys.includes('birthday')) {
+            normalized.add('birthday');
+          }
           if (normalized.size > 0) {
             this.visibleColumnKeys = this.sanitizeVisibleColumnKeysForCurrentContext(
               this.applyIndependentColumnOverrides(normalized)
@@ -7104,7 +7139,8 @@ export class StudentManagementComponent implements OnInit {
             cached.firstLanguage &&
             cached.motherLanguage
           );
-        if (cachedHasCore && (!requiresExtendedMetadata || cachedHasExtended)) {
+        if (cachedHasCore && (!requiresExtendedMetadata || cachedHasExtended) &&
+            (!this.isColumnVisible('birthday') || !!cached.birthday)) {
           continue;
         }
       }
@@ -7142,11 +7178,13 @@ export class StudentManagementComponent implements OnInit {
           motherLanguage
         );
 
-      if (hasCoreMetadata && (!requiresExtendedMetadata || hasExtendedMetadata)) {
+      if (hasCoreMetadata && (!requiresExtendedMetadata || hasExtendedMetadata) &&
+          (!this.isColumnVisible('birthday') || this.resolveStudentBirthday(student) !== '-')) {
         this.studentContactCache.set(studentId, {
           email,
           phone,
           schoolName,
+          birthday: this.resolveStudentBirthday(student) === '-' ? '' : this.resolveStudentBirthday(student),
           canadaIdentity,
           gender,
           nationality,
@@ -7166,6 +7204,7 @@ export class StudentManagementComponent implements OnInit {
         this.cacheStudentProfilePayload(studentId, cachedProfile);
         const metadata = this.extractStudentMetadataFromProfile(cachedProfile);
         if (
+          metadata.birthday ||
           metadata.email ||
           metadata.phone ||
           metadata.schoolName ||
@@ -7203,6 +7242,7 @@ export class StudentManagementComponent implements OnInit {
             const metadata = this.extractStudentMetadataFromProfile(payload);
             this.cacheStudentProfilePayload(studentId, payload);
             if (
+              !metadata.birthday &&
               !metadata.email &&
               !metadata.phone &&
               !metadata.schoolName &&
@@ -8186,6 +8226,7 @@ export class StudentManagementComponent implements OnInit {
         : ({} as Record<string, unknown>);
 
     return {
+      birthday: this.pickFirstText([profileNode['birthday'], root['birthday']]),
       email: this.pickFirstText([
         profileNode['email'],
         profileNode['emailAddress'],

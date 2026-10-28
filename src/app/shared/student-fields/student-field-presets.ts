@@ -11,6 +11,7 @@ export type StudentManagementPageContext =
   | 'graduationApplications';
 
 export type StudentListColumnKey =
+  | 'birthday'
   | 'name'
   | 'email'
   | 'phone'
@@ -48,6 +49,7 @@ export type StudentListColumnKey =
 
 export const STUDENT_ACCOUNT_MANAGEMENT_DEFAULT_COLUMN_KEYS: readonly StudentListColumnKey[] = [
   'name',
+  'birthday',
   'email',
   'phone',
   'graduation',
