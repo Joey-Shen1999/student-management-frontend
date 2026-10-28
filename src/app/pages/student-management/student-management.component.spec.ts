@@ -161,6 +161,27 @@ describe('StudentManagementComponent', () => {
     );
   });
 
+  it('shows a complete birthday as one independent student list field without timezone conversion', () => {
+    expect(component.resolveStudentColumnValue({ username: 'student', birthday: '2008-09-01' }, 'birthday'))
+      .toBe('2008-09-01');
+    expect(component.resolveStudentColumnValue({ username: 'student', profile: { birthday: '2008-02-29' } }, 'birthday'))
+      .toBe('2008-02-29');
+    expect(component.resolveStudentColumnValue({ username: 'student' }, 'birthday')).toBe('-');
+    expect(component.resolveStudentColumnValue({ username: 'student', birthday: '2008' }, 'birthday')).toBe('-');
+  });
+
+  it('loads birthday from the existing profile and supports hiding and reordering the field', () => {
+    const student = { studentId: 7, username: 'student' };
+    vi.mocked(profileApi.getStudentProfileForTeacher).mockReturnValue(of({ birthday: '2008-09-01' }));
+    (component as any).hydrateStudentMetadata([student]);
+    expect(component.resolveStudentColumnValue(student, 'birthday')).toBe('2008-09-01');
+    expect(component.visibleColumns.map(column => column.key)).toContain('birthday');
+    component.onColumnOrderChange(['birthday', 'name']);
+    expect(component.visibleColumns[0].key).toBe('birthday');
+    component.onColumnVisibilityChange('birthday', { target: { checked: false } } as unknown as Event);
+    expect(component.visibleColumns.map(column => column.key)).not.toContain('birthday');
+  });
+
   it('ngOnInit should load student list', () => {
     (api.listStudents as any).mockReturnValue(
       of([
@@ -1937,6 +1958,7 @@ describe('StudentManagementComponent', () => {
     first.onColumnOrderChange([
       'email',
       'name',
+      'birthday',
       'phone',
       'graduation',
       'teacherNote',
@@ -2030,6 +2052,7 @@ describe('StudentManagementComponent', () => {
     expect(defaultKeys).toEqual(
       [
         'name',
+        'birthday',
         'email',
         'phone',
         'graduation',
