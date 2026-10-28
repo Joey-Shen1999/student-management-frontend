@@ -20,6 +20,99 @@ const plans: InterviewCoursePlan[] = [
 ];
 
 describe('InterviewStudentsComponent', () => {
+  it('hides every past lesson only for complete plans with at least four lessons', () => {
+    const component = new InterviewStudentsComponent({} as any, {} as any);
+    const past = (count: number) => Array.from({ length: count }, (_, i) => ({
+      id: i + 1, lessonNumber: i + 1, lessonDate: '2000-01-01', lessonTime: '12:00',
+    }));
+    const four = { ...structuredClone(plans[0]), lessons: past(4) };
+    const five = { ...structuredClone(plans[1]), lessons: past(5) };
+    component.rows = [four, five];
+    expect(component.showHidden).toBe(false);
+    expect(component.hiddenCount).toBe(2);
+    expect(component.filteredRows).toEqual([]);
+    component.showHidden = true;
+    expect(component.filteredRows).toHaveLength(2);
+    component.search = 'bob';
+    expect(component.filteredRows.map(row => row.studentId)).toEqual([2]);
+    component.showHidden = false;
+    expect(component.filteredRows).toEqual([]);
+    expect(component.isHidden({ ...four, lessons: [] })).toBe(false);
+    expect(component.isHidden({ ...four, lessons: past(3) })).toBe(false);
+    five.lessons[4].lessonTime = '';
+    expect(component.isHidden(five)).toBe(false);
+    five.lessons[4].lessonTime = '12:00';
+    five.lessons[4].lessonDate = '2099-01-01';
+    expect(component.isHidden(five)).toBe(false);
+    expect(component.rows).toHaveLength(2);
+  });
+
+  it('keeps a finished plan visible during a pending or failed save', () => {
+    const response = new Subject<InterviewCoursePlan>();
+    const component = new InterviewStudentsComponent({ updateInterviewCourseLesson: () => response } as any,
+      { markForCheck: vi.fn() } as any);
+    const row = structuredClone(plans[0]);
+    row.lessons = Array.from({ length: 4 }, (_, i) => ({
+      id: i, lessonNumber: i + 1, lessonDate: '2000-01-01', lessonTime: '12:00',
+    }));
+    row.lessons[3].lessonDate = '2099-01-01';
+    component.rows = [row];
+    component.changeLessonDate(row, row.lessons[3], '2000-01-01');
+    expect(component.filteredRows).toHaveLength(1);
+    response.error(new Error('offline'));
+    expect(component.filteredRows).toHaveLength(1);
+    expect(row.lessons[3].lessonDate).toBe('2099-01-01');
+  });
+
+  it('automatically hides a plan when its last scheduled time passes', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 9, 27, 12, 0));
+      const component = new InterviewStudentsComponent({} as any, {} as any);
+      const row = { ...structuredClone(plans[0]), lessons: Array.from({ length: 4 }, (_, i) => ({
+        id: i, lessonNumber: i + 1, lessonDate: '2026-10-27', lessonTime: i === 3 ? '12:15' : '10:00',
+      })) };
+      component.rows = [row];
+      expect(component.filteredRows).toHaveLength(1);
+      vi.setSystemTime(new Date(2026, 9, 27, 12, 15));
+      expect(component.filteredRows).toHaveLength(0);
+      expect(component.hiddenCount).toBe(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('searches automatically listed engineering applications', () => {
+    const component = new InterviewStudentsComponent({} as any, {} as any);
+    component.rows = [{ ...structuredClone(plans[0]), engineeringApplications: [
+      { id: 1, universityName: 'University of Waterloo', programName: 'Systems Design Engineering' },
+    ] }];
+    component.search = 'systems design';
+    expect(component.filteredRows).toHaveLength(1);
+  });
+
+  it('shows school warnings and keeps engineering applications collapsed initially', async () => {
+    const row = { ...structuredClone(plans[0]), graduationStageEnabled: false, engineeringApplications: [
+      { id: 1, universityName: 'University of Waterloo', programName: 'Mechanical Engineering' },
+    ] };
+    await TestBed.configureTestingModule({
+      imports: [InterviewStudentsComponent],
+      providers: [provideRouter([]), { provide: GraduationApplicationStageService,
+        useValue: { listInterviewCourseStudents: () => of([row]) } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(InterviewStudentsComponent);
+    try {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const card = fixture.nativeElement.querySelector('.student-card') as HTMLElement;
+      expect(card.classList.contains('needs-school')).toBe(true);
+      expect(card.querySelector('.school-warning')?.textContent).toContain('未选择具体学校');
+      const details = card.querySelector('details') as HTMLDetailsElement;
+      expect(details.open).toBe(false);
+      details.querySelector('summary')!.click();
+      expect(details.open).toBe(true);
+      expect(details.textContent).toContain('Mechanical Engineering');
+    } finally { fixture.destroy(); }
+  });
+
   it('renders saved hours and minutes after dynamic options load', async () => {
     const row = structuredClone(plans[0]);
     row.lessons = [

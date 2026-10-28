@@ -18,6 +18,10 @@ button:disabled { opacity: .55; cursor: default; }
 .search-box input { width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; border: 1px solid #c9d5e8; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; }
 .student-list { display: grid; gap: 12px; }
 .student-card { min-width: 0; border: 1px solid #dce4f0; border-radius: 8px; background: #fff; padding: 12px 16px; }
+.student-card.needs-school { background: #fff1f2; border-color: #e7a4ad; }
+.school-warning { color: #a12338; font-size: 12px; }
+.engineering-applications { grid-column: 1 / -1; min-width: 0; font-size: 13px; }
+.engineering-applications summary { cursor: pointer; color: #1d4f9b; width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
 .student-head > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; min-width: 0; }
 .student-card small { color: #60718a; overflow-wrap: anywhere; }
 .requirements { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e1e8f2; }
