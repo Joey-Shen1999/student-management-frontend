@@ -52,16 +52,6 @@
           </a>
         </div>
 
-        <section class="requirements" [attr.aria-label]="ui.requirements | appTranslate">
-          <div class="requirements-head">
-            <h3>{{ ui.requirements | appTranslate }}</h3>
-            <button type="button" (click)="startRequirement(row)" [disabled]="isBusy(row.studentId)">
-              {{ ui.addRequirement | appTranslate }}
-            </button>
-          </div>
-          <p class="requirements-empty" *ngIf="!(row.requirements || []).length && !row.engineeringApplications?.length">
-            {{ ui.requirementsEmpty | appTranslate }}
-          </p>
           <details class="engineering-applications" *ngIf="row.engineeringApplications?.length">
             <summary>{{ ui.engineeringApplications | appTranslate }} ({{ row.engineeringApplications?.length }})</summary>
             <div class="requirement-row" *ngFor="let application of row.engineeringApplications">
@@ -71,40 +61,6 @@
               </div>
             </div>
           </details>
-          <div class="requirement-row" *ngFor="let requirement of row.requirements">
-            <div>
-              <strong class="notranslate" translate="no" data-no-auto-translate>{{ requirement.universityName }}</strong>
-              <span class="notranslate" translate="no" data-no-auto-translate>{{ requirement.programName }}</span>
-            </div>
-            <div class="requirement-actions">
-              <button type="button" (click)="startRequirement(row, requirement)" [disabled]="isBusy(row.studentId)">
-                {{ ui.editRequirement | appTranslate }}
-              </button>
-              <button type="button" class="delete" (click)="deleteRequirement(row, requirement)"
-                [disabled]="isBusy(row.studentId)">{{ ui.deleteRequirement | appTranslate }}</button>
-            </div>
-          </div>
-          <div class="requirement-form" *ngIf="requirementDrafts.get(row.studentId) as draft">
-            <label>
-              <span>{{ ui.university | appTranslate }}</span>
-              <input type="text" [(ngModel)]="draft.universityName" maxlength="200"
-                [disabled]="isBusy(row.studentId)" [placeholder]="ui.university | appTranslate" />
-            </label>
-            <label>
-              <span>{{ ui.program | appTranslate }}</span>
-              <input type="text" [(ngModel)]="draft.programName" maxlength="200"
-                [disabled]="isBusy(row.studentId)" [placeholder]="ui.program | appTranslate" />
-            </label>
-            <div class="requirement-actions">
-              <button type="button" (click)="saveRequirement(row)" [disabled]="isBusy(row.studentId)">
-                {{ ui.saveRequirement | appTranslate }}
-              </button>
-              <button type="button" (click)="cancelRequirement(row.studentId)" [disabled]="isBusy(row.studentId)">
-                {{ ui.cancel | appTranslate }}
-              </button>
-            </div>
-          </div>
-        </section>
 
         <div class="lesson-list">
           <div class="lesson-row" *ngFor="let lesson of row.lessons; trackBy: trackLesson"
