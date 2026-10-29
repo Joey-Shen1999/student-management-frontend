@@ -24,18 +24,11 @@ button:disabled { opacity: .55; cursor: default; }
 .engineering-applications summary { cursor: pointer; color: #1d4f9b; width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
 .student-head > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; min-width: 0; }
 .student-card small { color: #60718a; overflow-wrap: anywhere; }
-.requirements { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 16px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e1e8f2; }
-.requirements-head, .requirement-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
-.requirements h3 { margin: 0; font-size: 13px; white-space: nowrap; }
-.requirements-empty { margin: 0; color: #60718a; font-size: 13px; }
 .requirement-row { grid-column: 1 / -1; padding: 4px 0; border-bottom: 1px solid #edf0f4; }
 .requirement-row > div:first-child { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .requirement-row span { color: #52657f; }
-.requirement-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
-.requirement-actions .delete { color: #b42318; border-color: #f4b4b4; }
-.requirement-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 6px 0; }
-.requirement-form label, .lesson-row label { display: grid; gap: 4px; min-width: 0; color: #5b6d85; font-size: 12px; }
-.requirement-form input, .lesson-row input, .lesson-row select { box-sizing: border-box; width: 100%; min-width: 0; height: 34px; padding: 4px 6px; border: 1px solid #c9d5e8; border-radius: 5px; background: #fff; color: #172033; font: inherit; font-size: 13px; }
+.lesson-row label { display: grid; gap: 4px; min-width: 0; color: #5b6d85; font-size: 12px; }
+.lesson-row input, .lesson-row select { box-sizing: border-box; width: 100%; min-width: 0; height: 34px; padding: 4px 6px; border: 1px solid #c9d5e8; border-radius: 5px; background: #fff; color: #172033; font: inherit; font-size: 13px; }
 .lesson-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; margin-top: 10px; }
 .lesson-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 6px 8px; padding: 6px 8px; border-left: 3px solid #dce4f0; min-width: 0; }
 .lesson-heading { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-height: 26px; font-size: 13px; }
@@ -61,7 +54,6 @@ button.confirmation-toggle { width: 26px; min-height: 26px; flex: 0 0 26px; padd
   .search-box { width: 100%; }
   .student-card { padding: 12px; }
   .student-head { flex-wrap: wrap; }
-  .lesson-list, .requirement-form { grid-template-columns: minmax(0, 1fr); }
-  .requirements { grid-template-columns: minmax(0, 1fr); }
+  .lesson-list { grid-template-columns: minmax(0, 1fr); }
   .requirement-row { align-items: flex-start; flex-direction: column; gap: 6px; }
 }

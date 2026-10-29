@@ -11,6 +11,7 @@ import { InterviewStudentsComponent } from './interview-students.component';
 
 const plans: InterviewCoursePlan[] = [
   { studentId: 1, studentName: 'Alice Anderson', username: 'alice', graduationYear: 2027,
+    engineeringApplications: [{ id: 9, universityName: 'McMaster University', programName: 'Engineering I' }],
     enabled: true, requirements: [{ id: 101, universityName: 'McMaster University', programName: 'Engineering I' }], lessons: [
       { id: 11, lessonNumber: 1, lessonDate: null, lessonTime: null },
       { id: 12, lessonNumber: 2, lessonDate: '2026-05-01', lessonTime: '15:30:00' },
@@ -110,6 +111,9 @@ describe('InterviewStudentsComponent', () => {
       details.querySelector('summary')!.click();
       expect(details.open).toBe(true);
       expect(details.textContent).toContain('Mechanical Engineering');
+      expect(fixture.nativeElement.textContent).not.toContain('面试需求');
+      expect(fixture.nativeElement.textContent).not.toContain('McMaster University');
+      expect(fixture.nativeElement.querySelector('.requirement-form')).toBeNull();
     } finally { fixture.destroy(); }
   });
 
@@ -328,31 +332,5 @@ describe('InterviewStudentsComponent', () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it('adds, updates and removes a university and program requirement for one student', () => {
-    const empty = { ...plans[1], requirements: [] };
-    const added = { ...empty, requirements: [{ id: 22, universityName: 'Hong Kong University', programName: 'Medicine' }] };
-    const updated = { ...empty, requirements: [{ id: 22, universityName: 'HKU', programName: 'Medicine' }] };
-    const api = {
-      listInterviewCourseStudents: vi.fn().mockReturnValue(of([empty])),
-      addInterviewCourseRequirement: vi.fn().mockReturnValue(of(added)),
-      updateInterviewCourseRequirement: vi.fn().mockReturnValue(of(updated)),
-      deleteInterviewCourseRequirement: vi.fn().mockReturnValue(of(empty)),
-    } as unknown as GraduationApplicationStageService;
-    const component = new InterviewStudentsComponent(api, { markForCheck: vi.fn() } as any);
-    component.ngOnInit();
-    component.startRequirement(component.rows[0]);
-    const draft = component.requirementDrafts.get(2)!;
-    draft.universityName = ' Hong Kong University ';
-    draft.programName = 'Medicine';
-    component.saveRequirement(component.rows[0]);
-    expect(api.addInterviewCourseRequirement).toHaveBeenCalledWith(2, 'Hong Kong University', 'Medicine');
-    expect(component.rows[0].requirements).toHaveLength(1);
-    component.startRequirement(component.rows[0], component.rows[0].requirements[0]);
-    component.requirementDrafts.get(2)!.universityName = 'HKU';
-    component.saveRequirement(component.rows[0]);
-    expect(api.updateInterviewCourseRequirement).toHaveBeenCalledWith(2, 22, 'HKU', 'Medicine');
-    component.deleteRequirement(component.rows[0], component.rows[0].requirements[0]);
-    expect(api.deleteInterviewCourseRequirement).toHaveBeenCalledWith(2, 22);
-    expect(component.rows[0].requirements).toHaveLength(0);
-  });
+
 });

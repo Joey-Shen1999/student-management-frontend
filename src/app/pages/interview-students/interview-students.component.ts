@@ -9,7 +9,6 @@ import {
   GraduationApplicationStageService,
   InterviewCourseLesson,
   InterviewCoursePlan,
-  InterviewCourseRequirement,
 } from '../../services/graduation-application-stage.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { uiText } from '../../shared/i18n/ui-translations';
@@ -31,8 +30,8 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     section: uiText('申请管理', 'Application Management'),
     title: uiText('本年面试课学生', 'Interview Course Students This Academic Year'),
     cohort: uiText(`${this.year} 届`, `Class of ${this.year}`),
-    description: uiText('按学生管理面试课，标注需要面试的大学与专业。每位学生默认四节空课，可继续添加。',
-      'Manage interview courses by student, including universities and programs that require interviews. Each student starts with four empty lessons.'),
+    description: uiText('按学生管理面试课，查看已报名工程申请。每位学生默认四节空课，可继续添加。',
+      'Manage interview courses by student and view registered engineering applications. Each student starts with four empty lessons.'),
     studentCount: uiText('学生人数', 'Students'),
     scheduledCount: uiText('已安排课程', 'Scheduled Lessons'),
     search: uiText('搜索学生／大学／专业', 'Search students, universities or programs'),
@@ -56,16 +55,6 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     add: uiText('添加一节课', 'Add a Lesson'),
     saving: uiText('保存中...', 'Saving...'),
     saveError: uiText('课程保存失败，请重试。', 'Could not save the lesson. Please retry.'),
-    requirements: uiText('面试需求', 'Interview Requirements'),
-    requirementsEmpty: uiText('尚未标注需要面试的大学和专业。', 'No interview requirements added yet.'),
-    university: uiText('大学', 'University'),
-    program: uiText('专业／学科', 'Program / Subject'),
-    addRequirement: uiText('添加面试需求', 'Add Requirement'),
-    editRequirement: uiText('修改', 'Edit'),
-    deleteRequirement: uiText('删除', 'Delete'),
-    saveRequirement: uiText('保存', 'Save'),
-    cancel: uiText('取消', 'Cancel'),
-    requiredFields: uiText('请填写大学和专业／学科。', 'Enter both university and program / subject.'),
     showHidden: uiText('显示本年已隐藏', 'Show Hidden This Year'),
     hideCompleted: uiText('隐藏已结束', 'Hide Past Lessons'),
     noVisible: uiText('其余学生的课程均已结束，可查看已隐藏学生。', 'All remaining students have past lessons. Show hidden students to view them.'),
@@ -81,7 +70,6 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   failed = false;
   private busyStudentIds = new Set<number>();
   studentErrors = new Map<number, string>();
-  requirementDrafts = new Map<number, { id: number | null; universityName: string; programName: string }>();
 
   constructor(private applications: GraduationApplicationStageService,
               private cdr: ChangeDetectorRef) {}
@@ -99,7 +87,6 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     const visible = this.rows.filter(row => this.showHidden || !this.isHidden(row));
     if (!query) return visible;
     return visible.filter((row) => [row.studentName, row.username,
-      ...(row.requirements || []).flatMap((item) => [item.universityName, item.programName]),
       ...(row.engineeringApplications || []).flatMap((item) => [item.universityName, item.programName])]
       .some((value) => (value || '').toLocaleLowerCase().includes(query)));
   }
@@ -173,39 +160,6 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   addLesson(row: InterviewCoursePlan): void {
     if (this.isBusy(row.studentId)) return;
     this.runMutation(row.studentId, this.applications.addInterviewCourseLesson(row.studentId));
-  }
-
-  startRequirement(row: InterviewCoursePlan, requirement?: InterviewCourseRequirement): void {
-    this.studentErrors.delete(row.studentId);
-    this.requirementDrafts.set(row.studentId, {
-      id: requirement?.id ?? null,
-      universityName: requirement?.universityName ?? '',
-      programName: requirement?.programName ?? '',
-    });
-  }
-
-  cancelRequirement(studentId: number): void { this.requirementDrafts.delete(studentId); }
-
-  saveRequirement(row: InterviewCoursePlan): void {
-    const draft = this.requirementDrafts.get(row.studentId);
-    if (!draft || this.isBusy(row.studentId)) return;
-    const university = draft.universityName.trim();
-    const program = draft.programName.trim();
-    if (!university || !program || university.length > 200 || program.length > 200) {
-      this.studentErrors.set(row.studentId, this.ui.requiredFields.zh);
-      return;
-    }
-    const request = draft.id === null
-      ? this.applications.addInterviewCourseRequirement(row.studentId, university, program)
-      : this.applications.updateInterviewCourseRequirement(row.studentId, draft.id, university, program);
-    this.runMutation(row.studentId, request, () => this.requirementDrafts.delete(row.studentId));
-  }
-
-  deleteRequirement(row: InterviewCoursePlan, requirement: InterviewCourseRequirement): void {
-    if (this.isBusy(row.studentId)) return;
-    this.runMutation(row.studentId,
-      this.applications.deleteInterviewCourseRequirement(row.studentId, requirement.id),
-      () => this.requirementDrafts.delete(row.studentId));
   }
 
   trackStudent(_index: number, row: InterviewCoursePlan): number { return row.studentId; }
