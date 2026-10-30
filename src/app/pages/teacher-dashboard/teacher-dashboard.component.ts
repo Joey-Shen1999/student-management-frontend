@@ -43,7 +43,6 @@ import { uiText } from '../../shared/i18n/ui-translations';
             </button>
             <button *ngFor="let form of personalForms" type="button" class="action-btn primary" [routerLink]="formsStore.path(form)" [queryParams]="form.custom ? {personalForm:form.id} : {}">{{form.name}}</button>
             <p *ngIf="!personalForms.length">尚未选择常用表单，请在个性化设置中添加。</p>
-            <a class="action-btn secondary" routerLink="/teacher/forms">个性化设置 · 我的表单</a>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/applications/by-university']">
               {{ ui.universityApplicationOverview | appTranslate }}
             </button>
@@ -53,9 +52,14 @@ import { uiText } from '../../shared/i18n/ui-translations';
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/service-progress']">
               {{ ui.serviceProgress | appTranslate }}
             </button>
-            <button type="button" class="action-btn secondary" (click)="goAccount()">
-              {{ ui.accountSettings | appTranslate }}
-            </button>
+            <div class="settings-actions">
+              <button type="button" class="action-btn secondary" (click)="goAccount()">
+                {{ ui.accountSettings | appTranslate }}
+              </button>
+              <button type="button" class="action-btn secondary" routerLink="/teacher/forms">
+                {{ ui.personalization | appTranslate }}
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -83,6 +87,7 @@ export class TeacherDashboardComponent {
     universityApplicationOverview: uiText('按大学查看申请', 'Applications by University'),
     interviewStudents: uiText('本年面试课学生', 'Interview Course Students This Year'),
     serviceProgress: uiText('服务进度档', 'Service Progress'),
+    personalization: uiText('个性化设置', 'Personalization'),
     accountSettings: uiText('账号设置', 'Account Settings'),
   };
 
