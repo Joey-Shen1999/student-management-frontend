@@ -1,3 +1,32 @@
+@if (registered) {
+  <main class="registration-success">
+    <div class="success-icon" aria-hidden="true">✓</div>
+    <p class="eyebrow">{{ ui.createAccount | appTranslate }} · 01 / 02</p>
+    <h1>{{ ui.savedTitle | appTranslate }}</h1>
+    <div class="credential-row">
+      <span>{{ ui.username | appTranslate }}</span>
+      <strong translate="no">{{ username }}</strong>
+      <button type="button" (click)="copyCredentials('username')">{{ ui.copy | appTranslate }}</button>
+    </div>
+    <div class="credential-row">
+      <span>{{ ui.password | appTranslate }}</span>
+      <strong translate="no">{{ savedPassword ? (revealPassword ? savedPassword : '••••••••') : '—' }}</strong>
+      <div class="credential-actions">
+        <button type="button" (click)="revealPassword = !revealPassword" [disabled]="!savedPassword"
+          [attr.aria-pressed]="revealPassword">{{ (revealPassword ? ui.hide : ui.show) | appTranslate }}</button>
+        <button type="button" (click)="copyCredentials('password')" [disabled]="!savedPassword">{{ ui.copy | appTranslate }}</button>
+      </div>
+    </div>
+    <p class="countdown">{{ (savedPassword ? ui.countdown : ui.expired) | appTranslate }}
+      @if (savedPassword) { <strong>{{ remainingSeconds }} s</strong> }
+    </p>
+    <button class="copy-all" type="button" (click)="copyCredentials('all')" [disabled]="!savedPassword">{{ ui.copyAll | appTranslate }}</button>
+    <p role="status" aria-live="polite">{{ copyStatus | appTranslate }}</p>
+    <div class="next-step"><p>{{ ui.nextStep | appTranslate }}</p>
+      <button class="primary" type="button" (click)="goToLogin()">{{ ui.goToLogin | appTranslate }} →</button>
+    </div>
+  </main>
+} @else {
 <form (submit)="submit($event)" style="max-width:600px;margin:40px auto;font-family:Arial">
   <h2>{{ ui.title | appTranslate }}</h2>
 
@@ -92,3 +121,5 @@
     <a routerLink="/login">{{ ui.goToLogin | appTranslate }}</a>
   </p>
 </form>
+
+}

@@ -1,6 +1,8 @@
 <div style="max-width: 360px; margin: 60px auto; font-family: Arial">
   <h2>{{ ui.title | appTranslate }}</h2>
 
+  <p *ngIf="registrationPrefilled" role="status" style="padding:12px;background:#edf5ff;border-radius:10px;color:#284a77;">{{ ui.registrationReady | appTranslate }}</p>
+
   <form (ngSubmit)="onSubmit()" autocomplete="on">
     <label for="login-username" style="display: block; margin: 12px 0 6px">
       {{ ui.username | appTranslate }}
