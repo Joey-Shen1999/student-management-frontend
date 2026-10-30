@@ -1,3 +1,4 @@
+import { TeacherFormsService, TeacherForm } from '../../services/teacher-forms.service';
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
@@ -40,35 +41,9 @@ import { uiText } from '../../shared/i18n/ui-translations';
             <button type="button" class="action-btn primary" (click)="goTasks()">
               {{ ui.noticeManagement | appTranslate }}
             </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/students']">
-              {{ ui.studentManagement | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/courses']">
-              {{ ui.courseManagement | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/osslt']">
-              {{ ui.ossltTracking | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/ielts']">
-              {{ ui.languageTracking | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/volunteer']">
-              {{ ui.volunteerTracking | appTranslate }}
-            </button>
-            <button
-              type="button"
-              class="action-btn primary"
-              [routerLink]="['/teacher/students']"
-              [queryParams]="{ context: 'extracurricular' }"
-            >
-              {{ ui.extracurricular | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/university-goals']">
-              {{ ui.universityGoalManagement | appTranslate }}
-            </button>
-            <button type="button" class="action-btn primary" [routerLink]="['/teacher/graduation']">
-              {{ ui.graduationManagement | appTranslate }}
-            </button>
+            <button *ngFor="let form of personalForms" type="button" class="action-btn primary" [routerLink]="formsStore.path(form)" [queryParams]="form.custom ? {personalForm:form.id} : {}">{{form.name}}</button>
+            <p *ngIf="!personalForms.length">尚未选择常用表单，请在个性化设置中添加。</p>
+            <a class="action-btn secondary" routerLink="/teacher/forms">个性化设置 · 我的表单</a>
             <button type="button" class="action-btn primary" [routerLink]="['/teacher/applications/by-university']">
               {{ ui.universityApplicationOverview | appTranslate }}
             </button>
@@ -111,11 +86,15 @@ export class TeacherDashboardComponent {
     accountSettings: uiText('账号设置', 'Account Settings'),
   };
 
+  formsStore: TeacherFormsService;
+  personalForms: TeacherForm[] = [];
   session: LoginResponse | null;
   isAdmin = false;
   signingOut = false;
 
   constructor(private auth: AuthService, private router: Router) {
+    this.formsStore = new TeacherFormsService(auth);
+    this.personalForms = this.formsStore.load().filter(f => !f.hidden);
     this.session = this.auth.getSession();
     this.isAdmin = (this.session?.role || '').toUpperCase() === 'ADMIN';
   }

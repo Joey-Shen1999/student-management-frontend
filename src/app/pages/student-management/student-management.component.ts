@@ -1,4 +1,5 @@
 import { ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
+import { TeacherFormsService } from '../../services/teacher-forms.service';
 import { CommonModule } from '@angular/common';
 import { PinnedColumnsDirective } from './pinned-columns.directive';
 import { FormsModule } from '@angular/forms';
@@ -2269,10 +2270,20 @@ export class StudentManagementComponent implements OnInit {
     private cdr: ChangeDetectorRef = { detectChanges: () => {} } as ChangeDetectorRef
   ) {}
 
+  private get personalForm() {
+    const id = new URLSearchParams(this.router.url.split('?')[1] || '').get('personalForm');
+    return id ? new TeacherFormsService(this.auth).load().find(f => f.custom && f.id === id) : undefined;
+  }
+
   ngOnInit(): void {
     this.initializeVisibleColumns();
     this.initializeListControlsFromPreference();
     this.loadVisibleColumnsPreferenceFromServer();
+    const form = this.personalForm;
+    if (form) {
+      this.visibleColumnKeys = new Set(form.columns);
+      this.columnOrderKeys = this.normalizeColumnOrderKeys(form.columns);
+    }
     this.loadStudents();
   }
 
@@ -2618,7 +2629,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   get pageTitle(): string {
-    return PAGE_TITLE_BY_CONTEXT[this.resolvePageContext()];
+    return this.personalForm?.name || PAGE_TITLE_BY_CONTEXT[this.resolvePageContext()];
   }
 
   get resolvedPageTitle(): string {
@@ -5293,7 +5304,7 @@ export class StudentManagementComponent implements OnInit {
 
   private resolveVisibleColumnsStorageKey(version = this.resolveVisibleColumnsPreferenceVersion()): string {
     const pageContext = this.resolvePageContext();
-    const pageScope = `page-${pageContext}`;
+    const pageScope = `page-${pageContext}${this.personalForm ? "." + this.personalForm.id : ""}`;
     const scope = this.resolvePreferenceStorageScope(pageScope);
     return `${STUDENT_LIST_COLUMN_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${version}`;
   }
@@ -5309,7 +5320,7 @@ export class StudentManagementComponent implements OnInit {
 
   private resolveListControlsStorageKey(): string {
     const pageContext = this.resolvePageContext();
-    const pageScope = `page-${pageContext}`;
+    const pageScope = `page-${pageContext}${this.personalForm ? "." + this.personalForm.id : ""}`;
     const scope = this.resolvePreferenceStorageScope(pageScope);
     return `${STUDENT_LIST_FILTER_PREFERENCE_STORAGE_KEY_PREFIX}.${scope}.${STUDENT_LIST_FILTER_PREFERENCE_VERSION}`;
   }
@@ -5572,7 +5583,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private resolveVisibleColumnsPreferencePageKey(): string {
-    return STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT[this.resolvePageContext()];
+    return STUDENT_LIST_COLUMN_PREFERENCE_PAGE_KEY_BY_CONTEXT[this.resolvePageContext()] + (this.personalForm ? '.' + this.personalForm.id : '');
   }
 
   private isColumnAllowedForCurrentContext(columnKey: StudentListColumnKey): boolean {
@@ -5605,6 +5616,7 @@ export class StudentManagementComponent implements OnInit {
   }
 
   private loadVisibleColumnsPreferenceFromServer(): void {
+    if (this.personalForm) return;
     const pinnedRevision = this.pinnedPreferenceRevision;
     const authorization = this.auth.getAuthorizationHeaderValue();
     if (!authorization) return;

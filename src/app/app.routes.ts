@@ -119,6 +119,7 @@ export const routes: Routes = [
     canActivateChild: [teacherRouteGuard],
     children: [
       { path: 'dashboard', component: TeacherDashboardComponent },
+      { path: 'forms', loadComponent: () => import('./pages/teacher-forms/teacher-forms.component').then(m => m.TeacherFormsComponent) },
 
       {
         path: 'invites',
