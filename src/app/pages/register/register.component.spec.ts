@@ -39,6 +39,7 @@ describe('RegisterComponent', () => {
   });
 
   afterEach(() => {
+    component.ngOnDestroy();
     vi.useRealTimers();
   });
 
@@ -71,7 +72,7 @@ describe('RegisterComponent', () => {
     expect(auth.register).not.toHaveBeenCalled();
   });
 
-  it('should submit and navigate to login on success', () => {
+  it('shows credentials for one minute and only navigates when requested', () => {
     (auth.register as any).mockReturnValue(
       of({
         userId: 1,
@@ -101,7 +102,16 @@ describe('RegisterComponent', () => {
     });
     expect(component.success).toEqual(component.ui.registrationSuccess);
 
-    vi.advanceTimersByTime(600);
+    expect(component.registered).toBe(true);
+    expect(component.password).toBe('');
+    expect(component.confirmPassword).toBe('');
+    expect(component.savedPassword).toBe('Aa1!goodPass');
+    expect(component.revealPassword).toBe(false);
+    vi.advanceTimersByTime(60000);
+    expect(router.navigate).not.toHaveBeenCalled();
+    expect(component.savedPassword).toBe('');
+    expect(component.remainingSeconds).toBe(0);
+    component.goToLogin();
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
   });
 

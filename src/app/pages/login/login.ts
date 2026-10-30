@@ -1,10 +1,11 @@
-import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
+import { Component, ChangeDetectorRef, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
+import { RegistrationHandoffService } from '../../services/registration-handoff.service';
 import type { LoginResponse } from '../../services/auth.service';
 import { AuthService } from '../../services/auth.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
@@ -16,8 +17,9 @@ import { LocalizedText, uiText } from '../../shared/i18n/ui-translations';
   imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './login.html',
 })
-export class Login implements OnInit {
+export class Login implements OnInit, OnDestroy {
   readonly ui = {
+    registrationReady: uiText('账号已创建，请确认登录信息后登录。登录后可继续完善学生资料。', 'Your account is ready. Confirm your sign-in details to log in and complete your student profile.'),
     title: uiText('登录', 'Log In'),
     username: uiText('用户名', 'Username'),
     password: uiText('密码', 'Password'),
@@ -34,6 +36,9 @@ export class Login implements OnInit {
     ),
   };
 
+  registrationPrefilled = false;
+  private handoffTimer?: ReturnType<typeof setTimeout>;
+
   username = '';
   password = '';
   error: string | LocalizedText = '';
@@ -49,7 +54,8 @@ export class Login implements OnInit {
   constructor(
     private auth: AuthService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private handoff: RegistrationHandoffService = new RegistrationHandoffService()
   ) {}
 
   ngOnInit(): void {
@@ -64,7 +70,24 @@ export class Login implements OnInit {
       this.password = rememberedPassword;
       this.rememberPassword = true;
     }
+    const registered = this.handoff.take();
+    if (registered) {
+      this.username = registered.username;
+      this.password = registered.password;
+      this.rememberPassword = false;
+      this.registrationPrefilled = true;
+      const initialPassword = registered.password;
+      if (initialPassword) this.handoffTimer = setTimeout(() => {
+        if (this.password === initialPassword) this.password = '';
+        this.cdr.markForCheck();
+      }, Math.max(0, registered.expiresAt - Date.now()));
+    }
   }
+
+  @HostListener('window:pagehide')
+  clearOnPageHide(): void { this.password = ''; this.handoff.clear(); }
+
+  ngOnDestroy(): void { clearTimeout(this.handoffTimer); this.password = ''; }
 
   onSubmit(): void {
     if (this.loading) return;
