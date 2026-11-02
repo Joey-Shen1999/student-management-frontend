@@ -44,6 +44,21 @@
           <div>
             <h2 class="notranslate" translate="no" data-no-auto-translate>{{ row.studentName }}</h2>
             <small class="notranslate" translate="no" data-no-auto-translate>{{ row.username }}</small>
+            <label class="teacher-selection">
+              <span>{{ teacherUi.label | appTranslate }}</span>
+              <select [ngModel]="row.teacherId ?? null" (ngModelChange)="changeTeacher(row, $event)"
+                [disabled]="isBusy(row.studentId) || teachersLoading || teachersFailed"
+                [attr.aria-label]="row.studentName + ' - Interview teacher'">
+                <option [ngValue]="null">{{ (teachersLoading ? teacherUi.loading : teacherUi.unassigned) | appTranslate }}</option>
+                <option *ngIf="row.teacherId && !hasTeacherOption(row.teacherId)" [ngValue]="row.teacherId" disabled>
+                  {{ row.teacherName }} ({{ row.teacherUsername }})
+                </option>
+                <option *ngFor="let teacher of teachers" [ngValue]="teacher.teacherId">
+                  {{ teacher.name }} ({{ teacher.username }})
+                </option>
+              </select>
+              <button type="button" *ngIf="teachersFailed" (click)="loadTeachers()">{{ teacherUi.retry | appTranslate }}</button>
+            </label>
             <span class="school-warning" *ngIf="row.graduationStageEnabled === false">{{ ui.missingSchool | appTranslate }}</span>
             <small *ngIf="row.graduationYear === null">{{ ui.missingYear | appTranslate }}</small>
           </div>

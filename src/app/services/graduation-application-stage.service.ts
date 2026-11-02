@@ -148,6 +148,9 @@ export interface InterviewCourseRequirement {
 }
 
 export interface InterviewCoursePlan {
+  teacherId?: number | null;
+  teacherName?: string | null;
+  teacherUsername?: string | null;
   studentId: number;
   studentName: string;
   username: string;
@@ -164,8 +167,20 @@ interface UniversityPortalLoginLink {
   url: string;
 }
 
+export interface InterviewTeacherOption { teacherId: number; name: string; username: string; }
+
 @Injectable({ providedIn: 'root' })
 export class GraduationApplicationStageService {
+  listInterviewCourseTeachers(): Observable<InterviewTeacherOption[]> {
+    return this.http!.get<InterviewTeacherOption[]>('/api/graduation-applications/interview-courses/teachers',
+      this.withAuthHeaderIfAvailable());
+  }
+
+  setInterviewCourseTeacher(studentId: number, teacherId: number | null): Observable<InterviewCoursePlan> {
+    return this.http!.put<InterviewCoursePlan>(
+      `${this.studentUrl}/${studentId}/graduation-applications/interview-course/teacher`,
+      { teacherId }, this.withAuthHeaderIfAvailable());
+  }
   private readonly storagePrefix = 'student-management.graduation-applications.v1';
   private readonly studentUrl = '/api/students';
   private readonly applicationUrl = '/api/graduation-applications';

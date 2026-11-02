@@ -24,6 +24,8 @@ button:disabled { opacity: .55; cursor: default; }
 .engineering-applications summary { cursor: pointer; color: #1d4f9b; width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
 .student-head > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; min-width: 0; }
 .student-card small { color: #60718a; overflow-wrap: anywhere; }
+.teacher-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; max-width: 100%; color: #60718a; font-size: 12px; }
+.teacher-selection select { max-width: 100%; width: 220px; min-width: 0; height: 32px; border: 1px solid #c9d5e8; border-radius: 5px; padding: 3px 6px; background: #fff; color: #172033; font: inherit; }
 .requirement-row { grid-column: 1 / -1; padding: 4px 0; border-bottom: 1px solid #edf0f4; }
 .requirement-row > div:first-child { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .requirement-row span { color: #52657f; }
