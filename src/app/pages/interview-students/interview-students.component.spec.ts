@@ -21,6 +21,34 @@ const plans: InterviewCoursePlan[] = [
 ];
 
 describe('InterviewStudentsComponent', () => {
+  it('can turn off automatic hiding while retaining the completed-plan count', () => {
+    const component = new InterviewStudentsComponent({} as any, {} as any);
+    component.rows = [{ ...structuredClone(plans[0]), lessons: Array.from({length:4}, (_,i)=>({id:i,lessonNumber:i+1,lessonDate:'2000-01-01',lessonTime:'12:00'})) }];
+    expect(component.filteredRows).toHaveLength(0);
+    component.setAutoHide(false);
+    expect(component.filteredRows).toHaveLength(1);
+    expect(component.hiddenCount).toBe(1);
+  });
+
+  it('updates the teacher options after removing and re-enabling an unassigned teacher', () => {
+    const teacher = {teacherId:1,name:'Teacher',username:'teacher',enabled:true};
+    const api = {listInterviewCourseTeachers:vi.fn().mockReturnValue(of([teacher])),
+      setInterviewTeacherEnabled:vi.fn().mockReturnValue(of([{...teacher,enabled:false}]))};
+    const component = new InterviewStudentsComponent(api as any, {markForCheck:vi.fn()} as any);
+    component.openManager();
+    expect(api.listInterviewCourseTeachers).toHaveBeenCalledWith(true);
+    component.toggleRoster(teacher);
+    expect(component.teachers).toHaveLength(0);
+    api.setInterviewTeacherEnabled.mockReturnValue(of([teacher]));
+    component.toggleRoster({...teacher,enabled:false});
+    expect(api.setInterviewTeacherEnabled).toHaveBeenLastCalledWith(1,true);
+    expect(component.teachers).toHaveLength(1);
+    api.setInterviewTeacherEnabled.mockReturnValue(throwError(()=>({status:409})));
+    component.toggleRoster(teacher);
+    expect(component.teachers).toHaveLength(1);
+    expect(component.rosterError).toContain('改派');
+  });
+
   it('assigns one teacher to a student plan and restores the previous choice on failure', () => {
     const row = structuredClone(plans[0]);
     const assigned = { ...row, teacherId: 17, teacherName: 'Teacher A', teacherUsername: 'teacher-a' };

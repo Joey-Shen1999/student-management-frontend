@@ -48,3 +48,5 @@ dt { color: #60718a; }dd { margin: 0; overflow-wrap: anywhere; }
 .confirm-switch input:checked { background: #326cb0; }.confirm-switch input:checked::before { transform: translateX(14px); }
 .primary { background: #225c9f; color: #fff; }.clear, .error { color: #a12338; }.error { font-size: 13px; }
 @media(max-width: 600px) { .calendar-navigation strong { font-size: 13px; } fieldset { grid-template-columns: 1fr; } footer { flex-wrap: wrap; } }
+
+:host ::ng-deep .fc .fc-timegrid-slot {height:12px;}

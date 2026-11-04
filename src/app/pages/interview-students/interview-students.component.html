@@ -6,14 +6,29 @@
         <h1>{{ ui.title | appTranslate }}</h1>
       </div>
       <div class="head-actions">
-        <button *ngIf="view === 'students'" type="button" (click)="showHidden = !showHidden" [attr.aria-pressed]="showHidden"
-          [disabled]="loading || failed">
-          {{ (showHidden ? ui.hideCompleted : ui.showHidden) | appTranslate }} ({{ hiddenCount }})
-        </button>
+        <button type="button" (click)="openManager()">{{ manageTitle | appTranslate }}</button>
+        <button type="button" (click)="settingsOpen = !settingsOpen" [attr.aria-expanded]="settingsOpen">{{ settingsTitle | appTranslate }}</button>
         <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
         <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
       </div>
     </header>
+
+    <section class="course-settings" *ngIf="settingsOpen" [attr.aria-label]="settingsTitle | appTranslate">
+      <label><input type="checkbox" [ngModel]="autoHideEnded" (ngModelChange)="setAutoHide($event)" [disabled]="settingsSaving"/>{{ autoHideLabel | appTranslate }}</label>
+      <button type="button" *ngIf="autoHideEnded" (click)="showHidden = !showHidden">{{ (showHidden ? ui.hideCompleted : ui.showHidden) | appTranslate }} ({{hiddenCount}})</button>
+      <p role="alert" *ngIf="rosterError">{{rosterError}}</p>
+    </section>
+    <section class="course-settings" *ngIf="managerOpen" [attr.aria-label]="manageTitle | appTranslate">
+      <h2>{{manageTitle | appTranslate}}</h2>
+      <p>从现有教师账号中添加或移出面试课名单，教师账号和学生课程均会保留。</p>
+      <p *ngIf="rosterLoading">{{ui.loading | appTranslate}}</p>
+      <div class="roster-entry" *ngFor="let teacher of roster">
+        <strong>{{teacher.name}} ({{teacher.username}})</strong>
+        <button type="button" [disabled]="rosterLoading" (click)="toggleRoster(teacher)">{{(teacher.enabled === false ? enableLabel : removeLabel) | appTranslate}}</button>
+      </div>
+      <p role="alert" *ngIf="rosterError">{{rosterError}}</p>
+      <button type="button" (click)="managerOpen = false">{{closeLabel | appTranslate}}</button>
+    </section>
 
     <nav class="interview-views" aria-label="Interview views">
       <button type="button" (click)="view = 'students'" [attr.aria-pressed]="view === 'students'">{{ studentsView | appTranslate }}</button>
