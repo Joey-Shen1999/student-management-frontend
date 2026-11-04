@@ -22,9 +22,27 @@ describe('Interview timetable', () => {
     return instance;
   }
 
+  it('closes unchanged bookings without saving and saves modified bookings before closing', () => {
+    const api = {updateInterviewCourseLesson:vi.fn().mockReturnValue(of(rows[0]))};
+    const c = component(api);
+    c.openLesson(1,11); c.dismissAndSave();
+    expect(api.updateInterviewCourseLesson).not.toHaveBeenCalled();
+    expect(c.booking).toBeNull();
+    c.openLesson(1,11); c.booking!.minute='15'; c.dismissAndSave();
+    expect(api.updateInterviewCourseLesson).toHaveBeenCalled();
+    expect(c.booking).toBeNull();
+  });
+  it('keeps a modified booking open if outside-click saving fails', () => {
+    const c = component({updateInterviewCourseLesson:()=>throwError(()=>new Error('offline'))});
+    c.openLesson(1,11); c.booking!.minute='15'; c.dismissAndSave();
+    expect(c.booking).not.toBeNull();
+    expect(c.error).toBeTruthy();
+  });
+
   it('renders every scheduled lesson with a 90-minute duration and honors filters', () => {
     const c = component();
     c.ngOnChanges();
+    expect(c.options.scrollTime).toBe('12:00:00');
     const teacherOptions = c.teacherOptions;
     expect(c.teacherOptions).toBe(teacherOptions);
     const event = (c.options.events as any[])[0];

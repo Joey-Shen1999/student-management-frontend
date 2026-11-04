@@ -6,8 +6,8 @@
         <h1>{{ ui.title | appTranslate }}</h1>
       </div>
       <div class="head-actions">
-        <button type="button" (click)="openManager()">{{ manageTitle | appTranslate }}</button>
-        <button type="button" (click)="settingsOpen = !settingsOpen" [attr.aria-expanded]="settingsOpen">{{ settingsTitle | appTranslate }}</button>
+        <button type="button" class="course-panel-toggle" (click)="openManager()">{{ manageTitle | appTranslate }}</button>
+        <button type="button" class="course-panel-toggle" (click)="settingsOpen = !settingsOpen" [attr.aria-expanded]="settingsOpen">{{ settingsTitle | appTranslate }}</button>
         <button type="button" (click)="load()" [disabled]="loading">{{ ui.refresh | appTranslate }}</button>
         <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
       </div>

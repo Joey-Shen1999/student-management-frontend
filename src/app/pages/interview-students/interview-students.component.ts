@@ -1,6 +1,6 @@
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { finalize, timeout } from 'rxjs/operators';
@@ -91,6 +91,14 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   readonly enableLabel = uiText('添加为面试课老师', 'Enable interview teacher');
   readonly removeLabel = uiText('移出面试课名单', 'Remove from interview roster');
   readonly closeLabel = uiText('关闭', 'Close');
+
+  @HostListener('document:click', ['$event'])
+  closePanelsOutside(event: MouseEvent): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest('.course-settings, .course-panel-toggle')) return;
+    this.settingsOpen = false;
+    this.managerOpen = false;
+  }
 
   openManager(): void {
     this.managerOpen = true; this.rosterError = ''; this.rosterLoading = true;
