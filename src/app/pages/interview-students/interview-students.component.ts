@@ -1,3 +1,4 @@
+import { TeacherPreferenceService } from '../../services/teacher-preference.service';
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -77,6 +78,46 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   }
   search = '';
   showHidden = false;
+  settingsOpen = false;
+  autoHideEnded = true;
+  settingsSaving = false;
+  managerOpen = false;
+  roster: InterviewTeacherOption[] = [];
+  rosterLoading = false;
+  rosterError = '';
+  readonly settingsTitle = uiText('面试课设置', 'Interview Course Settings');
+  readonly manageTitle = uiText('管理面试课老师', 'Manage Interview Teachers');
+  readonly autoHideLabel = uiText('自动隐藏已结束课程的学生', 'Automatically hide students with completed lessons');
+  readonly enableLabel = uiText('添加为面试课老师', 'Enable interview teacher');
+  readonly removeLabel = uiText('移出面试课名单', 'Remove from interview roster');
+  readonly closeLabel = uiText('关闭', 'Close');
+
+  openManager(): void {
+    this.managerOpen = true; this.rosterError = ''; this.rosterLoading = true;
+    this.applications.listInterviewCourseTeachers(true).pipe(timeout(10000), finalize(() => {
+      this.rosterLoading = false; this.cdr.markForCheck();
+    })).subscribe({next: rows => this.roster = rows || [], error: () => this.rosterError = '老师名单读取失败，请关闭后重试。'});
+  }
+
+  toggleRoster(teacher: InterviewTeacherOption): void {
+    if (this.rosterLoading) return;
+    this.rosterLoading = true; this.rosterError = '';
+    this.applications.setInterviewTeacherEnabled(teacher.teacherId, teacher.enabled === false)
+      .pipe(timeout(10000), finalize(() => { this.rosterLoading = false; this.cdr.markForCheck(); }))
+      .subscribe({next: rows => { this.roster = rows; this.teachers = rows.filter(t => t.enabled !== false); },
+        error: err => this.rosterError = err.status === 409 ? '该老师仍有学生分配，请先改派或取消分配后再移除。' : '保存失败，请重试。'});
+  }
+
+  setAutoHide(value: boolean): void {
+    if (this.settingsSaving) return;
+    const previous = this.autoHideEnded;
+    this.autoHideEnded = value;
+    if (!this.preferences) return;
+    this.settingsSaving = true;
+    this.preferences.upsertPagePreference('interview-course.settings', {version:'v1',visibleColumnKeys:value ? ['hide-ended'] : []})
+      .pipe(timeout(10000), finalize(() => {this.settingsSaving = false;this.cdr.markForCheck();}))
+      .subscribe({error: () => {this.autoHideEnded = previous;this.rosterError = '设置保存失败，请重试。';}});
+  }
   loading = false;
   failed = false;
   teachers: InterviewTeacherOption[] = [];
@@ -93,9 +134,15 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   studentErrors = new Map<number, string>();
 
   constructor(private applications: GraduationApplicationStageService,
-              private cdr: ChangeDetectorRef) {}
+              private cdr: ChangeDetectorRef, private preferences: TeacherPreferenceService = null!) {}
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+    this.preferences?.getPagePreference('interview-course.settings').subscribe({
+      next: value => { if(value.version === 'v1') this.autoHideEnded = !!value.visibleColumnKeys?.includes('hide-ended'); this.cdr.markForCheck(); },
+      error: () => {},
+    });
+  }
 
   ngAfterViewInit(): void {
     queueMicrotask(() => { if (!this.destroyed) this.loadTeachers(); });
@@ -129,7 +176,7 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
 
   get filteredRows(): InterviewCoursePlan[] {
     const query = this.search.trim().toLocaleLowerCase();
-    const visible = this.rows.filter(row => this.showHidden || !this.isHidden(row));
+    const visible = this.rows.filter(row => !this.autoHideEnded || this.showHidden || !this.isHidden(row));
     if (!query) return visible;
     return visible.filter((row) => [row.studentName, row.username,
       ...(row.engineeringApplications || []).flatMap((item) => [item.universityName, item.programName])]

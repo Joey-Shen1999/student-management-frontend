@@ -63,3 +63,6 @@ button.confirmation-toggle { width: 26px; min-height: 26px; flex: 0 0 26px; padd
   .lesson-list { grid-template-columns: minmax(0, 1fr); }
   .requirement-row { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
+
+.course-settings {padding:18px;margin:14px 0;border:1px solid #dce5f2;background:#fff;border-radius:12px;}
+.roster-entry {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e4eaf3;}

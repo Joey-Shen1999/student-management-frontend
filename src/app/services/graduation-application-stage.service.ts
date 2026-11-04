@@ -167,13 +167,18 @@ interface UniversityPortalLoginLink {
   url: string;
 }
 
-export interface InterviewTeacherOption { teacherId: number; name: string; username: string; }
+export interface InterviewTeacherOption { teacherId: number; name: string; username: string; enabled?: boolean; }
 
 @Injectable({ providedIn: 'root' })
 export class GraduationApplicationStageService {
-  listInterviewCourseTeachers(): Observable<InterviewTeacherOption[]> {
-    return this.http!.get<InterviewTeacherOption[]>('/api/graduation-applications/interview-courses/teachers',
+  listInterviewCourseTeachers(includeDisabled = false): Observable<InterviewTeacherOption[]> {
+    return this.http!.get<InterviewTeacherOption[]>('/api/graduation-applications/interview-courses/teachers' + (includeDisabled ? '?includeDisabled=true' : ''),
       this.withAuthHeaderIfAvailable());
+  }
+
+  setInterviewTeacherEnabled(id: number, enabled: boolean): Observable<InterviewTeacherOption[]> {
+    return this.http!.put<InterviewTeacherOption[]>(`/api/graduation-applications/interview-courses/teachers/${id}/enabled`,
+      {enabled}, this.withAuthHeaderIfAvailable());
   }
 
   setInterviewCourseTeacher(studentId: number, teacherId: number | null): Observable<InterviewCoursePlan> {
