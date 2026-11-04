@@ -21,6 +21,23 @@ const plans: InterviewCoursePlan[] = [
 ];
 
 describe('InterviewStudentsComponent', () => {
+  it('assigns one teacher to a student plan and restores the previous choice on failure', () => {
+    const row = structuredClone(plans[0]);
+    const assigned = { ...row, teacherId: 17, teacherName: 'Teacher A', teacherUsername: 'teacher-a' };
+    const api = { setInterviewCourseTeacher: vi.fn().mockReturnValue(of(assigned)) };
+    const component = new InterviewStudentsComponent(api as any, { markForCheck: vi.fn() } as any);
+    component.teachers = [{ teacherId: 17, name: 'Teacher A', username: 'teacher-a' }];
+    component.rows = [row];
+    component.changeTeacher(row, 17);
+    expect(api.setInterviewCourseTeacher).toHaveBeenCalledWith(1, 17);
+    expect(component.rows[0].teacherName).toBe('Teacher A');
+    expect(component.rows[0].lessons).toEqual(row.lessons);
+    api.setInterviewCourseTeacher.mockReturnValue(throwError(() => new Error('offline')));
+    component.changeTeacher(component.rows[0], null);
+    expect(component.rows[0].teacherId).toBe(17);
+    expect(component.studentErrors.has(1)).toBe(true);
+  });
+
   it('hides every past lesson only for complete plans with at least four lessons', () => {
     const component = new InterviewStudentsComponent({} as any, {} as any);
     const past = (count: number) => Array.from({ length: count }, (_, i) => ({
@@ -97,7 +114,7 @@ describe('InterviewStudentsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [InterviewStudentsComponent],
       providers: [provideRouter([]), { provide: GraduationApplicationStageService,
-        useValue: { listInterviewCourseStudents: () => of([row]) } }],
+        useValue: { listInterviewCourseStudents: () => of([row]), listInterviewCourseTeachers: () => of([]) } }],
     }).compileComponents();
     const fixture = TestBed.createComponent(InterviewStudentsComponent);
     try {
@@ -128,13 +145,13 @@ describe('InterviewStudentsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [InterviewStudentsComponent],
       providers: [provideRouter([]), { provide: GraduationApplicationStageService,
-        useValue: { listInterviewCourseStudents: () => of([row]) } }],
+        useValue: { listInterviewCourseStudents: () => of([row]), listInterviewCourseTeachers: () => of([]) } }],
     }).compileComponents();
     const fixture = TestBed.createComponent(InterviewStudentsComponent);
     try {
       fixture.detectChanges();
       await fixture.whenStable();
-      const selects = Array.from(fixture.nativeElement.querySelectorAll('select')) as HTMLSelectElement[];
+      const selects = Array.from(fixture.nativeElement.querySelectorAll('.lesson-row select')) as HTMLSelectElement[];
       expect(selects.map(select => select.value)).toEqual(['23', '45', '00', '00', '', '', '09', '17']);
       expect(selects[5].disabled).toBe(true);
       expect(Array.from(selects[1].options).filter(option => !option.disabled).map(option => option.value))
@@ -322,7 +339,7 @@ describe('InterviewStudentsComponent', () => {
     vi.useFakeTimers();
     try {
       const cdr = { markForCheck: vi.fn() };
-      const component = new InterviewStudentsComponent({} as any, cdr as any);
+      const component = new InterviewStudentsComponent({ listInterviewCourseTeachers: () => new Subject() } as any, cdr as any);
       component.ngAfterViewInit();
       vi.advanceTimersByTime(30000);
       expect(cdr.markForCheck).toHaveBeenCalledTimes(1);

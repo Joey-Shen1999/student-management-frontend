@@ -9,14 +9,18 @@ import {
   GraduationApplicationStageService,
   InterviewCourseLesson,
   InterviewCoursePlan,
+  InterviewTeacherOption,
 } from '../../services/graduation-application-stage.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { uiText } from '../../shared/i18n/ui-translations';
+import { InterviewTimetableComponent } from './interview-timetable.component';
+import { LucideTriangleAlert } from '@lucide/angular';
+import { conflictingBookings, lessonStart } from './interview-schedule.utils';
 
 @Component({
   selector: 'app-interview-students',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, InterviewTimetableComponent, LucideTriangleAlert],
   templateUrl: './interview-students.component.html',
   styleUrl: './interview-students.component.scss',
 })
@@ -24,6 +28,7 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   readonly hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
   readonly minutes = ['00', '15', '30', '45'];
   private clockTimer?: ReturnType<typeof setInterval>;
+  private destroyed = false;
   private readonly today = new Date();
   readonly year = this.today.getFullYear() + (this.today.getMonth() >= 8 ? 1 : 0);
   readonly ui = {
@@ -61,13 +66,29 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     engineeringApplications: uiText('已报名工程申请', 'Engineering Applications'),
     missingSchool: uiText('尚未进入升学阶段，未选择具体学校', 'Not in the application stage: no schools selected'),
     missingYear: uiText('未填写毕业年份', 'Graduation year not set'),
+    conflict: uiText('预约时间冲突', 'Overlapping booking'),
   };
 
   rows: InterviewCoursePlan[] = [];
+  view: 'students' | 'timetable' = 'students';
+  readonly studentsView = uiText('学生列表', 'Students');
+  applyTimetablePlan(plan: InterviewCoursePlan): void {
+    this.rows = this.rows.map(row => row.studentId === plan.studentId ? plan : row);
+  }
   search = '';
   showHidden = false;
   loading = false;
   failed = false;
+  teachers: InterviewTeacherOption[] = [];
+  teachersLoading = false;
+  teachersFailed = false;
+  readonly teacherUi = {
+    label: uiText('面试老师', 'Interview Teacher'),
+    loading: uiText('读取老师账号...', 'Loading teachers...'),
+    unassigned: uiText('未分配老师', 'Unassigned'),
+    retry: uiText('老师读取失败，重试', 'Could not load teachers. Retry'),
+  };
+  hasTeacherOption(id: number): boolean { return this.teachers.some(teacher => teacher.teacherId === id); }
   private busyStudentIds = new Set<number>();
   studentErrors = new Map<number, string>();
 
@@ -77,10 +98,34 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   ngOnInit(): void { this.load(); }
 
   ngAfterViewInit(): void {
+    queueMicrotask(() => { if (!this.destroyed) this.loadTeachers(); });
     this.clockTimer = setInterval(() => this.cdr.markForCheck(), 30000);
   }
 
-  ngOnDestroy(): void { clearInterval(this.clockTimer); }
+  ngOnDestroy(): void { this.destroyed = true; clearInterval(this.clockTimer); }
+
+  loadTeachers(): void {
+    if (this.teachersLoading) return;
+    this.teachersLoading = true;
+    this.teachersFailed = false;
+    this.applications.listInterviewCourseTeachers().pipe(timeout(10000), finalize(() => {
+      this.teachersLoading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: teachers => this.teachers = teachers || [],
+      error: () => this.teachersFailed = true,
+    });
+  }
+
+  changeTeacher(row: InterviewCoursePlan, teacherId: number | null): void {
+    if (this.isBusy(row.studentId) || this.teachersLoading || this.teachersFailed) return;
+    if ((row.teacherId ?? null) === teacherId) return;
+    if (teacherId !== null && !this.teachers.some(teacher => teacher.teacherId === teacherId)) return;
+    const previous = row.teacherId;
+    row.teacherId = teacherId;
+    this.runMutation(row.studentId, this.applications.setInterviewCourseTeacher(row.studentId, teacherId),
+      undefined, () => row.teacherId = previous);
+  }
 
   get filteredRows(): InterviewCoursePlan[] {
     const query = this.search.trim().toLocaleLowerCase();
@@ -163,6 +208,13 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   }
 
   trackStudent(_index: number, row: InterviewCoursePlan): number { return row.studentId; }
+  lessonConflictDetails(row: InterviewCoursePlan, lesson: InterviewCourseLesson): string {
+    const start = lessonStart(lesson);
+    if (!start) return '';
+    const conflicts = conflictingBookings(this.rows, row.studentId, lesson.id, start);
+    return conflicts.length ? `${this.ui.conflict.zh}: ${conflicts.map(item =>
+      `${item.student.studentName} · ${item.lesson.lessonNumber} · ${item.lesson.lessonDate} ${item.lesson.lessonTime?.slice(0, 5)}`).join('; ')}` : '';
+  }
   trackLesson(_index: number, lesson: InterviewCourseLesson): number { return lesson.id; }
   lessonLabel(number: number) { return uiText(`第 ${number} 节`, `Lesson ${number}`); }
 

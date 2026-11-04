@@ -1,0 +1,56 @@
+<span hidden aria-hidden="true"><svg #conflictIcon lucideTriangleAlert [size]="14"></svg></span>
+<nav class="teacher-tabs" role="tablist" aria-label="Teacher timetables">
+  <button *ngFor="let teacher of teacherOptions" type="button" role="tab" [attr.aria-selected]="teacherFilter === '' + teacher.id"
+    (click)="selectTeacher('' + teacher.id)">{{ teacher.name }}</button>
+  <button type="button" role="tab" [attr.aria-selected]="teacherFilter === 'none'" (click)="selectTeacher('none')">{{ ui.unassigned | appTranslate }}</button>
+</nav>
+<h2 class="teacher-title">{{ selectedTeacherName | appTranslate }}</h2>
+<div class="calendar-toolbar">
+  <div class="calendar-navigation">
+    <button type="button" (click)="navigate(-1)" [attr.aria-label]="ui.previous | appTranslate" [title]="ui.previous | appTranslate"><svg lucideChevronLeft [size]="16"></svg></button>
+    <strong aria-live="polite">{{ title }}</strong>
+    <button type="button" (click)="navigate(1)" [attr.aria-label]="ui.next | appTranslate" [title]="ui.next | appTranslate"><svg lucideChevronRight [size]="16"></svg></button>
+    <button type="button" (click)="navigate(0)">{{ ui.today | appTranslate }}</button>
+  </div>
+  <div class="calendar-actions">
+    <div class="view-options" role="group" aria-label="Calendar view">
+      <button type="button" [attr.aria-pressed]="calendarView === 'timeGridWeek'" (click)="changeView('timeGridWeek')">{{ ui.week | appTranslate }}</button>
+      <button type="button" [attr.aria-pressed]="calendarView === 'timeGridDay'" (click)="changeView('timeGridDay')">{{ ui.day | appTranslate }}</button>
+    </div>
+    <button type="button" (click)="openSlot()" [disabled]="teacherRows.length === 0"><svg lucidePlus [size]="16"></svg>{{ ui.book | appTranslate }}</button>
+  </div>
+</div>
+<div class="calendar-scroll" [class.single-day]="calendarView === 'timeGridDay'"><div #calendarHost class="timetable-calendar"></div></div>
+<div class="legend">
+  <span><i class="past"></i>{{ ui.past | appTranslate }}</span>
+  <span><i class="tentative"></i>{{ ui.tentative | appTranslate }}</span>
+  <span><i class="confirmed"></i>{{ ui.confirmed | appTranslate }}</span>
+  <span>{{ ui.duration | appTranslate }}</span>
+  <span class="conflict-label"><svg lucideTriangleAlert [size]="14"></svg>{{ ui.conflict | appTranslate }}</span>
+</div>
+<dialog #editor (cancel)="saving ? $event.preventDefault() : close()" aria-labelledby="booking-title">
+  <form *ngIf="booking" (ngSubmit)="save()">
+    <header><h2 id="booking-title">{{ ui.edit | appTranslate }}</h2><button type="button" (click)="close()" [disabled]="saving" [title]="ui.close | appTranslate" [attr.aria-label]="ui.close | appTranslate"><svg lucideX [size]="18"></svg></button></header>
+    <fieldset [disabled]="saving">
+      <label>{{ ui.student | appTranslate }}<select aria-label="Booking student" [ngModel]="booking.studentId" (ngModelChange)="selectStudent($event)" name="student">
+        <option *ngFor="let row of teacherRows" [ngValue]="row.studentId">{{ row.studentName }} ({{ row.username }})</option>
+      </select></label>
+      <label>{{ ui.lesson | appTranslate }}<select aria-label="Booking lesson" [ngModel]="booking.lessonId" (ngModelChange)="selectLesson($event)" name="lesson">
+        <option *ngFor="let lesson of selectedStudent?.lessons" [ngValue]="lesson.id">{{ lesson.lessonNumber }} · {{ lesson.lessonDate || '—' }} {{ lesson.lessonTime?.slice(0, 5) }}</option>
+      </select></label>
+      <label>{{ ui.date | appTranslate }}<input aria-label="Booking date" type="date" name="date" [(ngModel)]="booking.date" (ngModelChange)="timeChanged()" required /></label>
+      <div class="time-inputs">
+        <label>{{ ui.hour | appTranslate }}<select aria-label="Booking hour" name="hour" [(ngModel)]="booking.hour" (ngModelChange)="timeChanged()"><option *ngFor="let hour of hours" [value]="hour">{{ hour }}</option></select></label>
+        <label>{{ ui.minute | appTranslate }}<select aria-label="Booking minute" name="minute" [(ngModel)]="booking.minute" (ngModelChange)="timeChanged()"><option *ngFor="let minute of minutes" [value]="minute">{{ minute }}</option></select></label>
+      </div>
+    </fieldset>
+    <dl><dt>{{ ui.teacher | appTranslate }}</dt><dd>{{ selectedStudent?.teacherName || (ui.unassigned | appTranslate) }}</dd><dt>{{ ui.end | appTranslate }}</dt><dd>{{ endTime }}</dd></dl>
+    <label class="confirm-switch"><input type="checkbox" role="switch" name="confirmed" [(ngModel)]="booking.confirmed" [disabled]="saving" /><span>{{ ui.confirmed | appTranslate }}</span></label>
+    <div *ngIf="bookingWarnings.length" class="booking-warning" role="status">
+      <p><svg lucideTriangleAlert [size]="16"></svg>{{ ui.conflictWarning | appTranslate }}</p>
+      <ul><li *ngFor="let warning of bookingWarnings">{{ warning }}</li></ul>
+    </div>
+    <p *ngIf="error" role="alert" class="error">{{ error | appTranslate }}</p>
+    <footer><button type="button" class="clear" (click)="save(true)" [disabled]="saving">{{ ui.clear | appTranslate }}</button><button type="submit" class="primary" [disabled]="saving">{{ (saving ? ui.saving : ui.save) | appTranslate }}</button></footer>
+  </form>
+</dialog>
