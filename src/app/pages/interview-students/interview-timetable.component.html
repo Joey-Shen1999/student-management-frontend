@@ -28,7 +28,7 @@
   <span>{{ ui.duration | appTranslate }}</span>
   <span class="conflict-label"><svg lucideTriangleAlert [size]="14"></svg>{{ ui.conflict | appTranslate }}</span>
 </div>
-<dialog #editor (cancel)="saving ? $event.preventDefault() : close()" aria-labelledby="booking-title">
+<dialog #editor (click)="backdropClick($event)" (cancel)="saving ? $event.preventDefault() : close()" aria-labelledby="booking-title">
   <form *ngIf="booking" (ngSubmit)="save()">
     <header><h2 id="booking-title">{{ ui.edit | appTranslate }}</h2><button type="button" (click)="close()" [disabled]="saving" [title]="ui.close | appTranslate" [attr.aria-label]="ui.close | appTranslate"><svg lucideX [size]="18"></svg></button></header>
     <fieldset [disabled]="saving">

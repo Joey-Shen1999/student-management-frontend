@@ -44,6 +44,8 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
   saving = false;
   error = '';
   booking: InterviewBooking | null = null;
+  private initialBooking = '';
+
   private clock?: ReturnType<typeof setInterval>;
   private destroyed = false;
   readonly hours = Array.from({length: 24}, (_, i) => String(i).padStart(2, '0'));
@@ -67,8 +69,8 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
   };
   options: CalendarOptions = {
     plugins: [timeGridPlugin, interactionPlugin], initialView: 'timeGridWeek', firstDay: 1,
-    headerToolbar: false, allDaySlot: false, height: 900, expandRows: true,
-    slotDuration: '00:15:00', slotLabelInterval: '01:00:00', scrollTime: '10:00:00',
+    headerToolbar: false, allDaySlot: false, height: 760, expandRows: true,
+    slotDuration: '00:15:00', slotLabelInterval: '01:00:00', scrollTime: '12:00:00',
     slotMinTime: '00:00:00', slotMaxTime: '24:00:00', nowIndicator: true,
     defaultTimedEventDuration: '01:30:00', forceEventDuration: true, editable: false,
     displayEventEnd: true, eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
@@ -172,8 +174,7 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
             conflictDetails: conflicts.length ? `${this.ui.conflict.zh}: ${conflicts.map(item => `${item.student.studentName} · ${item.lesson.lessonNumber}`).join(', ')}` : ''},});
       }
     }
-    const earliestHour = events.length ? Math.min(...events.map(event => (event.start as Date).getHours())) : 10;
-    this.options = {...this.options, events, scrollTime: '10:00:00'};
+    this.options = {...this.options, events, scrollTime: '12:00:00'};
     this.calendar?.setOption('events', events);
   }
 
@@ -190,6 +191,7 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
     if (!lesson) return;
     this.booking = { studentId: row.studentId, lessonId: lesson.id, date: this.dateString(date),
       hour: String(date.getHours()).padStart(2, '0'), minute: String(Math.floor(date.getMinutes() / 15) * 15).padStart(2, '0'), confirmed: false };
+    this.initialBooking = JSON.stringify(this.booking);
     this.error = '';
     this.editor.nativeElement.showModal();
     this.cdr.markForCheck();
@@ -202,6 +204,7 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
     const date = lessonStart(lesson) || new Date();
     this.booking = {studentId, lessonId, date: this.dateString(date), hour: String(date.getHours()).padStart(2, '0'),
       minute: String(date.getMinutes()).padStart(2, '0'), confirmed: lesson.confirmed ?? false};
+    this.initialBooking = JSON.stringify(this.booking);
     this.error = '';
     if (!this.editor.nativeElement.open) this.editor.nativeElement.showModal();
     this.cdr.markForCheck();
@@ -221,6 +224,19 @@ export class InterviewTimetableComponent implements OnChanges, OnInit, OnDestroy
     else { this.booking.lessonId = id; this.booking.confirmed = false; }
   }
   timeChanged(): void { if (this.booking) this.booking.confirmed = false; this.error = ''; }
+  backdropClick(event: MouseEvent): void {
+    const dialog = this.editor.nativeElement;
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) return;
+    this.dismissAndSave();
+  }
+  dismissAndSave(): void {
+    if (this.saving || !this.booking) return;
+    if (JSON.stringify(this.booking) === this.initialBooking) this.close();
+    else this.save();
+  }
+
   close(): void { if (!this.saving) { this.editor.nativeElement.close(); this.booking = null; this.error = ''; } }
 
   save(clear = false): void {
