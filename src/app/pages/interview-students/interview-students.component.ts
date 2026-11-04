@@ -13,11 +13,14 @@ import {
 } from '../../services/graduation-application-stage.service';
 import { TranslatePipe } from '../../shared/i18n/translate.pipe';
 import { uiText } from '../../shared/i18n/ui-translations';
+import { InterviewTimetableComponent } from './interview-timetable.component';
+import { LucideTriangleAlert } from '@lucide/angular';
+import { conflictingBookings, lessonStart } from './interview-schedule.utils';
 
 @Component({
   selector: 'app-interview-students',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, InterviewTimetableComponent, LucideTriangleAlert],
   templateUrl: './interview-students.component.html',
   styleUrl: './interview-students.component.scss',
 })
@@ -63,9 +66,15 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
     engineeringApplications: uiText('已报名工程申请', 'Engineering Applications'),
     missingSchool: uiText('尚未进入升学阶段，未选择具体学校', 'Not in the application stage: no schools selected'),
     missingYear: uiText('未填写毕业年份', 'Graduation year not set'),
+    conflict: uiText('预约时间冲突', 'Overlapping booking'),
   };
 
   rows: InterviewCoursePlan[] = [];
+  view: 'students' | 'timetable' = 'students';
+  readonly studentsView = uiText('学生列表', 'Students');
+  applyTimetablePlan(plan: InterviewCoursePlan): void {
+    this.rows = this.rows.map(row => row.studentId === plan.studentId ? plan : row);
+  }
   search = '';
   showHidden = false;
   loading = false;
@@ -199,6 +208,13 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
   }
 
   trackStudent(_index: number, row: InterviewCoursePlan): number { return row.studentId; }
+  lessonConflictDetails(row: InterviewCoursePlan, lesson: InterviewCourseLesson): string {
+    const start = lessonStart(lesson);
+    if (!start) return '';
+    const conflicts = conflictingBookings(this.rows, row.studentId, lesson.id, start);
+    return conflicts.length ? `${this.ui.conflict.zh}: ${conflicts.map(item =>
+      `${item.student.studentName} · ${item.lesson.lessonNumber} · ${item.lesson.lessonDate} ${item.lesson.lessonTime?.slice(0, 5)}`).join('; ')}` : '';
+  }
   trackLesson(_index: number, lesson: InterviewCourseLesson): number { return lesson.id; }
   lessonLabel(number: number) { return uiText(`第 ${number} 节`, `Lesson ${number}`); }
 

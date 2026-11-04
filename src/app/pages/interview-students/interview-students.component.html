@@ -6,7 +6,7 @@
         <h1>{{ ui.title | appTranslate }}</h1>
       </div>
       <div class="head-actions">
-        <button type="button" (click)="showHidden = !showHidden" [attr.aria-pressed]="showHidden"
+        <button *ngIf="view === 'students'" type="button" (click)="showHidden = !showHidden" [attr.aria-pressed]="showHidden"
           [disabled]="loading || failed">
           {{ (showHidden ? ui.hideCompleted : ui.showHidden) | appTranslate }} ({{ hiddenCount }})
         </button>
@@ -14,6 +14,11 @@
         <a routerLink="/teacher/graduation">{{ ui.back | appTranslate }}</a>
       </div>
     </header>
+
+    <nav class="interview-views" aria-label="Interview views">
+      <button type="button" (click)="view = 'students'" [attr.aria-pressed]="view === 'students'">{{ studentsView | appTranslate }}</button>
+      <button type="button" (click)="view = 'timetable'" [attr.aria-pressed]="view === 'timetable'">Timetable</button>
+    </nav>
 
     <div class="list-toolbar">
       <section class="overview" aria-label="Interview course summary">
@@ -33,11 +38,13 @@
       <button type="button" (click)="load()">{{ ui.refresh | appTranslate }}</button>
     </div>
     <div class="state" *ngIf="!loading && !failed && rows.length === 0">{{ ui.empty | appTranslate }}</div>
-    <div class="state" *ngIf="!loading && !failed && rows.length > 0 && filteredRows.length === 0">
+    <app-interview-timetable *ngIf="view === 'timetable' && !loading && !failed" [rows]="rows" [search]="search" [teachers]="teachers"
+      (planUpdated)="applyTimetablePlan($event)" />
+    <div class="state" *ngIf="view === 'students' && !loading && !failed && rows.length > 0 && filteredRows.length === 0">
       {{ ((!search.trim() && !showHidden && hiddenCount > 0) ? ui.noVisible : ui.noMatches) | appTranslate }}
     </div>
 
-    <section class="student-list" *ngIf="!loading && !failed && filteredRows.length > 0">
+    <section class="student-list" *ngIf="view === 'students' && !loading && !failed && filteredRows.length > 0">
       <article class="student-card" *ngFor="let row of filteredRows; trackBy: trackStudent"
         [class.needs-school]="row.graduationStageEnabled === false">
         <div class="student-head">
@@ -82,6 +89,9 @@
             [attr.data-state]="lessonState(lesson)">
             <div class="lesson-heading">
               <strong>{{ lessonLabel(lesson.lessonNumber) | appTranslate }}</strong>
+              <span *ngIf="lessonConflictDetails(row, lesson) as warning" class="lesson-conflict" [title]="warning" role="img" [attr.aria-label]="warning">
+                <svg lucideTriangleAlert [size]="16"></svg>
+              </span>
               <span class="lesson-status">{{ ui[lessonState(lesson)] | appTranslate }}</span>
               <button type="button" class="confirmation-toggle"
                 *ngIf="lessonState(lesson) === 'tentative' || lessonState(lesson) === 'confirmed'"
