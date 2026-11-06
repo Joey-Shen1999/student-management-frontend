@@ -1,4 +1,6 @@
 import { TeacherPreferenceService } from '../../services/teacher-preference.service';
+import { hasExtendedEngineeringInterview, interviewUniversityGroup, interviewUniversityRank } from './interview-university.utils';
+import { schoolTimeDifference } from './interview-school-time.utils';
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -26,6 +28,9 @@ import { conflictingBookings, lessonStart } from './interview-schedule.utils';
   styleUrl: './interview-students.component.scss',
 })
 export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly interviewUniversityGroup = interviewUniversityGroup;
+  readonly schoolTimeDifference = schoolTimeDifference;
+  readonly hasExtendedEngineeringInterview = hasExtendedEngineeringInterview;
   readonly hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
   readonly minutes = ['00', '15', '30', '45'];
   private clockTimer?: ReturnType<typeof setInterval>;
@@ -184,7 +189,8 @@ export class InterviewStudentsComponent implements OnInit, AfterViewInit, OnDest
 
   get filteredRows(): InterviewCoursePlan[] {
     const query = this.search.trim().toLocaleLowerCase();
-    const visible = this.rows.filter(row => !this.autoHideEnded || this.showHidden || !this.isHidden(row));
+    const visible = this.rows.filter(row => !this.autoHideEnded || this.showHidden || !this.isHidden(row))
+      .sort((a,b)=>interviewUniversityRank(a)-interviewUniversityRank(b));
     if (!query) return visible;
     return visible.filter((row) => [row.studentName, row.username,
       ...(row.engineeringApplications || []).flatMap((item) => [item.universityName, item.programName])]

@@ -82,6 +82,8 @@
               <button type="button" *ngIf="teachersFailed" (click)="loadTeachers()">{{ teacherUi.retry | appTranslate }}</button>
             </label>
             <span class="school-warning" *ngIf="row.graduationStageEnabled === false">{{ ui.missingSchool | appTranslate }}</span>
+            <span class="university-category">{{interviewUniversityGroup(row)}}</span>
+            <p class="school-location">当前学校：{{ row.schoolProvince || '省份未填写' }}<span *ngIf="row.schoolCity"> · {{row.schoolCity}}</span><br/><small>{{schoolTimeDifference(row)}}</small></p>
             <small *ngIf="row.graduationYear === null">{{ ui.missingYear | appTranslate }}</small>
           </div>
           <a [routerLink]="['/teacher/students', row.studentId, 'graduation-applications']">
@@ -101,6 +103,7 @@
 
         <div class="lesson-list">
           <div class="lesson-row" *ngFor="let lesson of row.lessons; trackBy: trackLesson"
+            [class.extended-interview-start]="lesson.lessonNumber === 4 && hasExtendedEngineeringInterview(row)"
             [attr.data-state]="lessonState(lesson)">
             <div class="lesson-heading">
               <strong>{{ lessonLabel(lesson.lessonNumber) | appTranslate }}</strong>

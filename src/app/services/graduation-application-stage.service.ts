@@ -148,6 +148,9 @@ export interface InterviewCourseRequirement {
 }
 
 export interface InterviewCoursePlan {
+  schoolProvince?: string | null;
+  schoolCity?: string | null;
+  schoolCountry?: string | null;
   teacherId?: number | null;
   teacherName?: string | null;
   teacherUsername?: string | null;
